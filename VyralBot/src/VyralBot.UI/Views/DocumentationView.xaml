@@ -109,7 +109,7 @@
                                                         </Border>
                                                         <ControlTemplate.Triggers>
                                                                             <Trigger Property="IsMouseOver" Value="True">
-                                                                                <Setter TargetName="NavBorder" Property="Background" Value="#22FFFFFF"/>
+                                                                                <Setter TargetName="NavBorder" Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
                                                                                 <Setter TargetName="NavText" Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                                                                             </Trigger>
                                                                             <DataTrigger Binding="{Binding IsSelected}" Value="True">
@@ -131,7 +131,7 @@
         </Border>
 
         <!-- Content browser -->
-        <Grid Background="#17181C">
+        <Grid Background="{DynamicResource BackgroundPrimaryBrush}">
             <Border x:Name="BrowserHost"/>
         </Grid>
     </DockPanel>

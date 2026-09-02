@@ -788,7 +788,7 @@
                                         <LineBreak/><LineBreak/>
                                         <Run FontWeight="SemiBold" Text="3."/> <Run Text="Check your YouTube live stream chat to confirm the message appeared."/>
                                         <LineBreak/><LineBreak/>
-                                        <Run FontWeight="SemiBold" Text="4."/> <Run Text="If it worked, click"/> <Run FontWeight="SemiBold" Foreground="#4CAF50" Text="✓ IT WORKED!"/> <Run Text="in the bottom-right to save your configuration and finish setup."/>
+                                        <Run FontWeight="SemiBold" Text="4."/> <Run Text="If it worked, click"/> <Run FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}" Text="✓ IT WORKED!"/> <Run Text="in the bottom-right to save your configuration and finish setup."/>
                                     </TextBlock>
 
                                     <Button Content="SEND TEST MESSAGE"

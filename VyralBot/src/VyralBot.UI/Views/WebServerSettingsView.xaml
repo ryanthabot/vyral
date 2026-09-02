@@ -153,7 +153,7 @@
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsSetupComplete}" Value="False">
                                                 <Setter Property="Text" Value="Setup required - Configure ngrok to enable webhook delivery"/>
-                                                <Setter Property="Foreground" Value="#FFA726"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -246,7 +246,7 @@
                                         <Setter Property="Background" Value="{DynamicResource ErrorBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                                <Setter Property="Background" Value="#4CAF50"/>
+                                                <Setter Property="Background" Value="{DynamicResource SuccessBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -257,14 +257,14 @@
                             <Button Grid.Column="2"
                                     Content="START"
                                     Command="{Binding StartCommand}"
-                                    Background="#4CAF50"
+                                    Background="{DynamicResource SuccessBrush}"
                                     Height="36"
                                     Padding="24,0"
                                     Margin="0,0,8,0"
                                     VerticalAlignment="Center">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
-                                        <Setter Property="Background" Value="#4CAF50"/>
+                                        <Setter Property="Background" Value="{DynamicResource SuccessBrush}"/>
                                         <Setter Property="Foreground" Value="White"/>
                                         <Setter Property="Visibility" Value="Visible"/>
                                         <Style.Triggers>

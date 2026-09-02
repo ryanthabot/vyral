@@ -15,19 +15,19 @@
             <Setter Property="Margin" Value="4,0"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Status}" Value="Pending">
-                    <Setter Property="Background" Value="#FFB300"/>
+                    <Setter Property="Background" Value="{DynamicResource WarningBrush}"/>
                     <Setter Property="Content" Value="⏳ Pending"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="Active">
-                    <Setter Property="Background" Value="#4CAF50"/>
+                    <Setter Property="Background" Value="{DynamicResource SuccessBrush}"/>
                     <Setter Property="Content" Value="✅ Active"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="Completed">
-                    <Setter Property="Background" Value="#2196F3"/>
+                    <Setter Property="Background" Value="{DynamicResource InfoBrush}"/>
                     <Setter Property="Content" Value="📊 Completed"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="Cancelled">
-                    <Setter Property="Background" Value="#F44336"/>
+                    <Setter Property="Background" Value="{DynamicResource ErrorBrush}"/>
                     <Setter Property="Content" Value="❌ Cancelled"/>
                 </DataTrigger>
             </Style.Triggers>
@@ -76,7 +76,7 @@
                             <WrapPanel>
                                 <materialDesign:Chip Style="{StaticResource StatusChip}"/>
                                 <materialDesign:Chip Content="{Binding TotalVotes, StringFormat='{}{0} votes'}" 
-                                                    Margin="4,0" Background="#757575"/>
+                                                    Margin="4,0" Background="{DynamicResource SurfacePressedBrush}"/>
                             </WrapPanel>
                             <TextBlock Text="{Binding CreatedAt, StringFormat='Created: {0:g}'}" 
                                       FontSize="11" Foreground="Gray" Margin="0,4,0,0"/>

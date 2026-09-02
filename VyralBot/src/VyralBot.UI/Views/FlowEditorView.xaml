@@ -28,17 +28,17 @@
         <SolidColorBrush x:Key="FlowGreenBrush" Color="#10B981"/>
         <SolidColorBrush x:Key="FlowRedBrush" Color="#EF4444"/>
         <SolidColorBrush x:Key="FlowBlueBrush" Color="#3B82F6"/>
-        <SolidColorBrush x:Key="FlowInputBgBrush" Color="#2B2D42"/>
-        <SolidColorBrush x:Key="FlowInputBorderBrush" Color="#3F4155"/>
-        <SolidColorBrush x:Key="FlowPanelBrush" Color="#1E1F22"/>
-        <SolidColorBrush x:Key="FlowGhostBrush" Color="#9AA0A6"/>
+        <SolidColorBrush x:Key="FlowInputBgBrush" Color="{DynamicResource FlowCanvasNodeBackground}"/>
+        <SolidColorBrush x:Key="FlowInputBorderBrush" Color="{DynamicResource FlowCanvasNodeBorder}"/>
+        <SolidColorBrush x:Key="FlowPanelBrush" Color="{DynamicResource FlowCanvasChipBackground}"/>
+        <SolidColorBrush x:Key="FlowGhostBrush" Color="{DynamicResource FlowCanvasDescriptionText}"/>
         <SolidColorBrush x:Key="FlowInkBrush" Color="#111827"/>
 
         <!-- Side-rail panel accents (cards #2B2D42, 1px borders #374151,
              rail background darkest, per-icon accent colors). -->
-        <SolidColorBrush x:Key="FlowCardBrush" Color="#2B2D42"/>
-        <SolidColorBrush x:Key="FlowCardBorderBrush" Color="#374151"/>
-        <SolidColorBrush x:Key="FlowRailBrush" Color="#14151A"/>
+        <SolidColorBrush x:Key="FlowCardBrush" Color="{DynamicResource FlowCanvasNodeBackground}"/>
+        <SolidColorBrush x:Key="FlowCardBorderBrush" Color="{DynamicResource FlowCanvasNodeBorder}"/>
+        <SolidColorBrush x:Key="FlowRailBrush" Color="{DynamicResource FlowCanvasBackground}"/>
         <SolidColorBrush x:Key="FlowPinkBrush" Color="#EC4899"/>
         <SolidColorBrush x:Key="FlowYellowBrush" Color="#F59E0B"/>
 
@@ -62,7 +62,7 @@
                     <Setter Property="BorderBrush" Value="{StaticResource FlowIndigoFocusBrush}"/>
                 </Trigger>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="BorderBrush" Value="#4B4D66"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource FlowCanvasNodeBorderBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -76,7 +76,7 @@
         </Style>
 
         <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-            <Setter Property="Foreground" Value="#D1D5DB"/>
+            <Setter Property="Foreground" Value="{DynamicResource FlowCanvasTextPrimaryBrush}"/>
         </Style>
 
         <!-- ============================================================

@@ -415,7 +415,7 @@
                         <materialDesign:Card Padding="20" Background="{StaticResource CardBackgroundBrush}">
                             <StackPanel>
                                 <Border Background="#2010B981"
-                                        BorderBrush="#10B981"
+                                        BorderBrush="{DynamicResource SuccessBrush}"
                                         BorderThickness="1"
                                         CornerRadius="4"
                                         Padding="12,8"
@@ -424,7 +424,7 @@
                                     <TextBlock Text="&#10004; BOT TOKEN SAVED &#8212; continue to the next step (you can re-save any time)"
                                                FontSize="14"
                                                FontWeight="SemiBold"
-                                               Foreground="#34D399"
+                                               Foreground="{DynamicResource SuccessLightBrush}"
                                                TextWrapping="Wrap"/>
                                 </Border>
 

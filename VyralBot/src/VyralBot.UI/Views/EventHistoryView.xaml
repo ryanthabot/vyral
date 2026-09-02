@@ -12,7 +12,7 @@
         <converters:GreaterThanConverter x:Key="GreaterThanConverter"/>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
     </UserControl.Resources>
-    <Grid Background="#1E1E1E">
+    <Grid Background="{DynamicResource BackgroundPrimaryBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -21,15 +21,15 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Border Grid.Row="0" Background="#252526" BorderBrush="#3E3E42" BorderThickness="0,0,0,1" Padding="20,15">
+        <Border Grid.Row="0" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderPrimaryBrush}" BorderThickness="0,0,0,1" Padding="20,15">
             <StackPanel>
                 <TextBlock Text="📜 Event History" FontSize="24" FontWeight="Bold" Foreground="White"/>
-                <TextBlock Text="View, search, and replay event history" FontSize="12" Foreground="#B0B0B0" Margin="0,5,0,0"/>
+                <TextBlock Text="View, search, and replay event history" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0"/>
             </StackPanel>
         </Border>
 
         <!-- Filters -->
-        <materialDesign:Card Grid.Row="1" Margin="20,20,20,10" Background="#252526">
+        <materialDesign:Card Grid.Row="1" Margin="20,20,20,10" Background="{DynamicResource CardBackgroundBrush}">
             <StackPanel Margin="15">
                 <TextBlock Text="Filters" FontSize="14" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,10"/>
                 
@@ -46,39 +46,39 @@
 
                     <!-- Date Range -->
                     <StackPanel Grid.Column="0">
-                        <TextBlock Text="Start Date" FontSize="12" Foreground="#B0B0B0" Margin="0,0,0,5"/>
+                        <TextBlock Text="Start Date" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                         <DatePicker SelectedDate="{Binding StartDate, Mode=TwoWay}"
-                                   Background="#1E1E1E"
+                                   Background="{DynamicResource BackgroundPrimaryBrush}"
                                    Foreground="White"
-                                   BorderBrush="#3E3E42"/>
+                                   BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                     </StackPanel>
 
                     <StackPanel Grid.Column="2">
-                        <TextBlock Text="End Date" FontSize="12" Foreground="#B0B0B0" Margin="0,0,0,5"/>
+                        <TextBlock Text="End Date" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                         <DatePicker SelectedDate="{Binding EndDate, Mode=TwoWay}"
-                                   Background="#1E1E1E"
+                                   Background="{DynamicResource BackgroundPrimaryBrush}"
                                    Foreground="White"
-                                   BorderBrush="#3E3E42"/>
+                                   BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                     </StackPanel>
 
                     <!-- Platform Filter -->
                     <StackPanel Grid.Column="4">
-                        <TextBlock Text="Platform" FontSize="12" Foreground="#B0B0B0" Margin="0,0,0,5"/>
+                        <TextBlock Text="Platform" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                         <ComboBox ItemsSource="{Binding Platforms}"
                                  SelectedItem="{Binding SelectedPlatform, Mode=TwoWay}"
-                                 Background="#1E1E1E"
+                                 Background="{DynamicResource BackgroundPrimaryBrush}"
                                  Foreground="White"
-                                 BorderBrush="#3E3E42"/>
+                                 BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                     </StackPanel>
 
                     <!-- Event Type Filter -->
                     <StackPanel Grid.Column="6">
-                        <TextBlock Text="Event Type" FontSize="12" Foreground="#B0B0B0" Margin="0,0,0,5"/>
+                        <TextBlock Text="Event Type" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                         <ComboBox ItemsSource="{Binding EventTypes}"
                                  SelectedItem="{Binding SelectedEventType, Mode=TwoWay}"
-                                 Background="#1E1E1E"
+                                 Background="{DynamicResource BackgroundPrimaryBrush}"
                                  Foreground="White"
-                                 BorderBrush="#3E3E42"/>
+                                 BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                     </StackPanel>
                 </Grid>
 
@@ -94,9 +94,9 @@
                             Text="{Binding UsernameFilter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             materialDesign:HintAssist.Hint="Search by username..."
                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
-                            Background="#1E1E1E"
+                            Background="{DynamicResource BackgroundPrimaryBrush}"
                             Foreground="White"
-                            BorderBrush="#3E3E42"
+                            BorderBrush="{DynamicResource BorderPrimaryBrush}"
                             Margin="0,0,10,0">
                         <TextBox.InputBindings>
                             <KeyBinding Key="Enter" Command="{Binding SearchCommand}"/>
@@ -107,7 +107,7 @@
                            Content="Search"
                            Command="{Binding SearchCommand}"
                            Style="{StaticResource MaterialDesignRaisedButton}"
-                           Background="#0078D4"
+                           Background="{DynamicResource PrimaryBrush}"
                            Margin="0,0,10,0"
                            Padding="20,8"/>
 
@@ -115,20 +115,20 @@
                            Content="Clear"
                            Command="{Binding ClearFiltersCommand}"
                            Style="{StaticResource MaterialDesignOutlinedButton}"
-                           BorderBrush="#3E3E42"
+                           BorderBrush="{DynamicResource BorderPrimaryBrush}"
                            Padding="20,8"/>
                 </Grid>
 
                 <!-- Summary -->
                 <TextBlock Text="{Binding TotalEvents, StringFormat='Total Events: {0}'}"
                           FontSize="12"
-                          Foreground="#B0B0B0"
+                          Foreground="{DynamicResource TextSecondaryBrush}"
                           Margin="0,10,0,0"/>
             </StackPanel>
         </materialDesign:Card>
 
         <!-- Events DataGrid -->
-        <materialDesign:Card Grid.Row="2" Margin="20,0,20,10" Background="#252526">
+        <materialDesign:Card Grid.Row="2" Margin="20,0,20,10" Background="{DynamicResource CardBackgroundBrush}">
             <Grid>
                 <DataGrid ItemsSource="{Binding Events}"
                          SelectedItem="{Binding SelectedEvent}"
@@ -136,11 +136,11 @@
                          CanUserAddRows="False"
                          CanUserDeleteRows="False"
                          IsReadOnly="True"
-                         Background="#252526"
+                         Background="{DynamicResource CardBackgroundBrush}"
                          Foreground="White"
                          BorderThickness="0"
                          GridLinesVisibility="Horizontal"
-                         HorizontalGridLinesBrush="#3E3E42"
+                         HorizontalGridLinesBrush="{DynamicResource BorderPrimaryBrush}"
                          HeadersVisibility="Column"
                          SelectionMode="Single"
                          VirtualizingPanel.IsVirtualizing="True"
@@ -148,25 +148,25 @@
                     
                     <DataGrid.ColumnHeaderStyle>
                         <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource MaterialDesignDataGridColumnHeader}">
-                            <Setter Property="Background" Value="#2D2D30"/>
+                            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
                             <Setter Property="Foreground" Value="White"/>
                             <Setter Property="FontWeight" Value="SemiBold"/>
                             <Setter Property="Padding" Value="10,8"/>
                             <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                            <Setter Property="BorderBrush" Value="#3E3E42"/>
+                            <Setter Property="BorderBrush" Value="{DynamicResource BorderPrimaryBrush}"/>
                         </Style>
                     </DataGrid.ColumnHeaderStyle>
 
                     <DataGrid.RowStyle>
                         <Style TargetType="DataGridRow" BasedOn="{StaticResource MaterialDesignDataGridRow}">
-                            <Setter Property="Background" Value="#252526"/>
+                            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
                             <Setter Property="Foreground" Value="White"/>
                             <Style.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#2D2D30"/>
+                                    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
                                 </Trigger>
                                 <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="Background" Value="#0078D4"/>
+                                    <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
                                     <Setter Property="Foreground" Value="White"/>
                                 </Trigger>
                             </Style.Triggers>
@@ -229,7 +229,7 @@
                                                Command="{Binding DataContext.ReplayAutoReplyCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                CommandParameter="{Binding}"
                                                Style="{StaticResource MaterialDesignRaisedButton}"
-                                               Background="#107C10"
+                                               Background="{DynamicResource SuccessBrush}"
                                                Margin="5,0"
                                                Padding="10,5"
                                                FontSize="11"
@@ -242,14 +242,14 @@
                 </DataGrid>
 
                 <!-- Loading Overlay -->
-                <Border Background="#80000000" Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Border Background="{DynamicResource OverlayBackgroundBrush}" Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                         <ProgressBar Style="{StaticResource MaterialDesignCircularProgressBar}"
                                     Value="0"
                                     IsIndeterminate="True"
                                     Width="50"
                                     Height="50"
-                                    Foreground="#0078D4"/>
+                                    Foreground="{DynamicResource PrimaryBrush}"/>
                         <TextBlock Text="Loading events..." 
                                   Foreground="White" 
                                   FontSize="14"
@@ -261,7 +261,7 @@
         </materialDesign:Card>
 
         <!-- Pagination -->
-        <materialDesign:Card Grid.Row="3" Margin="20,0,20,20" Background="#252526">
+        <materialDesign:Card Grid.Row="3" Margin="20,0,20,20" Background="{DynamicResource CardBackgroundBrush}">
             <Grid Margin="15">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>

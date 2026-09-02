@@ -18,19 +18,19 @@
             <Setter Property="Margin" Value="4,0"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Status}" Value="Pending">
-                    <Setter Property="Background" Value="#FFB300"/>
+                    <Setter Property="Background" Value="{DynamicResource WarningBrush}"/>
                     <Setter Property="Content" Value="⏳ Pending"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="Active">
-                    <Setter Property="Background" Value="#4CAF50"/>
+                    <Setter Property="Background" Value="{DynamicResource SuccessBrush}"/>
                     <Setter Property="Content" Value="✅ Active"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="Completed">
-                    <Setter Property="Background" Value="#2196F3"/>
+                    <Setter Property="Background" Value="{DynamicResource InfoBrush}"/>
                     <Setter Property="Content" Value="🎉 Completed"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="Cancelled">
-                    <Setter Property="Background" Value="#F44336"/>
+                    <Setter Property="Background" Value="{DynamicResource ErrorBrush}"/>
                     <Setter Property="Content" Value="❌ Cancelled"/>
                 </DataTrigger>
             </Style.Triggers>
@@ -173,8 +173,8 @@
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                                         <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Setter Property="Background" Value="#4CAF50"/>
-                                        <Setter Property="BorderBrush" Value="#4CAF50"/>
+                                        <Setter Property="Background" Value="{DynamicResource SuccessBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding SelectedGiveaway.Status}" Value="Active">
                                                 <Setter Property="Visibility" Value="Visible"/>
@@ -189,8 +189,8 @@
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                                         <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Setter Property="Background" Value="#F44336"/>
-                                        <Setter Property="BorderBrush" Value="#F44336"/>
+                                        <Setter Property="Background" Value="{DynamicResource ErrorBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource ErrorBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding SelectedGiveaway.Status}" Value="Pending">
                                                 <Setter Property="Visibility" Value="Visible"/>
@@ -224,7 +224,7 @@
                                 <TextBlock Text="{Binding TotalEntries}" 
                                           FontSize="32" 
                                           FontWeight="Bold"
-                                          Foreground="#2196F3"/>
+                                          Foreground="{DynamicResource InfoBrush}"/>
                             </StackPanel>
                         </materialDesign:Card>
                         
@@ -236,7 +236,7 @@
                                 <TextBlock Text="{Binding UniqueParticipants}" 
                                           FontSize="32" 
                                           FontWeight="Bold"
-                                          Foreground="#4CAF50"/>
+                                          Foreground="{DynamicResource SuccessBrush}"/>
                             </StackPanel>
                         </materialDesign:Card>
                         
@@ -248,7 +248,7 @@
                                 <TextBlock Text="{Binding SelectedGiveaway.WinnerCount}" 
                                           FontSize="32" 
                                           FontWeight="Bold"
-                                          Foreground="#FFB300"/>
+                                          Foreground="{DynamicResource WarningBrush}"/>
                             </StackPanel>
                         </materialDesign:Card>
                     </UniformGrid>
@@ -456,7 +456,7 @@
 
         <!-- Loading Overlay -->
         <Grid Grid.ColumnSpan="2" 
-              Background="#80000000"
+              Background="{DynamicResource OverlayBackgroundBrush}"
               Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
             <ProgressBar Style="{StaticResource MaterialDesignCircularProgressBar}"
                         Value="0"
