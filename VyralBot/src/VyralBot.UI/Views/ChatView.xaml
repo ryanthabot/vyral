@@ -37,7 +37,7 @@
                     <Setter Property="Source" Value="/Resources/Images/discord-logo.png"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Platform}" Value="Vyral">
-                    <Setter Property="Source" Value="/Resources/Images/vyral-logo.png"/>
+                    <Setter Property="Source" Value="{DynamicResource AppLogoSource}"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -68,7 +68,7 @@
                             Width="36"
                             Height="36"
                             Margin="0,0,8,0">
-                        <Image Source="/Resources/Images/vyral-logo.png" 
+                        <Image Source="{DynamicResource AppLogoSource}" 
                                Width="20" 
                                Height="20"/>
                     </Button>
@@ -545,7 +545,7 @@
                           Width="36"
                           Style="{StaticResource MaterialDesignIconButton}"
                           ToolTip="Send to all connected platforms">
-                        <Image Source="/Resources/Images/vyral-logo.png" 
+                        <Image Source="{DynamicResource AppLogoSource}" 
                                Width="20" 
                                Height="20"
                                HorizontalAlignment="Center"

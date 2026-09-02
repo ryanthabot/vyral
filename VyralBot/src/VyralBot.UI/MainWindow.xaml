@@ -15,7 +15,7 @@
         WindowStyle="None"
         ResizeMode="CanResize"
         Background="{StaticResource BackgroundDarkBrush}"
-        Icon="/Resources/Images/vyral-logo.png"
+        Icon="{DynamicResource AppLogoSource}"
         TextElement.Foreground="{StaticResource TextPrimaryBrush}"
         TextElement.FontWeight="Regular"
         TextElement.FontSize="13"
@@ -60,7 +60,7 @@
 
                     <!-- Title -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0">
-                        <Image Source="/Resources/Images/vyral-logo.png"
+                        <Image Source="{DynamicResource AppLogoSource}"
                                Width="24"
                                Height="24"
                                Stretch="Uniform"
