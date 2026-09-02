@@ -365,6 +365,15 @@ Task<IReadOnlyList<string>> GetWorkflowRoleNamesAsync(string? guildName = null);
     Task<string?> RegisterWorkflowSlashCommandAsync(string name, string description, IReadOnlyList<VyralBot.Workflows.Models.WorkflowParameter>? parameters = null);
 
     /// <summary>
+    /// Deletes the workflow slash command with the given name from every guild
+    /// the bot is currently in and forgets it (no re-registration on
+    /// reconnect). Returns null on success, otherwise a human-readable error
+    /// string; unknown commands are not an error.
+    /// </summary>
+    /// <param name="name">Command name (normalized before lookup).</param>
+    Task<string?> UnregisterWorkflowSlashCommandAsync(string name);
+
+    /// <summary>
     /// Kicks a member (resolved from a username, display name or snowflake via
     /// the same resolution the role actions use) from the origin/first guild.
     /// Returns false when the user/guild cannot be resolved or the kick fails.

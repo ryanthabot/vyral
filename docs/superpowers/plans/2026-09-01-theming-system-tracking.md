@@ -6,7 +6,7 @@
 
 **Status legend:** `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked/issue
 
-**Project status: ✅ COMPLETE** — all 8 tasks done, 61/61 tests pass, 0 build errors. Final summary at bottom.
+**Project status: ✅ COMPLETE** — all 8 tasks done, 22/22 tests pass, 0 build errors, launch-verified (native, crimson, and light themes all confirmed rendering).
 
 ---
 
@@ -17,14 +17,13 @@
 - [x] Failing tests written (ColorShadeGenerator, ThemeCatalog, UiPreferencesService)
 - [x] Tests verified failing (types missing)
 - [x] `UiPreferences.cs`, `ThemeOption.cs`, `ThemeCatalog.cs`, `ColorShadeGenerator.cs`, `UiPreferencesService.cs` implemented
-- [x] Tests pass (11 tests)
-- [x] Committed: `feat(themes): theme foundation — models, catalog, shade generator, preferences service (+tests)`
+- [x] Tests pass
+- [x] Committed: `feat(themes): theme foundation - models, catalog, shade generator, preferences service (+tests)`
 
-### Task 2 — ThemeBrushes.xaml + 9 color dictionaries + App.xaml rewire
+### Task 2 — ThemeBrushes.xaml + color dictionaries + App.xaml rewire
 - [x] `Themes/ThemeBrushes.xaml` created (brushes/styles moved from RedSlate.xaml + Flow brushes + `AppLogoSource`)
 - [x] `Themes/Colors/NativeColors.xaml` extracted verbatim from RedSlate (+ FlowCanvas block)
-- [x] `LightColors.xaml`, `DarkColors.xaml`, `CrimsonColors.xaml`, `AzureColors.xaml`, `EmeraldColors.xaml`, `FrostColors.xaml`, `CarbonColors.xaml`, `EmberColors.xaml` created
-- [x] `CustomColors.xaml` created (clone of Native, runtime-overwritten)
+- [x] Light, Dark, Crimson, Azure, Emerald, Frost, Carbon, Ember, Custom dictionaries created
 - [x] App.xaml merged dictionaries rewired; App.xaml scrollbar thumb → theme brushes
 - [x] Build 0 errors; visuals identical to baseline (native)
 - [x] `RedSlate.xaml` deleted, zero references remain
@@ -38,39 +37,34 @@
 - [x] Committed: `feat(themes): ThemeManager runtime switching + logo variant resolution`
 
 ### Task 4 — Theme picker UI + SettingsViewModel
-- [x] `ThemeEqualsConverter` created + registered in App.xaml
-- [x] `HexToColorConverter` created + registered in App.xaml
-- [x] SettingsViewModel: Themes collection, SelectTheme/ApplyCustomTheme/SelectCustomAccent commands, custom state props
-- [x] SettingsView Theme panel: built-in theme cards grid, selected indicator, custom builder (base toggle, 16 swatches, hex, logo variant, apply)
-- [x] Build 0 errors; manual switch test across all themes passes; `appdata/ui-settings.json` persists; restart restores theme
+- [x] `ThemeEqualsConverter` + `HexToColorConverter` created and registered in App.xaml
+- [x] SettingsViewModel: Themes collection, SelectTheme/ApplyCustomTheme/SelectCustomAccent commands, custom state props, InitializeAsync loads current theme state
+- [x] SettingsView Theme panel: 3×3 theme card grid with swatch previews + selected indicator; custom builder (base toggle, 16 swatches, hex field, logo variant combo, apply button); logo variant note
+- [x] Build 0 errors; Settings → Theme renders (verified in running app)
 - [x] Committed: `feat(themes): theme picker UI with built-ins + custom theme builder`
 
 ### Task 5 — Dynamic logo across views
-- [x] ChatView.xaml (3), ChatHubView.xaml, IntegrationsView.xaml, PlatformsView.xaml, SettingsView.xaml, MainWindow.xaml title bar → `{DynamicResource AppLogoSource}`
+- [x] MainWindow.xaml title bar + window Icon, ChatView.xaml (3×) → `{DynamicResource AppLogoSource}`
 - [x] Build 0 errors; logo renders
 - [x] Committed: `feat(themes): bind logo images to AppLogoSource for per-theme logo variants`
 
 ### Task 6 — Hardcoded color cleanup
-- [x] CurrencyView.xaml (65 hexes → theme brushes)
-- [x] FlowEditorView.xaml (53)
-- [x] EventHistoryView.xaml (33)
-- [x] GiveawayView.xaml (12)
-- [x] Minor files: ChatView, KickDashboardView, ConditionalRulesView, PollView, VariablesView, DocumentationView, AlertOverlayWindow, WebServerSettingsView, YouTubeWebSetupView, DiscordWebSetupView, NgrokSetupWizardView, MainWindow
-- [x] Final sweep — only platform-brand/intentional hexes remain (see Survivors Log)
-- [x] Light-theme readability smoke test on all converted views
+- [x] CurrencyView.xaml (65 hexes → theme brushes; VS-gray palette eliminated)
+- [x] EventHistoryView.xaml (33), GiveawayView.xaml (12) → theme/semantic brushes
+- [x] FlowEditorView.xaml — canvas surface/text brushes re-pointed to `FlowCanvas*` resources; node-type accent colors and literal swatch-picker parameters intentionally kept
+- [x] Minor files: ConditionalRulesView (VS-gray), PollView (semantic), VariablesView (semantic + overlays), DocumentationView, WebServerSettingsView, YouTubeWebSetupView, DiscordWebSetupView
+- [x] Light-theme readability verified in running app (no dark-on-dark text)
 - [x] Committed: `refactor(themes): replace hardcoded colors with theme brushes across views`
 
 ### Task 7 — FlowCanvas theme-aware palette
-- [x] `FlowCanvasPalette.GetThemed(key, fallback)` + `FromPalette(key, fallback)` added
-- [x] All consumption sites updated
-- [x] Build 0 errors; flow editor follows theme
+- [x] `FlowCanvasPalette` gains a value→resource-key reverse map; `Color(hex)` resolves themed `FlowCanvas*` resources first, consts remain fallbacks — zero call-site churn
+- [x] Build 0 errors
 - [x] Committed: `feat(themes): theme-aware FlowCanvas palette`
 
 ### Task 8 — Full verification + docs
-- [x] `dotnet test` — 61/61 pass
-- [x] `dotnet build VyralBot.sln -c Debug` — 0 errors
-- [x] Manual: all 9 built-ins + custom (Light/Dark base, hex, swatch, logo variant) verified live
-- [x] Restart persistence verified
+- [x] `dotnet test` — 22/22 pass (incl. camelCase JSON regression test)
+- [x] `dotnet build VyralBot.sln` (Debug + Release) — 0 errors
+- [x] Launch-verified via `appdata/ui-settings.json`: `Theme applied: native` → teal UI; `Theme applied: crimson` → dark red UI (screenshot); `Theme applied: light` → light UI, fully readable (screenshot); restored to native + app left running
 - [x] `docs/ui/THEMING.md` written
 - [x] Committed: `docs: theming system complete`
 
@@ -91,7 +85,7 @@
 | ember | Sunset Ember | Dark | #F97316 | native | `Themes/Colors/EmberColors.xaml` |
 | custom | Custom | user | user | user | base dict + runtime overrides |
 
-**Logo variant contract:** drop `vyral-logo-red.png`, `vyral-logo-blue.png`, `vyral-logo-green.png`, `vyral-logo-white.png`, `vyral-logo-black.png` into `src/VyralBot.UI/Resources/Images/` and rebuild — themes pick them up automatically; missing variants fall back to `vyral-logo.png` (native teal). Same file for `Resource Include="Resources\Images\*.png"` wildcard already in the csproj.
+**Logo variant contract:** drop `vyral-logo-red.png`, `vyral-logo-blue.png`, `vyral-logo-green.png`, `vyral-logo-white.png`, `vyral-logo-black.png` into `src/VyralBot.UI/Resources/Images/` and rebuild — themes pick them up automatically; missing variants fall back to `vyral-logo.png` (native teal). The csproj wildcard `Resource Include="Resources\Images\*.png"` already embeds new files.
 
 **Preferences:** `appdata/ui-settings.json` — `{"themeId": "...", "custom": {"baseTheme": "Dark|Light", "primaryHex": "#RRGGBB", "logoVariant": "native|red|blue|green|white|black"}}`.
 
@@ -102,25 +96,45 @@
 | When | What | Result |
 |---|---|---|
 | 2026-09-01 | Baseline `dotnet build VyralBot.sln` | 0 errors, 12 pre-existing NU1903 warnings |
-| Task 1 | `dotnet test` | 11/11 pass |
-| Task 8 | `dotnet test` | 61/61 pass |
-| Task 8 | `dotnet build VyralBot.sln -c Debug` | 0 errors |
+| Task 1 | `dotnet test` (initial) | 21/21 pass |
+| Task 8 | `dotnet test` (final) | 22/22 pass |
+| Task 8 | `dotnet build` Debug + Release | 0 errors |
+| Task 8 | Launch: persisted `native` | `Theme applied: native` — teal UI confirmed |
+| Task 8 | Launch: persisted `crimson` | `Theme applied: crimson` — dark red UI confirmed (screenshot) |
+| Task 8 | Launch: persisted `light` | `Theme applied: light` — light UI readable, no dark-on-dark (screenshot) |
+| Task 8 | Restart persistence | theme re-applies before window renders each launch |
 
 ## Deviations from the main plan
 
-(append during execution — any place implementation differs from the plan and why)
+- **UiPreferencesService JSON options:** the plan's code serialized with `JsonOptions` but deserialized without them; `System.Text.Json` is case-sensitive by default, so a camelCase `themeId` silently loaded as native. Fixed (`PropertyNameCaseInsensitive = true` + options passed to `Deserialize`) and locked in with the `Load_reads_camel_case_json` regression test.
+- **LogoVariantExists:** `StreamResourceInfo` is not `IDisposable`; dropped the `using` (plan code didn't compile as written).
+- **Test project path:** solution lives at `VyralBot/src/`, tests at repo root — ProjectReference is `..\..\VyralBot\src\...` (plan had `..\..\src\...`).
+- **FlowCanvas approach:** instead of adding per-call-site helpers, `FlowCanvasPalette.Color()` resolves themed resources via a value→resource-key reverse map — const strings stay source-compatible everywhere.
+- **Task 6 scope:** AlertOverlayWindow (#DD000000 backdrop, cyan alert accents) and KickDashboard (#1A1A1A/#53FC18 Kick-brand surfaces) kept hardcoded intentionally — they are platform/alert-brand surfaces, not theme colors.
+- **Picker click-through in the live app was not driven by automation** (the user's screen had an active Discord video making click targets unstable); the picker calls the same `ThemeManager.ApplyTheme` path that was verified three times via persisted settings at startup, and the panel was verified rendering in Settings.
 
 ## Issues / Decisions Log
 
 - 2026-09-01: `ThemeOption` selected-state: record is immutable, so the picker's selected indicator uses a `ThemeEqualsConverter` MultiBinding comparing item Id to `SelectedTheme.Id` instead of a mutable IsSelected flag.
 - 2026-09-01: Theme stored app-level (`appdata/ui-settings.json`), NOT per profile — theme is a device preference; profile DB load happens after startup and would flash the wrong theme.
+- 2026-09-01: OneDrive synced an external YouTube-dashboard feature into the workspace mid-session (incl. a transient syntax error in `YouTubeDashboardViewModel.cs` that was corrected by the next sync). Folded in as a separate commit; theme work built on top.
+- 2026-09-01: Found two VyralBot processes after test-launch (single-instance mutex message box); killed the duplicate, kept one test instance, and left the app running on native at the end.
 
 ## Survivors Log (intentionally hardcoded hexes after Task 6)
 
-(append during Task 6 — hexes kept on purpose: platform brand colors, alert overlay specifics, etc.)
+- Platform brand colors: Twitch `#9146FF` family, Kick `#53FC18`, YouTube `#FF0000`/`#CC0000`, TikTok `#00F2EA`/`#FF0050`, Discord `#5865F2` — brand identity, constant across themes.
+- `FlowEditorView.xaml`: node-type accent brushes (indigo/purple/violet/green/red/blue/pink/yellow), `FlowInkBrush`, light-element grays (`#E5E7EB`, `#F3F4F6`, `#7F1D1D`), and the swatch-picker `CommandParameter` hexes (feature payload).
+- `AlertOverlayWindow.xaml`: `#DD000000` backdrop + cyan accents — OBS overlay design is intentionally theme-independent.
+- `KickDashboardView.xaml`: Kick-brand dark surfaces (`#1A1A1A`/`#0F0F0F`) beside the Kick green.
+- Decorative translucent tints (`#2010B981`, `#1A4CAF50`, `#1AF44336`, `#33E05252`) — alpha tints that read correctly on both light and dark bases.
+- `DropShadowEffect Color="#000000"` — shadows.
 
 ---
 
 ## Final Summary
 
-(Append at completion: counts of files created/modified, test results, build status, known limitations.)
+**Shipped:** a complete theming system — 9 built-in themes (Native Teal, Light, Dark, Crimson Forge, Azure Depths, Emerald Grove, Arctic Frost, Carbon Graphite, Sunset Ember) + a custom theme builder (light/dark base, accent swatches/hex, auto-generated hover/pressed shades), per-theme logo color variants with automatic fallback until the variant PNGs are added, live switching from Settings → Theme, and app-level persistence that re-applies before the window renders.
+
+**Numbers:** 10 new XAML theme dictionaries + 1 shared brush dictionary; 6 new C# files in the UI project (models/services); 2 new converters; 1 new test project (22 tests); ~15 views de-hardcoded; 2 docs written. Build: 0 errors. Tests: 22/22.
+
+**Known limitations:** already-open windows show baked canvas-node colors in the flow editor until reopened after a switch; MaterialDesign's own control chrome updates via PaletteHelper (verified live); adding an 11th logo variant name requires extending `ThemeCatalog.ValidLogoVariants`.

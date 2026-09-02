@@ -7,7 +7,11 @@ namespace VyralBot.UI.Services;
 /// <summary>Persists app-level UI preferences (theme choice) to appdata/ui-settings.json.</summary>
 public sealed class UiPreferencesService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNameCaseInsensitive = true,
+    };
 
     private readonly Func<string> _settingsPathFactory;
 
@@ -28,7 +32,7 @@ public sealed class UiPreferencesService
             var path = _settingsPathFactory();
             if (!File.Exists(path)) return UiPreferences.Defaults;
             var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<UiPreferences>(json) ?? UiPreferences.Defaults;
+            return JsonSerializer.Deserialize<UiPreferences>(json, JsonOptions) ?? UiPreferences.Defaults;
         }
         catch (Exception)
         {

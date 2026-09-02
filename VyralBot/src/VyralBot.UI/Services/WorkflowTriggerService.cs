@@ -663,10 +663,15 @@ public class WorkflowTriggerService
 
             if (!TryAllowPermission(workflow, context))
             {
-                return; // denied — logged by the checker
+                // Close the deferred interaction with a generic denial notice —
+                // the specifics stay in the logs (they can leak moderation
+                // config) but the user must not hang in the "thinking" state.
+                await SendOptionReplyAsync(invocation.Reply, $"⛔ You are not allowed to use /{name}.", workflow).ConfigureAwait(false);
+                return;
             }
 
-            ExecuteInBackground(workflow, context);
+            ExecuteInBackground(workflow, context, result =>
+                SendInteractionCompletionFollowupAsync(invocation.Reply, $"/{name}", result));
         }
         catch (Exception ex)
         {
@@ -711,10 +716,12 @@ public class WorkflowTriggerService
 
             if (!TryAllowPermission(workflow, context))
             {
-                return; // denied — logged by the checker
+                await SendOptionReplyAsync(interaction.Reply, "⛔ You are not allowed to use this.", workflow).ConfigureAwait(false);
+                return;
             }
 
-            ExecuteInBackground(workflow, context);
+            ExecuteInBackground(workflow, context, result =>
+                SendInteractionCompletionFollowupAsync(interaction.Reply, workflow.Name, result));
         }
         catch (Exception ex)
         {
@@ -1282,23 +1289,19 @@ public class WorkflowTriggerService
 
     /// <summary>
     /// Registers every enabled slash workflow's command name on every
-    /// CONNECTED Discord bot (manager bots plus the setup wizard's singleton).
-    /// Skips silently when no bot is running or no slash workflow exists;
-    /// individual failures are logged and never thrown. Fired after every
-    /// cache load (start + editor reloads); bots that start later are covered
-    /// by the manager's ServiceStarted hook (<see cref="OnBotServiceStarted"/>).
+    /// CONNECTED Discord bot (manager bots plus the setup wizard's singleton)
+    /// and removes commands whose workflows vanished (deleted, disabled or
+    /// renamed — the <paramref name="removedCommands"/> diff). Skips silently
+    /// when no bot is running or no slash workflow exists; individual failures
+    /// are logged and never thrown. Fired after every cache load (start +
+    /// editor reloads); bots that start later are covered by the manager's
+    /// ServiceStarted hook (<see cref="OnBotServiceStarted"/>).
     /// </summary>
-    private async Task SyncWorkflowSlashCommandsAsync()
+    private async Task SyncWorkflowSlashCommandsAsync(IReadOnlyCollection<string>? removedCommands = null)
     {
         try
         {
             if (!_started)
-            {
-                return;
-            }
-
-            var commands = SnapshotSlashCommands();
-            if (commands.Count == 0)
             {
                 return;
             }
@@ -1310,9 +1313,15 @@ public class WorkflowTriggerService
                 return;
             }
 
+            var commands = SnapshotSlashCommands();
             foreach (var service in services)
             {
                 await RegisterSlashCommandsOnServiceAsync(service, commands).ConfigureAwait(false);
+
+                if (removedCommands is { Count: > 0 })
+                {
+                    await UnregisterSlashCommandsOnServiceAsync(service, removedCommands).ConfigureAwait(false);
+                }
             }
         }
         catch (Exception ex)
@@ -1705,7 +1714,7 @@ public class WorkflowTriggerService
         return context;
     }
 
-    private void ExecuteInBackground(Workflow workflow, ExecutionContext context)
+    private void ExecuteInBackground(Workflow workflow, ExecutionContext context, Func<WorkflowExecutionResult, Task>? onCompleted = null)
     {
         var runtime = ResolveRuntime();
         if (runtime == null)
@@ -1730,6 +1739,11 @@ public class WorkflowTriggerService
                     _logger.LogDebug("Workflow '{Name}' ({WorkflowId}) execution {ExecutionId} completed in {DurationMs}ms",
                         workflow.Name, workflow.Id, context.ExecutionId, result.DurationMs);
                 }
+
+                if (onCompleted != null)
+                {
+                    await onCompleted(result).ConfigureAwait(false);
+                }
             }
             catch (Exception ex)
             {
@@ -1737,6 +1751,35 @@ public class WorkflowTriggerService
                     workflow.Name, workflow.Id, context.ExecutionId);
             }
         });
+    }
+
+    /// <summary>
+    /// Closes a deferred Discord interaction after its workflow run with an
+    /// ephemeral outcome followup — the interaction was acknowledged with the
+    /// "thinking" state, which would otherwise hang for up to 15 minutes.
+    /// Best-effort; never throws.
+    /// </summary>
+    /// <param name="reply">Origin interaction reply path (null = nothing to close).</param>
+    /// <param name="label">Human-facing label ("/name" for slash, workflow name for components).</param>
+    /// <param name="result">Engine run outcome.</param>
+    private async Task SendInteractionCompletionFollowupAsync(Func<string, Task>? reply, string label, WorkflowExecutionResult? result)
+    {
+        if (reply == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var notice = result is { IsCompleted: false }
+                ? $"⚠️ {label} finished with status '{result.Status}'."
+                : $"✅ {label} executed.";
+            await reply(notice).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to deliver the workflow completion followup for '{Label}'", label);
+        }
     }
 
     /// <summary>

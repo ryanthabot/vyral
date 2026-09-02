@@ -3581,6 +3581,56 @@ public class DiscordService : IDiscordService, IDisposable
         return string.Join(" | ", errors);
     }
 
+    /// <inheritdoc />
+    public async Task<string?> UnregisterWorkflowSlashCommandAsync(string name)
+    {
+        var normalized = NormalizeWorkflowCommandName(name);
+        if (normalized == null)
+        {
+            return null;
+        }
+
+        // Forget first: even when no client is connected (or a guild delete
+        // fails) the command must not come back on the next Ready/GuildAvailable.
+        _workflowSlashCommands.TryRemove(normalized, out _);
+        _workflowSlashCommandOptions.TryRemove(normalized, out _);
+
+        var client = GetConnectedClient();
+        if (client == null)
+        {
+            return null;
+        }
+
+        var errors = new List<string>();
+        var deleted = 0;
+        foreach (var guild in client.Guilds.ToList())
+        {
+            try
+            {
+                var existing = await client.Rest.GetGuildApplicationCommands(guild.Id).ConfigureAwait(false);
+                foreach (var command in existing.Where(c => string.Equals(c.Name, normalized, StringComparison.OrdinalIgnoreCase)))
+                {
+                    await command.DeleteAsync().ConfigureAwait(false);
+                    deleted++;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "❌ Failed to unregister workflow slash command '/{Command}' in {Guild}",
+                    normalized, guild.Name);
+                errors.Add($"{guild.Name}: {ex.Message}");
+            }
+        }
+
+        if (deleted > 0)
+        {
+            _logger.LogInformation("🗑️ Unregistered workflow slash command '/{Command}' from {Count} guild command(s)",
+                normalized, deleted);
+        }
+
+        return errors.Count == 0 ? null : string.Join(" | ", errors);
+    }
+
     /// <summary>
     /// Normalizes a workflow command name for Discord: lowercase, ASCII
     /// letters/digits/'-'/'_' only (spaces → dashes), trimmed to 1-32 chars.

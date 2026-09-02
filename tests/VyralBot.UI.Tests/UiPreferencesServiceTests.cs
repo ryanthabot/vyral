@@ -58,6 +58,18 @@ public class UiPreferencesServiceTests : IDisposable
     }
 
     [Fact]
+    public void Load_reads_camel_case_json()
+    {
+        var path = Path.Combine(_dir, "ui-settings.json");
+        File.WriteAllText(path,
+            """{ "themeId": "crimson", "custom": { "baseTheme": "Light", "primaryHex": "#FF0000", "logoVariant": "red" } }""");
+        var prefs = MakeService(() => path).Load();
+        Assert.Equal("crimson", prefs.ThemeId);
+        Assert.Equal("Light", prefs.Custom.BaseTheme);
+        Assert.Equal("red", prefs.Custom.LogoVariant);
+    }
+
+    [Fact]
     public void Save_creates_missing_directory()
     {
         var path = Path.Combine(_dir, "nested", "deeper", "ui-settings.json");
