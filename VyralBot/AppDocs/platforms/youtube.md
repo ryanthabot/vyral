@@ -33,6 +33,10 @@ The wizard has four steps tailored to Google's console:
 
 The card flips to the **YouTube Connection** view with RECONNECT/DISCONNECT.
 
+### The YouTube dashboard page
+
+Once YouTube is connected, the sidebar's **Platforms** section gains a **YouTube** entry (alongside Twitch and Kick) that opens the YouTube dashboard page — same style as the Twitch/Kick dashboards: connection status for the channel and a **PREVIEW STREAM** panel that opens the channel's live page in an embedded browser (YouTube has no handle-based embed player, so it uses the live watch page; close the preview to free the browser).
+
 ### What "connected" means for YouTube
 
 - While you are **live** (or have an upcoming/testing broadcast): chat messages appear in the [Chat Window](../chat/chat-window.md), you can send from the app ([Sending Messages](../chat/sending-messages.md)), and chat commands work — the poll loop also publishes the platform-agnostic `ChatMessageReceivedEvent` that feeds the command/currency/giveaway/poll/watchtime pipeline (entries and votes are recorded; the bot's *replies* are only sent to Twitch/Kick).
