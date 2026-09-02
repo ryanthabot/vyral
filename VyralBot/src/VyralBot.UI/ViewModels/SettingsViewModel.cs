@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using VyralBot.Core.Services.Profiles;
 using VyralBot.Core.Models;
 using VyralBot.Data;
+using VyralBot.UI.Models;
+using VyralBot.UI.Services;
 using VyralBot.UI.Views;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -89,6 +91,38 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _showPlatformGrid = true;
 
+    // ===== Theme picker state =====
+
+    public ObservableCollection<ThemeOption> Themes { get; } = new(ThemeCatalog.BuiltInThemes);
+
+    [ObservableProperty]
+    private ThemeOption? _selectedTheme;
+
+    [ObservableProperty]
+    private bool _customIsLight;
+
+    [ObservableProperty]
+    private string _customPrimaryHex = "#14B8A6";
+
+    [ObservableProperty]
+    private string _customLogoVariant = "native";
+
+    public IReadOnlyList<string> LogoVariants => ThemeCatalog.ValidLogoVariants;
+
+    public IReadOnlyList<string> CustomAccentSwatches { get; } = new[]
+    {
+        "#EF4444", "#F97316", "#F59E0B", "#EAB308", "#84CC16", "#10B981", "#14B8A6", "#06B6D4",
+        "#0EA5E9", "#3B82F6", "#6366F1", "#8B5CF6", "#A855F7", "#EC4899", "#F43F5E", "#94A3B8",
+    };
+
+    partial void OnSelectedThemeChanged(ThemeOption? value)
+    {
+        if (value is null || value.IsBuiltIn == false) return;
+        CustomIsLight = value.IsLight;
+        CustomPrimaryHex = value.AccentHex;
+        CustomLogoVariant = value.LogoVariant;
+    }
+
     [ObservableProperty]
     private bool _isTwitchConnected;
 
@@ -138,10 +172,18 @@ public partial class SettingsViewModel : ViewModelBase
             await LoadSettingsAsync();
             await LoadPlatformConnectionStatusAsync();
             await _variablesViewModel.InitializeAsync();
-            
+
+            // Load current theme state for the picker
+            var themeManager = ThemeManager.Instance;
+            SelectedTheme = ThemeCatalog.Find(themeManager.CurrentThemeId)
+                            ?? ThemeCatalog.Find(ThemeCatalog.NativeId);
+            CustomIsLight = string.Equals(themeManager.Preferences.Custom.BaseTheme, "Light", StringComparison.OrdinalIgnoreCase);
+            CustomPrimaryHex = themeManager.Preferences.Custom.PrimaryHex;
+            CustomLogoVariant = themeManager.Preferences.Custom.LogoVariant;
+
             // Note: WebServerSettingsViewModel is already initialized via DI
             // No need to reinitialize since we dispose/recreate SettingsViewModel on each navigation
-            
+
             _logger.LogInformation("Settings view initialized successfully");
         }
         catch (Exception ex)
@@ -630,5 +672,51 @@ public partial class SettingsViewModel : ViewModelBase
         _logger.LogInformation("User navigated back to platform selection grid");
         SelectedPlatformViewModel = null;
         ShowPlatformGrid = true;
+    }
+
+    // ===== Theme commands =====
+
+    [RelayCommand]
+    private void SelectTheme(ThemeOption? theme)
+    {
+        if (theme is null) return;
+
+        _logger.LogInformation("User selected theme: {ThemeId}", theme.Id);
+        SelectedTheme = theme;
+        ThemeManager.Instance.ApplyTheme(theme.Id);
+        StatusMessage = $"{theme.DisplayName} theme applied";
+        _ = ClearStatusAfterDelayAsync();
+    }
+
+    [RelayCommand]
+    private void ApplyCustomTheme()
+    {
+        if (!ColorShadeGenerator.TryParseHex(CustomPrimaryHex, out _))
+        {
+            StatusMessage = "Invalid hex color - use #RRGGBB";
+            _ = ClearStatusAfterDelayAsync();
+            return;
+        }
+
+        _logger.LogInformation("Applying custom theme: base={Base}, accent={Accent}, logo={Logo}",
+            CustomIsLight ? "Light" : "Dark", CustomPrimaryHex, CustomLogoVariant);
+        ThemeManager.Instance.ApplyCustomTheme(
+            CustomIsLight ? "Light" : "Dark", CustomPrimaryHex, CustomLogoVariant);
+        SelectedTheme = ThemeCatalog.CustomOption;
+        StatusMessage = "Custom theme applied";
+        _ = ClearStatusAfterDelayAsync();
+    }
+
+    [RelayCommand]
+    private void SelectCustomAccent(string hex)
+    {
+        CustomPrimaryHex = hex;
+        ApplyCustomTheme();
+    }
+
+    private async Task ClearStatusAfterDelayAsync()
+    {
+        await Task.Delay(2000);
+        StatusMessage = null;
     }
 }

@@ -45,6 +45,9 @@
             <converters:BoolToStatusConverter x:Key="BoolToStatusConverter"/>
             <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
             <converters:CommandEditTitleConverter x:Key="CommandEditTitleConverter"/>
+            <converters:HexToColorConverter x:Key="HexToColorConverter"/>
+            <converters:ThemeEqualsConverter x:Key="ThemeEqualsConverter"/>
+            <converters:InvertBooleanConverter x:Key="InvertBooleanConverter"/>
             
             <!-- Global TextBox Style with Variables Context Menu -->
             <Style TargetType="{x:Type TextBox}" BasedOn="{StaticResource MaterialDesignTextBox}">
