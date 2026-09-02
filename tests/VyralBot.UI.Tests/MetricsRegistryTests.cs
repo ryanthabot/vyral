@@ -1,4 +1,5 @@
 using VyralBot.Core.Services.Performance;
+using Xunit;
 
 namespace VyralBot.UI.Tests;
 

@@ -151,6 +151,18 @@ public interface IDataService
     // Database management
     Task EnsureDatabaseCreatedAsync();
 
+    // Data management (Settings → Data Management)
+    /// <summary>Row counts for the whitelisted user-data tables (Settings → Data Management inventory).</summary>
+    Task<IReadOnlyDictionary<string, int>> GetDataInventoryAsync();
+    /// <summary>Deletes every stored chat message for the current profile.</summary>
+    Task DeleteAllChatMessagesAsync();
+    /// <summary>Deletes every event log entry for the current profile.</summary>
+    Task DeleteEventLogsAsync();
+    /// <summary>Deletes workflow execution history (all, one workflow, and/or older than a cutoff).</summary>
+    Task DeleteWorkflowExecutionsAsync(string? workflowId = null, DateTime? olderThan = null);
+    /// <summary>Runs VACUUM to reclaim unused space in the profile database.</summary>
+    Task<bool> CompactDatabaseAsync();
+
     // Chat messages (per-profile)
     Task<bool> SaveChatMessageAsync(Entities.ChatMessage message);
     Task<IEnumerable<Entities.ChatMessage>> GetChatMessagesAsync(string platform, string channel, int limit = 200);

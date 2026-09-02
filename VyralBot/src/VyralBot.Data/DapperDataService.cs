@@ -2277,6 +2277,95 @@ public class DapperDataService : IDataService
 
     #endregion
 
+    #region Data Management Operations (Settings → Data Management)
+
+    // Whitelisted user-data tables surfaced in the Settings → Data Management inventory.
+    private static readonly (string Table, string Label)[] InventoryTables =
+    {
+        ("Commands", "Commands"),
+        ("CommandTimers", "Command timers"),
+        ("Workflows", "Workflows"),
+        ("WorkflowExecutions", "Workflow executions"),
+        ("EventLogs", "Event history"),
+        ("ChatMessages", "Chat messages"),
+        ("AutoReplyRules", "Auto-reply rules"),
+        ("Variables", "Variables"),
+        ("UserCurrency", "Currency users"),
+        ("UserWatchtime", "Watchtime users"),
+        ("Giveaways", "Giveaways"),
+        ("Polls", "Polls"),
+        ("DiscordBots", "Discord bots"),
+        ("WebhookSubscriptions", "Webhook subscriptions"),
+    };
+
+    public async Task<IReadOnlyDictionary<string, int>> GetDataInventoryAsync()
+    {
+        var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        using var conn = CreateConnection();
+        conn.Open();
+
+        foreach (var (table, label) in InventoryTables)
+        {
+            try
+            {
+                var count = await conn.ExecuteScalarAsync<long>($"SELECT COUNT(*) FROM {table}");
+                result[label] = (int)count;
+            }
+            catch
+            {
+                // Table may not exist yet (fresh database) — report zero instead of failing
+                result[label] = 0;
+            }
+        }
+
+        return result;
+    }
+
+    public async Task DeleteAllChatMessagesAsync()
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync("DELETE FROM ChatMessages");
+    }
+
+    public async Task DeleteEventLogsAsync()
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync("DELETE FROM EventLogs");
+    }
+
+    public async Task DeleteWorkflowExecutionsAsync(string? workflowId = null, DateTime? olderThan = null)
+    {
+        using var conn = CreateConnection();
+
+        var sql = "DELETE FROM WorkflowExecutions WHERE 1=1";
+        var args = new DynamicParameters();
+
+        if (!string.IsNullOrEmpty(workflowId))
+        {
+            sql += " AND WorkflowId = @WorkflowId";
+            args.Add("WorkflowId", workflowId);
+        }
+
+        if (olderThan.HasValue)
+        {
+            sql += " AND StartedAt < @Cutoff";
+            args.Add("Cutoff", olderThan.Value.ToString("O"));
+        }
+
+        await conn.ExecuteAsync(sql, args);
+    }
+
+    public async Task<bool> CompactDatabaseAsync()
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        await conn.ExecuteAsync("VACUUM");
+        return true;
+    }
+
+    #endregion
+
     #region Database Management
 
     public async Task EnsureDatabaseCreatedAsync()

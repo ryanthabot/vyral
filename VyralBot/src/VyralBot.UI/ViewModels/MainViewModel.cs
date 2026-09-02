@@ -29,6 +29,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly ProfileSettingsLoader _settingsLoader;
     private readonly IDiscordService _discordService;
     private readonly IDiscordBotManager _discordBotManager;
+    private readonly PlatformConnectionService _platformConnectionService;
     private readonly ILogger<MainViewModel> _logger;
     private IServiceScope? _platformsScope;
     private PlatformsViewModel? _platformsViewModel;
@@ -150,6 +151,7 @@ public partial class MainViewModel : ViewModelBase
         IEventBus eventBus,
         IDiscordService discordService,
         IDiscordBotManager discordBotManager,
+        PlatformConnectionService platformConnectionService,
         ILogger<MainViewModel> logger)
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
@@ -159,6 +161,7 @@ public partial class MainViewModel : ViewModelBase
         ArgumentNullException.ThrowIfNull(eventBus);
         ArgumentNullException.ThrowIfNull(discordService);
         ArgumentNullException.ThrowIfNull(discordBotManager);
+        ArgumentNullException.ThrowIfNull(platformConnectionService);
         ArgumentNullException.ThrowIfNull(logger);
 
         _dashboardViewModel = dashboardViewModel;
@@ -167,6 +170,7 @@ public partial class MainViewModel : ViewModelBase
         _settingsLoader = settingsLoader;
         _discordService = discordService;
         _discordBotManager = discordBotManager;
+        _platformConnectionService = platformConnectionService;
         _logger = logger;
         CurrentViewModel = dashboardViewModel;
 
@@ -296,10 +300,19 @@ public partial class MainViewModel : ViewModelBase
         // MUST happen AFTER ChatViewModel.InitializeAsync() so EventBus subscriptions are active
         await CheckPlatformConnectionsAsync();
 
-        // Start every saved Discord bot (multi-bot support)
+        // Start every saved Discord bot (multi-bot support), unless the user
+        // turned bot auto-start off in Settings → Platforms
         try
         {
-            await _discordBotManager.StartAllSavedAsync();
+            var botsAutoStart = await _serviceProvider.GetRequiredService<IDataService>().GetConfigValueAsync("Startup.DiscordBots.AutoConnect");
+            if (!bool.TryParse(botsAutoStart, out var autoStart) || autoStart)
+            {
+                await _discordBotManager.StartAllSavedAsync();
+            }
+            else
+            {
+                _logger.LogInformation("Discord bot auto-start disabled (Settings → Platforms)");
+            }
         }
         catch (Exception ex)
         {
@@ -330,6 +343,17 @@ public partial class MainViewModel : ViewModelBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error starting command timers");
+        }
+
+        // Load command processing settings (prefixes + per-platform toggles from
+        // Settings → Commands) before any message can trigger a command.
+        try
+        {
+            await _serviceProvider.GetRequiredService<Core.Services.Commands.ICommandService>().InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading command settings");
         }
 
         // Start the workflow trigger service (Visual Automation): loads the
@@ -422,6 +446,12 @@ public partial class MainViewModel : ViewModelBase
             // Ensure database is created
             await dataService.EnsureDatabaseCreatedAsync();
 
+            // One-time migration: the per-platform auto-start columns predate the
+            // Settings → Platforms startup controls and defaulted to 0. Backfill
+            // them from the current connection status so this update preserves
+            // each user's existing auto-connect behavior.
+            await BackfillAutoStartFlagsAsync(dataService);
+
             var twitchPlatform = await dataService.GetPlatformByNameAsync("Twitch");
 
             IsTwitchConnected = twitchPlatform?.Status == "Connected";
@@ -439,27 +469,37 @@ public partial class MainViewModel : ViewModelBase
             // Only treat Discord as connected when the row is marked Connected AND a real bot token exists
             IsDiscordConnected = discordPlatform?.Status == "Connected" && !string.IsNullOrEmpty(discordPlatform?.AccessToken);
 
-            // Auto-connect to Twitch if configured and status is Connected
-            if (twitchPlatform?.Status == "Connected")
+            // Auto-connect each platform only when its Settings → Platforms
+            // "auto-connect at startup" flag is on (backfilled above for
+            // pre-settings installs, so existing users keep current behavior).
+            if (twitchPlatform?.Status == "Connected" && twitchPlatform.TwitchChatAutoStart)
             {
-                await LoadAndConnectTwitchAsync(dataService, twitchPlatform);
+                var refreshTokens = await ShouldRefreshTokensAtStartupAsync(dataService, "Twitch");
+                var (success, message) = await _platformConnectionService.ConnectTwitchAsync(refreshTokens);
+                if (!success)
+                {
+                    _logger.LogWarning("Twitch auto-connect skipped: {Message}", message);
+                }
             }
 
-            // Auto-connect to Kick if configured and status is Connected
-            if (kickPlatform?.Status == "Connected")
+            if (kickPlatform?.Status == "Connected" && kickPlatform.KickChatAutoStart)
             {
-                await LoadAndConnectKickAsync(dataService, kickPlatform);
+                var refreshTokens = await ShouldRefreshTokensAtStartupAsync(dataService, "Kick");
+                var (success, message) = await _platformConnectionService.ConnectKickAsync(refreshTokens);
+                if (!success)
+                {
+                    _logger.LogWarning("Kick auto-connect skipped: {Message}", message);
+                }
             }
 
-            // Auto-connect to YouTube if configured and status is Connected
-            if (youtubePlatform?.Status == "Connected")
+            if (youtubePlatform?.Status == "Connected" && youtubePlatform.YoutubeChatAutoStart)
             {
                 // The YouTube connect polls Google APIs, which can stall for
                 // minutes on quota errors — that starves the whole boot chain
                 // (Discord bot auto-start, command timers, workflow engine).
                 // Bound it; the connect keeps running in the background and its
                 // PlatformConnectionChanged events update the UI on completion.
-                var youtubeConnect = LoadAndConnectYouTubeAsync(dataService, youtubePlatform);
+                var youtubeConnect = _platformConnectionService.ConnectYouTubeAsync();
                 var finished = await Task.WhenAny(youtubeConnect, Task.Delay(TimeSpan.FromSeconds(45)));
                 if (finished != youtubeConnect)
                 {
@@ -467,14 +507,22 @@ public partial class MainViewModel : ViewModelBase
                 }
                 else
                 {
-                    await youtubeConnect;
+                    var (success, message) = await youtubeConnect;
+                    if (!success)
+                    {
+                        _logger.LogWarning("YouTube auto-connect skipped: {Message}", message);
+                    }
                 }
             }
 
-            // Auto-connect to Discord if configured and status is Connected
-            if (discordPlatform?.Status == "Connected")
+            if (discordPlatform?.Status == "Connected" && discordPlatform.DiscordChatAutoStart)
             {
-                await LoadAndConnectDiscordAsync(discordPlatform);
+                var (success, message) = await _platformConnectionService.ConnectDiscordAsync();
+                IsDiscordConnected = _discordService.IsConnected;
+                if (!success)
+                {
+                    _logger.LogWarning("Discord auto-connect skipped: {Message}", message);
+                }
             }
         }
         catch (Exception ex)
@@ -488,212 +536,58 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    private async Task LoadAndConnectTwitchAsync(IDataService dataService, Platform platform)
+    /// <summary>
+    /// One-time backfill of the per-platform auto-start flags from the current
+    /// connection status, so adding the Settings → Platforms startup controls
+    /// does not change which platforms existing installs auto-connect.
+    /// </summary>
+    private static async Task BackfillAutoStartFlagsAsync(IDataService dataService)
     {
+        const string migrationKey = "Startup.AutoStartFlagsBackfilled";
+
         try
         {
-            var twitchService = _serviceProvider.GetRequiredService<ITwitchService>();
-
-            if (twitchService.IsConnected)
+            var done = await dataService.GetConfigValueAsync(migrationKey);
+            if (bool.TryParse(done, out var isDone) && isDone)
             {
-                _logger.LogInformation("Twitch already connected, skipping auto-connect");
                 return;
             }
 
-            if (string.IsNullOrEmpty(platform.AccessToken))
+            var platforms = await dataService.GetPlatformsAsync();
+            foreach (var platform in platforms)
             {
-                _logger.LogWarning("No Twitch access token found, cannot connect");
-                return;
-            }
+                var isConnected = platform.Status == "Connected";
+                var changed = false;
 
-            _logger.LogInformation("Auto-connecting to Twitch IRC for {Channel}", platform.Username);
+                if (platform.Name == "Twitch" && platform.TwitchChatAutoStart != isConnected) { platform.TwitchChatAutoStart = isConnected; changed = true; }
+                if (platform.Name == "Kick" && platform.KickChatAutoStart != isConnected) { platform.KickChatAutoStart = isConnected; changed = true; }
+                if (platform.Name == "YouTube" && platform.YoutubeChatAutoStart != isConnected) { platform.YoutubeChatAutoStart = isConnected; changed = true; }
+                if (platform.Name == "TikTok" && platform.TiktokChatAutoStart != isConnected) { platform.TiktokChatAutoStart = isConnected; changed = true; }
+                if (platform.Name == "Discord" && platform.DiscordChatAutoStart != isConnected) { platform.DiscordChatAutoStart = isConnected; changed = true; }
 
-            var oAuthService = _serviceProvider.GetRequiredService<TwitchOAuthService>();
-            var accessToken = TwitchOAuthService.Decrypt(platform.AccessToken);
-            var refreshToken = !string.IsNullOrEmpty(platform.RefreshToken)
-                ? TwitchOAuthService.Decrypt(platform.RefreshToken)
-                : null;
-            var botUsername = platform.Username?.ToLower() ?? "";
-
-            await twitchService.ConnectAsync(botUsername, accessToken, refreshToken, platform.Username ?? "");
-
-            // Enable chat by default after successful auto-connect (like Kick does)
-            if (platform.TwitchChatEnabled == false)
-            {
-                platform.TwitchChatEnabled = true;
-                await dataService.SavePlatformAsync(platform);
-                _logger.LogInformation("Enabled Twitch chat by default after auto-connect");
-            }
-
-            _logger.LogInformation("Successfully auto-connected to Twitch IRC for #{Channel}", platform.Username);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error auto-connecting to Twitch IRC");
-        }
-    }
-
-    private async Task LoadAndConnectKickAsync(IDataService dataService, Platform platform)
-    {
-        try
-        {
-            var kickService = _serviceProvider.GetRequiredService<IKickService>();
-
-            if (kickService.IsConnected)
-            {
-                _logger.LogInformation("Kick already connected, skipping auto-connect");
-                return;
-            }
-
-            if (string.IsNullOrEmpty(platform.AccessToken) || string.IsNullOrEmpty(platform.UserId))
-            {
-                _logger.LogWarning("Cannot auto-connect to Kick - missing access token or user ID");
-                return;
-            }
-
-            _logger.LogInformation("Auto-connecting to Kick for channel {Channel}", platform.Username);
-
-            var accessToken = platform.AccessToken;
-            var refreshToken = platform.RefreshToken;
-            var broadcasterUserId = int.Parse(platform.UserId);
-
-            // Try to refresh token before connecting (in case it's expired)
-            if (!string.IsNullOrEmpty(refreshToken))
-            {
-                _logger.LogInformation("Refreshing Kick access token before auto-connect...");
-
-                var kickOAuthService = _serviceProvider.GetRequiredService<KickLibOAuthService>();
-                var refreshSuccess = await kickOAuthService.RefreshTokenAsync();
-                if (refreshSuccess)
+                if (changed)
                 {
-                    // Reload platform to get updated tokens
-                    var updatedPlatform = await dataService.GetPlatformByNameAsync("Kick");
-                    if (updatedPlatform != null)
-                    {
-                        accessToken = updatedPlatform.AccessToken;
-                        refreshToken = updatedPlatform.RefreshToken;
-                        _logger.LogInformation("Kick access token refreshed and saved before auto-connect");
-                    }
+                    await dataService.SavePlatformAsync(platform);
                 }
             }
 
-            await kickService.ConnectAsync(platform.Username ?? "", accessToken ?? "", refreshToken, platform.Username ?? "", broadcasterUserId);
-
-            // Enable chat by default after successful auto-connect
-            if (platform.KickChatEnabled == false)
-            {
-                platform.KickChatEnabled = true;
-                await dataService.SavePlatformAsync(platform);
-                _logger.LogInformation("Enabled Kick chat by default after auto-connect");
-            }
-
-            _logger.LogInformation("Successfully auto-connected to Kick for channel {Channel}", platform.Username);
+            await dataService.SetConfigValueAsync(migrationKey, true.ToString(), "Startup");
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.LogError(ex, "Error auto-connecting to Kick");
+            // Backfill is best-effort — if it fails the flags keep their stored
+            // values and the user can set them in Settings → Platforms.
         }
     }
 
-    private async Task LoadAndConnectYouTubeAsync(IDataService dataService, Platform platform)
+    /// <summary>
+    /// Reads the per-platform "refresh tokens at startup" setting (Settings → Platforms).
+    /// Defaults to true, matching the pre-settings behavior.
+    /// </summary>
+    private static async Task<bool> ShouldRefreshTokensAtStartupAsync(IDataService dataService, string platformName)
     {
-        try
-        {
-            var youtubeService = _serviceProvider.GetRequiredService<IYouTubeService>();
-
-            if (youtubeService.IsConnected)
-            {
-                _logger.LogInformation("YouTube already connected, skipping auto-connect");
-                return;
-            }
-
-            if (string.IsNullOrEmpty(platform.AccessToken) || string.IsNullOrEmpty(platform.RefreshToken))
-            {
-                _logger.LogWarning("Cannot auto-connect to YouTube - missing access token or refresh token");
-                return;
-            }
-
-            _logger.LogInformation("Auto-connecting to YouTube Live Chat for {Channel}", platform.Username);
-
-            await youtubeService.ConnectAsync(
-                platform.Username ?? "",
-                platform.AccessToken,
-                platform.RefreshToken,
-                platform.Username ?? "");
-
-            // Enable chat by default after successful auto-connect
-            if (platform.YoutubeChatEnabled == false)
-            {
-                platform.YoutubeChatEnabled = true;
-                await dataService.SavePlatformAsync(platform);
-                _logger.LogInformation("Enabled YouTube chat by default after auto-connect");
-            }
-
-            _logger.LogInformation("Successfully auto-connected to YouTube Live Chat for {Channel}", platform.Username);
-        }
-        catch (YouTubeReauthException ex)
-        {
-            // Google refused the refresh (expired/revoked refresh token). Keep the
-            // stored credentials but mark the row honestly — the Platforms page
-            // reads this and shows "Re-authorization required" instead of a false
-            // "Connected".
-            _logger.LogWarning("❌ YouTube re-authorization required ({Reason}) — marking platform Disconnected", ex.Reason ?? ex.Message);
-            try
-            {
-                platform.Status = "Disconnected";
-                await dataService.SavePlatformAsync(platform);
-            }
-            catch (Exception saveEx)
-            {
-                _logger.LogError(saveEx, "Failed to mark the YouTube platform Disconnected after a re-auth failure");
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error auto-connecting to YouTube Live Chat");
-        }
-    }
-
-    private async Task LoadAndConnectDiscordAsync(Platform platform)
-    {
-        try
-        {
-            if (_discordService.IsConnected)
-            {
-                _logger.LogInformation("Discord already connected, skipping auto-connect");
-                IsDiscordConnected = true;
-                return;
-            }
-
-            if (string.IsNullOrEmpty(platform.AccessToken))
-            {
-                _logger.LogWarning("Cannot auto-connect to Discord - missing bot token");
-                IsDiscordConnected = false;
-                return;
-            }
-
-            _logger.LogInformation("Auto-connecting to Discord bot for {Username}", platform.Username);
-
-            var connected = await _discordService.ConnectAsync(platform.AccessToken);
-
-            // Reflect the real service state (DiscordChatEnabled is intentionally left as-is)
-            IsDiscordConnected = _discordService.IsConnected;
-
-            if (connected)
-            {
-                _logger.LogInformation("Successfully auto-connected to Discord as {BotUsername}",
-                    _discordService.BotUsername ?? platform.Username);
-            }
-            else
-            {
-                _logger.LogWarning("Discord auto-connect failed - bot is not connected");
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error auto-connecting to Discord");
-            IsDiscordConnected = _discordService.IsConnected;
-        }
+        var value = await dataService.GetConfigValueAsync($"Startup.{platformName}.RefreshTokens");
+        return !bool.TryParse(value, out var refresh) || refresh;
     }
 
     private async Task DisconnectAllPlatformsAsync()

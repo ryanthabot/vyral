@@ -36,19 +36,22 @@ public class WorkflowMessageSender
     private readonly IKickService _kickService;
     private readonly IDiscordBotManager _discordBotManager;
     private readonly IDiscordService _discordService;
+    private readonly VyralBot.Core.Services.Performance.IMetricsRegistry? _metrics;
 
     public WorkflowMessageSender(
         ILogger<WorkflowMessageSender> logger,
         ITwitchService twitchService,
         IKickService kickService,
         IDiscordBotManager discordBotManager,
-        IDiscordService discordService)
+        IDiscordService discordService,
+        VyralBot.Core.Services.Performance.IMetricsRegistry? metrics = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _twitchService = twitchService ?? throw new ArgumentNullException(nameof(twitchService));
         _kickService = kickService ?? throw new ArgumentNullException(nameof(kickService));
         _discordBotManager = discordBotManager ?? throw new ArgumentNullException(nameof(discordBotManager));
         _discordService = discordService ?? throw new ArgumentNullException(nameof(discordService));
+        _metrics = metrics;
     }
 
     /// <summary>
@@ -74,6 +77,7 @@ public class WorkflowMessageSender
         }
 
         var platform = context.Platform?.Trim();
+        var normalizedPlatform = string.IsNullOrWhiteSpace(platform) ? "(none)" : platform.ToLowerInvariant();
 
         try
         {
@@ -82,27 +86,33 @@ public class WorkflowMessageSender
                 case "twitch":
                     if (!_twitchService.IsConnected)
                     {
+                        _metrics?.Increment("Sends:" + normalizedPlatform, "failed");
                         _logger.LogWarning("Workflow send to Twitch skipped: not connected (workflow {WorkflowId})", context.WorkflowId);
                         return false;
                     }
 
                     await _twitchService.SendMessageAsync(message);
+                    _metrics?.Increment("Sends:" + normalizedPlatform, "sent");
                     return true;
 
                 case "kick":
                     if (!_kickService.IsConnected)
                     {
+                        _metrics?.Increment("Sends:" + normalizedPlatform, "failed");
                         _logger.LogWarning("Workflow send to Kick skipped: not connected (workflow {WorkflowId})", context.WorkflowId);
                         return false;
                     }
 
                     await _kickService.SendMessageAsync(message);
+                    _metrics?.Increment("Sends:" + normalizedPlatform, "sent");
                     return true;
 
                 case "discord":
+                {
                     var target = ResolveDiscordTarget(context.BotId);
                     if (target == null || !target.IsConnected)
                     {
+                        _metrics?.Increment("Sends:" + normalizedPlatform, "failed");
                         _logger.LogWarning(
                             "Workflow send to Discord skipped: no connected bot for BotId {BotId} (workflow {WorkflowId})",
                             context.BotId ?? "(primary)", context.WorkflowId);
@@ -114,10 +124,14 @@ public class WorkflowMessageSender
                     // SendMessageAsync ONLY knows the selected channel, so replies
                     // to slash commands in any other channel would be dropped
                     // whenever no dashboard channel is configured.
-                    return await target.SendToChannelAsync(
+                    var delivered = await target.SendToChannelAsync(
                         context.Channel ?? string.Empty, message, null, context.GuildName);
+                    _metrics?.Increment("Sends:" + normalizedPlatform, delivered ? "sent" : "failed");
+                    return delivered;
+                }
 
                 default:
+                    _metrics?.Increment("Sends:" + normalizedPlatform, "failed");
                     _logger.LogWarning(
                         "Workflow send skipped: no sender for platform {Platform} (workflow {WorkflowId})",
                         platform ?? "(none)", context.WorkflowId);
@@ -126,6 +140,7 @@ public class WorkflowMessageSender
         }
         catch (Exception ex)
         {
+            _metrics?.Increment("Sends:" + normalizedPlatform, "failed");
             _logger.LogError(ex, "Workflow send to {Platform} failed (workflow {WorkflowId}, execution {ExecutionId})",
                 platform, context.WorkflowId, context.ExecutionId);
             return false;

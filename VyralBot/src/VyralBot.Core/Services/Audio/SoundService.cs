@@ -110,6 +110,14 @@ public class SoundService : ISoundService
     {
         try
         {
+            // Master toggle (Settings → Notifications)
+            var eventSoundsEnabled = await _dataService.GetConfigValueAsync("Notifications.EventSoundsEnabled");
+            if (bool.TryParse(eventSoundsEnabled, out var enabled) && !enabled)
+            {
+                _logger.LogDebug("Event sounds disabled (Settings → Notifications) - skipping playback");
+                return;
+            }
+
             // Get audio settings
             var settings = await GetAudioSettingsAsync();
             if (!settings.StreamerSoundsEnabled && !settings.StreamSoundsEnabled)

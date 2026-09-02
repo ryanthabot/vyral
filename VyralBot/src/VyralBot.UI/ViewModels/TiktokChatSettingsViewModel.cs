@@ -12,6 +12,7 @@ public partial class TiktokChatSettingsViewModel : ViewModelBase
     private readonly ILogger<TiktokChatSettingsViewModel> _logger;
     private readonly IDataService _dataService;
     private readonly IEventBus _eventBus;
+    private bool _isInitialized;
 
     [ObservableProperty]
     private bool _isChatEnabled;
@@ -40,7 +41,9 @@ public partial class TiktokChatSettingsViewModel : ViewModelBase
 
             if (platform != null)
             {
+                _isInitialized = false;
                 IsChatEnabled = platform.TiktokChatEnabled;
+                AutoStartChat = platform.TiktokChatAutoStart;
 
                 if (!platform.TiktokChatEnabled && platform.Status == "Connected")
                 {
@@ -49,6 +52,12 @@ public partial class TiktokChatSettingsViewModel : ViewModelBase
                     platform.UpdatedAt = DateTime.UtcNow;
                     await _dataService.SavePlatformAsync(platform);
                 }
+
+                _isInitialized = true;
+            }
+            else
+            {
+                _isInitialized = true;
             }
         }
         catch (Exception ex)
@@ -66,7 +75,37 @@ public partial class TiktokChatSettingsViewModel : ViewModelBase
 
     partial void OnIsChatEnabledChanged(bool value)
     {
-        _ = PersistPlatformFlagAsync("TikTok", value);
+        if (_isInitialized)
+        {
+            _ = PersistPlatformFlagAsync("TikTok", value);
+        }
+    }
+
+    partial void OnAutoStartChatChanged(bool value)
+    {
+        if (_isInitialized)
+        {
+            _ = PersistAutoStartFlagAsync(value);
+        }
+    }
+
+    /// <summary>Persists the TiktokChatAutoStart flag consumed at app launch (Settings → Platforms).</summary>
+    private async Task PersistAutoStartFlagAsync(bool value)
+    {
+        try
+        {
+            var platform = await _dataService.GetPlatformByNameAsync("TikTok");
+            if (platform != null)
+            {
+                platform.TiktokChatAutoStart = value;
+                platform.UpdatedAt = DateTime.UtcNow;
+                await _dataService.SavePlatformAsync(platform);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error persisting TikTok auto-start flag");
+        }
     }
 
     private async Task PersistPlatformFlagAsync(string platformName, bool enabled)

@@ -88,6 +88,9 @@ public partial class ChatViewModel : ViewModelBase
     private Guid _discordSubscriptionId;
     private bool _isInitialized = false;
 
+    // Master toggle (Settings → Notifications): event messages in the chat feed
+    private bool _showEventsInChat = true;
+
     // Track recently sent Kick messages to filter out WebSocket echoes
     private readonly Dictionary<string, DateTime> _recentKickMessages = new();
     // Track recently sent Twitch messages to filter out IRC echoes
@@ -387,6 +390,9 @@ public partial class ChatViewModel : ViewModelBase
             _logger.LogWarning(ex, "Failed to initialize DiscordFilterEnabled from Platform row");
         }
 
+        // Master toggle for event messages in the feed (Settings → Notifications)
+        await ReloadEventDisplayToggleAsync();
+
         _isInitialized = true;
         _logger.LogInformation("🎯 ChatViewModel initialization complete - all event handlers active!");
         _logger.LogInformation("💾 Chat history available but not loaded yet (saves memory - load on-demand if needed)");
@@ -395,6 +401,27 @@ public partial class ChatViewModel : ViewModelBase
         // Messages will start appearing as new ones arrive via webhooks.
         // If you want to see history, you can manually load it with a command.
         // This keeps memory usage low until actually needed.
+    }
+
+    /// <summary>
+    /// Re-reads the "Notifications.ShowEventsInChat" master toggle. Called at
+    /// initialization and from Settings → Notifications when the user changes it.
+    /// </summary>
+    public async Task ReloadEventDisplayToggleAsync()
+    {
+        try
+        {
+            if (_dataService != null)
+            {
+                var showEvents = await _dataService.GetConfigValueAsync("Notifications.ShowEventsInChat");
+                _showEventsInChat = !bool.TryParse(showEvents, out var enabled) || enabled;
+                _logger.LogInformation("Event-message display toggle: {Enabled}", _showEventsInChat);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load event-message display toggle");
+        }
     }
 
     [RelayCommand]
@@ -2954,7 +2981,7 @@ public partial class ChatViewModel : ViewModelBase
 
         var wasAutoReplied = false;
 
-        if (settings.ShowInChat)
+        if (_showEventsInChat && settings.ShowInChat)
         {
             var message = $"🎉 {evt.Username} just followed! Total followers: {evt.FollowerCount}";
             // Display as system message for event notifications in chat
@@ -3045,7 +3072,7 @@ public partial class ChatViewModel : ViewModelBase
 
         var wasAutoReplied = false;
 
-        if (settings.ShowInChat)
+        if (_showEventsInChat && settings.ShowInChat)
         {
             var monthsText = evt.MonthsSubscribed > 1 ? $" ({evt.MonthsSubscribed} months)" : "";
             var message = $"⭐ {evt.Username} subscribed{monthsText}!";
@@ -3130,7 +3157,10 @@ public partial class ChatViewModel : ViewModelBase
         if (evt.RecipientUsernames?.Any() == true)
             message += $" Recipients: {string.Join(", ", evt.RecipientUsernames)}";
 
-        await AddSystemMessageAsync("Kick", message);
+        if (_showEventsInChat)
+        {
+            await AddSystemMessageAsync("Kick", message);
+        }
 
         // Play sound
         if (_soundService != null)
@@ -3202,7 +3232,10 @@ public partial class ChatViewModel : ViewModelBase
         var wasAutoReplied = false;
 
         var message = $"📺 {evt.HostUsername} is hosting with {evt.ViewerCount} viewers!";
-        await AddSystemMessageAsync("Kick", message);
+        if (_showEventsInChat)
+        {
+            await AddSystemMessageAsync("Kick", message);
+        }
 
         // Play sound
         if (_soundService != null)
@@ -3278,7 +3311,10 @@ public partial class ChatViewModel : ViewModelBase
         if (!string.IsNullOrEmpty(evt.Message))
             message += $" - {evt.Message}";
 
-        await AddSystemMessageAsync("Kick", message);
+        if (_showEventsInChat)
+        {
+            await AddSystemMessageAsync("Kick", message);
+        }
 
         // Show visual alert
         await ShowEventAlertAsync("Kicks Gifted!", evt.SenderUsername, $"{evt.Amount} kicks!", "Kick");
@@ -3329,7 +3365,10 @@ public partial class ChatViewModel : ViewModelBase
         if (!string.IsNullOrEmpty(evt.UserInput))
             message += $" - {evt.UserInput}";
 
-        await AddSystemMessageAsync("Kick", message);
+        if (_showEventsInChat)
+        {
+            await AddSystemMessageAsync("Kick", message);
+        }
 
         // Show visual alert
         await ShowEventAlertAsync("Reward Redeemed!", evt.Username, evt.RewardName, "Kick");
@@ -3379,7 +3418,10 @@ public partial class ChatViewModel : ViewModelBase
         if (!string.IsNullOrEmpty(evt.Category))
             message += $" ({evt.Category})";
 
-        await AddSystemMessageAsync("Kick", message);
+        if (_showEventsInChat)
+        {
+            await AddSystemMessageAsync("Kick", message);
+        }
 
         // Persist the event for Statistics / Event History (KI-3) — no auto-reply exists for stream status
         var variables = new Dictionary<string, string>
@@ -3402,7 +3444,7 @@ public partial class ChatViewModel : ViewModelBase
 
         var wasAutoReplied = false;
 
-        if (settings.ShowInChat)
+        if (_showEventsInChat && settings.ShowInChat)
         {
             var message = $"🎉 {evt.DisplayName} just followed!";
             await AddSystemMessageAsync("Twitch", message);
@@ -3485,7 +3527,7 @@ public partial class ChatViewModel : ViewModelBase
             _ => "Tier Unknown"
         };
 
-        if (settings.ShowInChat)
+        if (_showEventsInChat && settings.ShowInChat)
         {
             var message = evt.IsGift
                 ? $"⭐ {evt.DisplayName} received a {tierText} gift sub!"
@@ -3572,7 +3614,7 @@ public partial class ChatViewModel : ViewModelBase
             _ => "Tier Unknown"
         };
 
-        if (settings.ShowInChat)
+        if (_showEventsInChat && settings.ShowInChat)
         {
             var message = $"⭐ {evt.Username} resubscribed at {tierText} ({evt.CumulativeMonths} months total)!";
             if (!string.IsNullOrEmpty(evt.Message))
@@ -3646,7 +3688,10 @@ public partial class ChatViewModel : ViewModelBase
             _ => "Tier Unknown"
         };
         var message = $"🎁 {evt.GifterUsername} gifted {evt.Total} {tierText} sub{(evt.Total > 1 ? "s" : "")}!";
-        await AddSystemMessageAsync("Twitch", message);
+        if (_showEventsInChat)
+        {
+            await AddSystemMessageAsync("Twitch", message);
+        }
 
         // Play sound
         if (_soundService != null)
@@ -3719,7 +3764,7 @@ public partial class ChatViewModel : ViewModelBase
 
         var wasAutoReplied = false;
 
-        if (settings.ShowInChat)
+        if (_showEventsInChat && settings.ShowInChat)
         {
             var message = $"🚀 {evt.FromBroadcasterUsername} raided with {evt.Viewers} viewer{(evt.Viewers != 1 ? "s" : "")}!";
             await AddSystemMessageAsync("Twitch", message);
@@ -3795,7 +3840,7 @@ public partial class ChatViewModel : ViewModelBase
 
         var wasAutoReplied = false;
 
-        if (settings.ShowInChat)
+        if (_showEventsInChat && settings.ShowInChat)
         {
             var message = $"💎 {evt.Username} cheered {evt.Bits} bits!";
             if (!string.IsNullOrEmpty(evt.Message))

@@ -131,6 +131,7 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
             {
                 _isInitialized = false;
                 IsChatEnabled = platform.TwitchChatEnabled;
+                AutoStartChat = platform.TwitchChatAutoStart;
                 _isInitialized = true;
             }
             else
@@ -206,6 +207,36 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
         if (_isInitialized)
         {
             _ = PersistChatRoutingFlagAsync(value);
+        }
+    }
+
+    partial void OnAutoStartChatChanged(bool value)
+    {
+        if (_isInitialized)
+        {
+            _ = PersistAutoStartFlagAsync(value);
+        }
+    }
+
+    /// <summary>
+    /// Persists the TwitchChatAutoStart flag consumed at app launch (Settings → Platforms
+    /// and MainViewModel's startup auto-connect).
+    /// </summary>
+    private async Task PersistAutoStartFlagAsync(bool value)
+    {
+        try
+        {
+            var platform = await _dataService.GetPlatformByNameAsync("Twitch");
+            if (platform != null)
+            {
+                platform.TwitchChatAutoStart = value;
+                platform.UpdatedAt = DateTime.UtcNow;
+                await _dataService.SavePlatformAsync(platform);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error persisting Twitch auto-start flag");
         }
     }
 

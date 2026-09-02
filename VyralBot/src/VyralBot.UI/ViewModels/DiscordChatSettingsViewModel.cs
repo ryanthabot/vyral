@@ -12,6 +12,7 @@ public partial class DiscordChatSettingsViewModel : ViewModelBase
     private readonly ILogger<DiscordChatSettingsViewModel> _logger;
     private readonly IDataService _dataService;
     private readonly IEventBus _eventBus;
+    private bool _isInitialized;
 
     [ObservableProperty]
     private bool _isChatEnabled;
@@ -40,7 +41,9 @@ public partial class DiscordChatSettingsViewModel : ViewModelBase
 
             if (platform != null)
             {
+                _isInitialized = false;
                 IsChatEnabled = platform.DiscordChatEnabled;
+                AutoStartChat = platform.DiscordChatAutoStart;
 
                 if (!platform.DiscordChatEnabled && platform.Status == "Connected")
                 {
@@ -49,6 +52,12 @@ public partial class DiscordChatSettingsViewModel : ViewModelBase
                     platform.UpdatedAt = DateTime.UtcNow;
                     await _dataService.SavePlatformAsync(platform);
                 }
+
+                _isInitialized = true;
+            }
+            else
+            {
+                _isInitialized = true;
             }
         }
         catch (Exception ex)
@@ -66,7 +75,37 @@ public partial class DiscordChatSettingsViewModel : ViewModelBase
 
     partial void OnIsChatEnabledChanged(bool value)
     {
-        _ = PersistPlatformFlagAsync("Discord", value);
+        if (_isInitialized)
+        {
+            _ = PersistPlatformFlagAsync("Discord", value);
+        }
+    }
+
+    partial void OnAutoStartChatChanged(bool value)
+    {
+        if (_isInitialized)
+        {
+            _ = PersistAutoStartFlagAsync(value);
+        }
+    }
+
+    /// <summary>Persists the DiscordChatAutoStart flag consumed at app launch (Settings → Platforms).</summary>
+    private async Task PersistAutoStartFlagAsync(bool value)
+    {
+        try
+        {
+            var platform = await _dataService.GetPlatformByNameAsync("Discord");
+            if (platform != null)
+            {
+                platform.DiscordChatAutoStart = value;
+                platform.UpdatedAt = DateTime.UtcNow;
+                await _dataService.SavePlatformAsync(platform);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error persisting Discord auto-start flag");
+        }
     }
 
     private async Task PersistPlatformFlagAsync(string platformName, bool enabled)

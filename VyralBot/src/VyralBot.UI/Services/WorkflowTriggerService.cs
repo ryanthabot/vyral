@@ -99,10 +99,18 @@ namespace VyralBot.UI.Services;
 /// </summary>
 public class WorkflowTriggerService
 {
-    // Same prefix set as Core's CommandService ("!", "?", ".")
-    private static readonly char[] CommandPrefixes = { '!', '?', '.' };
+    // Default prefix set mirrors Core's CommandService ("!", "?", "."); the
+    // active set is loaded from the "Commands.Prefixes" setting so both stay
+    // in sync when the user changes it in Settings → Commands.
+    private char[] _commandPrefixes = { '!', '?', '.' };
     private static readonly char[] Whitespace = { ' ', '\t' };
-    private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(60);
+    // Default tick; the live interval comes from "Automation.TimerIntervalSeconds".
+    private TimeSpan _tickInterval = TimeSpan.FromSeconds(60);
+    // Settings → Automation master toggles (loaded in ReloadSettingsAsync).
+    private bool _workflowsEnabled = true;
+    private bool _commandTriggersEnabled = true;
+    private bool _eventTriggersEnabled = true;
+    private bool _timerTriggersEnabled = true;
     // Duplicate-delivery window for slash invocations (see TryHandleSlashCommand).
     private static readonly TimeSpan SlashDedupWindow = TimeSpan.FromSeconds(5);
     // Custom-id namespace of workflow components ("vyralwf:{workflowId}(:{extra})?").
@@ -121,6 +129,8 @@ public class WorkflowTriggerService
     // construction sites (and tests) keep working without them.
     private readonly WorkflowDiscordBridge? _discordBridge;
     private readonly IDiscordBotManager? _botManager;
+    // Optional: live metrics sink for the Settings → Performance tab.
+    private readonly VyralBot.Core.Services.Performance.IMetricsRegistry? _metrics;
 
     private readonly object _sync = new();
     private readonly List<Guid> _subscriptionIds = new();
@@ -163,7 +173,8 @@ public class WorkflowTriggerService
         // Optional (null-tolerant, keeps old construction sites compiling):
         // Discord interaction bridge + bot manager for slash/component triggers.
         WorkflowDiscordBridge? discordBridge = null,
-        IDiscordBotManager? botManager = null)
+        IDiscordBotManager? botManager = null,
+        VyralBot.Core.Services.Performance.IMetricsRegistry? metrics = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
@@ -174,6 +185,7 @@ public class WorkflowTriggerService
         _kickService = kickService ?? throw new ArgumentNullException(nameof(kickService));
         _discordBridge = discordBridge;
         _botManager = botManager;
+        _metrics = metrics;
 
         // Slash auto-registration for bots that start AFTER the last cache
         // load: the lifecycle events live on the concrete manager (not the
@@ -206,6 +218,9 @@ public class WorkflowTriggerService
         // A failure here only disables execution (logged), it never throws.
         _ = ResolveRuntime();
 
+        // Settings → Automation toggles/interval + execution-history retention
+        await ReloadSettingsAsync();
+
         try
         {
             await LoadWorkflowsAsync();
@@ -221,11 +236,11 @@ public class WorkflowTriggerService
         // events (no-op when no bridge was injected).
         AttachDiscordBridge();
 
-        _tickTimer = new Timer(_ => TickTimers(), null, TickInterval, TickInterval);
+        _tickTimer = new Timer(_ => TickTimers(), null, _tickInterval, _tickInterval);
 
         _logger.LogInformation(
-            "WorkflowTriggerService started (command names: {Commands}, event types: {EventTypes}, timer workflows: {Timers}, tick: {Seconds}s)",
-            CommandCount, _eventIndex.Count, _timerWorkflows.Count, TickInterval.TotalSeconds);
+            "WorkflowTriggerService started (command names: {Commands}, event types: {EventTypes}, timer workflows: {Timers}, tick: {Seconds}s, enabled: {Enabled})",
+            CommandCount, _eventIndex.Count, _timerWorkflows.Count, _tickInterval.TotalSeconds, _workflowsEnabled);
     }
 
     /// <summary>Stops timers, unsubscribes every EventBus subscription and clears the cache. Safe to call twice.</summary>
@@ -284,6 +299,72 @@ public class WorkflowTriggerService
             CommandCount, _eventIndex.Count, _timerWorkflows.Count);
     }
 
+    /// <summary>
+    /// Re-reads the Settings → Automation values (master toggle, per-trigger-type
+    /// toggles, timer interval, execution-history retention). Called on StartAsync
+    /// and again whenever those settings change, so toggles apply immediately.
+    /// </summary>
+    public async Task ReloadSettingsAsync()
+    {
+        try
+        {
+            _workflowsEnabled = await GetBoolSettingAsync("Automation.WorkflowsEnabled", true);
+            _commandTriggersEnabled = await GetBoolSettingAsync("Automation.CommandTriggersEnabled", true);
+            _eventTriggersEnabled = await GetBoolSettingAsync("Automation.EventTriggersEnabled", true);
+            _timerTriggersEnabled = await GetBoolSettingAsync("Automation.TimerTriggersEnabled", true);
+
+            // Keep the workflow command prefixes in sync with Core's CommandService
+            var prefixes = await _dataService.GetConfigValueAsync("Commands.Prefixes");
+            if (!string.IsNullOrWhiteSpace(prefixes))
+            {
+                var chars = prefixes.Where(c => !char.IsWhiteSpace(c)).Distinct().ToArray();
+                if (chars.Length > 0)
+                {
+                    _commandPrefixes = chars;
+                }
+            }
+
+            var intervalSeconds = await GetIntSettingAsync("Automation.TimerIntervalSeconds", 60);
+            _tickInterval = TimeSpan.FromSeconds(Math.Clamp(intervalSeconds, 30, 600));
+
+            // Apply a changed tick interval to a running scheduler
+            if (_tickTimer != null)
+            {
+                _tickTimer.Change(_tickInterval, _tickInterval);
+            }
+
+            // Prune execution history older than the retention window
+            var retentionDays = await GetIntSettingAsync("Automation.ExecutionHistoryRetentionDays", 90);
+            if (retentionDays > 0)
+            {
+                try
+                {
+                    await _dataService.DeleteWorkflowExecutionsAsync(olderThan: DateTime.UtcNow.AddDays(-retentionDays));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to prune workflow execution history older than {Days} days", retentionDays);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading automation settings — keeping current values");
+        }
+    }
+
+    private async Task<bool> GetBoolSettingAsync(string key, bool defaultValue)
+    {
+        var value = await _dataService.GetConfigValueAsync(key);
+        return bool.TryParse(value, out var parsed) ? parsed : defaultValue;
+    }
+
+    private async Task<int> GetIntSettingAsync(string key, int defaultValue)
+    {
+        var value = await _dataService.GetConfigValueAsync(key);
+        return int.TryParse(value, out var parsed) ? parsed : defaultValue;
+    }
+
     private int CommandCount
     {
         get { lock (_sync) return _commandIndex.Values.Sum(list => list.Count); }
@@ -336,7 +417,7 @@ public class WorkflowTriggerService
     {
         try
         {
-            if (!_started || string.IsNullOrWhiteSpace(message))
+            if (!_started || string.IsNullOrWhiteSpace(message) || !_workflowsEnabled || !_commandTriggersEnabled)
             {
                 return false;
             }
@@ -348,14 +429,14 @@ public class WorkflowTriggerService
             }
 
             var prefix = trimmed[0];
-            if (Array.IndexOf(CommandPrefixes, prefix) < 0)
+            if (Array.IndexOf(_commandPrefixes, prefix) < 0)
             {
                 return false; // not a command message — leave the pipeline alone
             }
 
             var separatorIndex = trimmed.IndexOfAny(Whitespace);
             var token = separatorIndex < 0 ? trimmed : trimmed.Substring(0, separatorIndex); // e.g. "!hello"
-            var name = token.TrimStart(CommandPrefixes); // "hello"
+            var name = token.TrimStart(_commandPrefixes); // "hello"
             if (name.Length == 0)
             {
                 return false;
@@ -502,7 +583,7 @@ public class WorkflowTriggerService
     /// </remarks>
     public bool TryHandleSlashCommand(WorkflowSlashInvocation? invocation)
     {
-        if (invocation == null || !_started)
+        if (invocation == null || !_started || !_workflowsEnabled)
         {
             return false;
         }
@@ -563,7 +644,7 @@ public class WorkflowTriggerService
     /// </summary>
     public bool TryHandleComponent(WorkflowComponentInteraction? interaction)
     {
-        if (interaction == null || !_started)
+        if (interaction == null || !_started || !_workflowsEnabled)
         {
             return false;
         }
@@ -1054,7 +1135,8 @@ public class WorkflowTriggerService
 
     private void TickTimers()
     {
-        if (!_started || Interlocked.CompareExchange(ref _tickRunning, 1, 0) != 0)
+        if (!_started || !_workflowsEnabled || !_timerTriggersEnabled
+            || Interlocked.CompareExchange(ref _tickRunning, 1, 0) != 0)
         {
             return;
         }
@@ -1237,7 +1319,8 @@ public class WorkflowTriggerService
             List<Workflow> matches;
             lock (_sync)
             {
-                if (!_started || !_eventIndex.TryGetValue(eventType, out var candidates))
+                if (!_started || !_workflowsEnabled || !_eventTriggersEnabled
+                    || !_eventIndex.TryGetValue(eventType, out var candidates))
                 {
                     return;
                 }
@@ -1605,7 +1688,7 @@ public class WorkflowTriggerService
                 switch ((trigger.Type ?? string.Empty).Trim().ToLowerInvariant())
                 {
                     case "command":
-                        var name = (trigger.CommandName ?? string.Empty).Trim().TrimStart(CommandPrefixes);
+                        var name = (trigger.CommandName ?? string.Empty).Trim().TrimStart(_commandPrefixes);
                         if (name.Length > 0)
                         {
                             AddToIndex(commandIndex, name, workflow);
@@ -1769,11 +1852,16 @@ public class WorkflowTriggerService
 
         _ = Task.Run(async () =>
         {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 var result = await runtime.ExecuteAsync(workflow, context);
+                stopwatch.Stop();
+                _metrics?.Increment("Workflows", "runs");
+                _metrics?.RecordDuration("Workflows", stopwatch.Elapsed.TotalMilliseconds);
                 if (result is { IsCompleted: false })
                 {
+                    _metrics?.Increment("Workflows", "failed");
                     _logger.LogWarning("Workflow '{Name}' ({WorkflowId}) execution {ExecutionId} {Status}: {Error}",
                         workflow.Name, workflow.Id, context.ExecutionId, result.Status, result.Error ?? "(no details)");
                 }
@@ -1790,6 +1878,10 @@ public class WorkflowTriggerService
             }
             catch (Exception ex)
             {
+                stopwatch.Stop();
+                _metrics?.Increment("Workflows", "runs");
+                _metrics?.Increment("Workflows", "failed");
+                _metrics?.RecordDuration("Workflows", stopwatch.Elapsed.TotalMilliseconds);
                 _logger.LogError(ex, "Workflow '{Name}' ({WorkflowId}) execution {ExecutionId} failed",
                     workflow.Name, workflow.Id, context.ExecutionId);
             }

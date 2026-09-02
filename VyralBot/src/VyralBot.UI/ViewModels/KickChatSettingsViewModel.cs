@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 using VyralBot.Core.Services.Chat;
@@ -89,17 +90,44 @@ public partial class KickChatSettingsViewModel : ViewModelBase
 
     public KickChatSettingsViewModel(
         ILogger<KickChatSettingsViewModel> logger,
-        IChatEventSettingsService eventSettingsService)
+        IChatEventSettingsService eventSettingsService,
+        VyralBot.Data.IDataService? dataService = null)
     {
         _logger = logger;
         _eventSettingsService = eventSettingsService;
+        _dataService = dataService
+            ?? App.ServiceProvider?.GetRequiredService<VyralBot.Data.IDataService>();
     }
+
+    private readonly VyralBot.Data.IDataService? _dataService;
+    private bool _isInitialized;
 
     public async Task InitializeAsync()
     {
         try
         {
             _logger.LogInformation("Loading Kick chat event settings...");
+
+            // Load the chat routing + auto-start flags from the platform row
+            if (_dataService != null)
+            {
+                var platform = await _dataService.GetPlatformByNameAsync("Kick");
+                if (platform != null)
+                {
+                    _isInitialized = false;
+                    IsChatEnabled = platform.KickChatEnabled;
+                    AutoStartChat = platform.KickChatAutoStart;
+                    _isInitialized = true;
+                }
+                else
+                {
+                    _isInitialized = true;
+                }
+            }
+            else
+            {
+                _isInitialized = true;
+            }
 
             // Load Follow settings
             var followSettings = await _eventSettingsService.GetSettingAsync("Kick", "Follow");
@@ -168,6 +196,45 @@ public partial class KickChatSettingsViewModel : ViewModelBase
         {
             _logger.LogError(ex, "Failed to load Kick chat event settings");
             Status = "Failed to load settings";
+        }
+    }
+
+    partial void OnIsChatEnabledChanged(bool value)
+    {
+        if (_isInitialized && _dataService != null)
+        {
+            _ = PersistKickFlagsAsync(chatEnabled: value, autoStart: null);
+        }
+    }
+
+    partial void OnAutoStartChatChanged(bool value)
+    {
+        if (_isInitialized && _dataService != null)
+        {
+            _ = PersistKickFlagsAsync(chatEnabled: null, autoStart: value);
+        }
+    }
+
+    /// <summary>
+    /// Persists the KickChatEnabled / KickChatAutoStart platform flags (the auto-start
+    /// flag is consumed at app launch by MainViewModel's startup auto-connect).
+    /// </summary>
+    private async Task PersistKickFlagsAsync(bool? chatEnabled, bool? autoStart)
+    {
+        try
+        {
+            var platform = await _dataService!.GetPlatformByNameAsync("Kick");
+            if (platform != null)
+            {
+                if (chatEnabled.HasValue) platform.KickChatEnabled = chatEnabled.Value;
+                if (autoStart.HasValue) platform.KickChatAutoStart = autoStart.Value;
+                platform.UpdatedAt = DateTime.UtcNow;
+                await _dataService.SavePlatformAsync(platform);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error persisting Kick chat flags");
         }
     }
 

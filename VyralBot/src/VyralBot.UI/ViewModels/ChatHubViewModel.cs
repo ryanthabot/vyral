@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using VyralBot.Data;
+using VyralBot.UI.Services;
 
 namespace VyralBot.UI.ViewModels;
 
@@ -11,6 +12,7 @@ public partial class ChatHubViewModel : ViewModelBase
     private readonly ILogger<ChatHubViewModel> _logger;
     private readonly IServiceProvider _serviceProvider;
     private readonly IDataService _dataService;
+    private readonly PlatformConnectionService _platformConnectionService;
 
     [ObservableProperty]
     private string _selectedPlatform = "Twitch";
@@ -51,14 +53,22 @@ public partial class ChatHubViewModel : ViewModelBase
     [ObservableProperty]
     private ViewModelBase? _currentPlatformSettings;
 
+    [ObservableProperty]
+    private bool _isBusy;
+
+    [ObservableProperty]
+    private string? _connectionActionMessage;
+
     public ChatHubViewModel(
         ILogger<ChatHubViewModel> logger,
         IServiceProvider serviceProvider,
-        IDataService dataService)
+        IDataService dataService,
+        PlatformConnectionService platformConnectionService)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
         _dataService = dataService;
+        _platformConnectionService = platformConnectionService;
     }
 
     public async Task InitializeAsync()
@@ -116,11 +126,6 @@ public partial class ChatHubViewModel : ViewModelBase
         }
     }
 
-    partial void OnSelectedPlatformChanged(string value)
-    {
-        UpdateCurrentPlatform();
-    }
-
     private void UpdateCurrentPlatform()
     {
         switch (SelectedPlatform)
@@ -152,5 +157,67 @@ public partial class ChatHubViewModel : ViewModelBase
     private void SelectPlatform(string platform)
     {
         SelectedPlatform = platform;
+    }
+
+    /// <summary>True when the selected platform supports connect/disconnect from here (TikTok is not implemented yet).</summary>
+    public bool IsCurrentPlatformManageable => SelectedPlatform is "Twitch" or "Kick" or "YouTube" or "Discord";
+
+    /// <summary>True when the selected platform supports manual OAuth token refresh (YouTube refreshes on connect; Discord bot tokens don't expire).</summary>
+    public bool CanRefreshCurrentPlatformTokens => SelectedPlatform is "Twitch" or "Kick";
+
+    [RelayCommand]
+    private async Task ConnectCurrentPlatformAsync()
+    {
+        await RunConnectionActionAsync(() => _platformConnectionService.ConnectAsync(SelectedPlatform, refreshTokensFirst: true));
+    }
+
+    [RelayCommand]
+    private async Task DisconnectCurrentPlatformAsync()
+    {
+        await RunConnectionActionAsync(() => _platformConnectionService.DisconnectAsync(SelectedPlatform));
+    }
+
+    [RelayCommand]
+    private async Task RefreshCurrentPlatformTokensAsync()
+    {
+        await RunConnectionActionAsync(() => _platformConnectionService.RefreshTokensAsync(SelectedPlatform));
+    }
+
+    private async Task RunConnectionActionAsync(Func<Task<(bool Success, string Message)>> action)
+    {
+        if (IsBusy || !IsCurrentPlatformManageable)
+        {
+            return;
+        }
+
+        try
+        {
+            IsBusy = true;
+            ConnectionActionMessage = null;
+
+            var (success, message) = await action();
+            ConnectionActionMessage = message;
+            _logger.LogInformation("ChatHub {Platform} action: {Message}", SelectedPlatform, message);
+
+            await LoadPlatformConnectionsAsync();
+            UpdateCurrentPlatform();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ChatHub connection action failed for {Platform}", SelectedPlatform);
+            ConnectionActionMessage = $"Action failed: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    partial void OnSelectedPlatformChanged(string value)
+    {
+        UpdateCurrentPlatform();
+        OnPropertyChanged(nameof(IsCurrentPlatformManageable));
+        OnPropertyChanged(nameof(CanRefreshCurrentPlatformTokens));
+        ConnectionActionMessage = null;
     }
 }

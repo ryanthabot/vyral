@@ -14,6 +14,13 @@ public interface ICommandService
     public const string ActionsMarkerPrefix = "$ACTIONS$";
 
     /// <summary>
+    /// Loads command processing settings (prefixes + per-platform toggles)
+    /// from the Settings → Commands config keys. Called after a profile loads
+    /// and again whenever those settings change.
+    /// </summary>
+    Task InitializeAsync();
+
+    /// <summary>
     /// Registers a command in the database
     /// </summary>
     Task<bool> RegisterCommandAsync(Command command);

@@ -966,42 +966,537 @@
                                     </StackPanel>
                                 </Button>
                             </UniformGrid>
+
+                            <!-- Startup & Connection Behavior -->
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,4">
+                                        <StackPanel>
+                                            <TextBlock Text="Startup &amp; Connection"
+                                                       FontSize="16"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Choose which platforms connect when the app launches, whether tokens refresh first, and connect or disconnect right now."
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <Button Content="Refresh Status"
+                                                Command="{Binding PlatformStartupSettingsViewModel.RefreshStatusCommand}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                HorizontalAlignment="Right"
+                                                Padding="12,4"
+                                                VerticalAlignment="Top"/>
+                                    </Grid>
+
+                                    <ItemsControl ItemsSource="{Binding PlatformStartupSettingsViewModel.Platforms}" Margin="0,8,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        Padding="14"
+                                                        Margin="0,0,0,10">
+                                                    <StackPanel>
+                                                        <Grid Margin="0,0,0,10">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding PlatformName}"
+                                                                           FontSize="15"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                                <TextBlock Text="{Binding Description}"
+                                                                           FontSize="11"
+                                                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                            </StackPanel>
+                                                            <Border Grid.Column="1"
+                                                                    CornerRadius="10"
+                                                                    Padding="10,3"
+                                                                    VerticalAlignment="Center">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Background" Value="#339E9E9E"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                                                <Setter Property="Background" Value="#3310B981"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <TextBlock Text="{Binding StatusText}" FontSize="11">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </Border>
+                                                        </Grid>
+
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <!-- Auto-connect at startup -->
+                                                            <StackPanel Grid.Column="0" Margin="0,0,12,8">
+                                                                <TextBlock Text="Connect at startup"
+                                                                           FontSize="13"
+                                                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                    <ToggleButton IsChecked="{Binding AutoConnectOnStartup}"
+                                                                                  Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
+                                                                    <TextBlock Text="auto-connect on app launch"
+                                                                               FontSize="10"
+                                                                               Foreground="{DynamicResource TextMutedBrush}"
+                                                                               VerticalAlignment="Center"
+                                                                               Margin="8,0,0,0"/>
+                                                                </StackPanel>
+                                                            </StackPanel>
+
+                                                            <!-- Refresh tokens at startup -->
+                                                            <StackPanel Grid.Column="1" Margin="0,0,12,8">
+                                                                <TextBlock Text="Refresh tokens at startup"
+                                                                           FontSize="13"
+                                                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                    <ToggleButton IsChecked="{Binding RefreshTokensOnStartup}"
+                                                                                  Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                                                  IsEnabled="{Binding SupportsTokenRefresh}"/>
+                                                                    <TextBlock Text="rotate tokens before connecting"
+                                                                               FontSize="10"
+                                                                               Foreground="{DynamicResource TextMutedBrush}"
+                                                                               VerticalAlignment="Center"
+                                                                               Margin="8,0,0,0"/>
+                                                                </StackPanel>
+                                                            </StackPanel>
+
+                                                            <!-- Actions -->
+                                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom">
+                                                                <Button Content="Connect"
+                                                                        Command="{Binding ConnectCommand}"
+                                                                        Style="{StaticResource MaterialDesignRaisedButton}"
+                                                                        Background="{DynamicResource PrimaryBrush}"
+                                                                        Padding="12,4"
+                                                                        Margin="0,0,8,0">
+                                                                    <Button.Visibility>
+                                                                        <Binding Path="IsConnected" Converter="{StaticResource InvertBooleanToVisibilityConverter}"/>
+                                                                    </Button.Visibility>
+                                                                </Button>
+                                                                <Button Content="Disconnect"
+                                                                        Command="{Binding DisconnectCommand}"
+                                                                        Style="{StaticResource MaterialDesignFlatButton}"
+                                                                        Padding="12,4"
+                                                                        Margin="0,0,8,0"
+                                                                        Visibility="{Binding IsConnected, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                <Button Content="Refresh Tokens"
+                                                                        Command="{Binding RefreshTokensCommand}"
+                                                                        Style="{StaticResource MaterialDesignFlatButton}"
+                                                                        Padding="12,4"
+                                                                        Visibility="{Binding SupportsTokenRefresh, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <!-- Discord bots -->
+                                    <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Padding="14"
+                                            Margin="0,0,0,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="Discord bots"
+                                                           FontSize="15"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}">
+                                                    <Run Text="Start every saved bot at app launch &#183; "/>
+                                                    <Run Text="{Binding PlatformStartupSettingsViewModel.DiscordBotCount, Mode=OneWay}"/>
+                                                    <Run Text=" saved"/>
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <ToggleButton Grid.Column="1"
+                                                          IsChecked="{Binding PlatformStartupSettingsViewModel.DiscordBotsAutoConnect}"
+                                                          Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                          VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <TextBlock Text="The webhook server for Kick webhooks has its own auto-start switch in API &amp; Webhooks. First-time sign-in for a platform happens on the Connections page."
+                                               FontSize="10"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,4"/>
+                                    <TextBlock Text="{Binding PlatformStartupSettingsViewModel.StatusMessage}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource PrimaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding PlatformStartupSettingsViewModel.StatusMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                </StackPanel>
+                            </materialDesign:Card>
                         </StackPanel>
 
                         <!-- Data Panel -->
                         <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Data}">
-                            <TextBlock Text="Data Management" 
-                                       FontSize="20" 
+                            <TextBlock Text="Data Management"
+                                       FontSize="20"
                                        FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       Margin="0,0,0,16"/>
-                            <TextBlock Text="Coming Soon..." 
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <TextBlock FontSize="12"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,16">
+                                <Run Text="Everything VyralBot stores on disk for profile "/>
+                                <Run Text="{Binding DataManagementViewModel.CurrentProfileName, Mode=OneWay}" FontWeight="SemiBold"/>
+                                <Run Text=", how much space it uses, and where it lives."/>
+                            </TextBlock>
+
+                            <!-- Storage Locations -->
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,12">
+                                        <TextBlock Text="Storage Locations"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <Button Content="Refresh"
+                                                Command="{Binding DataManagementViewModel.RefreshCommand}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                HorizontalAlignment="Right"
+                                                Padding="12,4"/>
+                                    </Grid>
+                                    <ItemsControl ItemsSource="{Binding DataManagementViewModel.StorageLocations}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        Padding="12"
+                                                        Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0">
+                                                            <TextBlock Text="{Binding Name}"
+                                                                       FontSize="13"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                            <TextBlock Text="{Binding Description}"
+                                                                       FontSize="11"
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                       TextWrapping="Wrap"
+                                                                       Margin="0,2,0,4"/>
+                                                            <TextBlock Text="{Binding Path}"
+                                                                       FontSize="10"
+                                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       ToolTip="{Binding Path}"/>
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding SizeText}"
+                                                                   FontSize="12"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="16,0"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                        <Button Grid.Column="2"
+                                                                Content="Open"
+                                                                Command="{Binding OpenCommand}"
+                                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                                Padding="12,4"
+                                                                VerticalAlignment="Center"
+                                                                IsEnabled="{Binding Exists}"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <!-- Data Inventory -->
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Stored Data (this profile)"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,12"/>
+                                    <ItemsControl ItemsSource="{Binding DataManagementViewModel.DataInventory}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        Padding="10,6"
+                                                        Margin="0,0,8,8">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Count}"
+                                                                   FontSize="14"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource PrimaryBrush}"/>
+                                                        <TextBlock Text="{Binding Name, StringFormat=' {0}'}"
+                                                                   FontSize="12"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <!-- Cleanup & Backup -->
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Cleanup &amp; Backup"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,4"/>
+                                    <TextBlock Text="Clear actions permanently delete this profile's data. Commands, workflows and settings are never touched."
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,12"/>
+                                    <WrapPanel>
+                                        <Button Content="Clear Chat History"
+                                                Command="{Binding DataManagementViewModel.ClearChatHistoryCommand}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="12,6"
+                                                Margin="0,0,8,8"/>
+                                        <Button Content="Clear Event History"
+                                                Command="{Binding DataManagementViewModel.ClearEventHistoryCommand}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="12,6"
+                                                Margin="0,0,8,8"/>
+                                        <Button Content="Clear Workflow Runs"
+                                                Command="{Binding DataManagementViewModel.ClearWorkflowExecutionsCommand}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="12,6"
+                                                Margin="0,0,8,8"/>
+                                        <Button Content="Compact Database"
+                                                Command="{Binding DataManagementViewModel.CompactDatabaseCommand}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="12,6"
+                                                Margin="0,0,8,8"/>
+                                        <Button Content="Export Profile Backup"
+                                                Command="{Binding DataManagementViewModel.ExportBackupCommand}"
+                                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                                Background="{DynamicResource PrimaryBrush}"
+                                                Padding="12,6"
+                                                Margin="0,0,8,8"/>
+                                    </WrapPanel>
+                                    <TextBlock Text="{Binding DataManagementViewModel.StatusMessage}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource PrimaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,4,0,0"
+                                               Visibility="{Binding DataManagementViewModel.StatusMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                </StackPanel>
+                            </materialDesign:Card>
                         </StackPanel>
 
                         <!-- Notifications Panel -->
                         <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Notifications}">
-                            <TextBlock Text="Notifications" 
-                                       FontSize="20" 
+                            <TextBlock Text="Notifications"
+                                       FontSize="20"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,16"/>
-                            <TextBlock Text="Coming Soon..." 
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Master Toggles"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,12"/>
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Event messages in chat"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Show follows, subs, raids, cheers etc. as messages in the chat feed"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      IsChecked="{Binding ShowEventsInChat}"
+                                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="16,0,0,0"/>
+                                    </Grid>                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Event sounds"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Play the sound mapped to each event (Sounds page)"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      IsChecked="{Binding EventSoundsEnabled}"
+                                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="16,0,0,0"/>
+                                    </Grid>                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <TextBlock Text="Per-event toggles live on the Chat Hub (per platform), alert behavior on the Alert Settings page, and per-event sound files on the Sounds page."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"/>
                         </StackPanel>
 
                         <!-- Commands Panel -->
                         <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Commands}">
-                            <TextBlock Text="Commands" 
-                                       FontSize="20" 
+                            <TextBlock Text="Commands"
+                                       FontSize="20"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,16"/>
-                            <TextBlock Text="Coming Soon..." 
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Command Prefixes"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,4"/>
+                                    <TextBlock Text="Characters that mark a chat message as a command (e.g. !dice). Applies to custom commands and workflow command triggers."
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,12"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBox Text="{Binding CommandPrefixes, UpdateSourceTrigger=PropertyChanged}"
+                                                 Width="120"
+                                                 MaxLength="8"
+                                                 materialDesign:HintAssist.Hint="!?."
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 VerticalAlignment="Center"/>
+                                        <Button Content="Save Prefixes"
+                                                Command="{Binding SaveCommandPrefixesCommand}"
+                                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                                Background="{DynamicResource PrimaryBrush}"
+                                                Margin="12,0,0,0"
+                                                VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Where Commands Run"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,12"/>
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Process commands on Twitch"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Turn off to ignore every command in Twitch chat"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      IsChecked="{Binding CommandsEnabledOnTwitch}"
+                                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="16,0,0,0"/>
+                                    </Grid>                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Process commands on Kick"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Turn off to ignore every command in Kick chat"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      IsChecked="{Binding CommandsEnabledOnKick}"
+                                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="16,0,0,0"/>
+                                    </Grid>                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Process commands on Discord"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Turn off to ignore every command in Discord"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      IsChecked="{Binding CommandsEnabledOnDiscord}"
+                                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="16,0,0,0"/>
+                                    </Grid>                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <TextBlock Text="Individual commands, cooldowns and per-command platform toggles are on the Commands page."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"/>
                         </StackPanel>
 
                         <!-- Variables Panel -->
@@ -1010,26 +1505,188 @@
 
                         <!-- Timers Panel -->
                         <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Timers}">
-                            <TextBlock Text="Timers" 
-                                       FontSize="20" 
+                            <TextBlock Text="Timers"
+                                       FontSize="20"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,16"/>
-                            <TextBlock Text="Coming Soon..." 
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Scheduled Command Timers"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,4"/>
+                                    <TextBlock Text="Timers post a command's response on a schedule (Commands page &#8594; Timers tab). Turning this off pauses every timer without deleting them."
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,12"/>
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Command timers enabled"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Checked every 30 seconds while the app runs"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      IsChecked="{Binding CommandTimersEnabled}"
+                                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="16,0,0,0"/>
+                                    </Grid>                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <TextBlock Text="Individual timers (command, interval, platform) are managed on the Commands page &#8594; Timers tab. Workflow timer triggers have their own toggle under Automation."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"/>
                         </StackPanel>
 
                         <!-- Automation Panel -->
                         <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Automation}">
-                            <TextBlock Text="Automation" 
-                                       FontSize="20" 
+                            <TextBlock Text="Automation"
+                                       FontSize="20"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,16"/>
-                            <TextBlock Text="Coming Soon..." 
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Workflow Triggers"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,12"/>
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Workflows enabled"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Master switch \u2014 no workflow fires while off (manual Run in the editor still works)"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      IsChecked="{Binding WorkflowsEnabled}"
+                                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="16,0,0,0"/>
+                                    </Grid>                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Command triggers"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Run workflows when a chat command is typed"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      IsChecked="{Binding WorkflowCommandTriggersEnabled}"
+                                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="16,0,0,0"/>
+                                    </Grid>                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Event triggers"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Run workflows on follows, subs, raids, cheers, hosts"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      IsChecked="{Binding WorkflowEventTriggersEnabled}"
+                                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="16,0,0,0"/>
+                                    </Grid>                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Timer triggers"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Run workflows on their configured schedule"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      IsChecked="{Binding WorkflowTimerTriggersEnabled}"
+                                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="16,0,0,0"/>
+                                    </Grid>                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Timer check interval (seconds)"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="How often timer workflows are checked \u2014 30 to 600 seconds"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                        </StackPanel>
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding WorkflowTimerIntervalSeconds, UpdateSourceTrigger=LostFocus}"
+                                                 Width="80"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 VerticalAlignment="Center"
+                                                 Margin="16,0,0,0"/>
+                                    </Grid>                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Execution history retention (days)"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Older run records are deleted at startup \u2014 0 keeps everything forever"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                        </StackPanel>
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding WorkflowHistoryRetentionDays, UpdateSourceTrigger=LostFocus}"
+                                                 Width="80"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 VerticalAlignment="Center"
+                                                 Margin="16,0,0,0"/>
+                                    </Grid>                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <TextBlock Text="Workflow definitions, triggers and the visual editor are on the Automation page."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"/>
                         </StackPanel>
 
                         <!-- API Panel -->
@@ -1037,39 +1694,151 @@
                                       Content="{Binding WebServerSettingsViewModel}"/>
 
                         <!-- Performance Panel -->
-                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Performance}">
-                            <TextBlock Text="Performance" 
-                                       FontSize="20" 
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       Margin="0,0,0,16"/>
-                            <TextBlock Text="Coming Soon..." 
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
-                        </StackPanel>
+                        <ContentControl Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Performance}"
+                                        Content="{Binding PerformanceViewModel}"/>
 
                         <!-- Security Panel -->
                         <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Security}">
-                            <TextBlock Text="Security" 
-                                       FontSize="20" 
+                            <TextBlock Text="Security"
+                                       FontSize="20"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,16"/>
-                            <TextBlock Text="Coming Soon..." 
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Profile Lock"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,8"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock FontSize="14" Foreground="{DynamicResource TextPrimaryBrush}">
+                                                <Run Text="Current profile: "/>
+                                                <Run Text="{Binding CurrentProfile.DisplayName, Mode=OneWay}" FontWeight="SemiBold"/>
+                                            </TextBlock>
+                                            <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}">
+                                                <Run Text="PIN protection: "/>
+                                                <Run Text="{Binding CurrentProfileHasPin, Mode=OneWay, Converter={StaticResource BoolToStringConverter}, ConverterParameter=Enabled|Not set}" FontWeight="SemiBold"/>
+                                            </TextBlock>
+                                            <TextBlock Text="A PIN is asked when switching to a profile. Note: enabling Auto-Login (Profile section) skips the selector — keep Auto-Login off if you rely on the PIN."
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="1"
+                                                Content="Change PIN"
+                                                Command="{Binding ShowChangePinDialogForProfileCommand}"
+                                                CommandParameter="{Binding CurrentProfile}"
+                                                Style="{StaticResource MaterialDesignOutlinedButton}"
+                                                Padding="12,6"
+                                                VerticalAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Token &amp; Credential Storage"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,8"/>
+                                    <TextBlock Text="{Binding TokenStorageInfo, Mode=OneWay}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock Text="Signing out of a platform (Connections page) deletes its stored tokens. Data Management shows every file location."
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </materialDesign:Card>
                         </StackPanel>
 
                         <!-- Advanced Panel -->
                         <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Advanced}">
-                            <TextBlock Text="Advanced" 
-                                       FontSize="20" 
+                            <TextBlock Text="Advanced"
+                                       FontSize="20"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,16"/>
-                            <TextBlock Text="Coming Soon..." 
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding AppVersion, Mode=OneWay}"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,12"/>
+                                    <WrapPanel>
+                                        <Button Content="Open App Data"
+                                                Command="{Binding OpenAppdataFolderCommand}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="12,6"
+                                                Margin="0,0,8,8"/>
+                                        <Button Content="Open Logs"
+                                                Command="{Binding OpenLogsFolderCommand}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="12,6"
+                                                Margin="0,0,8,8"/>
+                                        <Button Content="Open WebView2 Cache"
+                                                Command="{Binding OpenWebView2FolderCommand}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="12,6"
+                                                Margin="0,0,8,8"/>
+                                        <Button Content="Open Editor Data"
+                                                Command="{Binding OpenLocalAppDataFolderCommand}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="12,6"
+                                                Margin="0,0,8,8"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Caches"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,4"/>
+                                    <TextBlock Text="Safe to clear — everything rebuilds as needed. Signed-in OAuth sessions in embedded browser windows may need re-auth."
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,12"/>
+                                    <WrapPanel>
+                                        <Button Content="Clear WebView2 Cache"
+                                                Command="{Binding ClearWebView2CacheCommand}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="12,6"
+                                                Margin="0,0,8,8"/>
+                                        <Button Content="Clear Flow Drafts"
+                                                Command="{Binding ClearFlowDraftsCommand}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="12,6"
+                                                Margin="0,0,8,8"/>
+                                        <Button Content="Clear Block Templates"
+                                                Command="{Binding ClearBlockTemplatesCommand}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="12,6"
+                                                Margin="0,0,8,8"/>
+                                    </WrapPanel>
+                                    <TextBlock Text="Database compaction and per-profile backups are in Data Management."
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </materialDesign:Card>
                         </StackPanel>
 
                     </StackPanel>

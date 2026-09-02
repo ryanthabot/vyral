@@ -91,6 +91,14 @@ public class CommandTimerService
 
         try
         {
+            // Master toggle (Settings → Timers): disabled means no timer fires,
+            // but the scheduler keeps running so a re-enable is instant.
+            var enabled = await _dataService.GetConfigValueAsync("Timers.CommandTimersEnabled");
+            if (bool.TryParse(enabled, out var isEnabled) && !isEnabled)
+            {
+                return;
+            }
+
             var timers = await _dataService.GetCommandTimersAsync();
             var now = DateTime.UtcNow;
 

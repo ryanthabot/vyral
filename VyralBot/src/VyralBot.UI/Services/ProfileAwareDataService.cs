@@ -87,6 +87,13 @@ public class ProfileAwareDataService : IDataService
     public Task SetConfigValueAsync(string key, string value, string? category = null) => GetCurrentService().SetConfigValueAsync(key, value, category);
     public Task<IEnumerable<Config>> GetConfigsByCategoryAsync(string category) => GetCurrentService().GetConfigsByCategoryAsync(category);
 
+    // Data management (Settings → Data Management)
+    public Task<IReadOnlyDictionary<string, int>> GetDataInventoryAsync() => GetCurrentService().GetDataInventoryAsync();
+    public Task DeleteAllChatMessagesAsync() => GetCurrentService().DeleteAllChatMessagesAsync();
+    public Task DeleteEventLogsAsync() => GetCurrentService().DeleteEventLogsAsync();
+    public Task DeleteWorkflowExecutionsAsync(string? workflowId = null, DateTime? olderThan = null) => GetCurrentService().DeleteWorkflowExecutionsAsync(workflowId, olderThan);
+    public Task<bool> CompactDatabaseAsync() => GetCurrentService().CompactDatabaseAsync();
+
     public Task<IEnumerable<Trigger>> GetTriggersAsync(bool? enabledOnly = null) => GetCurrentService().GetTriggersAsync(enabledOnly);
     public Task<Trigger?> GetTriggerByIdAsync(Guid id) => GetCurrentService().GetTriggerByIdAsync(id);
     public Task SaveTriggerAsync(Trigger trigger) => GetCurrentService().SaveTriggerAsync(trigger);

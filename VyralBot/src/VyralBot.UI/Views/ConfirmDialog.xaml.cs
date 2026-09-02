@@ -11,6 +11,15 @@ public partial class ConfirmDialog : Window
             InitializeComponent();
         }
 
+        /// <summary>
+        /// Replaces the dialog's main message (used by the Settings data-management
+        /// confirmations; defaults to the navigation-warning text).
+        /// </summary>
+        public void SetMessage(string message)
+        {
+            MessageText.Text = message;
+        }
+
         private void Yes_Click(object sender, RoutedEventArgs e)
         {
             Result = true;

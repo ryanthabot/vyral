@@ -23,9 +23,18 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly IDataService _dataService;
     private readonly WebServerSettingsViewModel _webServerSettingsViewModel;
     private readonly VariablesViewModel _variablesViewModel;
+    private readonly PerformanceViewModel _performanceViewModel;
+    private readonly PlatformStartupSettingsViewModel _platformStartupSettingsViewModel;
+    private readonly DataManagementViewModel _dataManagementViewModel;
+    private readonly Core.Services.Commands.ICommandService _commandService;
+    private readonly WorkflowTriggerService _workflowTriggerService;
+    private bool _categorySettingsLoaded;
 
     public WebServerSettingsViewModel WebServerSettingsViewModel => _webServerSettingsViewModel;
     public VariablesViewModel VariablesViewModel => _variablesViewModel;
+    public PerformanceViewModel PerformanceViewModel => _performanceViewModel;
+    public PlatformStartupSettingsViewModel PlatformStartupSettingsViewModel => _platformStartupSettingsViewModel;
+    public DataManagementViewModel DataManagementViewModel => _dataManagementViewModel;
 
     [ObservableProperty]
     private ObservableCollection<Profile> _profiles = new();
@@ -153,6 +162,11 @@ public partial class SettingsViewModel : ViewModelBase
         IDataService dataService,
         WebServerSettingsViewModel webServerSettingsViewModel,
         VariablesViewModel variablesViewModel,
+        PerformanceViewModel performanceViewModel,
+        PlatformStartupSettingsViewModel platformStartupSettingsViewModel,
+        DataManagementViewModel dataManagementViewModel,
+        Core.Services.Commands.ICommandService commandService,
+        WorkflowTriggerService workflowTriggerService,
         IServiceProvider serviceProvider)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -160,6 +174,11 @@ public partial class SettingsViewModel : ViewModelBase
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _webServerSettingsViewModel = webServerSettingsViewModel ?? throw new ArgumentNullException(nameof(webServerSettingsViewModel));
         _variablesViewModel = variablesViewModel ?? throw new ArgumentNullException(nameof(variablesViewModel));
+        _performanceViewModel = performanceViewModel ?? throw new ArgumentNullException(nameof(performanceViewModel));
+        _platformStartupSettingsViewModel = platformStartupSettingsViewModel ?? throw new ArgumentNullException(nameof(platformStartupSettingsViewModel));
+        _dataManagementViewModel = dataManagementViewModel ?? throw new ArgumentNullException(nameof(dataManagementViewModel));
+        _commandService = commandService ?? throw new ArgumentNullException(nameof(commandService));
+        _workflowTriggerService = workflowTriggerService ?? throw new ArgumentNullException(nameof(workflowTriggerService));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
 
@@ -172,6 +191,9 @@ public partial class SettingsViewModel : ViewModelBase
             await LoadSettingsAsync();
             await LoadPlatformConnectionStatusAsync();
             await _variablesViewModel.InitializeAsync();
+            await _platformStartupSettingsViewModel.InitializeAsync();
+            await _dataManagementViewModel.InitializeAsync();
+            await LoadCategorySettingsAsync();
 
             // Load current theme state for the picker
             var themeManager = ThemeManager.Instance;
@@ -672,6 +694,397 @@ public partial class SettingsViewModel : ViewModelBase
         _logger.LogInformation("User navigated back to platform selection grid");
         SelectedPlatformViewModel = null;
         ShowPlatformGrid = true;
+    }
+
+    // ======================================================================
+    // Notifications / Commands / Timers / Automation / Security / Advanced
+    // (config-table backed; auto-saved on change)
+    // ======================================================================
+
+    // ----- Notifications -----
+
+    [ObservableProperty]
+    private bool _showEventsInChat = true;
+
+    [ObservableProperty]
+    private bool _eventSoundsEnabled = true;
+
+    partial void OnShowEventsInChatChanged(bool value)
+    {
+        if (_categorySettingsLoaded)
+        {
+            _ = SaveNotificationSettingAsync("Notifications.ShowEventsInChat", value, reloadChat: true);
+        }
+    }
+
+    partial void OnEventSoundsEnabledChanged(bool value)
+    {
+        if (_categorySettingsLoaded)
+        {
+            _ = SaveNotificationSettingAsync("Notifications.EventSoundsEnabled", value, reloadChat: false);
+        }
+    }
+
+    private async Task SaveNotificationSettingAsync(string key, bool value, bool reloadChat)
+    {
+        try
+        {
+            await _dataService.SetConfigValueAsync(key, value.ToString(), "Notifications");
+
+            if (reloadChat)
+            {
+                // SoundService reads its config on every playback; ChatViewModel
+                // caches the display toggle, so ask it to re-read now.
+                var chatViewModel = _serviceProvider.GetService<ChatViewModel>();
+                if (chatViewModel != null)
+                {
+                    await chatViewModel.ReloadEventDisplayToggleAsync();
+                }
+            }
+
+            StatusMessage = "Setting saved";
+            _logger.LogInformation("{Key} saved: {Value}", key, value);
+            await ClearStatusAfterDelayAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving {Key}", key);
+            StatusMessage = $"Error saving setting: {ex.Message}";
+        }
+    }
+
+    // ----- Commands -----
+
+    [ObservableProperty]
+    private string _commandPrefixes = "!?.";
+
+    [ObservableProperty]
+    private bool _commandsEnabledOnTwitch = true;
+
+    [ObservableProperty]
+    private bool _commandsEnabledOnKick = true;
+
+    [ObservableProperty]
+    private bool _commandsEnabledOnDiscord = true;
+
+    [RelayCommand]
+    private async Task SaveCommandPrefixesAsync()
+    {
+        try
+        {
+            var prefixes = new string(CommandPrefixes.Where(c => !char.IsWhiteSpace(c)).Distinct().ToArray());
+            if (prefixes.Length == 0)
+            {
+                StatusMessage = "Enter at least one command prefix character";
+                return;
+            }
+
+            CommandPrefixes = prefixes;
+            await _dataService.SetConfigValueAsync("Commands.Prefixes", prefixes, "Commands");
+            await _commandService.InitializeAsync();
+            await _workflowTriggerService.ReloadSettingsAsync();
+
+            StatusMessage = $"Command prefixes saved: {prefixes}";
+            _logger.LogInformation("Command prefixes saved: {Prefixes}", prefixes);
+            await ClearStatusAfterDelayAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving command prefixes");
+            StatusMessage = $"Error saving prefixes: {ex.Message}";
+        }
+    }
+
+    partial void OnCommandsEnabledOnTwitchChanged(bool value) => SavePlatformCommandToggleAsync("Twitch", value);
+    partial void OnCommandsEnabledOnKickChanged(bool value) => SavePlatformCommandToggleAsync("Kick", value);
+    partial void OnCommandsEnabledOnDiscordChanged(bool value) => SavePlatformCommandToggleAsync("Discord", value);
+
+    private void SavePlatformCommandToggleAsync(string platform, bool value)
+    {
+        if (!_categorySettingsLoaded)
+        {
+            return;
+        }
+
+        _ = SavePlatformCommandToggleCoreAsync(platform, value);
+    }
+
+    private async Task SavePlatformCommandToggleCoreAsync(string platform, bool value)
+    {
+        try
+        {
+            await _dataService.SetConfigValueAsync($"Commands.Enabled.{platform}", value.ToString(), "Commands");
+            await _commandService.InitializeAsync();
+            StatusMessage = $"Commands {(value ? "enabled" : "disabled")} on {platform}";
+            _logger.LogInformation("Commands enabled on {Platform}: {Value}", platform, value);
+            await ClearStatusAfterDelayAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving commands toggle for {Platform}", platform);
+            StatusMessage = $"Error saving setting: {ex.Message}";
+        }
+    }
+
+    // ----- Timers -----
+
+    [ObservableProperty]
+    private bool _commandTimersEnabled = true;
+
+    partial void OnCommandTimersEnabledChanged(bool value)
+    {
+        if (_categorySettingsLoaded)
+        {
+            _ = SaveSimpleBoolSettingAsync("Timers.CommandTimersEnabled", value, "Timers");
+        }
+    }
+
+    // ----- Automation -----
+
+    [ObservableProperty]
+    private bool _workflowsEnabled = true;
+
+    [ObservableProperty]
+    private bool _workflowCommandTriggersEnabled = true;
+
+    [ObservableProperty]
+    private bool _workflowEventTriggersEnabled = true;
+
+    [ObservableProperty]
+    private bool _workflowTimerTriggersEnabled = true;
+
+    [ObservableProperty]
+    private int _workflowTimerIntervalSeconds = 60;
+
+    [ObservableProperty]
+    private int _workflowHistoryRetentionDays = 90;
+
+    partial void OnWorkflowsEnabledChanged(bool value) => SaveAutomationSettingAsync();
+    partial void OnWorkflowCommandTriggersEnabledChanged(bool value) => SaveAutomationSettingAsync();
+    partial void OnWorkflowEventTriggersEnabledChanged(bool value) => SaveAutomationSettingAsync();
+    partial void OnWorkflowTimerTriggersEnabledChanged(bool value) => SaveAutomationSettingAsync();
+    partial void OnWorkflowTimerIntervalSecondsChanged(int value) => SaveAutomationSettingAsync();
+    partial void OnWorkflowHistoryRetentionDaysChanged(int value) => SaveAutomationSettingAsync();
+
+    private bool _savingAutomationSettings;
+
+    private async void SaveAutomationSettingAsync()
+    {
+        if (!_categorySettingsLoaded || _savingAutomationSettings)
+        {
+            return;
+        }
+
+        try
+        {
+            _savingAutomationSettings = true;
+            await _dataService.SetConfigValueAsync("Automation.WorkflowsEnabled", WorkflowsEnabled.ToString(), "Automation");
+            await _dataService.SetConfigValueAsync("Automation.CommandTriggersEnabled", WorkflowCommandTriggersEnabled.ToString(), "Automation");
+            await _dataService.SetConfigValueAsync("Automation.EventTriggersEnabled", WorkflowEventTriggersEnabled.ToString(), "Automation");
+            await _dataService.SetConfigValueAsync("Automation.TimerTriggersEnabled", WorkflowTimerTriggersEnabled.ToString(), "Automation");
+            await _dataService.SetConfigValueAsync("Automation.TimerIntervalSeconds", Math.Clamp(WorkflowTimerIntervalSeconds, 30, 600).ToString(), "Automation");
+            await _dataService.SetConfigValueAsync("Automation.ExecutionHistoryRetentionDays", Math.Max(0, WorkflowHistoryRetentionDays).ToString(), "Automation");
+
+            await _workflowTriggerService.ReloadSettingsAsync();
+
+            StatusMessage = "Automation settings saved";
+            _logger.LogInformation("Automation settings saved (enabled={Enabled}, interval={Interval}s, retention={Retention}d)",
+                WorkflowsEnabled, WorkflowTimerIntervalSeconds, WorkflowHistoryRetentionDays);
+            await ClearStatusAfterDelayAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving automation settings");
+            StatusMessage = $"Error saving automation settings: {ex.Message}";
+        }
+        finally
+        {
+            _savingAutomationSettings = false;
+        }
+    }
+
+    private async Task SaveSimpleBoolSettingAsync(string key, bool value, string category)
+    {
+        try
+        {
+            await _dataService.SetConfigValueAsync(key, value.ToString(), category);
+            StatusMessage = "Setting saved";
+            _logger.LogInformation("{Key} saved: {Value}", key, value);
+            await ClearStatusAfterDelayAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving {Key}", key);
+            StatusMessage = $"Error saving setting: {ex.Message}";
+        }
+    }
+
+    private async Task LoadCategorySettingsAsync()
+    {
+        try
+        {
+            ShowEventsInChat = await GetBoolAsync("Notifications.ShowEventsInChat", true);
+            EventSoundsEnabled = await GetBoolAsync("Notifications.EventSoundsEnabled", true);
+
+            CommandPrefixes = await _dataService.GetConfigValueAsync("Commands.Prefixes") ?? "!?.";
+            CommandsEnabledOnTwitch = await GetBoolAsync("Commands.Enabled.Twitch", true);
+            CommandsEnabledOnKick = await GetBoolAsync("Commands.Enabled.Kick", true);
+            CommandsEnabledOnDiscord = await GetBoolAsync("Commands.Enabled.Discord", true);
+
+            CommandTimersEnabled = await GetBoolAsync("Timers.CommandTimersEnabled", true);
+
+            WorkflowsEnabled = await GetBoolAsync("Automation.WorkflowsEnabled", true);
+            WorkflowCommandTriggersEnabled = await GetBoolAsync("Automation.CommandTriggersEnabled", true);
+            WorkflowEventTriggersEnabled = await GetBoolAsync("Automation.EventTriggersEnabled", true);
+            WorkflowTimerTriggersEnabled = await GetBoolAsync("Automation.TimerTriggersEnabled", true);
+            WorkflowTimerIntervalSeconds = await GetIntAsync("Automation.TimerIntervalSeconds", 60);
+            WorkflowHistoryRetentionDays = await GetIntAsync("Automation.ExecutionHistoryRetentionDays", 90);
+
+            // Security panel info
+            var current = await _profileService.GetCurrentProfileAsync();
+            CurrentProfileHasPin = !string.IsNullOrEmpty(current.PinCode);
+
+            _categorySettingsLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading category settings");
+        }
+    }
+
+    private async Task<bool> GetBoolAsync(string key, bool defaultValue)
+    {
+        var value = await _dataService.GetConfigValueAsync(key);
+        return bool.TryParse(value, out var parsed) ? parsed : defaultValue;
+    }
+
+    private async Task<int> GetIntAsync(string key, int defaultValue)
+    {
+        var value = await _dataService.GetConfigValueAsync(key);
+        return int.TryParse(value, out var parsed) ? parsed : defaultValue;
+    }
+
+    // ----- Security -----
+
+    [ObservableProperty]
+    private bool _currentProfileHasPin;
+
+    public string TokenStorageInfo =>
+        "Platform tokens are stored in this profile's database (see Data Management for the exact location). " +
+        "Twitch tokens are encrypted with Windows DPAPI for your user account; Kick tokens are managed by KickLib; " +
+        "YouTube and Discord bot tokens are stored as-is in the profile database. " +
+        "Anyone with access to this PC's user account can use them — protect the PC, not just the app.";
+
+    // ----- Advanced -----
+
+    public string AppVersion =>
+        $"VyralBot {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)} · .NET {Environment.Version}";
+
+    private static string WebView2CachePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VyralBot", "WebView2Data");
+
+    private static string LocalAppDataRoot => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Vyral");
+
+    [RelayCommand]
+    private void OpenAppdataFolder()
+    {
+        // Same discovery as UiPreferencesService: walk up from the exe until an
+        // "appdata" folder appears (portable layout).
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !string.Equals(dir.Name, "appdata", StringComparison.OrdinalIgnoreCase))
+        {
+            dir = dir.Parent!;
+        }
+
+        if (dir != null && dir.Exists)
+        {
+            OpenFolderInExplorer(dir.FullName);
+        }
+        else
+        {
+            StatusMessage = "App data folder not found";
+        }
+    }
+
+    [RelayCommand]
+    private void OpenLogsFolder() => OpenFolderInExplorer(Path.Combine(AppContext.BaseDirectory, "logs"));
+
+    [RelayCommand]
+    private void OpenWebView2Folder() => OpenFolderInExplorer(WebView2CachePath);
+
+    [RelayCommand]
+    private void OpenLocalAppDataFolder() => OpenFolderInExplorer(LocalAppDataRoot);
+
+    private static void OpenFolderInExplorer(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", path) { UseShellExecute = true });
+            }
+        }
+        catch
+        {
+            // Best effort
+        }
+    }
+
+    [RelayCommand]
+    private async Task ClearWebView2CacheAsync()
+    {
+        await ClearDirectoryWithConfirmAsync(
+            WebView2CachePath,
+            "Delete the WebView2 browser cache? OAuth sign-in windows will rebuild it as needed (custom signed-in sessions may need re-auth).");
+    }
+
+    [RelayCommand]
+    private async Task ClearFlowDraftsAsync()
+    {
+        await ClearDirectoryWithConfirmAsync(
+            Path.Combine(LocalAppDataRoot, "FlowDrafts"),
+            "Delete all unsaved flow editor drafts? Unsaved automation changes will be lost; saved workflows are not affected.");
+    }
+
+    [RelayCommand]
+    private async Task ClearBlockTemplatesAsync()
+    {
+        await ClearDirectoryWithConfirmAsync(
+            Path.Combine(LocalAppDataRoot, "BlockTemplates"),
+            "Delete all saved flow editor block templates?");
+    }
+
+    private async Task ClearDirectoryWithConfirmAsync(string path, string confirmMessage)
+    {
+        try
+        {
+            if (!Directory.Exists(path))
+            {
+                StatusMessage = "Nothing to clear — folder does not exist";
+                return;
+            }
+
+            var dialog = new ConfirmDialog
+            {
+                Owner = System.Windows.Application.Current?.MainWindow
+            };
+            dialog.SetMessage(confirmMessage);
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            Directory.Delete(path, recursive: true);
+            StatusMessage = $"Cleared {Path.GetFileName(path)}";
+            _logger.LogInformation("Cleared cache directory {Path}", path);
+            await ClearStatusAfterDelayAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error clearing {Path}", path);
+            StatusMessage = $"Error clearing folder: {ex.Message}";
+        }
     }
 
     // ===== Theme commands =====

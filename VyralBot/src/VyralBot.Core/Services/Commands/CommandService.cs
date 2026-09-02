@@ -11,7 +11,17 @@ public class CommandService : ICommandService
     private readonly IDataService _dataService;
     private readonly IVariableReplacementService _variableReplacementService;
     private readonly ILogger<CommandService> _logger;
-    private readonly char[] _commandPrefixes = ['!', '?', '.'];
+    // Defaults match the pre-settings hardcoding; InitializeAsync replaces them
+    // with the Settings → Commands values ("Commands.Prefixes").
+    private char[] _commandPrefixes = ['!', '?', '.'];
+    // Per-platform master toggles from Settings → Commands ("Commands.Enabled.{Platform}"),
+    // all default-on so command processing keeps working until turned off.
+    private readonly Dictionary<string, bool> _platformEnabled = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Twitch"] = true,
+        ["Kick"] = true,
+        ["Discord"] = true,
+    };
 
     public CommandService(
         IDataService dataService,
@@ -23,11 +33,45 @@ public class CommandService : ICommandService
         _logger = logger;
     }
 
+    public async Task InitializeAsync()
+    {
+        try
+        {
+            var prefixes = await _dataService.GetConfigValueAsync("Commands.Prefixes");
+            if (!string.IsNullOrWhiteSpace(prefixes))
+            {
+                var chars = prefixes
+                    .Where(c => !char.IsWhiteSpace(c))
+                    .Distinct()
+                    .ToArray();
+
+                if (chars.Length > 0)
+                {
+                    _commandPrefixes = chars;
+                    _logger.LogInformation("Command prefixes loaded: {Prefixes}", new string(_commandPrefixes));
+                }
+            }
+
+            foreach (var platform in _platformEnabled.Keys.ToArray())
+            {
+                var value = await _dataService.GetConfigValueAsync($"Commands.Enabled.{platform}");
+                if (bool.TryParse(value, out var enabled))
+                {
+                    _platformEnabled[platform] = enabled;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading command settings — keeping current values");
+        }
+    }
+
     public bool IsCommand(string message)
     {
         if (string.IsNullOrWhiteSpace(message))
             return false;
-        
+
         return _commandPrefixes.Contains(message[0]);
     }
 
@@ -63,6 +107,10 @@ public class CommandService : ICommandService
         try
         {
             if (!IsCommand(message))
+                return null;
+
+            // Per-platform master toggle (Settings → Commands)
+            if (_platformEnabled.TryGetValue(context.Platform, out var platformEnabled) && !platformEnabled)
                 return null;
 
             // Parse command name and args

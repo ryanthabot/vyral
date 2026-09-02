@@ -37,8 +37,10 @@
             <StackPanel Grid.Row="1" 
                         Margin="20"
                         VerticalAlignment="Center">
-                <TextBlock Text="You are in the middle of setting up Twitch."
+                <TextBlock x:Name="MessageText"
+                           Text="You are in the middle of setting up Twitch."
                            FontSize="14"
+                           TextWrapping="Wrap"
                            Foreground="{StaticResource TextPrimaryBrush}"
                            Margin="0,0,0,8"/>
                 <TextBlock Text="Going back to home will lose your progress."
