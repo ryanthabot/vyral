@@ -224,6 +224,10 @@ public partial class App : Application
                 // Profile settings management
                 services.AddSingleton<ProfileSettingsLoader>();
 
+                // Theme system (ThemeManager is a static singleton; registered for DI discoverability)
+                services.AddSingleton<UiPreferencesService>();
+                services.AddSingleton(_ => ThemeManager.Instance);
+
                 // ViewModels - Use Singleton to prevent memory leaks from duplicate instances
                 services.AddSingleton<DashboardViewModel>();
                 services.AddSingleton<PlatformsViewModel>();
@@ -325,6 +329,17 @@ public partial class App : Application
 
             // Set static ServiceProvider for DI access
             ServiceProvider = _host.Services;
+
+            // Apply the saved theme before any window renders (app-level preference).
+            try
+            {
+                ThemeManager.Instance.Initialize();
+                Log.Information("Theme applied: {ThemeId}", ThemeManager.Instance.CurrentThemeId);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to apply saved theme - using native defaults");
+            }
 
             // Workflow Discord bridge: attach any bot that is ALREADY running
             // at this point (the bridge itself auto-subscribes the manager's

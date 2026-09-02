@@ -23,11 +23,20 @@ public partial class MainWindow : Window
         _viewModel = viewModel;
         _serviceProvider = serviceProvider;
         _logger = logger;
-        
+
+        // Per-theme logo color variant as the window/taskbar icon, live with theme switches
+        Services.ThemeManager.Instance.ThemeChanged += OnThemeChanged;
+        UpdateWindowIcon();
+
         // Handle window events
         Closing += MainWindow_Closing;
 
     }
+
+    private void OnThemeChanged() => Dispatcher.Invoke(UpdateWindowIcon);
+
+    private void UpdateWindowIcon()
+        => Icon = Services.ThemeManager.Instance.ResolveLogoImage(Services.ThemeManager.Instance.CurrentLogoVariant);
 
     private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
