@@ -628,7 +628,7 @@
                                     <DataTemplate>
                                         <Button Command="{Binding DataContext.SelectThemeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                 CommandParameter="{Binding}"
-                                                Margin="0,0,12,12" Padding="0" HorizontalContentAlignment="Stretch"
+                                                Height="76" Margin="0,0,12,12" Padding="0" HorizontalContentAlignment="Stretch"
                                                 Style="{StaticResource MaterialDesignRaisedButton}"
                                                 Background="{DynamicResource CardBackgroundBrush}"
                                                 BorderBrush="{DynamicResource BorderPrimaryBrush}" BorderThickness="1">
@@ -650,8 +650,13 @@
                                                 <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                                                     <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"
                                                                Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                                    <TextBlock Text="Built-in" FontSize="11"
-                                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding IsLight, Converter={StaticResource BoolToStringConverter}, ConverterParameter=Light|Dark}"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                        <TextBlock Text=" · built-in" FontSize="11"
+                                                                   Foreground="{DynamicResource TextMutedBrush}"/>
+                                                    </StackPanel>
                                                 </StackPanel>
                                                 <!-- selected indicator: visible when this item is the active theme -->
                                                 <materialDesign:PackIcon Kind="CheckCircle" Width="20" Height="20" Margin="12,0,0,0"

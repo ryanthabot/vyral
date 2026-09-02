@@ -454,7 +454,21 @@ public partial class MainViewModel : ViewModelBase
             // Auto-connect to YouTube if configured and status is Connected
             if (youtubePlatform?.Status == "Connected")
             {
-                await LoadAndConnectYouTubeAsync(dataService, youtubePlatform);
+                // The YouTube connect polls Google APIs, which can stall for
+                // minutes on quota errors — that starves the whole boot chain
+                // (Discord bot auto-start, command timers, workflow engine).
+                // Bound it; the connect keeps running in the background and its
+                // PlatformConnectionChanged events update the UI on completion.
+                var youtubeConnect = LoadAndConnectYouTubeAsync(dataService, youtubePlatform);
+                var finished = await Task.WhenAny(youtubeConnect, Task.Delay(TimeSpan.FromSeconds(45)));
+                if (finished != youtubeConnect)
+                {
+                    _logger.LogWarning("⚠️ YouTube auto-connect timed out after 45s — continuing startup; the connect keeps retrying in the background");
+                }
+                else
+                {
+                    await youtubeConnect;
+                }
             }
 
             // Auto-connect to Discord if configured and status is Connected

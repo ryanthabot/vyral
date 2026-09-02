@@ -1472,6 +1472,38 @@ public class WorkflowTriggerService
         }
     }
 
+    /// <summary>Removes each vanished command from one service (best-effort; failures logged, never thrown).</summary>
+    private async Task UnregisterSlashCommandsOnServiceAsync(DiscordService service, IReadOnlyCollection<string> names)
+    {
+        if (service == null || names.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var name in names)
+        {
+            try
+            {
+                var error = await service.UnregisterWorkflowSlashCommandAsync(name).ConfigureAwait(false);
+                if (error != null)
+                {
+                    _logger.LogWarning("Workflow slash command '/{Name}' unregistration failed on bot {BotId}: {Error}",
+                        name, service.BotId, error);
+                }
+                else
+                {
+                    _logger.LogInformation("Workflow slash command '/{Name}' unregistered on bot {BotId}",
+                        name, service.BotId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Workflow slash command '/{Name}' unregistration threw on bot {BotId}",
+                    name, service.BotId);
+            }
+        }
+    }
+
     /// <summary>
     /// Normalizes a workflow slash command name for Discord — the SAME rules
     /// as DiscordService's registration (lowercase, ASCII letters/digits/'-'
@@ -1509,6 +1541,12 @@ public class WorkflowTriggerService
         // Engine data layer: rows carry the trigger + node graph as JSON
         // (WorkflowJson.FromRow materializes them). Only ENABLED workflows are
         // cached; disabled ones can never match.
+        List<string> previousSlashNames;
+        lock (_sync)
+        {
+            previousSlashNames = _slashIndex.Keys.ToList();
+        }
+
         var rows = await _dataService.GetWorkflowsAsync();
 
         var commandIndex = new Dictionary<string, List<Workflow>>(StringComparer.OrdinalIgnoreCase);
@@ -1635,7 +1673,12 @@ public class WorkflowTriggerService
         // SLASH AUTO-REGISTRATION (best-effort, fire-and-forget): push every
         // enabled slash workflow's command name to every connected bot — runs
         // after StartAsync's initial load and after every editor ReloadAsync.
-        _ = SyncWorkflowSlashCommandsAsync();
+        // Commands that vanished from the cache (deleted, disabled or renamed
+        // flows) are removed from Discord too.
+        var removedSlashNames = previousSlashNames
+            .Where(n => !slashIndex.ContainsKey(n))
+            .ToList();
+        _ = SyncWorkflowSlashCommandsAsync(removedSlashNames);
     }
 
     private static void AddToIndex(Dictionary<string, List<Workflow>> index, string key, Workflow workflow)

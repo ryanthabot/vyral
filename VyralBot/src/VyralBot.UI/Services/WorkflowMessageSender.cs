@@ -109,7 +109,13 @@ public class WorkflowMessageSender
                         return false;
                     }
 
-                    return await target.SendMessageAsync(message);
+                    // Origin-aware send: explicit ctx.Channel → tracked interaction
+                    // origin → the bot's selected dashboard channel. The plain
+                    // SendMessageAsync ONLY knows the selected channel, so replies
+                    // to slash commands in any other channel would be dropped
+                    // whenever no dashboard channel is configured.
+                    return await target.SendToChannelAsync(
+                        context.Channel ?? string.Empty, message, null, context.GuildName);
 
                 default:
                     _logger.LogWarning(
