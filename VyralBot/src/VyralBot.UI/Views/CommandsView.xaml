@@ -1,0 +1,853 @@
+<UserControl x:Class="VyralBot.UI.Views.CommandsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:vm="clr-namespace:VyralBot.UI.ViewModels"
+             mc:Ignorable="d"
+             d:DesignHeight="700" d:DesignWidth="1000"
+             Background="{StaticResource BackgroundDarkBrush}">
+
+    <UserControl.Resources>
+        <vm:CommandBotNameConverter x:Key="CommandBotNameConverter"/>
+        <vm:CommandScopeActionLabelConverter x:Key="CommandScopeActionLabelConverter"/>
+        <vm:CommandTimerLastRunConverter x:Key="CommandTimerLastRunConverter"/>
+        <vm:CommandTimerBotLabelConverter x:Key="CommandTimerBotLabelConverter"/>
+        <vm:CommandFlowManagedToolTipConverter x:Key="CommandFlowManagedToolTipConverter"/>
+
+        <!-- Plain raised button template: deterministic hit area, no adorner-layer ripple
+             (copied from the DiscordBotsView plain-button pattern) -->
+        <Style x:Key="VyralPlainPrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource PrimaryHueMidBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="24,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="btnBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.7"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Plain outline button: transparent with a hairline border -->
+        <Style x:Key="VyralPlainOutlineButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="24,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="btnBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{DynamicResource BorderColorBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.8"/>
+                                <Setter TargetName="btnBorder" Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.6"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Plain danger button: red, for destructive actions -->
+        <Style x:Key="VyralPlainDangerButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource ErrorRedBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="24,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="btnBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.7"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Dark compact tab headers matching the Vyral theme -->
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border Name="Border"
+                                Background="Transparent"
+                                BorderBrush="{DynamicResource BorderColorBrush}"
+                                BorderThickness="0,0,0,2"
+                                Padding="16,10">
+                            <ContentPresenter ContentSource="Header" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PrimaryHueMidBrush}"/>
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <!-- Root: page content + full-size visual command editor overlay -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="Terminal"
+                                            Width="28"
+                                            Height="28"
+                                            Foreground="{DynamicResource PrimaryHueMidBrush}"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,10,0"/>
+                    <TextBlock Text="Commands"
+                               FontSize="28"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock Text="Every command — built-in or custom — edits in the Visual Builder. SAVE adopts it into a flow Vyral runs."
+                           FontSize="14"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Margin="0,6,0,0"/>
+            </StackPanel>
+
+            <Button Grid.Column="1"
+                    Content="NEW COMMAND"
+                    Click="OnVisualEditorClick"
+                    Style="{StaticResource VyralPlainPrimaryButton}"
+                    VerticalAlignment="Top"
+                    ToolTip="Create a new command flow in the Visual Builder"/>
+        </Grid>
+
+        <!-- Bot scope bar: only when Discord bots are configured -->
+        <materialDesign:Card Grid.Row="1"
+                             Padding="16,12"
+                             Background="{StaticResource CardBackgroundBrush}"
+                             Effect="{StaticResource CardShadow}"
+                             Margin="0,0,0,12"
+                             Visibility="{Binding HasDiscordBots, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <materialDesign:PackIcon Grid.Column="0"
+                                         Kind="Robot"
+                                         Width="20"
+                                         Height="20"
+                                         Foreground="{DynamicResource DiscordBrush}"
+                                         VerticalAlignment="Center"
+                                         Margin="0,0,10,0"/>
+
+                <TextBlock Grid.Column="1"
+                           Text="Bot scope"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           VerticalAlignment="Center"/>
+
+                <ComboBox Grid.Column="2"
+                          ItemsSource="{Binding BotScopes}"
+                          DisplayMemberPath="Name"
+                          SelectedItem="{Binding SelectedBotScope}"
+                          MinWidth="220"
+                          VerticalAlignment="Center"/>
+
+                <TextBlock Grid.Column="3"
+                           Text="{Binding ScopeHint}"
+                           FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"
+                           Margin="4,0,16,0"/>
+
+                <Button Grid.Column="4"
+                        Content="REFRESH"
+                        Command="{Binding RefreshBotsCommand}"
+                        Style="{StaticResource VyralPlainOutlineButton}"
+                        Height="34"
+                        VerticalAlignment="Center"
+                        ToolTip="Reload bots from the Discord Bots page"/>
+            </Grid>
+        </materialDesign:Card>
+
+        <!-- Main content -->
+        <TabControl Grid.Row="2" Background="Transparent" BorderThickness="0">
+            <!-- Built-in Commands Tab -->
+            <TabItem Header="BUILT-IN">
+                <Grid Margin="0,16,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Toolbar -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button Content="EDIT"
+                                Click="OnCommandEditClick"
+                                Style="{StaticResource VyralPlainOutlineButton}"
+                                Margin="0,0,12,0"
+                                ToolTip="Edit in Visual Builder"/>
+                        <TextBlock Text="Pre-configured commands. EDIT opens the Visual Builder on a flow seeded from the built-in — SAVE adopts the command."
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding BuiltInCommands}"
+                              SelectedItem="{Binding SelectedCommand, Mode=TwoWay}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              Background="{StaticResource CardBackgroundBrush}"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              BorderBrush="{DynamicResource BorderColorBrush}"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{DynamicResource BorderColorBrush}"
+                              RowBackground="Transparent"
+                              IsReadOnly="False"
+                              MouseDoubleClick="OnCommandsGridDoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Command" Binding="{Binding Name}" Width="120" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryHueMidBrush}"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                        <Setter Property="ToolTip">
+                                            <Setter.Value>
+                                                <Binding Path="." Converter="{StaticResource CommandFlowManagedToolTipConverter}"/>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Response" Binding="{Binding Response}" Width="*" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                        <Setter Property="TextWrapping" Value="Wrap"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Permission" Binding="{Binding Permission}" Width="100" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource SecondaryHueMidBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Bot" IsReadOnly="True" Width="110">
+                                <DataGridTextColumn.Binding>
+                                    <Binding Path="BotId" Converter="{StaticResource CommandBotNameConverter}"/>
+                                </DataGridTextColumn.Binding>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTemplateColumn Header="Enabled" Width="80">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Command="{Binding DataContext.ToggleEnabledCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  CommandParameter="{Binding}"
+                                                  HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="Kick" Width="60">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding EnabledOnKick, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Command="{Binding DataContext.TogglePlatformCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  CommandParameter="{Binding}"
+                                                  HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="Twitch" Width="70">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding EnabledOnTwitch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Command="{Binding DataContext.TogglePlatformCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  CommandParameter="{Binding}"
+                                                  HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Header="Usage" Binding="{Binding UsageCount}" Width="70" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- Custom Commands Tab -->
+            <TabItem Header="CUSTOM">
+                <Grid Margin="0,16,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Toolbar -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button Content="NEW COMMAND"
+                                Click="OnVisualEditorClick"
+                                Style="{StaticResource VyralPlainPrimaryButton}"
+                                Margin="0,0,12,0"
+                                ToolTip="Create a new command flow in the Visual Builder"/>
+                        <Button Content="EDIT"
+                                Click="OnCommandEditClick"
+                                Style="{StaticResource VyralPlainOutlineButton}"
+                                Margin="0,0,12,0"
+                                ToolTip="Edit in Visual Builder"/>
+                        <Button Content="DELETE"
+                                Command="{Binding DeleteCommand}"
+                                CommandParameter="{Binding SelectedCommand}"
+                                Style="{StaticResource VyralPlainDangerButton}"
+                                ToolTip="Delete the selected command (and the flow managing it)"/>
+                    </StackPanel>
+
+                    <!-- Commands DataGrid -->
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding CustomCommands}"
+                              SelectedItem="{Binding SelectedCommand, Mode=TwoWay}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              Background="{StaticResource CardBackgroundBrush}"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              BorderBrush="{DynamicResource BorderColorBrush}"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{DynamicResource BorderColorBrush}"
+                              RowBackground="Transparent"
+                              IsReadOnly="True"
+                              MouseDoubleClick="OnCommandsGridDoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Command" Binding="{Binding Name}" Width="120">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryHueMidBrush}"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                        <Setter Property="ToolTip">
+                                            <Setter.Value>
+                                                <Binding Path="." Converter="{StaticResource CommandFlowManagedToolTipConverter}"/>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Response" Binding="{Binding Response}" Width="*">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                        <Setter Property="TextWrapping" Value="Wrap"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Permission" Binding="{Binding Permission}" Width="100">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource SecondaryHueMidBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Cooldowns (G/U)" Width="110">
+                                <DataGridTextColumn.Binding>
+                                    <MultiBinding StringFormat="{}{0}s / {1}s">
+                                        <Binding Path="GlobalCooldown"/>
+                                        <Binding Path="UserCooldown"/>
+                                    </MultiBinding>
+                                </DataGridTextColumn.Binding>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Bot" IsReadOnly="True" Width="110">
+                                <DataGridTextColumn.Binding>
+                                    <Binding Path="BotId" Converter="{StaticResource CommandBotNameConverter}"/>
+                                </DataGridTextColumn.Binding>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- Per-command scope toggle: visible only while a specific bot is selected -->
+                            <DataGridTemplateColumn Header="Bot Scope" Width="120">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="{Binding BotId, Converter={StaticResource CommandScopeActionLabelConverter}}"
+                                                Command="{Binding DataContext.ToggleBotScopeCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource VyralPlainOutlineButton}"
+                                                Height="30"
+                                                Padding="12,0"
+                                                HorizontalAlignment="Center"
+                                                Visibility="{Binding DataContext.IsSpecificBotScope, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                ToolTip="Flip this command between 'this bot only' and 'all bots'"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="Status" Width="80">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding IsEnabled, Converter={StaticResource BoolToStatusConverter}}"
+                                                   Foreground="{Binding IsEnabled, Converter={StaticResource BoolToColorConverter}}"
+                                                   Padding="5" HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Header="Usage" Binding="{Binding UsageCount}" Width="70">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                </Grid>
+            </TabItem>
+
+            <!-- Timers Tab -->
+            <TabItem Header="TIMERS">
+                <Grid Margin="0,16,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Toolbar -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button Content="NEW TIMER"
+                                Command="{Binding NewTimerCommand}"
+                                Style="{StaticResource VyralPlainPrimaryButton}"
+                                Margin="0,0,12,0"/>
+                        <Button Content="EDIT"
+                                Command="{Binding EditTimerCommand}"
+                                CommandParameter="{Binding SelectedTimer}"
+                                Style="{StaticResource VyralPlainOutlineButton}"
+                                Margin="0,0,12,0"
+                                ToolTip="Edit the selected timer (or double-click a row)"/>
+                        <Button Content="DELETE"
+                                Command="{Binding DeleteTimerCommand}"
+                                CommandParameter="{Binding SelectedTimer}"
+                                Style="{StaticResource VyralPlainDangerButton}"
+                                ToolTip="Delete the selected timer"/>
+                        <TextBlock Text="Timers fire their command automatically on a schedule — they only run while a profile is loaded."
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="12,0,0,0"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <!-- Timers DataGrid -->
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding Timers}"
+                              SelectedItem="{Binding SelectedTimer, Mode=TwoWay}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              Background="{StaticResource CardBackgroundBrush}"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              BorderBrush="{DynamicResource BorderColorBrush}"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{DynamicResource BorderColorBrush}"
+                              RowBackground="Transparent"
+                              IsReadOnly="True">
+                        <DataGrid.InputBindings>
+                            <MouseBinding MouseAction="LeftDoubleClick"
+                                          Command="{Binding EditTimerCommand}"
+                                          CommandParameter="{Binding SelectedTimer}"/>
+                        </DataGrid.InputBindings>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Timer" Binding="{Binding Name}" Width="150">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryHueMidBrush}"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Command" Binding="{Binding CommandName}" Width="120">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                        <Setter Property="FontFamily" Value="Consolas"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Every (min)" Binding="{Binding IntervalMinutes}" Width="90">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Platform" Binding="{Binding TargetPlatform}" Width="90">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource SecondaryHueMidBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTemplateColumn Header="Bot" Width="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Padding="5" Foreground="{StaticResource TextSecondaryBrush}">
+                                            <TextBlock.Text>
+                                                <Binding Path="." Converter="{StaticResource CommandTimerBotLabelConverter}"/>
+                                            </TextBlock.Text>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="Enabled" Width="80">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Command="{Binding DataContext.ToggleTimerEnabledCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  CommandParameter="{Binding}"
+                                                  HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Header="Last Run" Width="130">
+                                <DataGridTextColumn.Binding>
+                                    <Binding Path="LastRunAt" Converter="{StaticResource CommandTimerLastRunConverter}"/>
+                                </DataGridTextColumn.Binding>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Timer form -->
+                    <materialDesign:Card Grid.Row="2"
+                                         Padding="20"
+                                         Background="{StaticResource CardBackgroundBrush}"
+                                         Effect="{StaticResource CardShadow}"
+                                         Margin="0,12,0,0"
+                                         Visibility="{Binding IsEditingTimer, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding TimerEditHeader}"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Margin="0,0,0,14"/>
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Timer name -->
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Text="Timer name" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding TimerName, UpdateSourceTrigger=PropertyChanged}"
+                                             Padding="8"
+                                             materialDesign:HintAssist.Hint="Socials blast"/>
+                                </StackPanel>
+
+                                <!-- Command to fire -->
+                                <StackPanel Grid.Row="0" Grid.Column="2">
+                                    <TextBlock Text="Command" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                    <ComboBox ItemsSource="{Binding TimerCommandNames}"
+                                              Text="{Binding TimerCommandName, UpdateSourceTrigger=PropertyChanged}"
+                                              IsEditable="True"
+                                              Padding="8"
+                                              materialDesign:HintAssist.Hint="!socials"/>
+                                </StackPanel>
+
+                                <!-- Interval -->
+                                <StackPanel Grid.Row="0" Grid.Column="4">
+                                    <TextBlock Text="Every (minutes, min 5)" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding TimerIntervalMinutes, UpdateSourceTrigger=PropertyChanged}"
+                                             Padding="8"/>
+                                </StackPanel>
+
+                                <!-- Platform -->
+                                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,12,0,0">
+                                    <TextBlock Text="Platform" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                    <ComboBox ItemsSource="{Binding TimerPlatforms}"
+                                              SelectedItem="{Binding TimerTargetPlatform}"
+                                              Padding="8"/>
+                                </StackPanel>
+
+                                <!-- Discord bot (Discord timers only, when bots are configured) -->
+                                <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,12,0,0"
+                                            Visibility="{Binding ShowTimerBotPicker, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <TextBlock Text="Discord bot" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                    <ComboBox ItemsSource="{Binding TimerBotOptions}"
+                                              DisplayMemberPath="Name"
+                                              SelectedItem="{Binding SelectedTimerBot}"
+                                              Padding="8"/>
+                                </StackPanel>
+
+                                <!-- Enabled toggle -->
+                                <StackPanel Grid.Row="1" Grid.Column="4" Margin="0,12,0,0" VerticalAlignment="Bottom">
+                                    <CheckBox Content="Enabled" IsChecked="{Binding TimerIsEnabled}"
+                                              Foreground="{StaticResource TextPrimaryBrush}"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Action buttons -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                                <Button Content="SAVE"
+                                        Command="{Binding SaveTimerCommand}"
+                                        Style="{StaticResource VyralPlainPrimaryButton}"
+                                        Margin="0,0,12,0"/>
+                                <Button Content="DELETE"
+                                        Command="{Binding DeleteTimerCommand}"
+                                        CommandParameter="{Binding SelectedTimer}"
+                                        Style="{StaticResource VyralPlainDangerButton}"
+                                        Margin="0,0,12,0"
+                                        Visibility="{Binding IsCustomTimerEdit, Converter={StaticResource BoolToVisibilityConverter}}"
+                                        ToolTip="Delete this timer"/>
+                                <Button Content="CANCEL"
+                                        Command="{Binding CloseTimerCommand}"
+                                        Style="{StaticResource VyralPlainOutlineButton}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </materialDesign:Card>
+                </Grid>
+            </TabItem>
+
+            <!-- Help Tab -->
+            <TabItem Header="HELP">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,16,0,0">
+                    <StackPanel MaxWidth="800" Margin="8,0,16,24">
+                        <TextBlock Text="Command variables" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                        <TextBlock Text="Drop these into any response — the builder's live preview fills them with sample values as you type:" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10"/>
+
+                        <Border Background="{StaticResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" Margin="0,0,0,10" CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{username} - User who triggered the command"/>
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{platform} - Platform (Twitch, Kick, Discord...)"/>
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{channel} - Channel name"/>
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{balance} - User's currency balance"/>
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{role} - Broadcaster, Moderator, VIP, Subscriber or Viewer"/>
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Text="{}{uptime} / {watchtime} - Stream uptime and user watchtime"/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="Permission levels" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,16,0,12"/>
+                        <TextBlock Text="Control who can fire each command:" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10"/>
+
+                        <Border Background="{StaticResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" Margin="0,0,0,10" CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5">
+                                    <Run Text="Everyone" Foreground="{DynamicResource SecondaryHueMidBrush}" FontWeight="Bold"/>
+                                    <Run Text=" - All chat users"/>
+                                </TextBlock>
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5">
+                                    <Run Text="Subscriber" Foreground="{DynamicResource SecondaryHueMidBrush}" FontWeight="Bold"/>
+                                    <Run Text=" - Subscribers and above"/>
+                                </TextBlock>
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5">
+                                    <Run Text="VIP" Foreground="{DynamicResource SecondaryHueMidBrush}" FontWeight="Bold"/>
+                                    <Run Text=" - VIPs and above"/>
+                                </TextBlock>
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5">
+                                    <Run Text="Moderator" Foreground="{DynamicResource SecondaryHueMidBrush}" FontWeight="Bold"/>
+                                    <Run Text=" - Moderators and broadcaster"/>
+                                </TextBlock>
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}">
+                                    <Run Text="Broadcaster" Foreground="{DynamicResource SecondaryHueMidBrush}" FontWeight="Bold"/>
+                                    <Run Text=" - Broadcaster only"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="Bot scope" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,16,0,12"/>
+                        <Border Background="{StaticResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" Margin="0,0,0,10" CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5" TextWrapping="Wrap" Text="All bots - every Discord bot (and every enabled platform) fires the command."/>
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" Text="This bot only - just the bot picked in the scope bar fires it; the others stay quiet."/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="Examples" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,16,0,12"/>
+
+                        <Border Background="{StaticResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10" TextWrapping="Wrap" Text="{}!hello&#x0a;Welcome {username} to the stream!" />
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10" TextWrapping="Wrap" Text="{}!gamble&#x0a;{username} gambled and won! New balance: {balance}" />
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" Text="{}!lurk&#x0a;Thanks for lurking, {username}! Your {balance} points are safe." />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- Status bar -->
+        <Border Grid.Row="3"
+                Background="{DynamicResource PrimaryHueMidBrush}"
+                Padding="10,8"
+                Margin="0,12,0,0"
+                Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}}">
+            <TextBlock Text="{Binding StatusMessage}" Foreground="White" FontSize="12"/>
+        </Border>
+        </Grid>
+
+        <!-- ============================================================
+             VISUAL BUILDER overlay: full-size FlowEditorView host — the
+             single editor for NEW COMMAND and every row's EDIT button
+             (collapsed until one of them opens it)
+             ============================================================ -->
+        <Border x:Name="FlowEditorOverlay"
+                Grid.Row="0"
+                Panel.ZIndex="100"
+                Background="{StaticResource BackgroundDarkBrush}"
+                Visibility="Collapsed">
+            <ContentControl x:Name="FlowEditorHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+        </Border>
+    </Grid>
+</UserControl>

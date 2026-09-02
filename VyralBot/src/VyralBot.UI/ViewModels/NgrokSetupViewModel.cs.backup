@@ -1,0 +1,455 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using Microsoft.Web.WebView2.Wpf;
+using System;
+using System.Diagnostics;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Windows;
+using VyralBot.Api.Services;
+using VyralBot.Data;
+using VyralBot.Data.Entities;
+
+namespace VyralBot.UI.ViewModels;
+
+public partial class NgrokSetupViewModel : ObservableObject
+{
+    private readonly ILogger<NgrokSetupViewModel> _logger;
+    private readonly IDataService _dataService;
+    private readonly NgrokService _ngrokService;
+    private readonly WebServerService _webServerService;
+
+    [ObservableProperty]
+    private bool _showWelcome = true;
+
+    [ObservableProperty]
+    private bool _showInstallCheck = false;
+
+    [ObservableProperty]
+    private bool _showAuthSetup = false;
+
+    [ObservableProperty]
+    private bool _showTesting = false;
+
+    [ObservableProperty]
+    private bool _showSuccess = false;
+
+    [ObservableProperty]
+    private string? _authToken;
+
+    [ObservableProperty]
+    private string? _statusMessage;
+
+    [ObservableProperty]
+    private bool _isNgrokInstalled;
+
+    [ObservableProperty]
+    private bool _isTesting;
+
+    [ObservableProperty]
+    private bool _testPassed;
+
+    [ObservableProperty]
+    private string? _publicUrl;
+
+    [ObservableProperty]
+    private string? _errorMessage;
+
+    // WebView2 control reference
+    public WebView2? WebView2 { get; set; }
+
+    // Events for WebView2 lifecycle
+    public event EventHandler? WebView2InitializeRequested;
+    public event EventHandler? WebView2DisposeRequested;
+    public event EventHandler? SetupCompleted;
+
+    public NgrokSetupViewModel(
+        ILogger<NgrokSetupViewModel> logger,
+        IDataService dataService,
+        NgrokService ngrokService,
+        WebServerService webServerService)
+    {
+        _logger = logger;
+        _dataService = dataService;
+        _ngrokService = ngrokService;
+        _webServerService = webServerService;
+    }
+
+    public async Task InitializeAsync()
+    {
+        _logger.LogInformation("Initializing Ngrok setup wizard");
+
+        // Load existing settings if any
+        var settings = await _dataService.GetWebServerSettingsAsync();
+        if (!string.IsNullOrEmpty(settings.NgrokAuthToken))
+        {
+            AuthToken = settings.NgrokAuthToken;
+        }
+    }
+
+    [RelayCommand]
+    private async Task StartSetupAsync()
+    {
+        _logger.LogInformation("Starting ngrok setup wizard");
+        ShowWelcome = false;
+        ShowInstallCheck = true;
+
+        // Auto-check installation
+        await Task.Delay(500);
+        await CheckInstallationAsync();
+    }
+
+    [RelayCommand]
+    private async Task CheckInstallationAsync()
+    {
+        IsTesting = true;
+        ErrorMessage = null;
+        StatusMessage = "Checking for ngrok installation...";
+
+        try
+        {
+            await Task.Run(() =>
+            {
+                var process = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "ngrok",
+                    Arguments = "version",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                });
+
+                process?.WaitForExit(5000);
+                IsNgrokInstalled = process?.ExitCode == 0;
+
+                if (IsNgrokInstalled && process != null)
+                {
+                    var version = process.StandardOutput.ReadToEnd();
+                    StatusMessage = $"✓ Ngrok found: {version.Trim()}";
+                }
+            });
+
+            if (!IsNgrokInstalled)
+            {
+                StatusMessage = "✗ Ngrok not found in PATH";
+                ErrorMessage = "Please install ngrok from the Microsoft Store or download from https://ngrok.com/download";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking ngrok installation");
+            IsNgrokInstalled = false;
+            StatusMessage = "✗ Error checking ngrok";
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsTesting = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task OpenNgrokDashboardAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Opening ngrok dashboard...");
+            
+            // Initialize WebView2 if needed
+            WebView2InitializeRequested?.Invoke(this, EventArgs.Empty);
+            
+            // Wait for WebView2 to initialize (retry pattern)
+            int maxRetries = 10;
+            int delay = 200;
+            
+            for (int i = 0; i < maxRetries; i++)
+            {
+                await Task.Delay(delay);
+                
+                if (WebView2?.CoreWebView2 != null)
+                {
+                    _logger.LogInformation("WebView2 ready, navigating to ngrok dashboard");
+                    WebView2.CoreWebView2.Navigate("https://dashboard.ngrok.com/get-started/your-authtoken");
+                    return;
+                }
+            }
+            
+            // If WebView2 still not ready, fall back to external browser
+            _logger.LogWarning("WebView2 not initialized after retries, falling back to external browser");
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "https://dashboard.ngrok.com/get-started/your-authtoken",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error opening ngrok dashboard");
+        }
+    }
+
+    [RelayCommand]
+    private void OpenMicrosoftStore()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "ms-windows-store://pdp/?ProductId=9MVS1J51GMK6",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error opening Microsoft Store");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NextToAuthAsync()
+    {
+        if (!IsNgrokInstalled)
+        {
+            ErrorMessage = "Please install ngrok first";
+            return;
+        }
+
+        ShowInstallCheck = false;
+        ShowAuthSetup = true;
+
+        // Initialize WebView2 and load ngrok dashboard automatically
+        await Task.Delay(100); // Let UI update first
+        try
+        {
+            _logger.LogInformation("Initializing WebView2 for auth step...");
+            WebView2InitializeRequested?.Invoke(this, EventArgs.Empty);
+            
+            // Wait for WebView2 to initialize (retry pattern)
+            int maxRetries = 10;
+            int delay = 200;
+            
+            for (int i = 0; i < maxRetries; i++)
+            {
+                await Task.Delay(delay);
+                
+                if (WebView2?.CoreWebView2 != null)
+                {
+                    _logger.LogInformation("WebView2 ready, navigating to ngrok dashboard");
+                    WebView2.CoreWebView2.Navigate("https://dashboard.ngrok.com/get-started/your-authtoken");
+                    return;
+                }
+            }
+            
+            _logger.LogWarning("WebView2 not initialized after retries");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error initializing WebView2 for ngrok dashboard");
+        }
+    }
+
+    [RelayCommand]
+    private async Task AuthenticateNgrokAsync()
+    {
+        if (string.IsNullOrWhiteSpace(AuthToken))
+        {
+            ErrorMessage = "Please enter your ngrok auth token";
+            return;
+        }
+
+        IsTesting = true;
+        ErrorMessage = null;
+        StatusMessage = "Authenticating with ngrok...";
+
+        try
+        {
+            // Run ngrok config add-authtoken command
+            var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = "ngrok",
+                Arguments = $"config add-authtoken {AuthToken.Trim()}",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            });
+
+            if (process != null)
+            {
+                await process.WaitForExitAsync();
+                var output = await process.StandardOutput.ReadToEndAsync();
+                var error = await process.StandardError.ReadToEndAsync();
+
+                if (process.ExitCode == 0)
+                {
+                    StatusMessage = "✓ Authentication successful";
+                    _logger.LogInformation("Ngrok authentication successful");
+
+                    // Save to database
+                    var settings = await _dataService.GetWebServerSettingsAsync();
+                    settings.NgrokAuthToken = AuthToken.Trim();
+                    await _dataService.SaveWebServerSettingsAsync(settings);
+
+                    // Move to testing phase
+                    await Task.Delay(1000);
+                    ShowAuthSetup = false;
+                    ShowTesting = true;
+                    await TestConnectionAsync();
+                }
+                else
+                {
+                    StatusMessage = "✗ Authentication failed";
+                    ErrorMessage = $"Error: {error}";
+                    _logger.LogError("Ngrok authentication failed: {Error}", error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error authenticating ngrok");
+            StatusMessage = "✗ Authentication error";
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsTesting = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task TestConnectionAsync()
+    {
+        IsTesting = true;
+        TestPassed = false;
+        ErrorMessage = null;
+        PublicUrl = null;
+        StatusMessage = "Starting web server...";
+
+        try
+        {
+            // Start web server
+            var webServerStarted = await _webServerService.StartAsync(5000);
+            if (!webServerStarted)
+            {
+                StatusMessage = "✗ Failed to start web server";
+                ErrorMessage = "Port 5000 may be in use";
+                return;
+            }
+
+            StatusMessage = "Starting ngrok tunnel...";
+            await Task.Delay(500);
+
+            // Start ngrok tunnel
+            var settings = await _dataService.GetWebServerSettingsAsync();
+            var ngrokStarted = await _ngrokService.StartTunnelAsync(
+                5000,
+                settings.NgrokAuthToken,
+                settings.NgrokRegion);
+
+            if (!ngrokStarted)
+            {
+                StatusMessage = "✗ Failed to start ngrok tunnel";
+                ErrorMessage = "Check that ngrok is authenticated correctly";
+                await _webServerService.StopAsync();
+                return;
+            }
+
+            PublicUrl = _ngrokService.PublicUrl;
+            StatusMessage = $"✓ Tunnel established: {PublicUrl}";
+
+            // Test health endpoint
+            await Task.Delay(1000);
+            StatusMessage = "Testing webhook endpoint...";
+
+            using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            var response = await httpClient.GetAsync($"{PublicUrl}/webhooks/health");
+
+            if (response.IsSuccessStatusCode)
+            {
+                StatusMessage = "✓ All tests passed!";
+                TestPassed = true;
+                _logger.LogInformation("Ngrok setup test successful");
+
+                // Update settings
+                settings.CurrentTunnelUrl = PublicUrl;
+                await _dataService.SaveWebServerSettingsAsync(settings);
+
+                await Task.Delay(1500);
+                ShowTesting = false;
+                ShowSuccess = true;
+            }
+            else
+            {
+                StatusMessage = "✗ Health check failed";
+                ErrorMessage = $"Status code: {response.StatusCode}";
+            }
+
+            // Clean up
+            await Task.Delay(2000);
+            await _ngrokService.StopTunnelAsync();
+            await _webServerService.StopAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error testing ngrok connection");
+            StatusMessage = "✗ Test failed";
+            ErrorMessage = ex.Message;
+
+            // Clean up on error
+            try
+            {
+                await _ngrokService.StopTunnelAsync();
+                await _webServerService.StopAsync();
+            }
+            catch { }
+        }
+        finally
+        {
+            IsTesting = false;
+        }
+    }
+
+    [RelayCommand]
+    private void FinishSetup()
+    {
+        _logger.LogInformation("Ngrok setup wizard completed");
+        SetupCompleted?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void CancelSetup()
+    {
+        _logger.LogInformation("Ngrok setup wizard cancelled");
+        SetupCompleted?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void BackToWelcome()
+    {
+        ShowInstallCheck = false;
+        ShowAuthSetup = false;
+        ShowTesting = false;
+        ShowSuccess = false;
+        ShowWelcome = true;
+        ErrorMessage = null;
+        StatusMessage = null;
+    }
+
+    [RelayCommand]
+    private void BackToInstallCheck()
+    {
+        ShowAuthSetup = false;
+        ShowInstallCheck = true;
+        ErrorMessage = null;
+    }
+
+    [RelayCommand]
+    private void BackToAuthSetup()
+    {
+        ShowTesting = false;
+        ShowAuthSetup = true;
+        ErrorMessage = null;
+    }
+}

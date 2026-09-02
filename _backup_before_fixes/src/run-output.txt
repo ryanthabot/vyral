@@ -1,0 +1,94 @@
+[12:36:06 DBG] Hosting starting
+[12:36:06 INF] Application started. Press Ctrl+C to shut down.
+[12:36:06 INF] Hosting environment: Production
+[12:36:06 INF] Content root path: C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows
+[12:36:06 DBG] Hosting started
+[12:36:06 DBG] An 'IServiceProvider' was created for internal use by Entity Framework.
+[12:36:07 DBG] Entity Framework Core 8.0.11 initialized 'VyralBotContext' using provider 'Microsoft.EntityFrameworkCore.Sqlite:8.0.11' with options: None
+[12:36:07 DBG] Creating DbConnection.
+[12:36:07 DBG] Created DbConnection. (3ms).
+[12:36:07 DBG] Migrating using database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Creating DbConnection.
+[12:36:07 DBG] Created DbConnection. (0ms).
+[12:36:07 DBG] Opening connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Opened connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Disposing connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Disposed connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db' (0ms).
+[12:36:07 DBG] Creating DbCommand for 'ExecuteScalar'.
+[12:36:07 DBG] Created DbCommand for 'ExecuteScalar' (2ms).
+[12:36:07 DBG] Initialized DbCommand for 'ExecuteScalar' (5ms).
+[12:36:07 DBG] Opening connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Opened connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Executing DbCommand [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*) FROM "sqlite_master" WHERE "name" = '__EFMigrationsHistory' AND "type" = 'table';
+[12:36:07 INF] Executed DbCommand (16ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*) FROM "sqlite_master" WHERE "name" = '__EFMigrationsHistory' AND "type" = 'table';
+[12:36:07 DBG] Closing connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Closed connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db' (1ms).
+[12:36:07 DBG] Creating DbConnection.
+[12:36:07 DBG] Created DbConnection. (0ms).
+[12:36:07 DBG] Opening connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Opened connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Disposing connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Disposed connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db' (0ms).
+[12:36:07 DBG] Creating DbCommand for 'ExecuteScalar'.
+[12:36:07 DBG] Created DbCommand for 'ExecuteScalar' (0ms).
+[12:36:07 DBG] Initialized DbCommand for 'ExecuteScalar' (0ms).
+[12:36:07 DBG] Opening connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Opened connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Executing DbCommand [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*) FROM "sqlite_master" WHERE "name" = '__EFMigrationsHistory' AND "type" = 'table';
+[12:36:07 INF] Executed DbCommand (0ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT COUNT(*) FROM "sqlite_master" WHERE "name" = '__EFMigrationsHistory' AND "type" = 'table';
+[12:36:07 DBG] Closing connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Closed connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db' (0ms).
+[12:36:07 DBG] Opening connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Opened connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Creating DbCommand for 'ExecuteReader'.
+[12:36:07 DBG] Created DbCommand for 'ExecuteReader' (0ms).
+[12:36:07 DBG] Initialized DbCommand for 'ExecuteReader' (0ms).
+[12:36:07 DBG] Executing DbCommand [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT "MigrationId", "ProductVersion"
+FROM "__EFMigrationsHistory"
+ORDER BY "MigrationId";
+[12:36:07 INF] Executed DbCommand (1ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT "MigrationId", "ProductVersion"
+FROM "__EFMigrationsHistory"
+ORDER BY "MigrationId";
+[12:36:07 DBG] Closing data reader to 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] A data reader for 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db' is being disposed after spending 2ms reading results.
+[12:36:07 DBG] Closing connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Closed connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db' (0ms).
+[12:36:07 INF] No migrations were applied. The database is already up to date.
+[12:36:07 DBG] 'VyralBotContext' disposed.
+[12:36:07 DBG] Disposing connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db'.
+[12:36:07 DBG] Disposed connection to database 'main' on server 'C:\Users\user\OneDrive\Desktop\Games\VyralBot\src\VyralBot.UI\bin\Debug\net8.0-windows\data\vyralbot.db' (0ms).
+[12:36:07 INF] EventBus started
+[12:36:07 DBG] EventBus processing started
+[12:36:07 INF] Starting TriggerEngine...
+[12:36:07 DBG] Reloaded 0 triggers from database
+[12:36:07 DBG] Subscribed to IEvent (Subscription: 1c7ff447-303b-43fc-a16f-6a7b1eeb8d40)
+[12:36:07 INF] TriggerEngine started with 0 active triggers
+[12:36:07 INF] Resolving DashboardViewModel...
+[12:36:07 INF] DashboardViewModel resolved: False
+[12:36:07 INF] Resolving IServiceProvider...
+[12:36:07 INF] IServiceProvider resolved: False
+[12:36:07 INF] Resolving MainViewModel...
+[12:36:07 INF] MainViewModel resolved: False
+[12:36:07 INF] Resolving MainWindow...
+[12:36:07 INF] MainWindow resolved: False
+[12:36:12 INF] Twitch credentials not found. Setup required.
+[12:36:12 INF] Twitch credentials not found. Setup required.
+[12:36:13 INF] Twitch credentials not found. Setup required.
+[12:36:53 INF] Twitch credentials not found. Setup required.
+[12:37:01 INF] Twitch credentials not found. Setup required.
+[12:38:06 INF] Stopping TriggerEngine...
+[12:38:06 DBG] Unsubscribed (Subscription: 1c7ff447-303b-43fc-a16f-6a7b1eeb8d40)
+[12:38:06 INF] TriggerEngine stopped
+[12:38:06 DBG] Hosting stopping
+[12:38:06 INF] Application is shutting down...
+[12:38:06 DBG] Hosting stopped
+[12:38:06 INF] TwitchService disposed
+[12:38:06 INF] EventBus stopping...
+[12:38:06 INF] EventBus processing stopped
+[12:38:06 INF] EventBus stopped

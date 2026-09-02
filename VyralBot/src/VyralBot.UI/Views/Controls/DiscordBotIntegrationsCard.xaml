@@ -1,0 +1,440 @@
+<UserControl x:Class="VyralBot.UI.Views.Controls.DiscordBotIntegrationsCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:converters="clr-namespace:VyralBot.UI.Converters">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <converters:InvertBooleanToVisibilityConverter x:Key="InvertBooleanToVisibilityConverter"/>
+        <converters:NullOrEmptyToVisibilityConverter x:Key="NullOrEmptyToVisibilityConverter"/>
+
+        <!-- Plain primary button: deterministic hit area, no adorner-layer ripple -->
+        <Style x:Key="IntegrationsPrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="20,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="btnBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.7"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Plain outline button: transparent with a hairline border -->
+        <Style x:Key="IntegrationsOutlineButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="20,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="btnBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource BorderColorBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.8"/>
+                                <Setter TargetName="btnBorder" Property="BorderBrush" Value="{StaticResource TextSecondaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.6"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Plain danger button: red, for remove -->
+        <Style x:Key="IntegrationsDangerButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource ErrorRedBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="20,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="btnBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.7"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="btnBorder" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Compact row-action variants -->
+        <Style x:Key="IntegrationsSmallPrimaryButton" TargetType="Button" BasedOn="{StaticResource IntegrationsPrimaryButton}">
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Padding" Value="10,0"/>
+        </Style>
+        <Style x:Key="IntegrationsSmallOutlineButton" TargetType="Button" BasedOn="{StaticResource IntegrationsOutlineButton}">
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Padding" Value="10,0"/>
+        </Style>
+        <Style x:Key="IntegrationsSmallDangerButton" TargetType="Button" BasedOn="{StaticResource IntegrationsDangerButton}">
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Padding" Value="10,0"/>
+        </Style>
+    </UserControl.Resources>
+
+    <!-- Collapsed until Load(botId) flips IsLoaded (FallbackValue keeps it hidden
+         while the view model is still null / not loaded). -->
+    <materialDesign:Card x:Name="CardRoot"
+                         Background="{StaticResource CardBackgroundBrush}"
+                         VerticalAlignment="Top"
+                         Visibility="{Binding IsLoaded, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Card header -->
+            <Border Grid.Row="0"
+                    Background="{StaticResource BackgroundDarkBrush}"
+                    BorderBrush="{StaticResource BorderColorBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="12,8">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="LinkVariant"
+                                                 Width="18"
+                                                 Height="18"
+                                                 Foreground="{StaticResource PrimaryBrush}"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0"/>
+                        <TextBlock Text="Integrations"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <TextBlock Text="Register external bot services (BotGhost, MEE6, Dyno, Carl-bot...), open their dashboard to sign in, and list the commands they run — Vyral flags any command this bot would double-answer."
+                               FontSize="11"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Card body -->
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          MaxHeight="560">
+                <StackPanel Margin="12">
+
+                    <!-- Add button (hidden while the form is open) -->
+                    <Button Content="ADD INTEGRATION"
+                            Command="{Binding BeginAddCommand}"
+                            Style="{StaticResource IntegrationsOutlineButton}"
+                            HorizontalAlignment="Left"
+                            Visibility="{Binding IsEditing, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
+
+                    <!-- Add / edit form -->
+                    <StackPanel Margin="0,12,0,0"
+                                Visibility="{Binding IsEditing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="{Binding FormHeaderText}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,8"/>
+
+                        <ComboBox ItemsSource="{Binding AvailablePresets}"
+                                  DisplayMemberPath="Name"
+                                  SelectedItem="{Binding SelectedPreset}"
+                                  materialDesign:HintAssist.Hint="Service"
+                                  HorizontalAlignment="Stretch"
+                                  Margin="0,0,0,8"/>
+
+                        <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Service name"
+                                 Margin="0,0,0,8"/>
+
+                        <TextBox Text="{Binding EditUrl, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Dashboard website URL"
+                                 Margin="0,0,0,8"/>
+
+                        <TextBox Text="{Binding EditCommands, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Command names this service runs — one per line or comma-separated, e.g. !rank"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 Height="76"
+                                 VerticalScrollBarVisibility="Auto"
+                                 VerticalContentAlignment="Top"
+                                 Margin="0,0,0,12"/>
+
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="SAVE"
+                                    Command="{Binding SaveIntegrationCommand}"
+                                    Style="{StaticResource IntegrationsPrimaryButton}"
+                                    Margin="0,0,12,0"/>
+                            <Button Content="CANCEL"
+                                    Command="{Binding CancelEditCommand}"
+                                    Style="{StaticResource IntegrationsOutlineButton}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Registered integrations -->
+                    <ItemsControl ItemsSource="{Binding Integrations}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{StaticResource BorderColorBrush}"
+                                        BorderThickness="0,0,0,1"
+                                        Padding="0,10">
+                                    <StackPanel>
+                                        <Grid>
+                                            <StackPanel Orientation="Horizontal"
+                                                        VerticalAlignment="Center"
+                                                        Margin="0,0,8,0">
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding CommandCountText}"
+                                                           FontSize="11"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="8,0,0,0"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <Button Content="OPEN SITE"
+                                                        Command="{Binding DataContext.OpenSiteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource IntegrationsSmallPrimaryButton}"
+                                                        IsEnabled="{Binding HasWebsite}"
+                                                        ToolTip="Opens the service's dashboard in your browser to sign in"
+                                                        Margin="0,0,8,0"/>
+                                                <Button Content="EDIT"
+                                                        Command="{Binding DataContext.EditIntegrationCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource IntegrationsSmallOutlineButton}"
+                                                        Margin="0,0,8,0"/>
+                                                <Button Content="REMOVE"
+                                                        Command="{Binding DataContext.RemoveIntegrationCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource IntegrationsSmallDangerButton}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="{Binding CommandListText}"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="No integrations yet — click ADD INTEGRATION to register BotGhost, MEE6, Dyno, Carl-bot or any other service."
+                               FontSize="11"
+                               FontStyle="Italic"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,8,0,0"
+                               Visibility="{Binding ShowEmptyIntegrationsHint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                    <!-- Auto-detect: pick a seen bot, run its help command, parse the reply -->
+<Border Background="{StaticResource CardBackgroundBrush}"
+        BorderBrush="{StaticResource BorderColorBrush}"
+        BorderThickness="1"
+        CornerRadius="4"
+        Padding="12"
+        Margin="0,12,0,0">
+    <StackPanel>
+        <TextBlock Text="Auto-detect commands"
+                   FontSize="14"
+                   FontWeight="SemiBold"
+                   Foreground="{StaticResource TextPrimaryBrush}"/>
+        <TextBlock Text="Pick a bot detected in this bot&#8217;s servers, run its help command, and Vyral parses the commands from its reply."
+                   FontSize="11"
+                   Foreground="{StaticResource TextSecondaryBrush}"
+                   TextWrapping="Wrap"
+                   Margin="0,4,0,8"/>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <ComboBox Grid.Column="0"
+                      ItemsSource="{Binding DetectedBots}"
+                      SelectedItem="{Binding SelectedDetectedBot}"
+                      DisplayMemberPath="Username"
+                      IsEnabled="{Binding IsNotBusy}"/>
+
+            <TextBox Grid.Column="1"
+                     Text="{Binding DiscoveryCommand, UpdateSourceTrigger=PropertyChanged}"
+                     Width="90"
+                     Margin="8,0,0,0"
+                     materialDesign:HintAssist.Hint="!help"
+                     FontFamily="Consolas"
+                     IsEnabled="{Binding IsNotBusy}"/>
+
+            <Button Grid.Column="2"
+                    Content="RUN"
+                    Command="{Binding DetectCommandsCommand}"
+                    Style="{StaticResource IntegrationsPrimaryButton}"
+                    Margin="8,0,0,0"/>
+        </Grid>
+
+        <TextBlock Text="{Binding DetectStatus}"
+                   FontSize="11"
+                   Foreground="{StaticResource TextSecondaryBrush}"
+                   TextWrapping="Wrap"
+                   Margin="0,8,0,0"/>
+    </StackPanel>
+</Border>
+
+<!-- Conflicts panel -->
+                    <Border Background="#14F59E0B"
+                            BorderBrush="{StaticResource WarningBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="10"
+                            Margin="0,14,0,0"
+                            Visibility="{Binding HasConflicts, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <materialDesign:PackIcon Kind="AlertOutline"
+                                                         Width="16"
+                                                         Height="16"
+                                                         Foreground="{StaticResource WarningBrush}"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,8,0"/>
+                                <TextBlock Text="Command conflicts"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <TextBlock Text="These commands are registered to an external service AND run by Vyral — disable the Vyral copy so only one bot answers."
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,8"/>
+
+                            <ItemsControl ItemsSource="{Binding Conflicts}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="{StaticResource BorderColorBrush}"
+                                                BorderThickness="0,0,0,1"
+                                                Padding="0,8">
+                                            <StackPanel>
+                                                <TextBlock FontSize="12"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           TextWrapping="Wrap">
+                                                    <Run Text="Command "/><Run Text="{Binding CommandDisplay}" FontWeight="SemiBold"/><Run Text=" conflicts with "/><Run Text="{Binding ServiceName}" FontWeight="SemiBold"/>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding VyralTargetText}"
+                                                           FontSize="11"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           Margin="0,2,0,0"/>
+
+                                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                    <Button Content="DISABLE IN VYRAL"
+                                                            Style="{StaticResource IntegrationsSmallPrimaryButton}"
+                                                            Command="{Binding DataContext.DisableInVyralCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Visibility="{Binding CanDisable, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                            Margin="0,0,8,0"/>
+                                                    <Button Content="RE-ENABLE"
+                                                            Style="{StaticResource IntegrationsSmallOutlineButton}"
+                                                            Command="{Binding DataContext.ReenableInVyralCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Visibility="{Binding CanReenable, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                            Margin="0,0,8,0"/>
+                                                    <TextBlock Text="{Binding BuiltInStatusText}"
+                                                               FontSize="11"
+                                                               FontStyle="Italic"
+                                                               Foreground="{StaticResource WarningBrush}"
+                                                               VerticalAlignment="Center"
+                                                               TextWrapping="Wrap"
+                                                               Visibility="{Binding IsBuiltIn, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="No conflicts — none of the registered external commands overlap with this bot's commands."
+                               FontSize="11"
+                               FontStyle="Italic"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,10,0,0"
+                               Visibility="{Binding ShowNoConflictsHint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                    <!-- Status / errors -->
+                    <TextBlock Text="{Binding StatusText}"
+                               FontSize="11"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,12,0,0"
+                               Visibility="{Binding StatusText, Converter={StaticResource NullOrEmptyToVisibilityConverter}}"/>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </materialDesign:Card>
+</UserControl>

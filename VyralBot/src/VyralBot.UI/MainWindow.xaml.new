@@ -1,0 +1,508 @@
+﻿<Window x:Class="VyralBot.UI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:local="clr-namespace:VyralBot.UI.Views"
+        xmlns:vm="clr-namespace:VyralBot.UI.ViewModels"
+        mc:Ignorable="d"
+        Title="{Binding Title}" 
+        Height="720" 
+        Width="1280"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="CanResize"
+        Background="Transparent"
+        TextElement.Foreground="{StaticResource TextPrimaryBrush}"
+        TextElement.FontWeight="Regular"
+        TextElement.FontSize="13"
+        FontFamily="{materialDesign:MaterialDesignFont}">
+
+    <Border Background="{StaticResource BackgroundDarkBrush}" 
+            BorderThickness="0"
+            CornerRadius="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <!-- Custom Title Bar -->
+                <RowDefinition Height="32"/>
+                <!-- Content -->
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Custom Title Bar -->
+            <Border Grid.Row="0" 
+                    Background="{StaticResource CardBackgroundBrush}"
+                    CornerRadius="8,8,0,0"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <!-- Title -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0">
+                        <Image Source="/Resources/Images/VyralFaceSticker.png" 
+                               Width="24" 
+                               Height="24" 
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Margin="0,0,8,0"
+                               VerticalAlignment="Center"/>
+                        <TextBlock Text="VyralBot" 
+                                 FontSize="14" 
+                                 FontWeight="SemiBold" 
+                                 VerticalAlignment="Center"
+                                 Foreground="{StaticResource TextPrimaryBrush}"/>
+                    </StackPanel>
+                    
+                    <!-- Window Controls -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Content="―" 
+                                Click="MinimizeButton_Click"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                Width="46" 
+                                Height="40"
+                                Padding="0"
+                                FontSize="16"
+                                Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <Button Content="□" 
+                                Click="MaximizeButton_Click"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                Width="46" 
+                                Height="40"
+                                Padding="0"
+                                FontSize="16"
+                                Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <Button Content="✕" 
+                                Click="CloseButton_Click"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                Width="46" 
+                                Height="40"
+                                Padding="0"
+                                FontSize="16"
+                                Foreground="{StaticResource TextSecondaryBrush}">
+                            <Button.Resources>
+                                <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignFlatButton}">
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource ErrorRedBrush}"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Resources>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <!-- Sidebar -->
+                <ColumnDefinition Width="200"/>
+                <!-- Content -->
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Sidebar -->
+            <Border Grid.Column="0" 
+                    Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource GlassBorderBrush}" 
+                    BorderThickness="0,0,1,0"
+                    Effect="{StaticResource CardShadow}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Top Navigation -->
+                    <StackPanel Grid.Row="0" Margin="0,16,0,0">
+                    <!-- Home -->
+                    <Button Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="48"
+                            HorizontalContentAlignment="Left"
+                            Padding="16,0"
+                            Command="{Binding NavigateToHomeCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Home" Width="20" Height="20" VerticalAlignment="Center"/>
+                            <TextBlock Text="Home" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Triggers -->
+                    <Button Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="48"
+                            HorizontalContentAlignment="Left"
+                            Padding="16,0"
+                            Command="{Binding NavigateToTriggersCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="LightningBolt" Width="20" Height="20" VerticalAlignment="Center"/>
+                            <TextBlock Text="Triggers" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Actions -->
+                    <Button Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="48"
+                            HorizontalContentAlignment="Left"
+                            Padding="16,0"
+                            Command="{Binding NavigateToActionsCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Play" Width="20" Height="20" VerticalAlignment="Center"/>
+                            <TextBlock Text="Actions" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    </StackPanel>
+                    
+                    <!-- Bottom Buttons -->
+                    <StackPanel Grid.Row="1" Margin="0,0,0,16">
+                        <Separator Margin="0,0,0,8" Background="{StaticResource BorderLightBrush}"/>
+                        
+                        <!-- Settings -->
+                        <Button Style="{StaticResource MaterialDesignFlatButton}"
+                                Height="48"
+                                HorizontalContentAlignment="Left"
+                                Padding="16,0"
+                                ToolTip="Settings">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Cog" Width="20" Height="20" VerticalAlignment="Center"/>
+                                <TextBlock Text="Settings" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        
+                        <!-- Help -->
+                        <Button Style="{StaticResource MaterialDesignFlatButton}"
+                                Height="48"
+                                HorizontalContentAlignment="Left"
+                                Padding="16,0"
+                                ToolTip="Help">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="HelpCircle" Width="20" Height="20" VerticalAlignment="Center"/>
+                                <TextBlock Text="Help" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Content Area -->
+            <Border Grid.Column="1" Padding="24">
+                <ContentControl Content="{Binding CurrentViewModel}">
+                    <ContentControl.Resources>
+                        <!-- Home View -->
+                        <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <!-- Banner Header -->
+                                <Border Background="#14B8A6" 
+                                       Height="140"
+                                       CornerRadius="0">
+                                    <Grid>
+                                        <StackPanel VerticalAlignment="Center" 
+                                                   HorizontalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" 
+                                                       HorizontalAlignment="Center"
+                                                       Margin="0,0,0,8">
+                                                <Image Source="/Resources/Images/VyralFaceSticker.png" 
+                                                       Width="40" 
+                                                       Height="40" 
+                                                       Stretch="Uniform"
+                                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,12,0"/>
+                                                <TextBlock Text="VyralBot" 
+                                                         FontSize="36" 
+                                                         FontWeight="Bold" 
+                                                         Foreground="White"
+                                                         VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <TextBlock Text="1.0.0" 
+                                                     FontSize="14" 
+                                                     Foreground="White"
+                                                     Opacity="0.9"
+                                                     HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                        <TextBlock Text="Created by rane1290" 
+                                                 FontSize="11" 
+                                                 Foreground="White"
+                                                 Opacity="0.7"
+                                                 HorizontalAlignment="Right"
+                                                 VerticalAlignment="Bottom"
+                                                 Margin="0,0,24,16"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Main Content Cards -->
+                                <Grid Margin="32,32">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="16"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="16"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Actions Card -->
+                                    <materialDesign:Card Grid.Row="0" Grid.Column="0"
+                                                        Padding="32"
+                                                        Background="{StaticResource CardBackgroundBrush}"
+                                                        Effect="{StaticResource CardShadow}"
+                                                        Cursor="Hand">
+                                        <materialDesign:Card.InputBindings>
+                                            <MouseBinding Command="{Binding DataContext.NavigateToActionsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                                        </materialDesign:Card.InputBindings>
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <materialDesign:PackIcon Kind="Cog" 
+                                                                   Width="64" 
+                                                                   Height="64" 
+                                                                   Foreground="#64748B"
+                                                                   HorizontalAlignment="Center"
+                                                                   Margin="0,0,0,16"/>
+                                            <TextBlock Text="Actions" 
+                                                     FontSize="20" 
+                                                     FontWeight="Bold" 
+                                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                                     HorizontalAlignment="Center"
+                                                     Margin="0,0,0,8"/>
+                                            <TextBlock Text="Configure actions, queues and view action history" 
+                                                     FontSize="13" 
+                                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                                     TextWrapping="Wrap"
+                                                     TextAlignment="Center"
+                                                     HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </materialDesign:Card>
+
+                                    <!-- Commands Card -->
+                                    <materialDesign:Card Grid.Row="0" Grid.Column="2"
+                                                        Padding="32"
+                                                        Background="{StaticResource CardBackgroundBrush}"
+                                                        Effect="{StaticResource CardShadow}"
+                                                        Cursor="Hand">
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <materialDesign:PackIcon Kind="CodeBraces" 
+                                                                   Width="64" 
+                                                                   Height="64" 
+                                                                   Foreground="#64748B"
+                                                                   HorizontalAlignment="Center"
+                                                                   Margin="0,0,0,16"/>
+                                            <TextBlock Text="Commands" 
+                                                     FontSize="20" 
+                                                     FontWeight="Bold" 
+                                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                                     HorizontalAlignment="Center"
+                                                     Margin="0,0,0,8"/>
+                                            <TextBlock Text="Manage your chat commands" 
+                                                     FontSize="13" 
+                                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                                     TextWrapping="Wrap"
+                                                     TextAlignment="Center"
+                                                     HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </materialDesign:Card>
+
+                                    <!-- Platforms Card -->
+                                    <materialDesign:Card Grid.Row="2" Grid.Column="0"
+                                                        Padding="32"
+                                                        Background="{StaticResource CardBackgroundBrush}"
+                                                        Effect="{StaticResource CardShadow}"
+                                                        Cursor="Hand">
+                                        <materialDesign:Card.InputBindings>
+                                            <MouseBinding Command="{Binding DataContext.NavigateToPlatformsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                                        </materialDesign:Card.InputBindings>
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <materialDesign:PackIcon Kind="Twitch" 
+                                                                   Width="64" 
+                                                                   Height="64" 
+                                                                   Foreground="#9146FF"
+                                                                   HorizontalAlignment="Center"
+                                                                   Margin="0,0,0,16"/>
+                                            <TextBlock Text="Platforms" 
+                                                     FontSize="20" 
+                                                     FontWeight="Bold" 
+                                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                                     HorizontalAlignment="Center"
+                                                     Margin="0,0,0,8"/>
+                                            <TextBlock Text="View and modify your streaming platform settings" 
+                                                     FontSize="13" 
+                                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                                     TextWrapping="Wrap"
+                                                     TextAlignment="Center"
+                                                     HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </materialDesign:Card>
+
+                                    <!-- Stream Apps Card -->
+                                    <materialDesign:Card Grid.Row="2" Grid.Column="2"
+                                                        Padding="32"
+                                                        Background="{StaticResource CardBackgroundBrush}"
+                                                        Effect="{StaticResource CardShadow}"
+                                                        Cursor="Hand">
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <materialDesign:PackIcon Kind="Monitor" 
+                                                                   Width="64" 
+                                                                   Height="64" 
+                                                                   Foreground="#64748B"
+                                                                   HorizontalAlignment="Center"
+                                                                   Margin="0,0,0,16"/>
+                                            <TextBlock Text="Stream Apps" 
+                                                     FontSize="20" 
+                                                     FontWeight="Bold" 
+                                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                                     HorizontalAlignment="Center"
+                                                     Margin="0,0,0,8"/>
+                                            <TextBlock Text="Configure your streaming application settings" 
+                                                     FontSize="13" 
+                                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                                     TextWrapping="Wrap"
+                                                     TextAlignment="Center"
+                                                     HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </materialDesign:Card>
+                                </Grid>
+
+                                <!-- Support Section -->
+                                <StackPanel Margin="32,16,32,32">
+                                    <TextBlock Text="Support" 
+                                             FontSize="18" 
+                                             FontWeight="SemiBold" 
+                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Margin="0,0,0,16"/>
+
+                                    <!-- Documentation -->
+                                    <Border Background="{StaticResource CardBackgroundBrush}"
+                                           BorderBrush="{StaticResource BorderLightBrush}"
+                                           BorderThickness="0,0,0,1"
+                                           Padding="16"
+                                           Cursor="Hand">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <materialDesign:PackIcon Grid.Column="0"
+                                                                   Kind="BookOpenPageVariant" 
+                                                                   Width="24" 
+                                                                   Height="24" 
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            
+                                            <StackPanel Grid.Column="1" Margin="16,0">
+                                                <TextBlock Text="Documentation" 
+                                                         FontSize="14" 
+                                                         FontWeight="SemiBold"
+                                                         Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <TextBlock Text="Explore the official documentation for VyralBot" 
+                                                         FontSize="12" 
+                                                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            </StackPanel>
+                                            
+                                            <materialDesign:PackIcon Grid.Column="2"
+                                                                   Kind="ChevronRight" 
+                                                                   Width="20" 
+                                                                   Height="20" 
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Discord -->
+                                    <Border Background="{StaticResource CardBackgroundBrush}"
+                                           BorderBrush="{StaticResource BorderLightBrush}"
+                                           BorderThickness="0,0,0,1"
+                                           Padding="16"
+                                           Cursor="Hand">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <materialDesign:PackIcon Grid.Column="0"
+                                                                   Kind="Discord" 
+                                                                   Width="24" 
+                                                                   Height="24" 
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="#5865F2"/>
+                                            
+                                            <StackPanel Grid.Column="1" Margin="16,0">
+                                                <TextBlock Text="Discord" 
+                                                         FontSize="14" 
+                                                         FontWeight="SemiBold"
+                                                         Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <TextBlock Text="Join the VyralBot community!" 
+                                                         FontSize="12" 
+                                                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            </StackPanel>
+                                            
+                                            <materialDesign:PackIcon Grid.Column="2"
+                                                                   Kind="ChevronRight" 
+                                                                   Width="20" 
+                                                                   Height="20" 
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Ideas & Suggestions -->
+                                    <Border Background="{StaticResource CardBackgroundBrush}"
+                                           Padding="16"
+                                           Cursor="Hand">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <materialDesign:PackIcon Grid.Column="0"
+                                                                   Kind="Lightbulb" 
+                                                                   Width="24" 
+                                                                   Height="24" 
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="#FFA500"/>
+                                            
+                                            <StackPanel Grid.Column="1" Margin="16,0">
+                                                <TextBlock Text="Ideas &amp; Suggestions" 
+                                                         FontSize="14" 
+                                                         FontWeight="SemiBold"
+                                                         Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <TextBlock Text="Share and discuss ideas for new features or improvements to VyralBot" 
+                                                         FontSize="12" 
+                                                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            </StackPanel>
+                                            
+                                            <materialDesign:PackIcon Grid.Column="2"
+                                                                   Kind="ChevronRight" 
+                                                                   Width="20" 
+                                                                   Height="20" 
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+                            </ScrollViewer>
+                        </DataTemplate>
+
+                        <!-- Platforms View -->
+                        <DataTemplate DataType="{x:Type vm:PlatformsViewModel}">
+                            <local:PlatformsView/>
+                        </DataTemplate>
+                    </ContentControl.Resources>
+                </ContentControl>
+            </Border>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

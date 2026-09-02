@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vyral Audio - Browser Source</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: opacity 0.3s;
+            z-index: 9999;
+        }
+        .connected {
+            background: rgba(0, 255, 0, 0.2);
+            color: lime;
+            border: 2px solid lime;
+        }
+        .disconnected {
+            background: rgba(255, 0, 0, 0.2);
+            color: red;
+            border: 2px solid red;
+        }
+        .connecting {
+            background: rgba(255, 255, 0, 0.2);
+            color: yellow;
+            border: 2px solid yellow;
+        }
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="status" class="connecting">Connecting to Vyral...</div>
+    <script>
+        // Configuration — the host/port are derived from the URL the page is
+        // served from (window.location), so the same file works regardless of
+        // which port the embedded web server listens on. The localhost fallback
+        // only applies when the file is opened directly from disk.
+        const HOST = window.location.host || 'localhost:5000';
+        const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const BASE_URL = window.location.protocol.indexOf('http') === 0
+            ? window.location.origin
+            : 'http://' + HOST;
+        const WS_URL = WS_PROTOCOL + '//' + HOST + '/audio-ws';
+        const SOUNDS_URL = BASE_URL + '/sounds/';
+        const RECONNECT_DELAY = 3000; // 3 seconds
+        const STATUS_HIDE_DELAY = 5000; // 5 seconds
+        // State
+        let ws = null;
+        let soundCache = {};
+        let reconnectTimeout = null;
+        let statusHideTimeout = null;
+        // DOM Elements
+        const statusDiv = document.getElementById('status');
+        // Initialize
+        connectWebSocket();
+        function connectWebSocket() {
+            updateStatus('Connecting to Vyral...', 'connecting');
+            ws = new WebSocket(WS_URL);
+            ws.onopen = () => {
+                console.log('✅ Connected to Vyral Audio WebSocket');
+                updateStatus('Connected to Vyral', 'connected');
+                hideStatusAfterDelay();
+            };
+            ws.onclose = () => {
+                console.log('❌ Disconnected from Vyral Audio WebSocket');
+                updateStatus('Disconnected from VyralBot', 'disconnected');
+                reconnectTimeout = setTimeout(connectWebSocket, RECONNECT_DELAY);
+            };
+            ws.onerror = (err) => {
+                console.error('WebSocket error:', err);
+                ws.close();
+            };
+            ws.onmessage = (event) => {
+                // Server contract (SoundService):
+                //   { type: 'play', sound: '<file>', volume: <0..1> }
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data && data.type === 'play' && data.sound) {
+                        const volume = (typeof data.volume === 'number' && isFinite(data.volume))
+                            ? data.volume
+                            : 1;
+                        playSound(data.sound, volume);
+                    }
+                } catch (e) {
+                    console.error('Invalid message:', event.data);
+                }
+            };
+        }
+        function playSound(soundFile, volume) {
+            if (!soundFile) return;
+            let audio = soundCache[soundFile];
+            if (!audio) {
+                audio = new Audio(SOUNDS_URL + encodeURIComponent(soundFile));
+                soundCache[soundFile] = audio;
+            }
+            if (typeof volume === 'number' && isFinite(volume)) {
+                // Server sends the final loudness (master x per-event volume) in 0..1.
+                audio.volume = Math.min(1, Math.max(0, volume));
+            }
+            audio.currentTime = 0;
+            const playback = audio.play();
+            if (playback && typeof playback.catch === 'function') {
+                playback.catch((err) => console.error('Playback failed for', soundFile, err));
+            }
+        }
+        function updateStatus(text, statusClass) {
+            statusDiv.textContent = text;
+            statusDiv.className = statusClass;
+        }
+        function hideStatusAfterDelay() {
+            if (statusHideTimeout) clearTimeout(statusHideTimeout);
+            statusHideTimeout = setTimeout(() => {
+                statusDiv.classList.add('hidden');
+            }, STATUS_HIDE_DELAY);
+        }
+    </script>
+</body>
+</html>

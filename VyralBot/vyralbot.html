@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VyralBot - Open Source Streaming Bot</title>
+  <meta name="description" content="Powerful, customizable streaming bot for Twitch, YouTube, and Discord. 100% free and open source forever.">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tailwindcss/typography@0.5.10/dist/typography.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            background: 'hsl(222 47% 11%)',
+            foreground: 'hsl(210 40% 98%)',
+            card: 'hsl(217 33% 17%)',
+            'card-foreground': 'hsl(210 40% 98%)',
+            primary: '#26A69A',
+            'primary-foreground': 'hsl(210 40% 98%)',
+            border: 'hsl(217 33% 17%)',
+            muted: 'hsl(215 16% 47%)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 12px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: hsl(222 47% 11%);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #26A69A;
+      border-radius: 6px;
+      border: 2px solid hsl(222 47% 11%);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #D42427;
+    }
+
+    /* Firefox */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: #26A69A hsl(222 47% 11%);
+    }
+
+    body {
+      min-height: 100vh;
+      background-color: hsl(222 47% 11%);
+      color: hsl(210 40% 98%);
+    }
+
+    .card {
+      background-color: hsl(217 33% 17%);
+      border: 1px solid hsl(217 33% 17%);
+      border-radius: 0.75rem;
+    }
+
+    .btn-primary {
+      background-color: #26A69A;
+      color: hsl(210 40% 98%);
+      font-weight: 600;
+      border-radius: 0.375rem;
+      transition: background-color 0.2s;
+      display: inline-block;
+      text-decoration: none;
+    }
+
+    .btn-primary:hover {
+      background-color: #A01619;
+    }
+
+    .muted {
+      color: hsl(215 16% 47%);
+    }
+
+    .nav-link {
+      color: hsl(215 16% 47%);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav-link:hover {
+      color: hsl(210 40% 98%);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .badge-live {
+      background-color: hsl(142 71% 45% / 0.2);
+      color: hsl(142 71% 45%);
+    }
+
+    .badge-dev {
+      background-color: hsl(45 93% 47% / 0.2);
+      color: hsl(45 93% 47%);
+    }
+
+    .badge-soon {
+      background-color: rgba(189, 28, 31, 0.2);
+      color: #BD1C1F;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="min-h-screen">
+    <header class="sticky top-0 z-40 border-b border-border bg-card/90 backdrop-blur-md" role="banner">
+      <div class="container mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
+        <a href="/" class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground" aria-hidden="true">VB</div>
+          <div>
+            <h1 class="text-lg font-semibold text-foreground">VyralBot</h1>
+            <div class="muted text-xs">Open source streaming automation</div>
+          </div>
+        </a>
+        <nav class="hidden items-center gap-6 md:flex" role="navigation" aria-label="Main navigation">
+          <a href="#features" class="nav-link" aria-label="Features">Features</a>
+          <a href="#roadmap" class="nav-link">Roadmap</a>
+          <a href="https://github.com/vyralbot" target="_blank" class="btn-primary px-4 py-2 text-sm font-medium">GitHub</a>
+        </nav>
+        <button class="text-foreground md:hidden" aria-label="Toggle mobile menu" aria-expanded="false">
+          <svg class="h-6 w-6" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" stroke="currentColor">
+            <path d="M4 6h16M4 12h16M4 18h16"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-7xl px-6">
+      <section class="grid grid-cols-1 items-center gap-10 py-16 md:grid-cols-2 md:py-24" aria-labelledby="hero-heading">
+        <div>
+          <div class="mb-6 inline-flex items-center gap-2">
+            <span class="rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">Open Source</span>
+            <span class="text-sm text-muted-foreground">Community driven — always free</span>
+          </div>
+
+          <h1 id="hero-heading" class="mb-6 text-4xl font-extrabold leading-tight text-foreground md:text-6xl">The Ultimate Streaming Bot for Content Creators</h1>
+
+          <p class="muted mb-8 max-w-xl text-lg">Powerful, customizable, and completely open source. VyralBot brings professional stream automation to Twitch, YouTube, and Discord.</p>
+
+          <div class="flex flex-col gap-4 sm:flex-row">
+            <a href="https://github.com/vyralbot" target="_blank" class="btn-primary px-8 py-4 text-base font-bold shadow-lg text-center">View on GitHub</a>
+            <a href="#features" class="muted rounded-md border border-border px-6 py-4 text-center transition-colors hover:bg-card hover:text-foreground">Explore Features</a>
+          </div>
+
+          <ul class="mt-10 space-y-3 text-sm md:text-base">
+            <li class="flex gap-3">
+              <strong class="text-primary">✓</strong>
+              Multi-platform support (Twitch, YouTube, Discord)
+            </li>
+            <li class="flex gap-3">
+              <strong class="text-primary">✓</strong>
+              Custom commands & auto-moderation
+            </li>
+            <li class="flex gap-3">
+              <strong class="text-primary">✓</strong>
+              100% free & open source forever
+            </li>
+          </ul>
+
+          <div class="mt-8 flex flex-wrap items-center gap-4">
+            <div class="card px-4 py-3">
+              <div class="text-sm">
+                <div class="muted text-xs">Active Community</div>
+                <div class="font-semibold">1,000+ streamers using VyralBot</div>
+              </div>
+            </div>
+            <div class="muted text-xs">MIT License • Free Forever</div>
+          </div>
+        </div>
+
+        <div class="relative flex justify-center md:justify-end">
+          <div class="absolute inset-0 -z-10 bg-gradient-to-r from-red-500/20 to-slate-500/20 opacity-50 blur-3xl" aria-hidden="true"></div>
+          <div class="card w-full max-w-lg border border-border bg-card/80 p-4 shadow-2xl backdrop-blur-sm md:p-6">
+            <div class="bg-gradient-to-br from-background to-card rounded-xl p-12 text-center">
+              <div class="text-6xl mb-4">🤖</div>
+              <div class="text-4xl font-bold text-primary mb-2">VB</div>
+              <div class="text-muted-foreground">VyralBot</div>
+            </div>
+            <div class="mt-4 flex items-center justify-between">
+              <div>
+                <div class="muted text-xs">Bot Status</div>
+                <div class="text-sm font-semibold">Live & Running</div>
+              </div>
+              <div class="badge badge-live">Active</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    </main>
+
+    <section id="features" class="border-t border-border py-16 md:py-24" aria-labelledby="features-heading">
+      <div class="container mx-auto max-w-7xl px-6">
+        <div class="mb-12 text-center">
+          <h2 id="features-heading" class="mb-4 text-3xl font-bold md:text-4xl">Powerful Features for Modern Streamers</h2>
+          <p class="muted text-lg">Everything you need to automate and grow your stream</p>
+        </div>
+        <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <article class="card p-6 transition-colors hover:border-primary/50">
+            <div class="mb-4 text-4xl">💬</div>
+            <h3 class="mb-2 text-xl font-bold">Custom Commands</h3>
+            <p class="muted mb-4 text-sm">Create unlimited custom commands with variables, timers, and conditional logic.</p>
+            <span class="badge badge-live">✓ Available Now</span>
+          </article>
+
+          <article class="card p-6 transition-colors hover:border-primary/50">
+            <div class="mb-4 text-4xl">🛡️</div>
+            <h3 class="mb-2 text-xl font-bold">Auto Moderation</h3>
+            <p class="muted mb-4 text-sm">Advanced spam filtering, link protection, and word blacklists to keep chat clean.</p>
+            <span class="badge badge-live">✓ Available Now</span>
+          </article>
+
+          <article class="card p-6 transition-colors hover:border-primary/50">
+            <div class="mb-4 text-4xl">🎮</div>
+            <h3 class="mb-2 text-xl font-bold">Stream Integrations</h3>
+            <p class="muted mb-4 text-sm">Connect with OBS, StreamElements, Streamlabs, and more popular tools.</p>
+            <span class="badge badge-live">✓ Available Now</span>
+          </article>
+
+          <article class="card p-6 transition-colors hover:border-primary/50">
+            <div class="mb-4 text-4xl">📊</div>
+            <h3 class="mb-2 text-xl font-bold">Analytics Dashboard</h3>
+            <p class="muted mb-4 text-sm">Track viewer engagement, command usage, and chat activity with detailed stats.</p>
+            <span class="badge badge-dev">🔨 In Development</span>
+          </article>
+
+          <article class="card p-6 transition-colors hover:border-primary/50">
+            <div class="mb-4 text-4xl">🎁</div>
+            <h3 class="mb-2 text-xl font-bold">Loyalty & Points</h3>
+            <p class="muted mb-4 text-sm">Reward viewers with points, create custom redemptions, and build engagement.</p>
+            <span class="badge badge-dev">🔨 In Development</span>
+          </article>
+
+          <article class="card p-6 transition-colors hover:border-primary/50">
+            <div class="mb-4 text-4xl">🔌</div>
+            <h3 class="mb-2 text-xl font-bold">Plugin System</h3>
+            <p class="muted mb-4 text-sm">Extend functionality with community plugins or build your own with our API.</p>
+            <span class="badge badge-soon">⏳ Coming Soon</span>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="border-t border-border py-16 md:py-24">
+      <div class="container mx-auto max-w-5xl px-6">
+        <h2 class="mb-12 text-center text-3xl font-bold md:text-4xl">Complete Feature List</h2>
+
+        <div class="card overflow-hidden">
+          <details class="group border-b border-border" open>
+            <summary class="flex cursor-pointer items-center justify-between bg-card p-4 hover:bg-white/5">
+              <span class="text-lg font-semibold text-primary">Platform Support</span>
+              <svg class="h-5 w-5 text-muted transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </summary>
+            <div class="text-sm">
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Twitch integration</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">YouTube Live integration</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Discord bot integration</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Facebook Gaming</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Kick integration</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+            </div>
+          </details>
+
+          <details class="group border-b border-border" open>
+            <summary class="flex cursor-pointer items-center justify-between bg-card p-4 hover:bg-white/5">
+              <span class="text-lg font-semibold text-primary">Chat & Commands</span>
+              <svg class="h-5 w-5 text-muted transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </summary>
+            <div class="text-sm">
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Custom commands with variables</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Command aliases</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Command cooldowns</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Timed messages & announcements</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Chat logging & history</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Multi-language support</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Custom command categories</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+            </div>
+          </details>
+
+          <details class="group border-b border-border">
+            <summary class="flex cursor-pointer items-center justify-between bg-card p-4 hover:bg-white/5">
+              <span class="text-lg font-semibold text-primary">Moderation</span>
+              <svg class="h-5 w-5 text-muted transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </summary>
+            <div class="text-sm">
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Auto-moderation & spam filtering</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Link protection & whitelisting</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Word blacklist & filters</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">User permission levels & roles</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Timeout & ban management</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Caps lock filtering</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Emote spam protection</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Discord role-based permissions</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Auto-ban repeat offenders</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">AI-powered content filtering</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+            </div>
+          </details>
+
+          <details class="group border-b border-border">
+            <summary class="flex cursor-pointer items-center justify-between bg-card p-4 hover:bg-white/5">
+              <span class="text-lg font-semibold text-primary">Stream Management</span>
+              <svg class="h-5 w-5 text-muted transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </summary>
+            <div class="text-sm">
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Stream online/offline notifications</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Viewer count tracking</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Uptime monitoring</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Stream title & game updates</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Discord stream announcements</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Multi-stream support</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">OBS scene switching</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Stream overlays & widgets</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Clip creation & highlights</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+            </div>
+          </details>
+
+          <details class="group border-b border-border">
+            <summary class="flex cursor-pointer items-center justify-between bg-card p-4 hover:bg-white/5">
+              <span class="text-lg font-semibold text-primary">Viewer Engagement</span>
+              <svg class="h-5 w-5 text-muted transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </summary>
+            <div class="text-sm">
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Loyalty points system</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Custom point redemptions</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Giveaways & raffles</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Viewer leaderboards</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Discord server XP & leveling</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Mini-games & gambling</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Song requests & queue</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Polls & voting</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Prediction markets</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Channel point rewards integration</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+            </div>
+          </details>
+
+          <details class="group border-b border-border">
+            <summary class="flex cursor-pointer items-center justify-between bg-card p-4 hover:bg-white/5">
+              <span class="text-lg font-semibold text-primary">Discord Features</span>
+              <svg class="h-5 w-5 text-muted transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </summary>
+            <div class="text-sm">
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Discord slash commands</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Role management</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Welcome messages</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Auto-role assignment</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Channel management</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Reaction roles</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Ticket system</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Music player</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Voice channel automation</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Custom embeds & messages</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+            </div>
+          </details>
+
+          <details class="group border-b border-border">
+            <summary class="flex cursor-pointer items-center justify-between bg-card p-4 hover:bg-white/5">
+              <span class="text-lg font-semibold text-primary">Analytics & Insights</span>
+              <svg class="h-5 w-5 text-muted transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </summary>
+            <div class="text-sm">
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Viewer analytics dashboard</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Command usage statistics</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Chat activity reports</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Discord server insights</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Growth tracking & trends</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Export data to CSV/JSON</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Custom reports builder</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+            </div>
+          </details>
+
+          <details class="group border-b border-border">
+            <summary class="flex cursor-pointer items-center justify-between bg-card p-4 hover:bg-white/5">
+              <span class="text-lg font-semibold text-primary">Integrations & Tools</span>
+              <svg class="h-5 w-5 text-muted transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </summary>
+            <div class="text-sm">
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">StreamElements integration</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Streamlabs integration</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Spotify now playing</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Twitter/X integration</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Donation alerts</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Webhook support</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Custom API endpoints</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+            </div>
+          </details>
+
+          <details class="group border-b border-border">
+            <summary class="flex cursor-pointer items-center justify-between bg-card p-4 hover:bg-white/5">
+              <span class="text-lg font-semibold text-primary">Developer Features</span>
+              <svg class="h-5 w-5 text-muted transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </summary>
+            <div class="text-sm">
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Open source (MIT License)</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Self-hosted deployment</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Docker support</div>
+                <div class="text-center text-primary font-bold">✓</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Extensive documentation</div>
+                <div class="text-center text-yellow-500 font-bold">⋯</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Plugin API & SDK</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Custom themes & UI</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">Plugin marketplace</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">REST API access</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+              <div class="grid grid-cols-[2fr_1fr] gap-4 p-4 hover:bg-white/5">
+                <div class="text-left">GraphQL API</div>
+                <div class="text-center text-red-400 font-bold">○</div>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <div class="relative">
+      <div class="absolute left-1/2 top-0 -z-10 h-full w-[90%] -translate-x-1/2" style="background:radial-gradient(ellipse 120% 60% at 50% 40%, hsl(174, 84%, 60%) 0%, hsl(174, 84%, 60%) 20%, hsl(174, 70%, 50%) 40%, transparent 80%);filter:blur(80px);opacity:0.4" aria-hidden="true"></div>
+
+      <section class="relative pb-6 pt-12 md:pb-8 md:pt-20" aria-labelledby="cta-heading">
+        <div class="container mx-auto px-4 text-center md:px-6">
+          <h2 id="cta-heading" class="mb-3 text-2xl font-bold sm:text-3xl md:mb-4 md:text-4xl">Ready to Upgrade Your Stream?</h2>
+          <p class="muted mb-6 text-base sm:text-lg md:mb-8 md:text-xl">Join thousands of streamers using VyralBot to automate, engage, and grow their communities</p>
+          <a href="https://github.com/vyralbot" target="_blank" class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 btn-primary w-full px-6 py-3 text-base shadow-xl sm:w-auto sm:px-8 sm:py-4 sm:text-lg">Get Started on GitHub</a>
+          <p class="muted mt-3 text-xs sm:text-sm md:mt-4">Free forever • Open source</p>
+        </div>
+      </section>
+
+      <section id="roadmap" class="relative pb-16 pt-6 md:pb-24 md:pt-8" aria-labelledby="roadmap-heading">
+        <div class="container mx-auto max-w-4xl px-6">
+          <h3 id="roadmap-heading" class="mb-6 text-center text-2xl font-bold">Development Roadmap</h3>
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div class="card p-4 transition-colors hover:bg-white/5">
+              <div class="mb-1 text-sm text-primary">Q4 2025</div>
+              <div class="text-lg font-semibold">Core Platform (Live)</div>
+              <p class="muted mt-2 text-sm">Multi-platform chat integration, custom commands, auto-moderation, and basic analytics.</p>
+            </div>
+
+            <div class="card p-4 transition-colors hover:bg-white/5">
+              <div class="mb-1 text-sm text-yellow-500">Q1 2026</div>
+              <div class="text-lg font-semibold">Advanced Features</div>
+              <p class="muted mt-2 text-sm">Loyalty points system, advanced analytics dashboard, and stream overlay widgets.</p>
+            </div>
+
+            <div class="card p-4 transition-colors hover:bg-white/5">
+              <div class="mb-1 text-sm text-red-400">Q2 2026</div>
+              <div class="text-lg font-semibold">Plugin Ecosystem</div>
+              <p class="muted mt-2 text-sm">Plugin marketplace, developer API, webhook integrations, and community extensions.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="muted mx-auto mt-12 max-w-7xl border-t border-border px-6 py-10 text-sm" role="contentinfo">
+        <div class="flex flex-col justify-between gap-8 md:flex-row md:items-center md:gap-4">
+          <div>
+            <div class="font-semibold text-foreground">VyralBot</div>
+            <div class="muted">Open Source Streaming Automation</div>
+          </div>
+          <div class="flex flex-wrap items-center gap-8">
+            <a href="https://github.com/vyralbot" target="_blank" class="nav-link">GitHub</a>
+            <a href="#features" class="nav-link">Features</a>
+            <a href="#roadmap" class="nav-link">Roadmap</a>
+          </div>
+        </div>
+        <div class="mt-8 flex flex-col justify-between gap-4 border-t border-border/50 pt-8 md:flex-row">
+          <div>© 2025 VyralBot. All rights reserved.</div>
+          <div class="flex gap-4">
+            <a href="#" class="hover:text-foreground">Privacy</a>
+            <a href="#" class="hover:text-foreground">Terms</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </div>
+</body>
+</html>

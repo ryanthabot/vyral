@@ -1,0 +1,48 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\VyralBot.Api\VyralBot.Api.csproj" />
+    <ProjectReference Include="..\VyralBot.Core\VyralBot.Core.csproj" />
+    <ProjectReference Include="..\VyralBot.Data\VyralBot.Data.csproj" />
+    <ProjectReference Include="..\VyralBot.Integrations\VyralBot.Integrations.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Markdig" Version="1.3.2" />
+    <PackageReference Include="MaterialDesignColors" Version="3.1.0" />
+    <PackageReference Include="MaterialDesignThemes" Version="5.1.0" />
+    <!-- WebView2 kept for OAuth wizard WebView2 navigation - will be removed after Phase 3 if not needed -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3595.46" />
+    <PackageReference Include="Serilog" Version="4.1.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\Images\*.png" />
+  </ItemGroup>
+
+  <!-- Copy BrowserSource folder to output directory -->
+  <ItemGroup>
+    <None Include="..\..\BrowserSource\**\*.*" LinkBase="BrowserSource">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <!-- Performance optimizations per updated_performance_upgrade.md -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <RetainVMGarbageCollection>true</RetainVMGarbageCollection>
+    <TieredCompilation>true</TieredCompilation>
+    <TieredCompilationQuickJit>true</TieredCompilationQuickJit>
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,342 @@
+<UserControl x:Class="VyralBot.UI.Views.VariablesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d" 
+             d:DesignHeight="700" d:DesignWidth="1000">
+    
+    <UserControl.Resources>
+        <!-- Bool to Visibility Converter -->
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        
+        <!-- Inverted Bool to Visibility Converter -->
+        <Style x:Key="InvertedVisibilityStyle" TargetType="FrameworkElement">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding}" Value="False">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="{DynamicResource MaterialDesignPaper}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Left Sidebar - Categories -->
+        <Border Grid.Column="0" Background="{DynamicResource MaterialDesignToolBarBackground}" 
+                BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="0,0,1,0">
+            <StackPanel Margin="10">
+                <TextBlock Text="CATEGORIES" FontSize="12" FontWeight="Bold" 
+                           Foreground="{DynamicResource MaterialDesignBody}" Margin="10,10,10,15"/>
+                
+                <ListBox ItemsSource="{Binding Categories}" 
+                         SelectedItem="{Binding SelectedCategory}"
+                         Background="Transparent" BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" Padding="10,8" 
+                                       Foreground="{DynamicResource MaterialDesignBody}"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource MaterialDesignListBoxItem}">
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="Margin" Value="0,1"/>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                </ListBox>
+            </StackPanel>
+        </Border>
+
+        <!-- Right Content Area -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Border Grid.Row="0" Background="{DynamicResource MaterialDesignToolBarBackground}" 
+                    Padding="20,15" BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="0,0,0,1">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="Variable" Width="28" Height="28" 
+                                                 Foreground="{DynamicResource PrimaryHueMidBrush}" 
+                                                 VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <TextBlock Text="Variables Management" FontSize="24" FontWeight="SemiBold" 
+                                   VerticalAlignment="Center" Foreground="{DynamicResource MaterialDesignBody}"/>
+                    </StackPanel>
+                    <TextBlock Text="Manage system and custom variables for use in commands, messages, and templates" 
+                               FontSize="12" Foreground="{DynamicResource MaterialDesignBodyLight}" Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Search Bar -->
+            <Border Grid.Row="1" Padding="20,15" Background="{DynamicResource MaterialDesignPaper}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <TextBox Grid.Column="0" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" 
+                             materialDesign:HintAssist.Hint="Search variables by name, display name, or description..."
+                             Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,15,0"/>
+                    
+                    <Button Grid.Column="1" Command="{Binding StartAddVariableCommand}" 
+                            Click="AddButton_Click"
+                            Style="{StaticResource MaterialDesignRaisedButton}"
+                            materialDesign:ButtonAssist.CornerRadius="4" Height="40">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Plus" Width="20" Height="20" Margin="0,0,8,0"/>
+                            <TextBlock Text="Add Variable" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- Variables List -->
+            <ScrollViewer x:Name="VariablesScrollViewer" Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="20">
+                <ItemsControl ItemsSource="{Binding Variables}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <materialDesign:Card Margin="0,0,0,12" Padding="16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Variable Info -->
+                                    <StackPanel Grid.Column="0">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                            <TextBlock Text="{Binding Name, StringFormat=\{0\}}" 
+                                                       FontFamily="Consolas" FontSize="16" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource PrimaryHueMidBrush}"/>
+                                            
+                                            <!-- System/Read-only Badge -->
+                                            <Border Background="{DynamicResource MaterialDesignDivider}" 
+                                                    CornerRadius="3" Padding="6,2" Margin="12,0,0,0"
+                                                    Visibility="{Binding IsEditable, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsEditable}" Value="False">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <materialDesign:PackIcon Kind="Lock" Width="12" Height="12" 
+                                                                             Foreground="{DynamicResource MaterialDesignBodyLight}" 
+                                                                             VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                    <TextBlock Text="Read-Only" FontSize="10" 
+                                                               Foreground="{DynamicResource MaterialDesignBodyLight}" 
+                                                               VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Border>
+                                            
+                                            <!-- Auto-Updating Badge -->
+                                            <Border Background="#4CAF50" CornerRadius="3" Padding="6,2" Margin="6,0,0,0"
+                                                    Visibility="{Binding IsAutoUpdating, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <materialDesign:PackIcon Kind="Sync" Width="12" Height="12" 
+                                                                             Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                    <TextBlock Text="Auto-Updating" FontSize="10" Foreground="White" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                        
+                                        <TextBlock Text="{Binding DisplayName}" FontSize="14" FontWeight="Medium"
+                                                   Foreground="{DynamicResource MaterialDesignBody}" Margin="0,0,0,4"/>
+                                        
+                                        <TextBlock Text="{Binding Description}" FontSize="12" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource MaterialDesignBodyLight}" Margin="0,0,0,8"
+                                                   Visibility="{Binding Description, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                        
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <TextBlock Text="Category: " FontSize="11" 
+                                                       Foreground="{DynamicResource MaterialDesignBodyLight}"/>
+                                            <TextBlock Text="{Binding Category}" FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource MaterialDesignBody}"/>
+                                        </StackPanel>
+                                        
+                                        <StackPanel Orientation="Horizontal" Visibility="{Binding Value, Converter={StaticResource NullToVisibilityConverter}}">
+                                            <TextBlock Text="Value: " FontSize="11" 
+                                                       Foreground="{DynamicResource MaterialDesignBodyLight}"/>
+                                            <TextBlock Text="{Binding Value}" FontSize="11" FontFamily="Consolas"
+                                                       Foreground="{DynamicResource MaterialDesignBody}" TextTrimming="CharacterEllipsis" MaxWidth="400"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <!-- Action Buttons -->
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                                        <!-- Edit Button (only for editable variables) -->
+                                        <Button Command="{Binding DataContext.StartEditVariableCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" 
+                                                CommandParameter="{Binding}"
+                                                Click="EditButton_Click"
+                                                Style="{StaticResource MaterialDesignIconButton}" Margin="4,0"
+                                                ToolTip="Edit Variable"
+                                                Visibility="{Binding IsEditable, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <materialDesign:PackIcon Kind="Pencil" Width="20" Height="20"/>
+                                        </Button>
+                                        
+                                        <!-- Delete Button (only for editable, non-system variables) -->
+                                        <Button Command="{Binding DataContext.DeleteVariableCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" 
+                                                CommandParameter="{Binding}"
+                                                Margin="4,0"
+                                                ToolTip="Delete Variable"
+                                                Foreground="#F44336">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignIconButton}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding IsEditable}" Value="True"/>
+                                                                <Condition Binding="{Binding IsSystem}" Value="False"/>
+                                                            </MultiDataTrigger.Conditions>
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </MultiDataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                            <materialDesign:PackIcon Kind="Delete" Width="20" Height="20"/>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </materialDesign:Card>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Status Bar -->
+            <Border Grid.Row="3" Background="{DynamicResource MaterialDesignToolBarBackground}" 
+                    Padding="20,12" BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="0,1,0,0"
+                    Visibility="{Binding StatusMessage, Converter={StaticResource NullToVisibilityConverter}}">
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource MaterialDesignBody}"/>
+            </Border>
+        </Grid>
+
+        <!-- Add/Edit Dialog -->
+        <Border x:Name="AddDialogOverlay" Grid.ColumnSpan="2" Background="#80000000" 
+                Visibility="{Binding IsAddDialogOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border x:Name="AddDialogContent" Background="{DynamicResource MaterialDesignPaper}" Width="500" Height="480"
+                    CornerRadius="8" Padding="24" VerticalAlignment="Top" HorizontalAlignment="Left">
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="AddDialogTransform"/>
+                </Border.RenderTransform>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Dialog Header -->
+                    <TextBlock Grid.Row="0" Text="Add Custom Variable" FontSize="20" FontWeight="SemiBold" 
+                               Foreground="{DynamicResource MaterialDesignBody}" Margin="0,0,0,20"/>
+
+                    <!-- Dialog Content -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}" 
+                                     materialDesign:HintAssist.Hint="Variable Name (e.g., my-variable)"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,0,16"/>
+                            
+                            <TextBox Text="{Binding EditDisplayName, UpdateSourceTrigger=PropertyChanged}" 
+                                     materialDesign:HintAssist.Hint="Display Name (e.g., My Variable)"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,0,16"/>
+                            
+                            <TextBox Text="{Binding EditValue, UpdateSourceTrigger=PropertyChanged}" 
+                                     materialDesign:HintAssist.Hint="Value"
+                                     AcceptsReturn="True" TextWrapping="Wrap" MinLines="3" MaxLines="6"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,0,16"/>
+                            
+                            <TextBox Text="{Binding EditDescription, UpdateSourceTrigger=PropertyChanged}" 
+                                     materialDesign:HintAssist.Hint="Description (optional)"
+                                     AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" MaxLines="4"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,0,16"/>
+                            
+                            <TextBlock Text="Use lowercase with hyphens only (e.g., my-custom-variable)" 
+                                       FontSize="11" Foreground="{DynamicResource MaterialDesignBodyLight}" 
+                                       TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Dialog Actions -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                        <Button Content="CANCEL" Command="{Binding CancelEditCommand}" 
+                                Style="{StaticResource MaterialDesignFlatButton}" Margin="0,0,8,0"/>
+                        <Button Content="SAVE" Command="{Binding SaveVariableCommand}" 
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
+
+        <!-- Edit Dialog -->
+        <Border x:Name="EditDialogOverlay" Grid.ColumnSpan="2" Background="#80000000" 
+                Visibility="{Binding IsEditDialogOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border x:Name="EditDialogContent" Background="{DynamicResource MaterialDesignPaper}" Width="500" Height="400"
+                    CornerRadius="8" Padding="24" VerticalAlignment="Top" HorizontalAlignment="Left">
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="EditDialogTransform"/>
+                </Border.RenderTransform>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Dialog Header -->
+                    <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                        <TextBlock Text="Edit Variable" FontSize="20" FontWeight="SemiBold" 
+                                   Foreground="{DynamicResource MaterialDesignBody}"/>
+                        <TextBlock Text="{Binding EditName, StringFormat=\{0\}}" FontFamily="Consolas" 
+                                   FontSize="14" Foreground="{DynamicResource PrimaryHueMidBrush}" Margin="0,4,0,0"/>
+                    </StackPanel>
+
+                    <!-- Dialog Content -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBox Text="{Binding EditDisplayName, UpdateSourceTrigger=PropertyChanged}" 
+                                     materialDesign:HintAssist.Hint="Display Name"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,0,16"/>
+                            
+                            <TextBox Text="{Binding EditValue, UpdateSourceTrigger=PropertyChanged}" 
+                                     materialDesign:HintAssist.Hint="Value"
+                                     AcceptsReturn="True" TextWrapping="Wrap" MinLines="3" MaxLines="6"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,0,16"/>
+                            
+                            <TextBox Text="{Binding EditDescription, UpdateSourceTrigger=PropertyChanged}" 
+                                     materialDesign:HintAssist.Hint="Description (optional)"
+                                     AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" MaxLines="4"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"/>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Dialog Actions -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                        <Button Content="CANCEL" Command="{Binding CancelEditCommand}" 
+                                Style="{StaticResource MaterialDesignFlatButton}" Margin="0,0,8,0"/>
+                        <Button Content="SAVE" Command="{Binding SaveVariableCommand}" 
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

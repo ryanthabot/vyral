@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VyralBot.Core\VyralBot.Core.csproj" />
+    <ProjectReference Include="..\VyralBot.Data\VyralBot.Data.csproj" />
+  </ItemGroup>
+
+</Project>

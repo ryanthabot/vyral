@@ -1,0 +1,950 @@
+<UserControl x:Class="VyralBot.UI.Views.NgrokSetupWizardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+             Background="{StaticResource BackgroundDarkBrush}">
+    
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+    </UserControl.Resources>
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Stepper Header -->
+            <RowDefinition Height="Auto"/>
+            <!-- Content -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Step Navigation Header -->
+        <Border Grid.Row="0" 
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource BorderLightBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="32,24">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowSuccessScreen}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <StackPanel>
+                <!-- Title -->
+                <TextBlock Text="Ngrok Setup" 
+                         FontSize="24"
+                         FontWeight="Bold"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         Margin="0,0,0,24"/>
+                
+                <!-- Stepper -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Step 1 -->
+                    <Button Grid.Column="0"
+                            Command="{Binding GoToStep1Command}"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="60"
+                            Padding="16,8"
+                            IsEnabled="False"
+                            Cursor="Arrow">
+                        <StackPanel>
+                            <Border Width="40" Height="40" 
+                                    CornerRadius="20"
+                                    Margin="0,0,0,8"
+                                    HorizontalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="1">
+                                                <Setter Property="Background" Value="{StaticResource VyralRedBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{StaticResource VyralRedBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="1" 
+                                         FontSize="20" 
+                                         FontWeight="Bold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Sign In" 
+                                     FontSize="14"
+                                     HorizontalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="1">
+                                                <Setter Property="Foreground" Value="{StaticResource VyralRedBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Connector 1 -->
+                    <Rectangle Grid.Column="1" 
+                             Width="40" 
+                             Height="2" 
+                             Fill="{StaticResource BorderLightBrush}"
+                             VerticalAlignment="Center"
+                             Margin="8,0"/>
+
+                    <!-- Step 2 -->
+                    <Button Grid.Column="2"
+                            Command="{Binding GoToStep2Command}"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="60"
+                            Padding="16,8"
+                            IsEnabled="False"
+                            Cursor="Arrow">
+                        <StackPanel>
+                            <Border Width="40" Height="40" 
+                                    CornerRadius="20"
+                                    Margin="0,0,0,8"
+                                    HorizontalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="2">
+                                                <Setter Property="Background" Value="{StaticResource VyralRedBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{StaticResource VyralRedBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="2" 
+                                         FontSize="20" 
+                                         FontWeight="Bold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Create App" 
+                                     FontSize="14"
+                                     HorizontalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="2">
+                                                <Setter Property="Foreground" Value="{StaticResource VyralRedBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Connector 2 -->
+                    <Rectangle Grid.Column="3" 
+                             Width="40" 
+                             Height="2" 
+                             Fill="{StaticResource BorderLightBrush}"
+                             VerticalAlignment="Center"
+                             Margin="8,0"/>
+
+                    <!-- Step 3 -->
+                    <Button Grid.Column="4"
+                            Command="{Binding GoToStep3Command}"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="60"
+                            Padding="16,8"
+                            IsEnabled="False"
+                            Cursor="Arrow">
+                        <StackPanel>
+                            <Border Width="40" Height="40" 
+                                    CornerRadius="20"
+                                    Margin="0,0,0,8"
+                                    HorizontalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="3">
+                                                <Setter Property="Background" Value="{StaticResource VyralRedBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{StaticResource VyralRedBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="3" 
+                                         FontSize="20" 
+                                         FontWeight="Bold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Authorize" 
+                                     FontSize="14"
+                                     HorizontalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="3">
+                                                <Setter Property="Foreground" Value="{StaticResource VyralRedBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Connector 3 -->
+                    <Rectangle Grid.Column="5" 
+                             Width="40" 
+                             Height="2" 
+                             Fill="{StaticResource BorderLightBrush}"
+                             VerticalAlignment="Center"
+                             Margin="8,0"/>
+
+                    <!-- Step 4 -->
+                    <Button Grid.Column="6"
+                            Command="{Binding GoToStep4Command}"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="60"
+                            Padding="16,8"
+                            IsEnabled="False"
+                            Cursor="Arrow">
+                        <StackPanel>
+                            <Border Width="40" Height="40" 
+                                    CornerRadius="20"
+                                    Margin="0,0,0,8"
+                                    HorizontalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="4">
+                                                <Setter Property="Background" Value="{StaticResource VyralRedBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{StaticResource VyralRedBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="4" 
+                                         FontSize="20" 
+                                         FontWeight="Bold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Test" 
+                                     FontSize="14"
+                                     HorizontalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="4">
+                                                <Setter Property="Foreground" Value="{StaticResource VyralRedBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Content Area -->
+        <Grid Grid.Row="1">
+            <!-- Success Screen (Step 3) -->
+            <Border Background="{StaticResource BackgroundDarkBrush}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowSuccessScreen}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="600">
+                    <TextBlock Text="✓ Setup Complete!" 
+                             FontSize="32"
+                             FontWeight="Bold"
+                             Foreground="{StaticResource SuccessGreenBrush}"
+                             HorizontalAlignment="Center"
+                             Margin="0,0,0,16"/>
+                    
+                    <TextBlock Text="Your demo credentials have been saved securely." 
+                             FontSize="16"
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             HorizontalAlignment="Center"
+                             Margin="0,0,0,32"/>
+                    
+                    <materialDesign:Card Padding="24" 
+                                        Background="{StaticResource CardBackgroundBrush}"
+                                        Margin="0,0,0,32">
+                        <StackPanel>
+                            <TextBlock Text="Saved Credentials" 
+                                     FontSize="18"
+                                     FontWeight="SemiBold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Margin="0,0,0,16"/>
+                            
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                
+                                <TextBlock Grid.Row="0" Grid.Column="0"
+                                         Text="Client ID:" 
+                                         FontSize="14"
+                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         Margin="0,0,16,8"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1"
+                                         Text="{Binding MaskedClientId}" 
+                                         FontSize="14"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         FontFamily="Consolas"
+                                         Margin="0,0,0,8"/>
+                                
+                                <TextBlock Grid.Row="1" Grid.Column="0"
+                                         Text="Client Secret:" 
+                                         FontSize="14"
+                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         Margin="0,0,16,0"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1"
+                                         Text="••••••••••••••••" 
+                                         FontSize="14"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         FontFamily="Consolas"/>
+                            </Grid>
+                        </StackPanel>
+                    </materialDesign:Card>
+                    
+                    <Button Content="FINISH SETUP"
+                          Command="{Binding FinishSetupCommand}"
+                          Style="{StaticResource MaterialDesignRaisedButton}"
+                          Background="{DynamicResource PrimaryBrush}"
+                          Foreground="White"
+                          Height="40"
+                          Padding="32,0"
+                          FontSize="16"
+                          FontWeight="Bold"
+                          VerticalContentAlignment="Center"
+                          HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+            
+            <!-- Step Content (Steps 1-2) - Shows instructions or browser -->
+            <Grid Background="{StaticResource BackgroundDarkBrush}">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowSuccessScreen}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                
+                <!-- Floating Buttons Bar (Step 2 only) -->
+                <Border Grid.Row="0">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding CurrentStep}" Value="2"/>
+                                        <Condition Binding="{Binding ShowBrowser}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                </Border>
+                
+                <!-- Main Content Area -->
+                <Grid Grid.Row="1">
+                    <!-- WebView2 Browser (Steps 2 and 3) -->
+                    <Border Background="{StaticResource BackgroundDarkBrush}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding ShowBrowser}" Value="True"/>
+                                            <Condition Binding="{Binding ShowModal}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <wv2:WebView2 x:Name="WebView2Browser"/>
+                    </Border>
+                    
+                    <!-- Step 1: Install Ngrok -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="800">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentStep}" Value="1">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        
+                        <TextBlock Text="Step 1: Install Ngrok" 
+                                 FontSize="28"
+                                 FontWeight="Bold"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 Margin="0,0,0,24"/>
+                        
+                        <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                            <StackPanel>
+                                <TextBlock Text="Download and Install" 
+                                         FontSize="18"
+                                         FontWeight="SemiBold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Margin="0,0,0,16"/>
+                                
+                                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                    <Run Text="Ngrok creates a secure tunnel to your local machine, allowing external services to send webhooks to VyralBot."/>
+                                    <LineBreak/><LineBreak/>
+                                    <Run Text="You can install ngrok from the Microsoft Store or download it directly from ngrok.com."/>
+                                    <LineBreak/><LineBreak/>
+                                    <Run Text="After installing, click 'CHECK INSTALLATION' to verify."/>
+                                </TextBlock>
+                                
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="16"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <Button Grid.Column="0" Content="DOWNLOAD FROM MICROSOFT STORE"
+                                           Command="{Binding OpenStep1ExternalCommand}"
+                                           Style="{StaticResource MaterialDesignRaisedButton}"
+                                           Background="{StaticResource PrimaryBrush}"
+                                           Foreground="White"
+                                           Height="48" FontSize="14"/>
+                                    
+                                    <Button Grid.Column="2" Content="CHECK INSTALLATION"
+                                           Command="{Binding CheckInstallationCommand}"
+                                           Style="{StaticResource MaterialDesignOutlinedButton}"
+                                           Height="48" FontSize="14"/>
+                                </Grid>
+                                
+                                <!-- Status Message -->
+                                <Border Padding="16" Margin="0,16,0,0" CornerRadius="8">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#1A4CAF50"/>
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsNgrokInstalled}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon Kind="CheckCircle" Width="20" Height="20" 
+                                                                Foreground="{StaticResource SuccessGreenBrush}" Margin="0,0,12,0"/>
+                                        <TextBlock Text="{Binding StatusMessage}" 
+                                                  Foreground="{StaticResource SuccessGreenBrush}"
+                                                  FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Border>
+                                
+                                <Border Padding="16" Margin="0,16,0,0" CornerRadius="8">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#1AF44336"/>
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsNgrokInstalled}" Value="False"/>
+                                                        <Condition Binding="{Binding StatusMessage, Converter={StaticResource NullOrEmptyToVisibilityConverter}}" Value="Visible"/>
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon Kind="AlertCircle" Width="20" Height="20" 
+                                                                Foreground="{StaticResource ErrorBrush}" Margin="0,0,12,0"/>
+                                        <TextBlock Text="{Binding StatusMessage}" 
+                                                  Foreground="{StaticResource ErrorBrush}"
+                                                  FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </materialDesign:Card>
+                    </StackPanel>
+                    
+                    <!-- Step 2 Instructions - Sign In -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="800">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding CurrentStep}" Value="2"/>
+                                            <Condition Binding="{Binding ShowBrowser}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                            <TextBlock Text="Step 2: Sign in to ngrok" 
+                                     FontSize="28"
+                                     FontWeight="Bold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Margin="0,0,0,24"/>
+                            
+                            <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                                <StackPanel>
+                                    <TextBlock Text="Login or Create Account" 
+                                             FontSize="18"
+                                             FontWeight="SemiBold"
+                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Margin="0,0,0,16"/>
+                                    
+                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                        <Run Text="Click the button below to sign in to ngrok."/>
+                                        <LineBreak/><LineBreak/>
+                                        <Run Text="If you don't have an account, you can create a free one."/>
+                                        <LineBreak/><LineBreak/>
+                                        <Run Text="After signing in, you'll be able to access your dashboard to get your authentication token."/>
+                                    </TextBlock>
+                                    
+                                    <Button Content="OPEN NGROK SIGN IN"
+                                           Command="{Binding OpenStep2BrowserCommand}"
+                                           Style="{StaticResource MaterialDesignRaisedButton}"
+                                           Background="{DynamicResource PrimaryBrush}"
+                                           Foreground="White"
+                                           Height="48"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </materialDesign:Card>
+                    </StackPanel>
+                    
+                    <!-- Step 3 - Dashboard with Auth Token Save -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="800">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding CurrentStep}" Value="3"/>
+                                            <Condition Binding="{Binding ShowBrowser}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        
+                        <!-- Instructions Card (shows when WebView is NOT open) -->
+                        <StackPanel>
+                            
+                            <TextBlock Text="Step 3: Access ngrok Dashboard" 
+                                     FontSize="28"
+                                     FontWeight="Bold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Margin="0,0,0,24"/>
+                            
+                            <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                                <StackPanel>
+                                    <TextBlock Text="Get Your Authentication Token" 
+                                             FontSize="18"
+                                             FontWeight="SemiBold"
+                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Margin="0,0,0,16"/>
+                                    
+                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                        <Run Text="1. Click the button below to open your ngrok dashboard in the app"/>
+                                        <LineBreak/><LineBreak/>
+                                        <Run Text="2. Copy your authentication token from the dashboard"/>
+                                        <LineBreak/><LineBreak/>
+                                        <Run Text="3. Click 'SAVE AUTH TOKEN' at the bottom right and paste your token"/>
+                                    </TextBlock>
+                                    
+                                    <Button Content="OPEN NGROK DASHBOARD"
+                                           Command="{Binding OpenStep3BrowserCommand}"
+                                           Style="{StaticResource MaterialDesignRaisedButton}"
+                                           Background="{DynamicResource PrimaryBrush}"
+                                           Foreground="White"
+                                           Height="48"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </materialDesign:Card>
+                                    </StackPanel>
+                                </StackPanel>
+                    
+                    <!-- Step 4 - Verify Ngrok Setup -->
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="800">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentStep}" Value="4">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        
+                        <TextBlock Text="Step 4: Test Connection" 
+                                   FontSize="28"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,24"/>
+                        
+                        <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                            <StackPanel>
+                                <TextBlock Text="Verify Ngrok Setup" 
+                                         FontSize="18"
+                                         FontWeight="SemiBold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Margin="0,0,0,16"/>
+                                
+                                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                    <Run Text="Click 'TEST CONNECTION' below to start the webhook server and ngrok tunnel. This will verify your setup is working correctly."/>
+                                </TextBlock>
+                                
+                                <Button Content="TEST CONNECTION"
+                                       Command="{Binding TestConnectionCommand}"
+                                       Style="{StaticResource MaterialDesignRaisedButton}"
+                                       Background="{StaticResource PrimaryBrush}"
+                                       Foreground="White"
+                                       Height="48"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,16"
+                                       IsEnabled="{Binding IsTesting, Converter={StaticResource InvertBooleanConverter}}"/>
+                                
+                                <ProgressBar IsIndeterminate="True"
+                                            Height="4"
+                                            Visibility="{Binding IsTesting, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                            Margin="0,0,0,16"/>
+                                
+                                <TextBlock Text="{Binding StatusMessage}" 
+                                          FontSize="14"
+                                          Foreground="{StaticResource TextSecondaryBrush}"
+                                          TextWrapping="Wrap"
+                                          HorizontalAlignment="Center"
+                                          Margin="0,0,0,16"/>
+                                
+                                <TextBlock Text="{Binding PublicUrl}"
+                                          FontFamily="Consolas"
+                                          FontSize="14"
+                                          HorizontalAlignment="Center"
+                                          Foreground="{StaticResource PrimaryBrush}"
+                                          Visibility="{Binding PublicUrl, Converter={StaticResource NullToVisibilityConverter}}"/>
+                            </StackPanel>
+                        </materialDesign:Card>
+                    </StackPanel>
+                </Grid>
+                
+                <!-- Bottom Action Bar -->
+                <Border Grid.Row="2" 
+                        Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="{StaticResource BorderLightBrush}"
+                        BorderThickness="0,1,0,0"
+                        Padding="24,16">
+                    <Grid>
+                        <!-- Back Button (Steps 2, 3, and 4) -->
+                        <Button Content="← BACK"
+                                Command="{Binding GoBackCommand}"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Height="40"
+                                Padding="24,0"
+                                HorizontalAlignment="Left">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignFlatButton}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentStep}" Value="2">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding CurrentStep}" Value="3">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding CurrentStep}" Value="4">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        
+                        <!-- Step 1 Continue Button (Non-Browser Mode) -->
+                        <Button Content="CONTINUE"
+                                Command="{Binding ContinueFromStep1Command}"
+                                Background="{DynamicResource PrimaryBrush}"
+                                Foreground="White"
+                                Height="40"
+                                Padding="32,0"
+                                HorizontalAlignment="Right">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding CurrentStep}" Value="1"/>
+                                                <Condition Binding="{Binding ShowBrowser}" Value="False"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+
+                        <!-- Step 1 Continue Button (Browser Mode) -->
+                        <Button Content="CONTINUE" 
+                                Command="{Binding ContinueFromStep1Command}"
+                                Background="{DynamicResource PrimaryBrush}"
+                                Foreground="White"
+                                Height="40"
+                                Padding="32,0"
+                                HorizontalAlignment="Right">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding CurrentStep}" Value="1"/>
+                                                <Condition Binding="{Binding ShowBrowser}" Value="True"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        
+                        <!-- Step 2 Continue Button (always visible) -->
+                        <Button Content="CONTINUE" 
+                                Command="{Binding ContinueFromStep2Command}"
+                                Background="{DynamicResource PrimaryBrush}"
+                                Foreground="White"
+                                Height="40"
+                                Padding="32,0"
+                                HorizontalAlignment="Right">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentStep}" Value="2">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        
+                        <!-- Step 3 Auth Token Button (shown until token saved) -->
+                        <Button Content="SAVE AUTH TOKEN"
+                                Command="{Binding SaveAuthTokenCommand}"
+                                Height="40"
+                                Padding="24,0"
+                                Foreground="White"
+                                HorizontalAlignment="Right">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                    <Setter Property="Background" Value="{StaticResource VyralRedBrush}"/>
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding TokenSaved}" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+                                        </DataTrigger>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding CurrentStep}" Value="3"/>
+                                                <Condition Binding="{Binding TokenSaved}" Value="False"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        
+                        <!-- Step 3 Continue Button (shows when token saved) -->
+                        <Button Content="CONTINUE" 
+                                Command="{Binding ContinueFromStep3Command}"
+                                Background="{DynamicResource PrimaryBrush}"
+                                Foreground="White"
+                                Height="40"
+                                Padding="32,0"
+                                HorizontalAlignment="Right">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding CurrentStep}" Value="3"/>
+                                                <Condition Binding="{Binding TokenSaved}" Value="True"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        
+                        <!-- Step 4 Complete Setup Button (✓ IT WORKED!) -->
+                        <Button Content="✓ IT WORKED!" 
+                                Command="{Binding CompleteSetupCommand}"
+                                Background="{StaticResource SuccessGreenBrush}"
+                                Foreground="White"
+                                Height="40"
+                                Padding="32,0"
+                                FontWeight="Bold"
+                                HorizontalAlignment="Right">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="IsEnabled" Value="False"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentStep}" Value="4">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding CurrentStep}" Value="4"/>
+                                                <Condition Binding="{Binding TestPassed}" Value="True"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="IsEnabled" Value="True"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+        
+        <!-- Modal for Client ID/Secret Input - At root level to overlay everything -->
+        <Border Grid.RowSpan="2" 
+                Background="{DynamicResource OverlayBackgroundBrush}"
+                Panel.ZIndex="1000">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowModal}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <materialDesign:Card Width="500"
+                                Padding="32"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                Background="{StaticResource CardBackgroundBrush}">
+                <StackPanel>
+                    <TextBlock Text="{Binding ModalTitle}" 
+                             FontSize="20"
+                             FontWeight="Bold"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Margin="0,0,0,16"/>
+                    
+                    <TextBlock Text="{Binding ModalDescription}" 
+                             FontSize="14"
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,24"/>
+                    
+                    <TextBox Text="{Binding ModalInput, UpdateSourceTrigger=PropertyChanged}"
+                           materialDesign:HintAssist.Hint="Paste here..."
+                           FontFamily="Consolas"
+                           FontSize="14"
+                           Padding="12"
+                           Margin="0,0,0,24"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           x:Name="ModalInputTextBox"/>
+                    
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="CANCEL"
+                              Command="{Binding CloseModalCommand}"
+                              Style="{StaticResource MaterialDesignFlatButton}"
+                              Margin="0,0,8,0"
+                              Padding="16,8"/>
+                        
+                        <Button Content="SAVE"
+                              Command="{Binding SaveModalCommand}"
+                              Style="{StaticResource MaterialDesignRaisedButton}"
+                              Background="{StaticResource VyralRedBrush}"
+                              Padding="16,8"/>
+                    </StackPanel>
+                </StackPanel>
+            </materialDesign:Card>
+        </Border>
+    </Grid>
+</UserControl>

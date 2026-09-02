@@ -1,0 +1,428 @@
+<UserControl x:Class="VyralBot.UI.Views.CurrencyView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d" 
+             d:DesignHeight="600" d:DesignWidth="900">
+    <Grid Background="#1E1E1E">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#252526" BorderBrush="#3E3E42" BorderThickness="0,0,0,1" Padding="20,15">
+            <StackPanel>
+                <TextBlock Text="💰 Currency System" FontSize="24" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="Manage currency settings, rewards, and redemptions" FontSize="12" Foreground="#B0B0B0" Margin="0,5,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Content -->
+        <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0" Margin="10">
+            <TabControl.Resources>
+                <Style TargetType="TabItem">
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="TabItem">
+                                <Border Name="Border" Background="#2D2D30" BorderBrush="#3E3E42" BorderThickness="1,1,1,0" 
+                                        CornerRadius="4,4,0,0" Margin="2,0" Padding="15,8">
+                                    <ContentPresenter ContentSource="Header" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter TargetName="Border" Property="Background" Value="#007ACC"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Trigger>
+                                    <Trigger Property="IsSelected" Value="False">
+                                        <Setter Property="Foreground" Value="#B0B0B0"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Border" Property="Background" Value="#3E3E42"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </TabControl.Resources>
+
+            <!-- Settings Tab -->
+            <TabItem Header="⚙️ Settings">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20" MaxWidth="800">
+                        <!-- Currency Name & Symbol -->
+                        <TextBlock Text="Currency Configuration" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,0,0,15"/>
+                        
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="20"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Currency Name" Foreground="#B0B0B0" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding Settings.CurrencyName, UpdateSourceTrigger=PropertyChanged}" 
+                                         Background="#333337" Foreground="White" Padding="10,8" BorderBrush="#3E3E42"/>
+                            </StackPanel>
+                            
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Currency Symbol" Foreground="#B0B0B0" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding Settings.CurrencySymbol, UpdateSourceTrigger=PropertyChanged}" 
+                                         Background="#333337" Foreground="White" Padding="10,8" BorderBrush="#3E3E42"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Watch Time Settings -->
+                        <TextBlock Text="Watch Time Rewards" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,20,0,15"/>
+                        
+                        <CheckBox Content="Enable Watch Time Rewards" IsChecked="{Binding Settings.WatchTimeEnabled}" 
+                                  Foreground="White" Margin="0,0,0,10"/>
+                        
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="20"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Points Per Interval" Foreground="#B0B0B0" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding Settings.WatchTimeAmount, UpdateSourceTrigger=PropertyChanged}" 
+                                         Background="#333337" Foreground="White" Padding="10,8" BorderBrush="#3E3E42"/>
+                            </StackPanel>
+                            
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Interval (seconds)" Foreground="#B0B0B0" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding Settings.WatchTimeInterval, UpdateSourceTrigger=PropertyChanged}" 
+                                         Background="#333337" Foreground="White" Padding="10,8" BorderBrush="#3E3E42"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Chat Activity Settings -->
+                        <TextBlock Text="Chat Activity Rewards" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,20,0,15"/>
+                        
+                        <CheckBox Content="Enable Chat Activity Rewards" IsChecked="{Binding Settings.ChatActivityEnabled}" 
+                                  Foreground="White" Margin="0,0,0,10"/>
+                        
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="20"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Points Per Message" Foreground="#B0B0B0" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding Settings.ChatActivityAmount, UpdateSourceTrigger=PropertyChanged}" 
+                                         Background="#333337" Foreground="White" Padding="10,8" BorderBrush="#3E3E42"/>
+                            </StackPanel>
+                            
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Cooldown (seconds)" Foreground="#B0B0B0" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding Settings.ChatActivityCooldown, UpdateSourceTrigger=PropertyChanged}" 
+                                         Background="#333337" Foreground="White" Padding="10,8" BorderBrush="#3E3E42"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Event Bonus Settings -->
+                        <TextBlock Text="Event Bonuses" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,20,0,15"/>
+                        
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="20"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="20"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="10"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="10"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="10"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Follow Bonus -->
+                            <CheckBox Grid.Row="0" Grid.Column="0" Content="Follow Bonus" IsChecked="{Binding Settings.FollowBonusEnabled}" 
+                                      Foreground="White" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding Settings.FollowBonusAmount, UpdateSourceTrigger=PropertyChanged}" 
+                                     Background="#333337" Foreground="White" Padding="8,6" BorderBrush="#3E3E42"/>
+                            <TextBlock Grid.Row="0" Grid.Column="4" Text="points" Foreground="#B0B0B0" VerticalAlignment="Center"/>
+
+                            <!-- Subscribe Bonus -->
+                            <CheckBox Grid.Row="2" Grid.Column="0" Content="Subscribe Bonus" IsChecked="{Binding Settings.SubscribeBonusEnabled}" 
+                                      Foreground="White" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding Settings.SubscribeBonusAmount, UpdateSourceTrigger=PropertyChanged}" 
+                                     Background="#333337" Foreground="White" Padding="8,6" BorderBrush="#3E3E42"/>
+                            <TextBlock Grid.Row="2" Grid.Column="4" Text="points" Foreground="#B0B0B0" VerticalAlignment="Center"/>
+
+                            <!-- Gift Sub Bonus -->
+                            <CheckBox Grid.Row="4" Grid.Column="0" Content="Gift Sub Bonus (per sub)" IsChecked="{Binding Settings.GiftSubBonusEnabled}" 
+                                      Foreground="White" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding Settings.GiftSubBonusAmount, UpdateSourceTrigger=PropertyChanged}" 
+                                     Background="#333337" Foreground="White" Padding="8,6" BorderBrush="#3E3E42"/>
+                            <TextBlock Grid.Row="4" Grid.Column="4" Text="points" Foreground="#B0B0B0" VerticalAlignment="Center"/>
+
+                            <!-- Raid Bonus -->
+                            <CheckBox Grid.Row="6" Grid.Column="0" Content="Raid Bonus (per viewer)" IsChecked="{Binding Settings.RaidBonusEnabled}" 
+                                      Foreground="White" VerticalAlignment="Center"/>
+                            <TextBox Grid.Row="6" Grid.Column="2" Text="{Binding Settings.RaidBonusAmount, UpdateSourceTrigger=PropertyChanged}" 
+                                     Background="#333337" Foreground="White" Padding="8,6" BorderBrush="#3E3E42"/>
+                            <TextBlock Grid.Row="6" Grid.Column="4" Text="points" Foreground="#B0B0B0" VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <!-- Save Button -->
+                        <Button Content="💾 Save Settings" Command="{Binding SaveSettingsCommand}" 
+                                Background="#007ACC" Foreground="White" Padding="20,10" Margin="0,30,0,0" 
+                                BorderThickness="0" FontSize="14" FontWeight="SemiBold" Cursor="Hand"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Rewards Tab -->
+            <TabItem Header="🎁 Rewards">
+                <Grid Margin="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Toolbar -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
+                        <Button Content="➕ New Reward" Command="{Binding NewRewardCommand}" 
+                                Background="#0E7A0D" Foreground="White" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"/>
+                        <Button Content="✏️ Edit" Command="{Binding EditRewardCommand}" 
+                                Background="#007ACC" Foreground="White" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
+                                IsEnabled="{Binding SelectedReward, Converter={StaticResource NullToBoolConverter}}"/>
+                        <Button Content="🗑️ Delete" Command="{Binding DeleteRewardCommand}" 
+                                Background="#E81123" Foreground="White" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
+                                IsEnabled="{Binding SelectedReward, Converter={StaticResource NullToBoolConverter}}"/>
+                        <Button Content="🔄 Toggle Enabled" Command="{Binding ToggleRewardEnabledCommand}" 
+                                Background="#F7630C" Foreground="White" Padding="15,8" BorderThickness="0" Cursor="Hand"
+                                IsEnabled="{Binding SelectedReward, Converter={StaticResource NullToBoolConverter}}"/>
+                    </StackPanel>
+
+                    <!-- Rewards DataGrid -->
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding Rewards}" SelectedItem="{Binding SelectedReward}" 
+                              AutoGenerateColumns="False" CanUserAddRows="False" Background="#252526" 
+                              Foreground="White" BorderBrush="#3E3E42" GridLinesVisibility="Horizontal" 
+                              HorizontalGridLinesBrush="#3E3E42" IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*"/>
+                            <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="3*"/>
+                            <DataGridTextColumn Header="Cost" Binding="{Binding Cost, StringFormat=N0}" Width="*"/>
+                            <DataGridCheckBoxColumn Header="Approval Required" Binding="{Binding RequiresApproval}" Width="*"/>
+                            <DataGridTextColumn Header="Cooldown (s)" Binding="{Binding Cooldown}" Width="*"/>
+                            <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding IsEnabled}" Width="*"/>
+                            <DataGridTextColumn Header="Redemptions" Binding="{Binding CurrentRedemptions}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Edit Panel -->
+                    <Border Grid.Row="2" Background="#2D2D30" BorderBrush="#3E3E42" BorderThickness="0,1,0,0" 
+                            Padding="20" Margin="0,15,0,0" Visibility="{Binding IsEditingReward, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock Text="Reward Details" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,15"/>
+                            
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="15"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="15"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0">
+                                    <TextBlock Text="Name" Foreground="#B0B0B0" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding NewRewardName, UpdateSourceTrigger=PropertyChanged}" 
+                                             Background="#333337" Foreground="White" Padding="10,8" BorderBrush="#3E3E42"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="0" Grid.Column="2">
+                                    <TextBlock Text="Cost" Foreground="#B0B0B0" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding NewRewardCost, UpdateSourceTrigger=PropertyChanged}" 
+                                             Background="#333337" Foreground="White" Padding="10,8" BorderBrush="#3E3E42"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3">
+                                    <TextBlock Text="Description" Foreground="#B0B0B0" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding NewRewardDescription, UpdateSourceTrigger=PropertyChanged}" 
+                                             Background="#333337" Foreground="White" Padding="10,8" BorderBrush="#3E3E42" 
+                                             TextWrapping="Wrap" AcceptsReturn="True" Height="60"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="4" Grid.Column="0">
+                                    <TextBlock Text="Cooldown (seconds)" Foreground="#B0B0B0" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding NewRewardCooldown, UpdateSourceTrigger=PropertyChanged}" 
+                                             Background="#333337" Foreground="White" Padding="10,8" BorderBrush="#3E3E42"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="4" Grid.Column="2" VerticalAlignment="Bottom">
+                                    <CheckBox Content="Requires Moderator Approval" IsChecked="{Binding NewRewardRequiresApproval}" 
+                                              Foreground="White" Margin="0,0,0,8"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                                <Button Content="💾 Save" Command="{Binding SaveRewardCommand}" 
+                                        Background="#0E7A0D" Foreground="White" Padding="20,10" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"/>
+                                <Button Content="❌ Cancel" Command="{Binding CancelEditRewardCommand}" 
+                                        Background="#3E3E42" Foreground="White" Padding="20,10" BorderThickness="0" Cursor="Hand"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- Redemptions Tab -->
+            <TabItem Header="📋 Redemptions">
+                <Grid Margin="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Toolbar -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
+                        <Button Content="✅ Approve" Command="{Binding ApproveRedemptionCommand}" 
+                                Background="#0E7A0D" Foreground="White" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
+                                IsEnabled="{Binding SelectedRedemption, Converter={StaticResource NullToBoolConverter}}"/>
+                        <Button Content="❌ Reject" Command="{Binding RejectRedemptionCommand}" 
+                                Background="#E81123" Foreground="White" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
+                                IsEnabled="{Binding SelectedRedemption, Converter={StaticResource NullToBoolConverter}}"/>
+                        <Button Content="✔️ Complete" Command="{Binding CompleteRedemptionCommand}" 
+                                Background="#007ACC" Foreground="White" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
+                                IsEnabled="{Binding SelectedRedemption, Converter={StaticResource NullToBoolConverter}}"/>
+                        <Button Content="🔄 Refresh" Command="{Binding LoadRedemptionsCommand}" 
+                                Background="#F7630C" Foreground="White" Padding="15,8" BorderThickness="0" Cursor="Hand"/>
+                    </StackPanel>
+
+                    <!-- Redemptions DataGrid -->
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding Redemptions}" SelectedItem="{Binding SelectedRedemption}" 
+                              AutoGenerateColumns="False" CanUserAddRows="False" Background="#252526" 
+                              Foreground="White" BorderBrush="#3E3E42" GridLinesVisibility="Horizontal" 
+                              HorizontalGridLinesBrush="#3E3E42" IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Username" Binding="{Binding Username}" Width="*"/>
+                            <DataGridTextColumn Header="Platform" Binding="{Binding Platform}" Width="*"/>
+                            <DataGridTextColumn Header="Reward" Binding="{Binding RewardName}" Width="2*"/>
+                            <DataGridTextColumn Header="Cost" Binding="{Binding Cost, StringFormat=N0}" Width="*"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="*"/>
+                            <DataGridTextColumn Header="User Input" Binding="{Binding UserInput}" Width="2*"/>
+                            <DataGridTextColumn Header="Redeemed At" Binding="{Binding RedeemedAt, StringFormat=g}" Width="*"/>
+                            <DataGridTextColumn Header="Processed By" Binding="{Binding ProcessedBy}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Selected Redemption Details -->
+                    <Border Grid.Row="2" Background="#2D2D30" BorderBrush="#3E3E42" BorderThickness="0,1,0,0" 
+                            Padding="20" Margin="0,15,0,0" 
+                            Visibility="{Binding SelectedRedemption, Converter={StaticResource NullToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock Text="Redemption Details" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,10"/>
+                            <TextBlock Foreground="#B0B0B0">
+                                <Run Text="User Input: " FontWeight="SemiBold"/>
+                                <Run Text="{Binding SelectedRedemption.UserInput, Mode=OneWay}" Foreground="White"/>
+                            </TextBlock>
+                            <TextBlock Foreground="#B0B0B0" Margin="0,5,0,0">
+                                <Run Text="Notes: " FontWeight="SemiBold"/>
+                                <Run Text="{Binding SelectedRedemption.Notes, Mode=OneWay}" Foreground="White"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- Leaderboard Tab -->
+            <TabItem Header="🏆 Leaderboard">
+                <Grid Margin="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="200"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Leaderboard Toolbar -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
+                        <Button Content="🔄 Refresh" Command="{Binding LoadLeaderboardCommand}" 
+                                Background="#007ACC" Foreground="White" Padding="15,8" BorderThickness="0" Cursor="Hand"/>
+                    </StackPanel>
+
+                    <!-- Leaderboard DataGrid -->
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding Leaderboard}" AutoGenerateColumns="False" 
+                              CanUserAddRows="False" Background="#252526" Foreground="White" BorderBrush="#3E3E42" 
+                              GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#3E3E42" IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Rank" Width="50">
+                                <DataGridTextColumn.Binding>
+                                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" 
+                                             Converter="{StaticResource RowIndexConverter}"/>
+                                </DataGridTextColumn.Binding>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Username" Binding="{Binding Username}" Width="2*"/>
+                            <DataGridTextColumn Header="Platform" Binding="{Binding Platform}" Width="*"/>
+                            <DataGridTextColumn Header="Balance" Binding="{Binding Balance, StringFormat=N0}" Width="*"/>
+                            <DataGridTextColumn Header="Total Earned" Binding="{Binding TotalEarned, StringFormat=N0}" Width="*"/>
+                            <DataGridTextColumn Header="Total Spent" Binding="{Binding TotalSpent, StringFormat=N0}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Transaction History Section -->
+                    <TextBlock Grid.Row="2" Text="Transaction History" FontSize="16" FontWeight="SemiBold" 
+                               Foreground="White" Margin="0,20,0,10"/>
+                    
+                    <Grid Grid.Row="3">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Filter -->
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                            <TextBlock Text="Username:" Foreground="#B0B0B0" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBox Text="{Binding FilterUsername, UpdateSourceTrigger=PropertyChanged}" 
+                                     Width="200" Background="#333337" Foreground="White" Padding="8,6" BorderBrush="#3E3E42"/>
+                            <Button Content="Load Transactions" Command="{Binding LoadTransactionsCommand}" 
+                                    Background="#007ACC" Foreground="White" Padding="15,8" Margin="10,0,0,0" BorderThickness="0" Cursor="Hand"/>
+                        </StackPanel>
+
+                        <!-- Transactions DataGrid -->
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding Transactions}" AutoGenerateColumns="False" 
+                                  CanUserAddRows="False" Background="#252526" Foreground="White" BorderBrush="#3E3E42" 
+                                  GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#3E3E42" IsReadOnly="True">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Date" Binding="{Binding Timestamp, StringFormat=g}" Width="*"/>
+                                <DataGridTextColumn Header="Amount" Binding="{Binding Amount, StringFormat=N0}" Width="*"/>
+                                <DataGridTextColumn Header="Type" Binding="{Binding TransactionType}" Width="*"/>
+                                <DataGridTextColumn Header="Reason" Binding="{Binding Reason}" Width="2*"/>
+                                <DataGridTextColumn Header="Balance Before" Binding="{Binding BalanceBefore, StringFormat=N0}" Width="*"/>
+                                <DataGridTextColumn Header="Balance After" Binding="{Binding BalanceAfter, StringFormat=N0}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="#007ACC" Padding="15,10" Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}}">
+            <TextBlock Text="{Binding StatusMessage}" Foreground="White" FontWeight="SemiBold"/>
+        </Border>
+    </Grid>
+</UserControl>

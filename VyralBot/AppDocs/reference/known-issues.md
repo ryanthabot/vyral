@@ -1,0 +1,423 @@
+# Known Issues Ledger
+
+The numbered, severity-tagged inventory of every known defect, wiring gap, dead surface, and doc-drift item in the current build — verified against code by the six-pass review that produced this documentation, and re-verified after the 2026-08-15 fix pass.
+
+**Every feature page in these docs references this ledger** rather than repeating caveats inline. If a page says "see the Known Issues Ledger", the relevant entry is here. Severity meanings:
+
+- **Critical** — silences or corrupts a shipped feature; the feature cannot work as built.
+- **Wiring gap** — the feature runs but a connection, persistence, or plumbing step is missing or wrong.
+- **Dead surface** — UI or code that renders/exists but does nothing.
+- **Security** — hardening or trust concern, not necessarily a functional break.
+- **Doc drift** — shipped root documents that disagree with the code.
+
+Counts (as of 2026-09-01, after the YouTube re-auth pass): 47 entries — **21 resolved**, **6 partially resolved**, **1 intended behavior (documented)**, and **19 open newly-documented limitations** (KI-26–KI-47; KI-35, KI-39 and KI-43 in that range are already counted as resolved). Original severity split of the 25 pre-fix entries: 7 Critical, 9 Wiring gaps, 2 Dead surface, 6 Security, 1 Doc drift.
+
+Resolved entries are kept below (never deleted) with a ✅ marker and a one-line description of the fix; partially resolved entries carry ◐ with what remains.
+
+---
+
+## Summary
+
+| ID | Severity | Area | Issue | Where documented |
+|---|---|---|---|---|
+| [KI-5](#ki-5-critical--giveawaypoll-follower-and-watchtime-eligibility-always-reject) | Critical ◐ | Giveaways / Polls | Watchtime eligibility now real; follower check real for Twitch only — Kick/YouTube still pass `false` | [Giveaways](../stream-tools/giveaways.md), [Polls](../stream-tools/polls.md) |
+| [KI-12](#ki-12-wiring-gap--auto-reply-templates-use-simple-replace) | Wiring gap ◐ | Auto-replies | Templates and `{raider}` fixed in seeds/defaults; `ProcessTemplate` still simple-replace | [Auto-Replies](../chat-features/auto-replies.md), [Variables Catalog](variables-catalog.md) |
+| [KI-14](#ki-14-wiring-gap--auto-connect-silently-flips-chat-enabled-to-true) | Intended behavior (documented) | Chat settings | Auto-connect force-enabling `<Platform>ChatEnabled` stays as designed | [Chat Settings](../chat/chat-settings.md) |
+| [KI-16](#ki-16-wiring-gap--audio-port-pinned-to-5000-connected-clients-stub) | Wiring gap ◐ | Audio | Live client count works; port still pinned to 5000, vestigial Restart button | [Audio Settings](../stream-tools/audio.md) |
+| [KI-18](#ki-18-dead-surface--dead-and-orphaned-code) | Dead surface ◐ | Code | `!watchtime` shadowing + dead wizard/env-var methods removed; other dead code remains | [Data Layer](../architecture/data-layer.md) |
+| [KI-21](#ki-21-security--inconsistent-token-storage) | Security ◐ | Platforms | Wizards no longer write user env vars; Kick tokens unencrypted by design, YouTube plaintext | [Twitch](../platforms/twitch.md), [Kick](../platforms/kick.md) |
+| [KI-24](#ki-24-security--robustness-notes) | Security ◐ | Event bus / Echo filter / Stub wizards | TikTok wizard saves "Coming Soon" (not fake Connected); the Discord wizard was replaced by a real bot-token integration; echo suppression now bot-account-scoped but still time-window based | [Event Bus](../architecture/event-bus.md), [TikTok & OBS](../platforms/tiktok-discord-obs.md) |
+| [KI-26](#ki-26-wiring-gap--showin-chat-off-skips-eventstatistics-recording) | Wiring gap | Statistics / Event History | 6 handlers gated on ShowInChat skip recording EventStatistics when it is off | [Event History](../chat-features/event-history.md), [Statistics](../stream-tools/statistics.md) |
+| [KI-27](#ki-27-wiring-gap--first-chat-bonus-means-first-currency-record) | Wiring gap | Currency | `AwardFirstChatBonusAsync` semantics = "first currency record", not true first chat | [Currency & Rewards](../stream-tools/currency.md) |
+| [KI-28](#ki-28-wiring-gap--auto-reply-templates-still-do-not-resolve-db-or-social-variables) | Wiring gap | Auto-replies | `ProcessTemplate` remains `string.Replace` — DB/social variables do not resolve in auto-replies | [Auto-Replies](../chat-features/auto-replies.md), [Variables Catalog](variables-catalog.md) |
+| [KI-29](#ki-29-wiring-gap--savecurrencysettingsasync-persists-only-a-field-subset) | Wiring gap | Currency | Data layer's settings save persists a subset of `CurrencySetting` fields (role multipliers etc. dropped) | [Currency & Rewards](../stream-tools/currency.md) |
+| [KI-30](#ki-30-behavior-change-documented--watchtime-earning-rate-is-now-configurable-defaults-to-10minute) | Behavior change (documented) | Currency / Watchtime | Watchtime earning uses `WatchTime*` settings — default 10/interval vs old hard-coded 1/min | [Watchtime](../stream-tools/watchtime.md), [Currency & Rewards](../stream-tools/currency.md) |
+| [KI-31](#ki-31-wiring-gap--kick--youtube-follower-eligibility-is-still-false) | Wiring gap | Giveaways / Polls | Kick has no followers API (KickLib 1.8.0); YouTube has no follower concept — eligibility passes `false` | [Giveaways](../stream-tools/giveaways.md), [Polls](../stream-tools/polls.md) |
+| [KI-32](#ki-32-wiring-gap-minor--audio-settings-client-count-timer-only-stops-at-shutdown) | Wiring gap (minor) | Audio | `AudioSettingsViewModel` is a singleton — its 2s poll timer runs until shutdown | [Audio Settings](../stream-tools/audio.md) |
+| [KI-33](#ki-33-wiring-gap--twitch-follower-check-requires-the-moderatorreadfollowers-scope) | Wiring gap | Giveaways / Polls / Twitch | Twitch follower eligibility needs `moderator:read:followers` on the stored user token; degrades to `false` | [Twitch](../platforms/twitch.md), [Giveaways](../stream-tools/giveaways.md) |
+| [KI-34](#ki-34-wiring-gap--discord-integration-limitations) | Wiring gap | Discord | Message Content intent required; no slash commands; no non-chat Discord events; history rows not reloaded (single-channel bullet superseded per-bot by multi-bot, 2026-08-16) | [Discord](../platforms/discord.md), [Chat Window](../chat/chat-window.md) |
+| [KI-36](#ki-36-wiring-gap--discord-multi-bot-transition-loose-ends) | Wiring gap | Discord | Wizard targets the setup bot only (no per-bot wizard); per-bot RECONNECT reads the shared legacy token; legacy dashboard view orphaned | [Discord](../platforms/discord.md), [Platform Dashboards](../platforms/dashboards.md) |
+| [KI-37](#ki-37-wiring-gap--commands-list-ignores-discord-bot-scope) | Wiring gap | Commands | The built-in `!commands` list does not filter by bot scope | [Commands](../chat-features/commands.md), [Command Catalog](command-catalog.md) |
+| [KI-38](#ki-38-wiring-gap--discord-origin-race-can-fall-back-to-primary-routing) | Wiring gap | Discord / Event bus | The generic command event can beat the typed Discord event, so a reply routes through Primary instead of the origin bot | [Discord](../platforms/discord.md), [Event Bus](../architecture/event-bus.md) |
+| [KI-40](#ki-40-wiring-gap--slash-command-registration-requires-the-bot-online) | Wiring gap | Workflows / Discord | Flow slash commands register only while a bot is online; offline saves register on the next save/reconnect | [Automation](../chat-features/automation.md), [Discord](../platforms/discord.md) |
+| [KI-41](#ki-41-wiring-gap--converted-moderation-flows-use-fixed-numbers-not-args) | Wiring gap | Workflows / Commands | Converted moderation flows hard-code the Moderate block's default numbers (10 min / 10 s / 10 messages) — `{args}` can't feed its numeric fields | [Commands](../chat-features/commands.md), [Automation](../chat-features/automation.md) |
+| [KI-42](#ki-42-wiring-gap--random-replies-convert-to-one-switch-case-per-reply) | Wiring gap | Workflows / Commands | Converted random-reply commands fan out one Send Message per stored reply — new replies need manual flow edits | [Commands](../chat-features/commands.md) |
+| [KI-44](#ki-44-wiring-gap--prefix-commands-bypass-typed-command-parameters) | Wiring gap | Workflows / Discord | Typed parameters apply to Discord slash triggers only — prefix commands still pass everything through `{args}` | [Automation](../chat-features/automation.md), [Discord](../platforms/discord.md) |
+| [KI-45](#ki-45-wiring-gap--botghost-musicvoicepremium-blocks-are-not-implemented) | Wiring gap | Workflows / Discord | The music/voice/premium BotGhost block suite (Create Music Player, voice actions, IFTTT, transcripts, Components V2, Premium Check) has no Vyral counterpart; "Music Smart Search" is a plain text parameter | [Automation](../chat-features/automation.md), [Discord](../platforms/discord.md) |
+| [KI-46](#ki-46-wiring-gap--component-button-ids-are-positional-and-renumber-on-reorder) | Wiring gap | Workflows / Discord | Component button ids are positional (`btn0`, `btn1`, …) — reordering or removing buttons renumbers them, breaking `{buttonId}` comparisons until re-edited | [Automation](../chat-features/automation.md), [Discord](../platforms/discord.md) |
+| [KI-47](#ki-47-wiring-gap--google-refresh-tokens-expire-in-testing-mode-youtube-needs-periodic-re-authorization) | Wiring gap | YouTube | Google Testing-mode refresh tokens expire after 7 days — YouTube auto-connect fails with `invalid_grant` until the user re-authorizes; the Platforms page now shows the live status and "Re-authorization required" instead of a false Connected | [YouTube](../platforms/youtube.md) |
+
+### Resolved (2026-08-15 fix pass; KI-35 on 2026-08-16, KI-39/KI-43 on 2026-08-29)
+
+| ID | Severity | Area | Issue (original) | Where documented |
+|---|---|---|---|---|
+| [KI-1](#ki-1-critical--chat-command-pipeline-is-dead) | Critical ✅ | Chat / Commands / Currency / Giveaways / Polls / Watchtime | `ChatMessageReceivedEvent` was never published — no chat command could execute | [Commands](../chat-features/commands.md), [Command Catalog](command-catalog.md) |
+| [KI-2](#ki-2-critical--twitch-eventsub-likely-never-connects) | Critical ✅ | Twitch events | EventSub was gated on `Platform.UserId`, which no Twitch code path set | [Twitch](../platforms/twitch.md), [Event Reactions](../chat/event-reactions.md) |
+| [KI-3](#ki-3-critical--eventstatistics-is-never-written) | Critical ✅ | Statistics / Event History | `SaveEventStatisticAsync` had zero callers — both pages read an always-empty table | [Statistics](../stream-tools/statistics.md), [Event History](../chat-features/event-history.md) |
+| [KI-4](#ki-4-critical--browser-source-sounds-never-play) | Critical ✅ | Browser sources / Sounds | Server broadcast PascalCase `AudioEvent` JSON; audio.html only understood `{"type":"play"}` | [Browser Sources](../stream-tools/browser-sources.md), [Sounds](../stream-tools/sounds.md) |
+| [KI-6](#ki-6-critical--alert-settings-page-is-a-facade) | Critical ✅ | Visual Alerts | Alert Settings never loaded or saved; real alerts used hard-coded animation/position/duration | [Visual Alerts](../stream-tools/visual-alerts.md) |
+| [KI-7](#ki-7-critical--currency-settings-tab-does-not-persist) | Critical ✅ | Currency | Currency Settings "Save" logged success and called no save API | [Currency & Rewards](../stream-tools/currency.md) |
+| [KI-8](#ki-8-wiring-gap--twitch-chat-enabled-toggle-is-cosmetic) | Wiring gap ✅ | Chat settings | Twitch had no routing-event publisher, so its chat filter could never turn off | [Chat Settings](../chat/chat-settings.md) |
+| [KI-9](#ki-9-wiring-gap--youtube-chat-history-is-never-persisted) | Wiring gap ✅ | Chat history | `DataChatMessageStore` mapped Kick/Twitch events only | [Chat Window](../chat/chat-window.md) |
+| [KI-10](#ki-10-wiring-gap--ngrok-token-edits-in-settings-dont-persist) | Wiring gap ✅ | Web server / ngrok | Settings' Save wrote only DB fields; only the wizard saved the token | [API, Web Server & ngrok](../settings/web-server-ngrok.md) |
+| [KI-11](#ki-11-wiring-gap--chateventsettingsservice-cache-is-not-profile-aware) | Wiring gap ✅ | Chat settings / Profiles | Cache keyed platform:eventType only; stale rows served across profile switches until restart | [Chat Settings](../chat/chat-settings.md), [Profiles](../getting-started/profiles.md) |
+| [KI-13](#ki-13-wiring-gap--ngrok-url-rotation-requires-manual-recovery) | Wiring gap ✅ | ngrok / Kick | On tunnel URL change, Kick webhook subscriptions were not repointed; user had to toggle off/on | [API, Web Server & ngrok](../settings/web-server-ngrok.md), [Kick](../platforms/kick.md) |
+| [KI-15](#ki-15-wiring-gap--binding-mismatches) | Wiring gap ✅ | UI bindings | Kick settings `Channel` box bound a nonexistent property; profile-selector padlock bound nonexistent `HasPin` | [Kick](../platforms/kick.md), [Profiles](../getting-started/profiles.md) |
+| [KI-17](#ki-17-dead-surface--dead-buttons) | Dead surface ✅ | Navigation | Sidebar Events & Alerts / Browser Sources; Home Discord / Ideas; Settings platform cards were dead buttons | [App Shell](../home/app-shell.md) |
+| [KI-19](#ki-19-security--kick-webhook-test-payload-signature-bypass) | Security ✅ | Webhooks | `test-` ids / `"test":true` payloads bypassed RSA signature validation unconditionally | [Kick](../platforms/kick.md), [Web Server](../architecture/web-server.md) |
+| [KI-20](#ki-20-security--unsalted-sha256-pin-hashes) | Security ✅ | Profiles | PINs hashed with unsalted SHA256; length validation only existed in dead code | [Profiles](../getting-started/profiles.md) |
+| [KI-22](#ki-22-security--wizards-write-windows-user-environment-variables) | Security ✅ | Wizards | Demo/ngrok wizards wrote user env vars; ngrok wizard wrote machine-level ngrok config | [API, Web Server & ngrok](../settings/web-server-ngrok.md) |
+| [KI-23](#ki-23-security--machine-wide-webview2-process-kills) | Security ✅ | Startup/exit | Startup and exit killed all `msedgewebview2` processes on the machine, not just its own | [Startup & Lifecycle](../architecture/startup-lifecycle.md) |
+| [KI-25](#ki-25-doc-drift--root-markdown-vs-code) | Doc drift ✅ | Docs | README and root docs disagreed with code | [Overview](../index.md) |
+| [KI-35](#ki-35-critical--discord-disconnect-crashed-the-app) | Critical ✅ | Discord | Disconnecting/disposing a live Discord gateway client abruptly killed the app | [Discord](../platforms/discord.md) |
+| [KI-39](#ki-39-wiring-gap--no-block-attaches-buttons-or-menus-to-messages) | Wiring gap ✅ | Workflows / Discord | button_click/select_menu triggers dispatched, but no block attached buttons/menus to messages | [Automation](../chat-features/automation.md), [Discord](../platforms/discord.md) |
+| [KI-43](#ki-43-wiring-gap--typed-slash-command-parameters-are-not-implemented) | Wiring gap ✅ | Workflows / Discord | The purple Options tab held only command constraints; slash commands took a single text `{args}` | [Automation](../chat-features/automation.md), [Discord](../platforms/discord.md) |
+
+---
+
+## Critical
+
+### KI-1 (Critical) — Chat command pipeline is dead
+
+**✅ RESOLVED (2026-08-15)** — a new Core model [ChatMessageReceivedEvent.cs](../../src/VyralBot.Core/Models/ChatMessageReceivedEvent.cs) (Platform, Channel, Username, Message, IsModerator, IsSubscriber, IsVip, IsBroadcaster, MessageId?, Timestamp) is now published fire-and-forget by `TwitchService.OnMessageReceived`, `KickLibChatService.OnChatMessage` (MessageId `"kick:{id}"`), and the `YouTubeChatService` polling loop (`"youtube:{id}"`). `ChatViewModel` consumes it: the full command pipeline (unified commands → currency → giveaway → poll → watchtime) is LIVE, with MessageId dedupe (safe against Kick Pusher + webhook double delivery) and bot-echo skip. Bot replies are still only sent to Twitch/Kick.
+
+*Original finding (pre-fix):* `ChatViewModel.OnChatMessageReceivedAsync` (`ChatViewModel.cs:592`) was the orchestrator for the entire command system — unified [CommandService](../../src/VyralBot.Core/Services/Commands/CommandService.cs), currency, giveaway, poll, and watchtime command handling, watchtime activity recording, and chat-activity currency — subscribed to a `ChatMessageReceivedEvent` that nothing in the solution ever published. Every command in the [Command Catalog](command-catalog.md) was inert; watchtime was never recorded; chat-activity currency never awarded. Verified independently by three review passes.
+
+### KI-2 (Critical) — Twitch EventSub likely never connects
+
+**✅ RESOLVED (2026-08-15)** — both Twitch auth paths (wizard and system-browser flow) now fetch the authenticated user via Helix `GET /users` after token exchange and persist `Platform.UserId` (never clobbering an existing id); the reconnect flow no longer wipes `ClientId` (a latent bug found during the fix). EventSub connects after re-auth.
+
+*Original finding (pre-fix):* `TwitchService.cs:115-123` only connected EventSub when the Twitch `Platform` row had a non-empty `UserId` **and** `ClientId`, and no Twitch flow ever populated `UserId`.
+
+### KI-3 (Critical) — EventStatistics is never written
+
+**✅ RESOLVED (2026-08-15)** — all 13 event handlers now persist `EventStatistic` rows (`EventData` = the handler's variable dictionary as JSON; `WasAutoReplied` accurate). Statistics and Event History have real data. One new limitation: the 6 handlers gated on ShowInChat skip recording when Show-in-chat is off — tracked as [KI-26](#ki-26-wiring-gap--showin-chat-off-skips-eventstatistics-recording).
+
+*Original finding (pre-fix):* `SaveEventStatisticAsync` had zero domain callers, so both [Statistics](../stream-tools/statistics.md) and Event History read a permanently empty table and `WasAutoReplied` could never be set.
+
+### KI-4 (Critical) — Browser-source sounds never play
+
+**✅ RESOLVED (2026-08-15)** — `SoundService` now broadcasts camelCase `{"type":"play","sound":"...","volume":0..1}`; `audio.html` honors `volume`, derives its WebSocket/sounds URLs from `window.location` (port-agnostic), and logs `.play()` rejections. OBS browser-source sounds work.
+
+*Original finding (pre-fix):* the only WebSocket producer serialized the `AudioEvent` class with default PascalCase JSON while [audio.html](../../src/VyralBot.Api/wwwroot/audio.html) only reacted to camelCase `{"type":"play",...}` messages and ignored the volume field.
+
+### KI-5 (Critical) — Giveaway/poll follower and watchtime eligibility always reject
+
+**◐ PARTIALLY RESOLVED (2026-08-15)** — eligibility now passes **real watchtime** (resolved through `WatchtimeService`, all platforms) and a real follower check for **Twitch** (Helix `channels/followers`, 5-minute cache; requires the stored user token to have the `moderator:read:followers` scope — KI-33 — and degrades to `false` otherwise). **Remains:** Kick passes `isFollower: false` (KickLib 1.8.0 has no followers API — KI-31); YouTube has no follower concept (also KI-31). SubscribersOnly works everywhere.
+
+*Original finding (pre-fix):* the chat-side entry paths passed `false` for `isFollower` and `0` for `watchtimeMinutes`, so any giveaway or poll with **FollowersOnly** or **MinWatchtime > 0** rejected every entry.
+
+### KI-6 (Critical) — Alert Settings page is a facade
+
+**✅ RESOLVED (2026-08-15)** — alert settings are now persisted to the `Configs` key `"AlertSettings"` (JSON: `AlertsEnabled`, `DurationSeconds` 1–15, `Animation` SlideInFromTop/Bottom | FadeIn | Bounce, `Position` 9-grid, and `FollowAlertsEnabled`/`SubscribeAlertsEnabled`/`GiftSubAlertsEnabled`/`RaidAlertsEnabled`/`HostAlertsEnabled`/`CheerAlertsEnabled`). `AlertService` applies the settings on real alerts (`applySettings = true` by default); the page's **Test Alert** previews unsaved selections. The page loads, saves, and resets genuinely.
+
+*Original finding (pre-fix):* `InitializeAsync`/`SaveSettingsAsync` were `// TODO` stubs; Save showed "saved successfully" without persisting anything, and real alerts used hard-coded SlideInFromTop / TopCenter / 5 s.
+
+### KI-7 (Critical) — Currency Settings tab does not persist
+
+**✅ RESOLVED (2026-08-15)** — the Settings tab now persists via `ICurrencyService.SaveSettingsAsync` (with the service's cache refreshed). **New limitation:** the data-layer `SaveCurrencySettingsAsync` persists only a subset of fields (name/symbol, watch-time, chat-activity, follow/sub/giftsub/raid bonuses) — other `CurrencySetting` fields such as role multipliers are still not persisted; tracked as [KI-29](#ki-29-wiring-gap--savecurrencysettingsasync-persists-only-a-field-subset).
+
+*Original finding (pre-fix):* `CurrencyViewModel.SaveSettingsAsync` logged "Settings saved successfully!" and called no save API.
+
+### KI-35 (Critical) — Discord disconnect crashed the app
+
+**✅ RESOLVED (2026-08-16)** — disconnecting a Discord bot abruptly killed the whole app: the teardown path unhooked only dead-code event handlers and then disposed the **live** gateway client while Discord.Net background work and other components' state queries were still in flight. `DiscordService.DisconnectAsync` is now deliberately staged ([DiscordService.cs](../../src/VyralBot.Integrations/Discord/DiscordService.cs):268-345): unhook **all** gateway handlers first (so the manual stop/logout cannot reenter them), then best-effort `StopAsync` + `LogoutAsync`, then *park* the fully-stopped client — it is disposed lazily by the next `ConnectAsync` or by `Dispose`, never while live. A matching `ReconnectAsync` (disconnect-then-connect from the stored token) was added for the per-bot dashboards. Documented on [Discord](../platforms/discord.md).
+
+*Original finding (pre-fix):* stopping or disconnecting the Discord bot (dashboard Disconnect, profile switch, app shutdown paths) could take the process down with an unrecoverable gateway-client exception; the handler unhooking only covered handlers that were no longer attached.
+
+---
+
+## Wiring gaps
+
+### KI-8 (Wiring gap) — Twitch "Chat Enabled" toggle is cosmetic
+
+**✅ RESOLVED (2026-08-15)** — `TwitchChatSettingsViewModel` now persists `Platform.TwitchChatEnabled` and publishes `PlatformChatRoutingChangedEvent`; the toggle live-filters the chat feed with no force-enable side effect.
+
+*Original finding (pre-fix):* Twitch had no routing-event publisher — its toggle wrote nothing, `TwitchFilterEnabled` was never fed from the DB, and Twitch messages could never be filtered out of the feed.
+
+### KI-9 (Wiring gap) — YouTube chat history is never persisted
+
+**✅ RESOLVED (2026-08-15)** — `DataChatMessageStore` maps `YouTubeChatMessageEvent` in both directions, and the Chat Window's Load History now loads YouTube too (its log line counts Kick/Twitch/YouTube). YouTube history works end to end.
+
+*Original finding (pre-fix):* only `KickChatMessageEvent` and `TwitchChatMessageEvent` were mapped into the `ChatMessages` table, so YouTube messages rendered live but never loaded from history.
+
+### KI-10 (Wiring gap) — ngrok token edits in Settings don't persist
+
+**✅ RESOLVED (2026-08-15)** — token edits in the ngrok configuration screen now persist via `NgrokService.SaveAuthTokenAsync`. The dead `WebServerSettings.IsEnabled` flag was removed from the ViewModel (the entity column remains, unread).
+
+*Original finding (pre-fix):* `SaveSettingsAsync` wrote only DB fields; the Authentication Token textbox was display-only, and `IsEnabled` was loaded/saved but read by nothing.
+
+### KI-11 (Wiring gap) — ChatEventSettingsService cache is not profile-aware
+
+**✅ RESOLVED (2026-08-15)** — `ChatEventSettingsService` now subscribes to `ProfileSwitchedEvent` (constructor-injected `IEventBus`) and calls `InvalidateCache()` on every profile switch; the new profile's chat-event settings load immediately.
+
+*Original finding (pre-fix):* the cache was keyed only `"{Platform}:{EventType}"` with no invalidation on profile switch, so the new profile could be served the previous profile's chat-event settings until restart.
+
+### KI-12 (Wiring gap) — Auto-reply templates use simple replace
+
+**◐ PARTIALLY RESOLVED (2026-08-15)** — all `@{...}` tokens were fixed in the seeds (DapperDataService), the Kick defaults, and the Twitch defaults (plain `{username}` etc. now); `{raider}` is now actually passed by the Twitch raid handler; the Twitch GiftSub handler got a full auto-reply block. **Remains:** `AutoReplyService.ProcessTemplate` is still a plain case-insensitive `string.Replace` — DB/social variables do NOT resolve in auto-reply templates (only handler-supplied context keys). Tracked separately as [KI-28](#ki-28-wiring-gap--auto-reply-templates-still-do-not-resolve-db-or-social-variables).
+
+*Original finding (pre-fix):* `string.Replace` over only handler context keys, plus default templates shipped as `@{username}` leaving a stray `@` in sent messages.
+
+### KI-13 (Wiring gap) — ngrok URL rotation requires manual recovery
+
+**✅ RESOLVED (2026-08-15)** — `OnNgrokUrlChanged` now auto-resubscribes Kick webhooks: it loads the Kick `Platform` row, refreshes the OAuth token if expired (a new `KickLibOAuthService` injection into `WebhookCoordinatorService` — DI auto-resolves), then unsubscribes-all and resubscribes to the new URL. On failure the previous manual-heal warning is kept.
+
+*Original finding (pre-fix):* on tunnel URL change the coordinator only logged a warning — it lacked the OAuth token to re-subscribe, so free-plan URL rotation silently dead-ended Kick webhooks until the user toggled **Enable Webhooks** off/on.
+
+### KI-14 (Wiring gap) — Auto-connect silently flips Chat Enabled to true
+
+**Intended behavior (documented, 2026-08-15)** — after review this stays **as designed**: after any successful platform auto-connect at startup, `MainViewModel` force-sets `<Platform>ChatEnabled = true` in the DB when it was false. A connected platform is expected to show in the unified feed by default. Documented on [Chat Settings](../chat/chat-settings.md) and [Startup & Lifecycle](../architecture/startup-lifecycle.md); no longer treated as a defect.
+
+### KI-15 (Wiring gap) — Binding mismatches
+
+**✅ RESOLVED (2026-08-15)** — `KickSettingsView` now binds `ChannelName` (the read-only Channel box populates), and the `Profile` model gained a computed `HasPin` so the profile-selector padlock renders.
+
+*Original finding (pre-fix):* the Kick settings Channel box bound a nonexistent `Channel` property, and the startup padlock bound a nonexistent `Profile.HasPin`.
+
+### KI-16 (Wiring gap) — Audio port pinned to 5000, connected-clients stub
+
+**◐ PARTIALLY RESOLVED (2026-08-15)** — the "Connected Clients" count is now live: `AudioSettingsViewModel` polls `AudioWebSocketBroadcaster.ConnectedClientCount` every 2 seconds. The port hint now reads "Port (fixed at 5000)". **Remains:** the port is still pinned to 5000 (the browser-source page itself is now port-agnostic — it derives URLs from `window.location` — but changing the server port is future work), and the vestigial **Restart Server** button remains.
+
+*Original finding (pre-fix):* the port edit was rejected and forced back to 5000 on every init, the restart button was a no-op message box, and the client count was a stub always showing 0.
+
+---
+
+## Dead surface
+
+### KI-17 (Dead surface) — Dead buttons
+
+**✅ RESOLVED (2026-08-15)** — all the navigation dead buttons were wired: sidebar **Events & Alerts** now navigates to Alert Settings; sidebar **Browser Sources** now navigates to Audio Settings (tooltip explains it); the Home **Discord** and **Ideas & Suggestions** support rows now open configurable links — `MainViewModel.OpenDiscordLinkCommand`/`OpenIdeasLinkCommand` read the `Support.DiscordUrl` / `Support.IdeasUrl` Configs keys and open the URL in the system browser, with a MessageBox pointing to Settings → Profile → **Support Links** when unset; and the Settings → Platforms TikTok/Discord/OBS/YouTube cards are disabled with explanatory tooltips (`ShowOnDisabled`) instead of silently doing nothing. Small decorative surfaces are unchanged and remain documented where they live: the chat-header "All Platforms" popup action buttons and the YouTube/TikTok/Discord decorative checkboxes ([Chat Window](../chat/chat-window.md)), plus the "Coming Soon" Settings categories ([Settings Overview](../settings/overview.md)).
+
+*Original finding (pre-fix):* sidebar Events & Alerts / Browser Sources, Home Discord / Ideas, Settings platform cards, chat-header popup actions, and decorative checkboxes all rendered as clickable with no command behind them.
+
+### KI-18 (Dead surface) — Dead and orphaned code
+
+**◐ PARTIALLY RESOLVED (2026-08-15)** — the seeded, enabled `!watchtime` built-in no longer shadows the real service (`CommandService` now defers it — returns null so `WatchtimeCommandService` handles the message; the dead placeholder text is gone); dead env-var methods were removed from the TikTok wizard and the pre-rewrite Discord wizard; the dead `SaveCredentialsToEnvironment` was removed from `TwitchWebSetupViewModel`. **Remains:** `ProfileSelectorWindow`, `DemoSetupView`, the `NgrokSetupView` variants, and the `TriggerEngine`/`ActionDispatcher` stubs are still in the tree (see [UI Reference](ui-reference.md)).
+
+*Original finding (pre-fix):* unreachable pages (`VariablesView` hosted nowhere reachable from the sidebar, `ProfileSelectorWindow`), caller-less engines (the conditional-rules `GetAutoReplyAsync` path, the `TriggerEngine`/`ActionDispatcher` TODO stubs, the `Triggers`/`Actions`/`EventLogs`/`ViewerPerks` tables with no writers), superseded/orphaned files (`NgrokSetupView` + variants, `DemoSetupView`, `App.AutoConnectTwitchAsync`, `InMemoryChatMessageStore`, the legacy port-8080 `AudioWebSocketServer`, `ImportProfileAsync` with no UI caller, `BadgesToImagesConverter`, the orphaned `ChatEventSetting` sound columns), and the `!watchtime` placeholder shadowing — plus `CommandContext.IsBroadcaster` hard-coded `false` and Kick/Twitch-only platform gating.
+
+---
+
+## Security
+
+### KI-19 (Security) — Kick webhook test-payload signature bypass
+
+**✅ RESOLVED (2026-08-15)** — the bypass is now gated behind the `Configs` key `"Kick.AllowTestWebhooks"` (default **false** = fail-closed; the value is cached for 60 s and resolved through the WPF host's `App.ServiceProvider` via reflection). Forged "test" payloads are rejected unless the operator explicitly opts in.
+
+*Original finding (pre-fix):* any payload whose message id started with `test-` or whose body contained `"test":true` skipped RSA-SHA256 validation, allowing forged events from anyone who knew the public endpoint.
+
+### KI-20 (Security) — Unsalted SHA256 PIN hashes
+
+**✅ RESOLVED (2026-08-15)** — PINs are now hashed with PBKDF2-SHA256 (100,000 iterations, 16-byte salt, format `v2.salt.hash`); legacy unsalted hashes still verify via constant-time comparison and are transparently re-hashed to v2 on successful login; all comparisons are constant-time.
+
+*Original finding (pre-fix):* plain SHA256 → base64 in `profile.json`, trivially brute-forceable for 4–6 digit PINs and comparable across profiles.
+
+### KI-21 (Security) — Inconsistent token storage
+
+**◐ PARTIALLY RESOLVED (2026-08-15)** — the demo/ngrok wizards no longer write **user** environment variables (see KI-22). **Remains by design / unchanged:** Kick tokens stay unencrypted in the `Platforms` table (deliberate, per code comments — now documented), and YouTube tokens stay plaintext. Twitch user tokens remain DPAPI-encrypted; client secrets remain plaintext JSON files.
+
+*Original finding (pre-fix):* the inconsistency existed and was undocumented; wizards additionally leaked credentials into user env vars.
+
+### KI-22 (Security) — Wizards write Windows user environment variables
+
+**✅ RESOLVED (2026-08-15)** — the demo wizard's env writes are now **process-scope only** (nothing persists to the user/machine); the ngrok wizard's vestigial env writes were removed entirely. The machine-level `ngrok config add-authtoken` write is intentionally kept (the ngrok agent needs it to run).
+
+*Original finding (pre-fix):* `VYRALBOT_NGROK_CLIENT_ID/SECRET` and dummy `VYRALBOT_*` vars were written as persistent user environment variables — hidden global state outside appdata.
+
+### KI-23 (Security) — Machine-wide WebView2 process kills
+
+**✅ RESOLVED (2026-08-15)** — the startup and exit cleanup is now scoped: a PowerShell `Get-CimInstance` query filters `msedgewebview2` processes whose command line contains `VyralBot_WebView2_Temp`, so only Vyral's own WebView2 processes are killed. Other applications' WebView2 processes are untouched.
+
+*Original finding (pre-fix):* startup and exit killed every `msedgewebview2` process on the machine and deleted the WebView2 temp cache machine-wide.
+
+### KI-24 (Security) — Robustness notes
+
+**◐ PARTIALLY RESOLVED (2026-08-15)** — the TikTok wizard now saves `Status="Coming Soon"` (with `TokenExpiresAt` null), so nothing treats it as connected. **Discord superseded (2026-08-15):** the Discord half of this entry is gone entirely — the stub wizard was replaced by a real bot-token wizard backed by [DiscordService](../../src/VyralBot.Integrations/Discord/DiscordService.cs) (see [Discord](../platforms/discord.md)); the fake Connected row, the IRC-pointed-at-discord.com test message, and the Twitch copy/paste log remnants no longer exist. Discord's current limitations are tracked separately as [KI-34](#ki-34-wiring-gap--discord-integration-limitations). **Remains:** echo suppression is still time-window based, but it is now restricted to messages from the bot's own sending accounts — viewers typing identical text are no longer filtered. **Unchanged:** the EventBus DropOldest loss under burst and the single-instance mutex remain as documented design trade-offs.
+
+*Original finding (pre-fix):* stub wizards wrote `Status="Connected"` rows with empty tokens, and content-based echo suppression ate duplicate viewer text.
+
+---
+
+## Doc drift
+
+### KI-25 (Doc drift) — Root markdown vs code
+
+**✅ RESOLVED (2026-08-15)** — `README.md` at the repo root was rewritten to reflect reality: features that are implemented and working (multi-platform chat Twitch/Kick/YouTube, the now-live commands+currency+giveaways+polls+watchtime pipeline, alerts/sounds with real persisted settings, profiles, webhooks+ngrok, the in-app AppDocs browser), TikTok/Discord marked as planned, .NET 10 (not 8), and no more "Planned (Future)" claims for implemented features. `AppDocs/` is called out as the documentation. Other root planning documents remain historical; `AppDocs/` stays authoritative.
+
+*Original finding (pre-fix):* README listed implemented features as "planned" and described a .NET 8 / EF Core / scripting-plugin architecture the code never had.
+
+---
+
+## Newly-documented limitations (2026-08-15 fix pass)
+
+### KI-26 (Wiring gap) — ShowIn-chat-off skips EventStatistics recording
+
+Six of the 13 event handlers are gated on `ShowInChat == true` for their whole reaction chain (Kick GiftSub / Host / KicksGifted / RewardRedeemed / StreamStatus, plus Twitch GiftSub). With "Show in chat" off, those handlers return before the new `SaveEventStatisticAsync` call, so those event types leave no statistics/history rows. The other seven handlers record regardless of ShowInChat. Affects [Event History](../chat-features/event-history.md) and [Statistics](../stream-tools/statistics.md).
+
+### KI-27 (Wiring gap) — First-chat bonus means "first currency record"
+
+`AwardFirstChatBonusAsync` treats "has this user ever had a currency row" as "first chat". A viewer who earned currency through watchtime, an event bonus, or a mod `!give` before their first message will never receive the first-chat bonus; conversely the bonus fires on the first *earning* event of any kind that routes through the check. Documented on [Currency & Rewards](../stream-tools/currency.md).
+
+### KI-28 (Wiring gap) — Auto-reply templates still do not resolve DB or social variables
+
+The remaining half of KI-12: `AutoReplyService.ProcessTemplate` is a plain case-insensitive `string.Replace` over the handler-supplied context keys only. `{twitter}`, `{twitch-followercount}`, and every other DB-backed or social variable are sent **literally** in auto-replies (they resolve in command responses and manual sends). Details: [Auto-Replies](../chat-features/auto-replies.md), [Variables Catalog](variables-catalog.md).
+
+### KI-29 (Wiring gap) — SaveCurrencySettingsAsync persists only a field subset
+
+The Currency page's Save is wired (KI-7 resolved), but the underlying `DapperDataService.SaveCurrencySettingsAsync` writes only a subset of `CurrencySetting` columns: currency name/symbol, watch-time fields, chat-activity fields, and the follow/sub/giftsub/raid bonuses. Other fields — role multipliers, cheer/host bonuses, decay, bank, transfer tax among them — keep their previous values; editing them in the UI appears to save but does not persist. Documented on [Currency & Rewards](../stream-tools/currency.md).
+
+### KI-30 (Behavior change, documented) — Watchtime earning rate is now configurable, defaults to 10/minute
+
+Watchtime currency earning previously hard-coded 1 point per tracked minute. It now goes through the configured `WatchTimeEnabled` / `WatchTimeAmount` / `WatchTimeInterval` settings and the full multiplier stack. **BEHAVIOR CHANGE:** the seeded defaults (`WatchTimeAmount = 10`, interval 60 s) mean new and existing databases award **10 per minute** where they used to award 1. Streamers who want the old rate should set Points Per Interval to 1 on the Currency Settings tab. Documented on [Watchtime](../stream-tools/watchtime.md) and [Currency & Rewards](../stream-tools/currency.md).
+
+### KI-31 (Wiring gap) — Kick / YouTube follower eligibility is still false
+
+The follower half of KI-5 that API limitations block: KickLib 1.8.0 exposes no followers API, so `isFollower` is hard-coded `false` for Kick entries; YouTube's integration (live-chat polling only) has no follower concept at all. Followers-only giveaways/polls therefore still reject everyone on those platforms (Twitch is real — see KI-33 for its scope requirement). Documented on [Giveaways](../stream-tools/giveaways.md) and [Polls](../stream-tools/polls.md).
+
+### KI-32 (Wiring gap, minor) — Audio settings client-count timer only stops at shutdown
+
+`AudioSettingsViewModel` is a DI singleton, so the 2-second polling timer behind the live connected-clients count (KI-16 fix) is created once and disposed only at process shutdown. The cost is negligible, but the timer runs even while the Audio Settings page is not visible. Documented on [Audio Settings](../stream-tools/audio.md).
+
+### KI-33 (Wiring gap) — Twitch follower check requires the moderator:read:followers scope
+
+The real Twitch follower eligibility check (Helix `channels/followers`, 5-minute cache) requires the **stored user token** to carry the `moderator:read:followers` scope. Tokens saved before the fix pass may lack it; in that case the check degrades to `false` (Followers-only giveaways/polls reject everyone until the broadcaster re-authorizes). The app's Twitch authorization flow requests the scope for new connections. Documented on [Twitch](../platforms/twitch.md) and [Giveaways](../stream-tools/giveaways.md).
+
+### KI-34 (Wiring gap) — Discord integration limitations
+
+The Discord integration (added 2026-08-15 — see [Discord](../platforms/discord.md)) is chat-complete but deliberately narrow. All of these are current-state boundaries, not breakage:
+
+- **One active channel at a time** — **superseded per-bot (2026-08-16)**: with multi-bot support each bot now has its own `SelectedChannelId` (the `DiscordBots` row), so two bots can talk in two different channels. Per *single* bot the boundary stands: it listens to every text channel of every guild (and DMs) but sends only to its one selected channel. Guild-wide listening with per-guild reply routing is still future work.
+- **Message Content intent is mandatory** — the bot token's application must have the MESSAGE CONTENT privileged gateway intent enabled in the Discord Developer Portal (the wizard's step 2 instructs this; Quick Add on the bots page does not, so remember it for manually added bots). Without it Discord delivers no message content, so no messages or commands arrive.
+- **No Discord-native slash commands** — the app's `!`/`?`/`.` prefix commands work on Discord; no `/`-commands are registered by the command system. (Workflow flows with a Slash Command trigger do register real `/` commands — see [Automation](../chat-features/automation.md); KI-40 tracks the online requirement.)
+- **No non-chat Discord events** — member joins, boosts, bans, and similar are not ingested, so there are no Discord event reactions, auto-replies, sounds, or statistics rows.
+- **History rows are written but not reloaded** — Discord messages persist to the `ChatMessages` table via `DataChatMessageStore`, but the Chat Window's Load Chat History button merges only Kick/Twitch/YouTube rows back into the feed.
+
+Documented on [Discord](../platforms/discord.md) (Status & Known Issues) and [Chat Window](../chat/chat-window.md).
+
+---
+
+## Newly-documented limitations (2026-08-16 multi-bot pass)
+
+### KI-36 (Wiring gap) — Discord multi-bot transition loose ends
+
+The multi-bot feature (2026-08-16) moved per-bot truth into the `DiscordBots` table, but three edges still point at the legacy single-bot world:
+
+- **The full wizard configures the setup bot only** — the four-step wizard validates and stores its token on the legacy `Platform` row and drives the DI-singleton `DiscordService`; it does not create or edit `DiscordBots` rows. Adding a *second* bot means **Quick Add** on the bots page (name + token, no invite-link derivation or validation preview). A per-bot wizard is pending.
+- **Per-bot RECONNECT reads the shared legacy token** — the dashboard's RECONNECT calls `DiscordService.ReconnectAsync`, which loads its token from the legacy `Platform` row, not from the bot's own `DiscordBots` row. For any bot whose token differs from the legacy row's (normally the migrated Primary or the wizard's bot), RECONNECT reconnects with the *wrong* token. STOP + START reads the correct per-bot token and is the reliable restart path.
+- **The legacy single-bot dashboard view is orphaned** — `DiscordDashboardView`/`ViewModel` are still DI-registered with a DataTemplate and a `NavigateToDiscordDashboardAsync` method in MainViewModel, but the generated command is bound nowhere; the per-bot `DiscordBotDetailView` replaced it. No user path can show the old page.
+
+Documented on [Discord](../platforms/discord.md), [Platform Dashboards](../platforms/dashboards.md), and [UI Reference](ui-reference.md).
+
+### KI-37 (Wiring gap) — !commands list ignores Discord bot scope
+
+`CommandService.ExecuteCommandsListAsync` filters the `!commands` listing by platform flags and permission only — it does not consider `Commands.BotId`. A viewer asking one bot can be told about a command pinned to a different bot (which that bot would then not answer). Execution-time filtering works correctly; only the advertisement list is unscoped. Documented on [Commands](../chat-features/commands.md) and [Command Catalog](command-catalog.md).
+
+### KI-38 (Wiring gap) — Discord origin race can fall back to Primary routing
+
+`DiscordService` publishes the typed `DiscordChatMessageEvent` (which carries `BotId`) and the generic `ChatMessageReceivedEvent` (which does not) as two concurrent fire-and-forget tasks. `ChatViewModel` records message-id→bot-id in the typed handler and recovers the origin in the generic handler — but if the generic event wins the race (or the message id was evicted from the bounded map), the origin resolves to null and the reply routes through **Primary** (first connected bot, else the setup bot) instead of the receiving bot. The message still gets answered, and commands scoped to the actual origin bot can be skipped in that window — a safe degradation, not a crash or a lost reply. Documented on [Discord](../platforms/discord.md) and [Event Bus](../architecture/event-bus.md).
+
+---
+
+## Newly-documented limitations (2026-08-29 visual command editor pass)
+
+### KI-39 (Wiring gap) — No block attaches buttons or menus to messages
+
+**✅ RESOLVED (2026-08-29)** — **Send Message** and **Send Embed** blocks gained a **Buttons & Menus** section (up to 5 buttons; one select menu with up to 25 options). Wired sub-chains hanging off the component chips' sub-node cards materialize on SAVE as component child workflows keyed `vyralwf:{parentWorkflowId}:{nodeId}:btn{i}` / `:menu`, and a click dispatches by that key straight to the child flow. Documented on [Automation](../chat-features/automation.md) and [Discord](../platforms/discord.md).
+
+*Original finding (pre-fix):* the visual flow editor's **Button click** and **Select menu** triggers were wired end to end — Discord interaction dispatch and workflow execution both worked — but no block *attached* a button or select menu to a message, so those triggers could only fire from interaction components already addressed as `vyralwf:{workflowId}`.
+
+### KI-40 (Wiring gap) — Slash command registration requires the bot online
+
+Flows with a Slash Command trigger register their real Discord `/` commands at save time and on reconnect — both of which only reach Discord while the bot is connected. A flow saved while the bot is offline registers later, on the next save or the next reconnect. Documented on [Automation](../chat-features/automation.md) and [Discord](../platforms/discord.md).
+
+---
+
+## Newly-documented limitations (2026-08-29 command-adoption pass)
+
+### KI-41 (Wiring gap) — Converted moderation flows use fixed numbers, not {args}
+
+Converting a Discord moderation command (edit on the Commands page or the bot detail Commands card) seeds a **🔨 Moderate Member** block whose number parameters are the block's fixed defaults — **10 timeout minutes / 10 slowmode seconds / 10 purge messages**. The block's numeric fields can't take `{args}`, so `!mute @user 30` (30 minutes from the arguments) does not carry over: until edited by hand — or until the Moderate block grows an args-parsing option — every converted timeout/slowmode/purge flow uses its fixed default. Kick/ban/unban targets are fine (they take `{args}` as text). Documented on [Commands](../chat-features/commands.md) and [Automation](../chat-features/automation.md).
+
+### KI-42 (Wiring gap) — Random replies convert to one Switch case per reply
+
+Converting a custom command with multiple random replies seeds a **Random Number → Switch** fan-out with exactly one **Send Message** branch per stored reply. Replies are not re-read at run time, so adding a 4th reply later means editing the flow by hand: raise the Random Number max, add the comma-separated case to the Switch, and wire a new Send Message node to it. Documented on [Commands](../chat-features/commands.md).
+
+---
+
+## Newly-documented limitations (2026-08-29 BotGhost restyle pass)
+
+### KI-43 (Wiring gap) — Typed slash-command parameters are not implemented
+
+**✅ RESOLVED (2026-08-29)** — the purple OPTIONS tab grew a **COMMAND PARAMETERS** group: typed parameter definitions (Text, Number, User, Channel, Role, Choice→Boolean, Attachment, Music Smart Search) with a Name/Type/Description/Required editor (the original violet chips row later became the purple parameter cards on the canvas and the right panel's Parameter editor — see [Automation](../chat-features/automation.md)). For Slash Command triggers they register as real typed Discord options (cap 25) and their values arrive as `{parameterName}` variables. The remaining edge — prefix commands still run on `{args}` alone — is tracked as [KI-44](#ki-44-wiring-gap--prefix-commands-bypass-typed-command-parameters). Documented on [Automation](../chat-features/automation.md) and [Discord](../platforms/discord.md).
+
+*Original finding (pre-fix):* the flow editor's restyle copied BotGhost's command builder look, but BotGhost's purple **Options** tab means something different: its purple blocks (Text, Number, User, Channel, Role, Choice, Attachment) are **typed slash-command argument definitions** that feed per-parameter variables (`{username}`, `{number}`, …). Vyral's purple OPTIONS tab listed the six **command constraints** instead — Cooldown, Require Moderator, Channel Restriction, DM Only, Guild Only, NSFW Flag — and slash commands took a single text `{args}`.
+
+---
+
+## Newly-documented limitations (2026-08-29 flow-editor feature wave)
+
+### KI-44 (Wiring gap) — Prefix commands bypass typed command parameters
+
+The typed COMMAND PARAMETERS (KI-43's resolution) are Discord slash-command options by nature: they register with the Slash Command trigger and nowhere else. A **Prefix command** flow (`!mycmd`) still receives everything as the single `{args}` text variable — its authored parameters register no options and inject no `{parameterName}` variables, so `{price}` in a Send Message stays literal when the flow is invoked by prefix. Auto-conversion seeds prefix-command flows, so commands converted from the Commands page are the common hit. Documented on [Automation](../chat-features/automation.md) and [Discord](../platforms/discord.md).
+
+### KI-45 (Wiring gap) — BotGhost music/voice/premium blocks are not implemented
+
+The block catalog stops at Vyral's own engine surface. BotGhost's **Create Music Player** suite, voice-channel actions, IFTTT, message **transcripts**, **Components V2**, and **Premium Check** blocks have no Vyral counterparts — and Vyral's own music/voice features are not exposed as flow blocks either. The palette's typed **Music Smart Search** parameter is honest about this: it creates a plain **text** parameter named `search` (no player, no track selection). Documented on [Automation](../chat-features/automation.md) and [Discord](../platforms/discord.md).
+
+---
+
+## Newly-documented limitations (2026-08-29 side-rail pass)
+
+### KI-46 (Wiring gap) — Component button ids are positional and renumber on reorder
+
+A message's buttons are addressed `vyralwf:{parentWorkflowId}:{nodeId}:btn{i}` — the trailing index is the button's **position** in the Buttons & Menus settings (btn0 = first). Add, remove, or **reorder** buttons and every later button shifts down: `btn1` becomes `btn0`, its component child workflow gets the new key on the next save, and `{buttonId}` (the id tail a click seeds, e.g. `…:btn0`) changes with it. Any **Comparison Condition** branching on `{buttonId}` therefore points at the wrong button after a reorder until it is re-edited to the new index. Select menus are immune (the single `…:menu` key has no index). Documented on [Automation](../chat-features/automation.md) and [Discord](../platforms/discord.md).
+
+---
+
+## Cross-reference index
+
+Which ledger entries affect which feature areas (✅ = resolved, ◐ = partially resolved):
+
+| Feature | Entries |
+|---|---|
+| [Commands](../chat-features/commands.md) | KI-1 ✅, KI-37, KI-38, KI-41, KI-42 |
+| [Variables](../chat-features/variables.md) | KI-12 ◐, KI-28 |
+| [Auto-Replies](../chat-features/auto-replies.md) | KI-1 ✅, KI-12 ◐, KI-28 |
+| [Conditional Rules](../chat-features/conditional-rules.md) | KI-18 ◐ |
+| [Event History](../chat-features/event-history.md) | KI-3 ✅, KI-26 |
+| [Event Testing](../chat-features/event-testing.md) | none (fully functional) |
+| [Automation](../chat-features/automation.md) | KI-39 ✅, KI-40, KI-41, KI-43 ✅, KI-44, KI-45, KI-46 |
+| [Giveaways](../stream-tools/giveaways.md) | KI-1 ✅, KI-5 ◐, KI-31, KI-33 |
+| [Polls](../stream-tools/polls.md) | KI-1 ✅, KI-5 ◐, KI-31, KI-33 |
+| [Watchtime](../stream-tools/watchtime.md) | KI-1 ✅, KI-30 |
+| [Currency & Rewards](../stream-tools/currency.md) | KI-1 ✅, KI-7 ✅ (KI-29 remains), KI-27, KI-29, KI-30 |
+| [Statistics](../stream-tools/statistics.md) | KI-3 ✅, KI-26 |
+| [Browser Sources](../stream-tools/browser-sources.md) | KI-4 ✅, KI-16 ◐ |
+| [Sounds](../stream-tools/sounds.md) | KI-4 ✅ |
+| [Audio Settings](../stream-tools/audio.md) | KI-16 ◐, KI-32 |
+| [Visual Alerts](../stream-tools/visual-alerts.md) | KI-6 ✅ |
+| [Chat Window](../chat/chat-window.md) | KI-9 ✅, KI-24 ◐, KI-34, KI-38 |
+| [Chat Settings](../chat/chat-settings.md) | KI-8 ✅, KI-11 ✅, KI-14 (intended) |
+| [Event Reactions](../chat/event-reactions.md) | KI-2 ✅, KI-26 |
+| [Twitch](../platforms/twitch.md) | KI-2 ✅, KI-21 ◐, KI-33 |
+| [Kick](../platforms/kick.md) | KI-13 ✅, KI-19 ✅, KI-21 ◐, KI-31 |
+| [YouTube](../platforms/youtube.md) | KI-9 ✅, KI-21 ◐, KI-31, KI-47 |
+| [Discord](../platforms/discord.md) | KI-24 ◐ (Discord half superseded), KI-34 ◐, KI-35 ✅, KI-36, KI-38, KI-39 ✅, KI-40, KI-41, KI-43 ✅, KI-44, KI-45, KI-46 |
+| [Platform Dashboards](../platforms/dashboards.md) | KI-36 (orphaned legacy Discord dashboard) |
+| [TikTok & OBS](../platforms/tiktok-discord-obs.md) | KI-17 ✅, KI-24 ◐ |
+| [Profiles](../getting-started/profiles.md) | KI-11 ✅, KI-15 ✅, KI-20 ✅ |
+| [API, Web Server & ngrok](../settings/web-server-ngrok.md) | KI-10 ✅, KI-13 ✅, KI-22 ✅ |
+| [App Shell](../home/app-shell.md) | KI-17 ✅ |
+| [Event Bus](../architecture/event-bus.md) | KI-1 ✅, KI-24 ◐, KI-38 |
+| [Web Server](../architecture/web-server.md) | KI-19 ✅ |
+| [Startup & Lifecycle](../architecture/startup-lifecycle.md) | KI-23 ✅ |
+| [Data Layer](../architecture/data-layer.md) | KI-3 ✅, KI-18 ◐ |
+
+---
+
+## Newly-documented limitations (2026-09-01 YouTube re-auth pass)
+
+### KI-47 (Wiring gap) — Google refresh tokens expire in Testing mode; YouTube needs periodic re-authorization
+
+While the app's Google OAuth consent screen is in **Testing** status, Google expires its refresh tokens after **7 days**, so YouTube auto-connect fails with `invalid_grant` roughly weekly (revoking access in your Google account or changing the password does the same). The engine can't prevent this — only a fresh sign-in fixes it. As of this pass the failure is handled honestly: a failed auto-connect marks the saved platform row **Disconnected**, the Platforms page shows **"Re-authorization required"** (the live chat service — not the database row — is the source of truth, and a row that claims Connected while the service is down triggers one silent stored-credential reconnect first), and the fix is re-running **Home → Connections → YouTube**. Publishing the Google OAuth app removes the 7-day expiry. Documented on [YouTube](../platforms/youtube.md).

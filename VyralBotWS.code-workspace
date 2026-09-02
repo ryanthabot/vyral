@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "VyralBot"
+		},
+		{
+			"path": "Context"
+		},
+		{
+			"path": "../../../Downloads/KickLib-master"
+		},
+		{
+			"path": "../../../Downloads/TwitchLib.EventSub.Websockets-main/TwitchLib.EventSub.Websockets-main"
+		}
+	],
+	"settings": {}
+}

@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\VyralBot.Core\VyralBot.Core.csproj" />
+    <!-- WorkflowParameter (typed slash options) is a Workflows model consumed
+         by IDiscordService.RegisterWorkflowSlashCommandAsync. -->
+    <ProjectReference Include="..\VyralBot.Workflows\VyralBot.Workflows.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Discord.Net" Version="3.20.1" />
+    <PackageReference Include="KickLib" Version="1.8.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3595.46" />
+    <PackageReference Include="PusherClient" Version="2.2.1" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
+    <PackageReference Include="TwitchLib.Api" Version="3.11.0-preview.215.86600fa" />
+    <PackageReference Include="TwitchLib.EventSub.Websockets" Version="0.3.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
+  </PropertyGroup>
+
+</Project>

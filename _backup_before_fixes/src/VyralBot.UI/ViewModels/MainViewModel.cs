@@ -1,0 +1,1935 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using VyralBot.Data;
+using VyralBot.Data.Entities;
+using VyralBot.Core.Services.Profiles;
+using VyralBot.Core.Models;
+using VyralBot.Core.Services.EventBus;
+using VyralBot.Integrations.Twitch;
+using VyralBot.Integrations.Kick;
+using VyralBot.Integrations.YouTube;
+using VyralBot.UI.Views;
+using System.Collections.ObjectModel;
+using VyralBot.Api.Services;
+using VyralBot.UI.Services;
+
+namespace VyralBot.UI.ViewModels;
+
+/// <summary>
+/// Main window ViewModel.
+/// </summary>
+public partial class MainViewModel : ViewModelBase
+{
+    private readonly DashboardViewModel _dashboardViewModel;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly IProfileService _profileService;
+    private readonly ProfileSettingsLoader _settingsLoader;
+    private readonly ILogger<MainViewModel> _logger;
+    private IServiceScope? _platformsScope;
+    private PlatformsViewModel? _platformsViewModel;
+    private IServiceScope? _chatScope;
+    private ChatViewModel? _chatViewModel;
+    private IServiceScope? _twitchDashboardScope;
+    private TwitchDashboardViewModel? _twitchDashboardViewModel;
+    private IServiceScope? _kickDashboardScope;
+    private KickDashboardViewModel? _kickDashboardViewModel;
+    private IServiceScope? _settingsScope;
+    private SettingsViewModel? _settingsViewModel;
+    private IServiceScope? _audioSettingsScope;
+    private AudioSettingsViewModel? _audioSettingsViewModel;
+    private IServiceScope? _soundsScope;
+    private SoundsViewModel? _soundsViewModel;
+    private IServiceScope? _statisticsScope;
+    private StatisticsViewModel? _statisticsViewModel;
+    private IServiceScope? _eventHistoryScope;
+    private EventHistoryViewModel? _eventHistoryViewModel;
+    private IServiceScope? _alertSettingsScope;
+    private AlertSettingsViewModel? _alertSettingsViewModel;
+    private IServiceScope? _conditionalRulesScope;
+    private ConditionalRulesViewModel? _conditionalRulesViewModel;
+    private IServiceScope? _giveawayScope;
+    private GiveawayViewModel? _giveawayViewModel;
+    private IServiceScope? _pollScope;
+    private PollViewModel? _pollViewModel;
+    private IServiceScope? _watchtimeScope;
+    private WatchtimeViewModel? _watchtimeViewModel;
+    private IServiceScope? _eventTestingScope;
+    private EventTestingViewModel? _eventTestingViewModel;
+    private IServiceScope? _demoSetupScope;
+    private GoogleDemoSetupViewModel? _demoSetupViewModel;
+    private IServiceScope? _ngrokSetupWizardScope;
+    private NgrokSetupWizardViewModel? _ngrokSetupWizardViewModel;
+    private IServiceScope? _chatHubScope;
+    private ChatHubViewModel? _chatHubViewModel;
+    private IServiceScope? _toolsScope;
+    private ToolsViewModel? _toolsViewModel;
+    private IServiceScope? _integrationsScope;
+    private IntegrationsViewModel? _integrationsViewModel;
+    private IServiceScope? _documentationScope;
+    private DocumentationViewModel? _documentationViewModel;
+
+    [ObservableProperty]
+    private ViewModelBase? _currentViewModel;
+
+    [ObservableProperty]
+    private string _title = "VyralBot";
+
+    [ObservableProperty]
+    private bool _isSidebarExpanded = true;
+
+    [ObservableProperty]
+    private bool _isPlatformsExpanded = false;
+
+    [ObservableProperty]
+    private bool _isChatFeaturesExpanded = false;
+
+    [ObservableProperty]
+    private bool _isStreamToolsExpanded = false;
+
+    [ObservableProperty]
+    private bool _isTwitchConnected = false;
+
+    [ObservableProperty]
+    private bool _isKickConnected = false;
+
+    [ObservableProperty]
+    private bool _isYouTubeConnected = false;
+
+    [ObservableProperty]
+    private bool _showProfileSelector = false;
+
+    [ObservableProperty]
+    private bool _showPinEntry = false;
+
+    [ObservableProperty]
+    private bool _showCreateProfile = false;
+
+    [ObservableProperty]
+    private string _newProfileName = string.Empty;
+
+    [ObservableProperty]
+    private string _newProfileDisplayName = string.Empty;
+
+    [ObservableProperty]
+    private string _newProfilePin = string.Empty;
+
+    [ObservableProperty]
+    private string _profilePin = string.Empty;
+
+    [ObservableProperty]
+    private string? _profileErrorMessage;
+
+    [ObservableProperty]
+    private ObservableCollection<Profile> _profiles = new();
+
+    private Profile? _selectedProfile;
+
+    public MainViewModel(
+        DashboardViewModel dashboardViewModel,
+        IServiceProvider serviceProvider,
+        IProfileService profileService,
+        ProfileSettingsLoader settingsLoader,
+        IEventBus eventBus,
+        ILogger<MainViewModel> logger)
+    {
+        ArgumentNullException.ThrowIfNull(dashboardViewModel);
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        ArgumentNullException.ThrowIfNull(profileService);
+        ArgumentNullException.ThrowIfNull(settingsLoader);
+        ArgumentNullException.ThrowIfNull(eventBus);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _dashboardViewModel = dashboardViewModel;
+        _serviceProvider = serviceProvider;
+        _profileService = profileService;
+        _settingsLoader = settingsLoader;
+        _logger = logger;
+        CurrentViewModel = dashboardViewModel;
+
+        _logger.LogInformation("MainViewModel initialized");
+
+        // Subscribe to profile switched events
+        eventBus.SubscribeAsync<ProfileSwitchedEvent>(async e =>
+        {
+            _logger.LogInformation("Profile switched event received: {OldProfile} -> {NewProfile}", e.OldProfileName, e.NewProfileName);
+
+            // Check if this is the same profile (user selected current profile from selector)
+            if (e.OldProfileName == e.NewProfileName)
+            {
+                _logger.LogInformation("Same profile selected, initializing data without cleanup");
+                // Just initialize profile data, don't disconnect or cleanup
+                await OnProfileLoadedAsync();
+                return;
+            }
+
+            _logger.LogInformation("Reloading all data for new profile");
+
+            // Update title
+            await UpdateTitleAsync();
+
+            // Disconnect from all platforms
+            await DisconnectAllPlatformsAsync();
+
+            // Cleanup and clear ChatViewModel
+            if (_chatViewModel != null)
+            {
+                _chatViewModel.Cleanup();
+                _chatViewModel = null;
+            }
+
+            // Clear cached ViewModels to force reload with new profile data
+            _platformsViewModel = null;
+            _settingsViewModel = null;
+
+            // Dispose scopes
+            _platformsScope?.Dispose();
+            _platformsScope = null;
+            _chatScope?.Dispose();
+            _chatScope = null;
+            _settingsScope?.Dispose();
+            _settingsScope = null;
+
+            // Initialize new profile data
+            await OnProfileLoadedAsync();
+
+            // If currently viewing a profile-specific view, refresh it
+            if (CurrentViewModel == _dashboardViewModel)
+            {
+                // Dashboard is fine, no reload needed
+            }
+            else
+            {
+                // Navigate back to home to avoid stale data
+                _logger.LogInformation("Navigating to home after profile switch");
+                _ = NavigateToHome(); // Fire and forget - safe in this context
+            }
+
+            _logger.LogInformation("Profile switch complete, app ready with new profile data");
+        });
+
+        // Title and platform status will be initialized after profile is selected
+        // via OnProfileLoadedAsync()
+    }
+
+    /// <summary>
+    /// Called after a profile is loaded/selected to initialize profile data and connections
+    /// </summary>
+    public async Task OnProfileLoadedAsync()
+    {
+        _logger.LogInformation("Profile loaded, initializing ALL app data and settings...");
+
+        // Update title with profile name
+        await UpdateTitleAsync();
+
+        // Initialize webhook coordinator now that profile is loaded
+        var webhookCoordinator = _serviceProvider.GetRequiredService<VyralBot.Api.Services.WebhookCoordinatorService>();
+        await webhookCoordinator.InitializeAsync();
+
+        // Start audio WebSocket server for browser sources
+        // Audio WebSocket server now handled by Kestrel (port 5000); initialize sounds only
+        var soundService = _serviceProvider.GetRequiredService<Core.Services.Audio.ISoundService>();
+        await soundService.InitializeDefaultSoundsAsync();
+
+        // ========================================================================
+        // CREATE ESSENTIAL VIEWMODELS ONLY (lazy-load Platforms/Settings on demand)
+        // ========================================================================
+
+        // Don't create PlatformsViewModel at startup - lazy-load when user navigates to it
+        // This saves ~30MB of memory on startup
+
+        // 1. Create KickSettingsViewModel (needed for settings loading)
+        IServiceScope kickSettingsScope = _serviceProvider.CreateScope();
+        var kickSettingsViewModel = kickSettingsScope.ServiceProvider.GetRequiredService<KickSettingsViewModel>();
+
+        // 3. Create WebServerSettingsViewModel
+        IServiceScope webServerScope = _serviceProvider.CreateScope();
+        var webServerSettingsViewModel = webServerScope.ServiceProvider.GetRequiredService<WebServerSettingsViewModel>();
+
+        // 4. Create ChatViewModel
+        if (_chatViewModel == null)
+        {
+            _chatScope = _serviceProvider.CreateScope();
+            _chatViewModel = _chatScope.ServiceProvider.GetRequiredService<ChatViewModel>();
+        }
+
+        // ========================================================================
+        // LOAD ALL SETTINGS AND SUBSCRIBE TO EVENTS *BEFORE* AUTO-CONNECTIONS
+        // ========================================================================
+        // CRITICAL: ChatViewModel must subscribe to EventBus BEFORE platforms connect,
+        // otherwise messages arriving between connect and subscribe are lost.
+        _logger.LogInformation("🔄 Loading all profile settings and subscribing to events before auto-connections...");
+
+        await _settingsLoader.LoadAllSettingsAsync(
+            platformsViewModel: null, // Lazy-load Platforms on demand
+            kickSettingsViewModel: kickSettingsViewModel,
+            webServerSettingsViewModel: webServerSettingsViewModel,
+            chatViewModel: _chatViewModel
+        );
+
+        _logger.LogInformation("✅ All settings loaded and EventBus subscriptions active - now connecting platforms...");
+
+        // Check platform status from database and auto-connect
+        // MUST happen AFTER ChatViewModel.InitializeAsync() so EventBus subscriptions are active
+        await CheckPlatformConnectionsAsync();
+
+        // ========================================================================
+        // AUTO-ENABLE FEATURES BASED ON LOADED SETTINGS
+        // ========================================================================
+
+        // Auto-enable Kick webhooks if toggle is ON (from loaded settings)
+        await AutoEnableKickWebhooksAsync();
+
+        // NOTE: Auto-start is handled by WebhookCoordinatorService.InitializeAsync() above.
+        // Do NOT start again here — it causes a double start/stop/start cycle.
+
+        // Dispose temporary scopes (ViewModels already initialized)
+        kickSettingsScope.Dispose();
+        webServerScope.Dispose();
+
+        _logger.LogInformation("✅ Profile initialization complete - all settings loaded, features ready");
+    }
+
+
+
+    private async Task AutoEnableKickWebhooksAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Checking if Kick webhooks should be auto-enabled...");
+
+            using var scope = _serviceProvider.CreateScope();
+            var dataService = scope.ServiceProvider.GetRequiredService<IDataService>();
+            var webhookCoordinator = scope.ServiceProvider.GetRequiredService<WebhookCoordinatorService>();
+
+            // Check if webhook server is running
+            if (!webhookCoordinator.IsRunning)
+            {
+                _logger.LogInformation("Webhook server not running, skipping Kick webhook auto-enable");
+                return;
+            }
+
+            // Check if there are active Kick webhook subscriptions in database
+            var subscriptions = await dataService.GetWebhookSubscriptionsAsync("Kick");
+            var activeSubscriptions = subscriptions.Where(s => s.IsActive).ToList();
+
+            if (!activeSubscriptions.Any())
+            {
+                _logger.LogInformation("No active Kick webhook subscriptions found in database");
+                return;
+            }
+
+            // Get Kick platform credentials
+            var platform = await dataService.GetPlatformByNameAsync("Kick");
+            if (platform == null || string.IsNullOrEmpty(platform.AccessToken) || string.IsNullOrEmpty(platform.UserId))
+            {
+                _logger.LogWarning("Cannot auto-enable Kick webhooks - missing platform credentials");
+                return;
+            }
+
+            _logger.LogInformation("🔄 Auto-enabling Kick webhooks on startup (found {Count} active subscriptions)", activeSubscriptions.Count);
+
+            // Kick tokens are NOT encrypted (KickLib manages token security)
+            var accessToken = platform.AccessToken;
+            await webhookCoordinator.EnableKickWebhooksAsync(accessToken, platform.UserId);
+
+            _logger.LogInformation("✅ Kick webhooks auto-enabled successfully on startup");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error auto-enabling Kick webhooks on startup");
+        }
+    }
+
+    private async Task UpdateTitleAsync()
+    {
+        try
+        {
+            var profile = await _profileService.GetCurrentProfileAsync();
+            Title = $"VyralBot ({profile.DisplayName})";
+        }
+        catch
+        {
+            Title = "VyralBot";
+        }
+    }
+
+    private async Task CheckPlatformConnectionsAsync()
+    {
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var dataService = scope.ServiceProvider.GetRequiredService<IDataService>();
+
+            // Ensure database is created
+            await dataService.EnsureDatabaseCreatedAsync();
+
+            var twitchPlatform = await dataService.GetPlatformByNameAsync("Twitch");
+
+            IsTwitchConnected = twitchPlatform?.Status == "Connected";
+
+            var kickPlatform = await dataService.GetPlatformByNameAsync("Kick");
+
+            IsKickConnected = kickPlatform?.Status == "Connected";
+
+            var youtubePlatform = await dataService.GetPlatformByNameAsync("YouTube");
+
+            IsYouTubeConnected = youtubePlatform?.Status == "Connected";
+
+            // Auto-connect to Twitch if configured and status is Connected
+            if (twitchPlatform?.Status == "Connected")
+            {
+                await LoadAndConnectTwitchAsync(dataService, twitchPlatform);
+            }
+
+            // Auto-connect to Kick if configured and status is Connected
+            if (kickPlatform?.Status == "Connected")
+            {
+                await LoadAndConnectKickAsync(dataService, kickPlatform);
+            }
+
+            // Auto-connect to YouTube if configured and status is Connected
+            if (youtubePlatform?.Status == "Connected")
+            {
+                await LoadAndConnectYouTubeAsync(dataService, youtubePlatform);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error checking platform connections: {ex}");
+            // Silently fail - platforms won't show if check fails
+            IsTwitchConnected = false;
+            IsKickConnected = false;
+            IsYouTubeConnected = false;
+        }
+    }
+
+    private async Task LoadAndConnectTwitchAsync(IDataService dataService, Platform platform)
+    {
+        try
+        {
+            var twitchService = _serviceProvider.GetRequiredService<ITwitchService>();
+
+            if (twitchService.IsConnected)
+            {
+                _logger.LogInformation("Twitch already connected, skipping auto-connect");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(platform.AccessToken))
+            {
+                _logger.LogWarning("No Twitch access token found, cannot connect");
+                return;
+            }
+
+            _logger.LogInformation("Auto-connecting to Twitch IRC for {Channel}", platform.Username);
+
+            var oAuthService = _serviceProvider.GetRequiredService<TwitchOAuthService>();
+            var accessToken = TwitchOAuthService.Decrypt(platform.AccessToken);
+            var refreshToken = !string.IsNullOrEmpty(platform.RefreshToken)
+                ? TwitchOAuthService.Decrypt(platform.RefreshToken)
+                : null;
+            var botUsername = platform.Username?.ToLower() ?? "";
+
+            await twitchService.ConnectAsync(botUsername, accessToken, refreshToken, platform.Username ?? "");
+
+            // Enable chat by default after successful auto-connect (like Kick does)
+            if (platform.TwitchChatEnabled == false)
+            {
+                platform.TwitchChatEnabled = true;
+                await dataService.SavePlatformAsync(platform);
+                _logger.LogInformation("Enabled Twitch chat by default after auto-connect");
+            }
+
+            _logger.LogInformation("Successfully auto-connected to Twitch IRC for #{Channel}", platform.Username);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error auto-connecting to Twitch IRC");
+        }
+    }
+
+    private async Task LoadAndConnectKickAsync(IDataService dataService, Platform platform)
+    {
+        try
+        {
+            var kickService = _serviceProvider.GetRequiredService<IKickService>();
+
+            if (kickService.IsConnected)
+            {
+                _logger.LogInformation("Kick already connected, skipping auto-connect");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(platform.AccessToken) || string.IsNullOrEmpty(platform.UserId))
+            {
+                _logger.LogWarning("Cannot auto-connect to Kick - missing access token or user ID");
+                return;
+            }
+
+            _logger.LogInformation("Auto-connecting to Kick for channel {Channel}", platform.Username);
+
+            var accessToken = platform.AccessToken;
+            var refreshToken = platform.RefreshToken;
+            var broadcasterUserId = int.Parse(platform.UserId);
+
+            // Try to refresh token before connecting (in case it's expired)
+            if (!string.IsNullOrEmpty(refreshToken))
+            {
+                _logger.LogInformation("Refreshing Kick access token before auto-connect...");
+
+                var kickOAuthService = _serviceProvider.GetRequiredService<KickLibOAuthService>();
+                var refreshSuccess = await kickOAuthService.RefreshTokenAsync();
+                if (refreshSuccess)
+                {
+                    // Reload platform to get updated tokens
+                    var updatedPlatform = await dataService.GetPlatformByNameAsync("Kick");
+                    if (updatedPlatform != null)
+                    {
+                        accessToken = updatedPlatform.AccessToken;
+                        refreshToken = updatedPlatform.RefreshToken;
+                        _logger.LogInformation("Kick access token refreshed and saved before auto-connect");
+                    }
+                }
+            }
+
+            await kickService.ConnectAsync(platform.Username ?? "", accessToken ?? "", refreshToken, platform.Username ?? "", broadcasterUserId);
+
+            // Enable chat by default after successful auto-connect
+            if (platform.KickChatEnabled == false)
+            {
+                platform.KickChatEnabled = true;
+                await dataService.SavePlatformAsync(platform);
+                _logger.LogInformation("Enabled Kick chat by default after auto-connect");
+            }
+
+            _logger.LogInformation("Successfully auto-connected to Kick for channel {Channel}", platform.Username);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error auto-connecting to Kick");
+        }
+    }
+
+    private async Task LoadAndConnectYouTubeAsync(IDataService dataService, Platform platform)
+    {
+        try
+        {
+            var youtubeService = _serviceProvider.GetRequiredService<IYouTubeService>();
+
+            if (youtubeService.IsConnected)
+            {
+                _logger.LogInformation("YouTube already connected, skipping auto-connect");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(platform.AccessToken) || string.IsNullOrEmpty(platform.RefreshToken))
+            {
+                _logger.LogWarning("Cannot auto-connect to YouTube - missing access token or refresh token");
+                return;
+            }
+
+            _logger.LogInformation("Auto-connecting to YouTube Live Chat for {Channel}", platform.Username);
+
+            await youtubeService.ConnectAsync(
+                platform.Username ?? "",
+                platform.AccessToken,
+                platform.RefreshToken,
+                platform.Username ?? "");
+
+            // Enable chat by default after successful auto-connect
+            if (platform.YoutubeChatEnabled == false)
+            {
+                platform.YoutubeChatEnabled = true;
+                await dataService.SavePlatformAsync(platform);
+                _logger.LogInformation("Enabled YouTube chat by default after auto-connect");
+            }
+
+            _logger.LogInformation("Successfully auto-connected to YouTube Live Chat for {Channel}", platform.Username);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error auto-connecting to YouTube Live Chat");
+        }
+    }
+
+    private async Task DisconnectAllPlatformsAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Disconnecting from all platforms for profile switch");
+
+            var twitchService = _serviceProvider.GetService<ITwitchService>();
+            if (twitchService?.IsConnected == true)
+            {
+                await twitchService.DisconnectAsync();
+                _logger.LogInformation("Disconnected from Twitch");
+            }
+
+            var kickService = _serviceProvider.GetService<IKickService>();
+            if (kickService?.IsConnected == true)
+            {
+                await kickService.DisconnectAsync();
+                _logger.LogInformation("Disconnected from Kick");
+            }
+
+            var youtubeService = _serviceProvider.GetService<IYouTubeService>();
+            if (youtubeService?.IsConnected == true)
+            {
+                await youtubeService.DisconnectAsync();
+                _logger.LogInformation("Disconnected from YouTube");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error disconnecting platforms");
+        }
+    }
+
+    /// <summary>
+    /// Refreshes platform connection status. Called when platforms are connected/disconnected.
+    /// </summary>
+    public async Task RefreshPlatformConnectionsAsync()
+    {
+        await CheckPlatformConnectionsAsync();
+
+        // Notify ChatViewModel to update its connected platforms list on UI thread
+        if (_chatViewModel != null)
+        {
+            _logger.LogInformation("Refreshing ChatViewModel connected platforms");
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                _chatViewModel.UpdateConnectedPlatforms();
+            });
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleSidebar()
+    {
+        _logger.LogInformation("User clicked: Toggle Sidebar (Expanded: {IsExpanded})", !IsSidebarExpanded);
+        IsSidebarExpanded = !IsSidebarExpanded;
+    }
+
+    [RelayCommand]
+    private void TogglePlatforms()
+    {
+        _logger.LogInformation("User clicked: Toggle Platforms dropdown (Expanded: {IsExpanded})", !IsPlatformsExpanded);
+        IsPlatformsExpanded = !IsPlatformsExpanded;
+    }
+
+    [RelayCommand]
+    private void ToggleChatFeatures()
+    {
+        _logger.LogInformation("User clicked: Toggle Chat Features dropdown (Expanded: {IsExpanded})", !IsChatFeaturesExpanded);
+        IsChatFeaturesExpanded = !IsChatFeaturesExpanded;
+    }
+
+    [RelayCommand]
+    private void ToggleStreamTools()
+    {
+        _logger.LogInformation("User clicked: Toggle Stream Tools dropdown (Expanded: {IsExpanded})", !IsStreamToolsExpanded);
+        IsStreamToolsExpanded = !IsStreamToolsExpanded;
+    }
+
+    /// <summary>
+    /// Checks if a setup wizard is in progress and prompts the user to confirm navigation.
+    /// </summary>
+    /// <param name="platformName">Name of the platform for the confirmation message ("Twitch" or "Kick")</param>
+    /// <returns>True if navigation should proceed, false if cancelled</returns>
+    private bool CheckSetupInProgress(out string? platformName)
+    {
+        platformName = null;
+
+        // Check if Twitch setup is in progress
+        if (_platformsViewModel?.ShowTwitchSetup == true)
+        {
+            platformName = "Twitch";
+            var dialog = new Views.ConfirmDialog
+            {
+                Owner = System.Windows.Application.Current.MainWindow
+            };
+
+            var result = dialog.ShowDialog();
+
+            if (result != true)
+            {
+                _logger.LogInformation("Navigation cancelled - Twitch setup in progress");
+                return false;
+            }
+
+            // Reset the Twitch wizard if user confirms
+            _platformsViewModel.WebSetupViewModel?.ResetWizard(disposeWebView: true);
+            _platformsViewModel.ShowTwitchSetup = false;
+            _logger.LogInformation("Twitch setup cancelled by user");
+            return true;
+        }
+
+        // Check if Kick setup is in progress
+        if (_platformsViewModel?.ShowKickSetup == true)
+        {
+            platformName = "Kick";
+            var dialog = new Views.ConfirmDialog
+            {
+                Owner = System.Windows.Application.Current.MainWindow
+            };
+
+            var result = dialog.ShowDialog();
+
+            if (result != true)
+            {
+                _logger.LogInformation("Navigation cancelled - Kick setup in progress");
+                return false;
+            }
+
+            // Reset the Kick wizard if user confirms
+            _platformsViewModel.KickWebSetupViewModel?.ResetWizard(disposeWebView: true);
+            _platformsViewModel.ShowKickSetup = false;
+            _logger.LogInformation("Kick setup cancelled by user");
+            return true;
+        }
+
+        return true; // No setup in progress
+    }
+
+    [RelayCommand]
+    private async Task NavigateToHome()
+    {
+        _logger.LogInformation("User clicked: Navigate to Home");
+
+        // Skip if already on Home to avoid unnecessary disposal cycles
+        if (CurrentViewModel == _dashboardViewModel)
+        {
+            _logger.LogInformation("Already on Home, skipping navigation");
+            return;
+        }
+
+        // Check if setup is in progress and prompt user
+        if (!CheckSetupInProgress(out _))
+        {
+            return; // User cancelled navigation
+        }
+
+        // CRITICAL ORDER: Null CurrentViewModel FIRST to release WPF references
+        CurrentViewModel = null;
+
+        // Reset all platform view flags when going home
+        if (_platformsViewModel != null)
+        {
+            _platformsViewModel.ShowTwitchConnection = false;
+            _platformsViewModel.ShowKickConnection = false;
+            _platformsViewModel.ShowTwitchSetup = false;
+            _platformsViewModel.ShowKickSetup = false;
+            _platformsViewModel.ShowPlatformSelection = true;
+        }
+
+        // Now dispose after WPF releases its references
+        await DisposeNonEssentialViewModelsAsync(excludeViewModel: _dashboardViewModel);
+
+        CurrentViewModel = _dashboardViewModel;
+        Title = "VyralBot - Home";
+    }
+
+    [RelayCommand]
+    private void NavigateToTriggers()
+    {
+        _logger.LogInformation("User clicked: Navigate to Triggers");
+
+        // Check if setup is in progress and prompt user
+        if (!CheckSetupInProgress(out _))
+        {
+            return; // User cancelled navigation
+        }
+
+        // TODO: Navigate to triggers
+        Title = "VyralBot - Triggers";
+    }
+
+    [RelayCommand]
+    private async Task NavigateToChatAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Chat");
+
+        // Check if setup is in progress and prompt user FIRST
+        if (!CheckSetupInProgress(out _))
+        {
+            return; // User cancelled navigation
+        }
+
+        // Skip if already on Chat to avoid unnecessary disposal cycles and WPF visual tree recreation
+        if (CurrentViewModel == _chatViewModel && _chatViewModel != null)
+        {
+            _logger.LogInformation("Already on Chat, skipping navigation");
+            return;
+        }
+
+        try
+        {
+            // ChatViewModel should already be initialized during profile loading
+            // If somehow null (edge case), create it now
+            if (_chatViewModel == null)
+            {
+                _logger.LogWarning("ChatViewModel was null (unexpected), creating now...");
+                _chatScope = _serviceProvider.CreateScope();
+                _chatViewModel = _chatScope.ServiceProvider.GetRequiredService<ChatViewModel>();
+                await _chatViewModel.InitializeAsync();
+            }
+
+            // CRITICAL ORDER: Null CurrentViewModel FIRST to release WPF references
+            CurrentViewModel = null;
+
+            // Now dispose after WPF releases its references
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _chatViewModel);
+
+            // Let WPF's DataTemplate system create the view lazily (avoids 100MB spike)
+            CurrentViewModel = _chatViewModel;
+            Title = "VyralBot - Chat";
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error navigating to chat: {ex}");
+            System.Windows.MessageBox.Show($"Error loading chat: {ex.Message}\n\n{ex.InnerException?.Message}", "Chat Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToCurrencyAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Currency");
+
+        // Check if setup is in progress and prompt user
+        if (!CheckSetupInProgress(out _))
+        {
+            return; // User cancelled navigation
+        }
+
+        try
+        {
+            // Create CurrencyViewModel on first navigation
+            var currencyViewModel = _serviceProvider.GetRequiredService<CurrencyViewModel>();
+
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: currencyViewModel);
+
+            await currencyViewModel.InitializeAsync();
+            CurrentViewModel = currencyViewModel;
+            Title = "VyralBot - Currency System";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to currency");
+            System.Windows.MessageBox.Show($"Error loading currency: {ex.Message}", "Currency Error",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToCommandsAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Commands");
+
+        // Check if setup is in progress and prompt user
+        if (!CheckSetupInProgress(out _))
+        {
+            return; // User cancelled navigation
+        }
+
+        try
+        {
+            // Create CommandsViewModel on first navigation
+            var commandsViewModel = _serviceProvider.GetRequiredService<CommandsViewModel>();
+
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: commandsViewModel);
+
+            await commandsViewModel.InitializeAsync();
+            CurrentViewModel = commandsViewModel;
+            Title = "VyralBot - Command System";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to commands");
+            System.Windows.MessageBox.Show($"Error loading commands: {ex.Message}", "Commands Error",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
+    }
+
+    [RelayCommand]
+    private void NavigateToActions()
+    {
+        _logger.LogInformation("User clicked: Navigate to Actions");
+
+        // Check if setup is in progress and prompt user
+        if (!CheckSetupInProgress(out _))
+        {
+            return; // User cancelled navigation
+        }
+
+        // TODO: Navigate to actions
+        Title = "VyralBot - Actions";
+    }
+
+    [RelayCommand]
+    private async Task NavigateToSettingsAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Settings");
+
+        // Check if setup is in progress and prompt user
+        if (!CheckSetupInProgress(out _))
+        {
+            _logger.LogInformation("Navigation cancelled - setup in progress");
+            return; // User cancelled navigation
+        }
+
+        try
+        {
+            // CRITICAL ORDER: Null CurrentViewModel FIRST to release WPF references
+            CurrentViewModel = null;
+
+            // Now dispose after WPF releases its references
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _settingsViewModel);
+
+            // Always recreate Settings to ensure fresh state and free memory when navigating away
+            _settingsScope?.Dispose();
+            _settingsScope = _serviceProvider.CreateScope();
+            _settingsViewModel = _settingsScope.ServiceProvider.GetRequiredService<SettingsViewModel>();
+            await _settingsViewModel.InitializeAsync();
+
+            _logger.LogInformation("Setting CurrentViewModel to SettingsViewModel");
+            CurrentViewModel = _settingsViewModel;
+            Title = "VyralBot - Settings";
+            _logger.LogInformation("Navigation to Settings complete");
+
+            // Force GC collection
+            GC.Collect(1, GCCollectionMode.Optimized, blocking: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to settings");
+            System.Diagnostics.Debug.WriteLine($"Error navigating to settings: {ex}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToAudioSettingsAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Audio Settings");
+
+        if (!CheckSetupInProgress(out _))
+        {
+            _logger.LogInformation("Navigation cancelled - setup in progress");
+            return;
+        }
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _audioSettingsViewModel);
+
+            _audioSettingsScope?.Dispose();
+            _audioSettingsScope = _serviceProvider.CreateScope();
+            _audioSettingsViewModel = _audioSettingsScope.ServiceProvider.GetRequiredService<AudioSettingsViewModel>();
+            await _audioSettingsViewModel.InitializeAsync();
+
+            _logger.LogInformation("Setting CurrentViewModel to AudioSettingsViewModel");
+            CurrentViewModel = _audioSettingsViewModel;
+            Title = "VyralBot - Audio Settings";
+            _logger.LogInformation("Navigation to Audio Settings complete");
+
+            GC.Collect(1, GCCollectionMode.Optimized, blocking: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to audio settings");
+            System.Diagnostics.Debug.WriteLine($"Error navigating to audio settings: {ex}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToSoundsAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Sounds");
+
+        if (!CheckSetupInProgress(out _))
+        {
+            _logger.LogInformation("Navigation cancelled - setup in progress");
+            return;
+        }
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _soundsViewModel);
+
+            _soundsScope?.Dispose();
+            _soundsScope = _serviceProvider.CreateScope();
+            _soundsViewModel = _soundsScope.ServiceProvider.GetRequiredService<SoundsViewModel>();
+            await _soundsViewModel.InitializeAsync();
+
+            _logger.LogInformation("Setting CurrentViewModel to SoundsViewModel");
+            CurrentViewModel = _soundsViewModel;
+            Title = "VyralBot - Sounds Management";
+            _logger.LogInformation("Navigation to Sounds complete");
+
+            GC.Collect(1, GCCollectionMode.Optimized, blocking: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to sounds");
+            System.Diagnostics.Debug.WriteLine($"Error navigating to sounds: {ex}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToStatisticsAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Statistics");
+
+        if (!CheckSetupInProgress(out _))
+        {
+            _logger.LogInformation("Navigation cancelled - setup in progress");
+            return;
+        }
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _statisticsViewModel);
+
+            _statisticsScope?.Dispose();
+            _statisticsScope = _serviceProvider.CreateScope();
+            _statisticsViewModel = _statisticsScope.ServiceProvider.GetRequiredService<StatisticsViewModel>();
+            await _statisticsViewModel.InitializeAsync();
+
+            _logger.LogInformation("Setting CurrentViewModel to StatisticsViewModel");
+            CurrentViewModel = _statisticsViewModel;
+            Title = "VyralBot - Statistics";
+            _logger.LogInformation("Navigation to Statistics complete");
+
+            GC.Collect(1, GCCollectionMode.Optimized, blocking: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to statistics");
+            System.Diagnostics.Debug.WriteLine($"Error navigating to statistics: {ex}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToEventHistoryAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Event History");
+
+        if (!CheckSetupInProgress(out _))
+        {
+            _logger.LogInformation("Navigation cancelled - setup in progress");
+            return;
+        }
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _eventHistoryViewModel);
+
+            _eventHistoryScope?.Dispose();
+            _eventHistoryScope = _serviceProvider.CreateScope();
+            _eventHistoryViewModel = _eventHistoryScope.ServiceProvider.GetRequiredService<EventHistoryViewModel>();
+            await _eventHistoryViewModel.InitializeAsync();
+
+            _logger.LogInformation("Setting CurrentViewModel to EventHistoryViewModel");
+            CurrentViewModel = _eventHistoryViewModel;
+            Title = "VyralBot - Event History";
+            _logger.LogInformation("Navigation to Event History complete");
+
+            GC.Collect(1, GCCollectionMode.Optimized, blocking: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to event history");
+            System.Diagnostics.Debug.WriteLine($"Error navigating to event history: {ex}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToAlertSettingsAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Alert Settings");
+
+        if (!CheckSetupInProgress(out _))
+        {
+            _logger.LogInformation("Navigation cancelled - setup in progress");
+            return;
+        }
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _alertSettingsViewModel);
+
+            _alertSettingsScope?.Dispose();
+            _alertSettingsScope = _serviceProvider.CreateScope();
+            _alertSettingsViewModel = _alertSettingsScope.ServiceProvider.GetRequiredService<AlertSettingsViewModel>();
+            await _alertSettingsViewModel.InitializeAsync();
+
+            _logger.LogInformation("Setting CurrentViewModel to AlertSettingsViewModel");
+            CurrentViewModel = _alertSettingsViewModel;
+            Title = "VyralBot - Alert Settings";
+            _logger.LogInformation("Navigation to Alert Settings complete");
+
+            GC.Collect(1, GCCollectionMode.Optimized, blocking: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to alert settings");
+            System.Diagnostics.Debug.WriteLine($"Error navigating to alert settings: {ex}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToConditionalRulesAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Conditional Rules");
+
+        if (!CheckSetupInProgress(out _))
+        {
+            _logger.LogInformation("Navigation cancelled - setup in progress");
+            return;
+        }
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _conditionalRulesViewModel);
+
+            _conditionalRulesScope?.Dispose();
+            _conditionalRulesScope = _serviceProvider.CreateScope();
+            _conditionalRulesViewModel = _conditionalRulesScope.ServiceProvider.GetRequiredService<ConditionalRulesViewModel>();
+            await _conditionalRulesViewModel.LoadRulesAsync();
+
+            _logger.LogInformation("Setting CurrentViewModel to ConditionalRulesViewModel");
+            CurrentViewModel = _conditionalRulesViewModel;
+            Title = "VyralBot - Conditional Rules";
+            _logger.LogInformation("Navigation to Conditional Rules complete");
+
+            GC.Collect(1, GCCollectionMode.Optimized, blocking: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to Conditional Rules");
+            System.Diagnostics.Debug.WriteLine($"Error navigating to Conditional Rules: {ex}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToGiveawaysAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Giveaways");
+
+        if (!CheckSetupInProgress(out _))
+        {
+            _logger.LogInformation("Navigation cancelled - setup in progress");
+            return;
+        }
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _giveawayViewModel);
+
+            _giveawayScope?.Dispose();
+            _giveawayScope = _serviceProvider.CreateScope();
+            _giveawayViewModel = _giveawayScope.ServiceProvider.GetRequiredService<GiveawayViewModel>();
+            await _giveawayViewModel.InitializeAsync();
+
+            _logger.LogInformation("Setting CurrentViewModel to GiveawayViewModel");
+            CurrentViewModel = _giveawayViewModel;
+            Title = "VyralBot - Giveaways";
+            _logger.LogInformation("Navigation to Giveaways complete");
+
+            GC.Collect(1, GCCollectionMode.Optimized, blocking: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to giveaways");
+            System.Diagnostics.Debug.WriteLine($"Error navigating to giveaways: {ex}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToPollsAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Polls");
+
+        if (!CheckSetupInProgress(out _))
+        {
+            _logger.LogInformation("Navigation cancelled - setup in progress");
+            return;
+        }
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _pollViewModel);
+
+            _pollScope?.Dispose();
+            _pollScope = _serviceProvider.CreateScope();
+            _pollViewModel = _pollScope.ServiceProvider.GetRequiredService<PollViewModel>();
+            await _pollViewModel.InitializeAsync();
+
+            _logger.LogInformation("Setting CurrentViewModel to PollViewModel");
+            CurrentViewModel = _pollViewModel;
+            Title = "VyralBot - Polls";
+            _logger.LogInformation("Navigation to Polls complete");
+
+            GC.Collect(1, GCCollectionMode.Optimized, blocking: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to polls");
+            System.Diagnostics.Debug.WriteLine($"Error navigating to polls: {ex}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToWatchtimeAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Watchtime");
+
+        if (!CheckSetupInProgress(out _))
+        {
+            _logger.LogInformation("Navigation cancelled - setup in progress");
+            return;
+        }
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _watchtimeViewModel);
+
+            _watchtimeScope?.Dispose();
+            _watchtimeScope = _serviceProvider.CreateScope();
+            _watchtimeViewModel = _watchtimeScope.ServiceProvider.GetRequiredService<WatchtimeViewModel>();
+            await _watchtimeViewModel.InitializeAsync();
+
+            _logger.LogInformation("Setting CurrentViewModel to WatchtimeViewModel");
+            CurrentViewModel = _watchtimeViewModel;
+            Title = "VyralBot - Watchtime";
+            _logger.LogInformation("Navigation to Watchtime complete");
+
+            GC.Collect(1, GCCollectionMode.Optimized, blocking: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to watchtime");
+            System.Diagnostics.Debug.WriteLine($"Error navigating to watchtime: {ex}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToEventTestingAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Event Testing");
+
+        if (!CheckSetupInProgress(out _))
+        {
+            _logger.LogInformation("Navigation cancelled - setup in progress");
+            return;
+        }
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _eventTestingViewModel);
+
+            _eventTestingScope?.Dispose();
+            _eventTestingScope = _serviceProvider.CreateScope();
+            _eventTestingViewModel = _eventTestingScope.ServiceProvider.GetRequiredService<EventTestingViewModel>();
+
+            _logger.LogInformation("Setting CurrentViewModel to EventTestingViewModel");
+            CurrentViewModel = _eventTestingViewModel;
+            Title = "VyralBot - Event Testing Tool";
+            _logger.LogInformation("Navigation to Event Testing complete");
+
+            GC.Collect(1, GCCollectionMode.Optimized, blocking: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to event testing");
+            System.Diagnostics.Debug.WriteLine($"Error navigating to event testing: {ex}");
+        }
+    }
+
+    [RelayCommand]
+    private Task NavigateToDemoWizardAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Demo Wizard");
+        try
+        {
+            if (_demoSetupViewModel == null)
+            {
+                // Dispose old scope if it exists
+                _demoSetupScope?.Dispose();
+
+                // Create a new scope for this ViewModel
+                _demoSetupScope = _serviceProvider.CreateScope();
+                _demoSetupViewModel = _demoSetupScope.ServiceProvider.GetRequiredService<GoogleDemoSetupViewModel>();
+                _logger.LogInformation("GoogleDemoSetupViewModel created");
+
+                // Hook up completion event
+                _demoSetupViewModel.SetupCompleted += (s, e) =>
+                {
+                    _logger.LogInformation("Demo wizard completed, navigating to home");
+                    NavigateToHomeCommand.Execute(null);
+                };
+            }
+
+            CurrentViewModel = _demoSetupViewModel;
+            Title = "VyralBot - Demo Setup Wizard";
+            _logger.LogInformation("Navigation to Demo Wizard complete");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to demo wizard");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    public void NavigateToNgrokSetupWizard()
+    {
+        _logger.LogInformation("User clicked: Navigate to Ngrok Setup");
+        try
+        {
+            if (_ngrokSetupWizardViewModel == null)
+            {
+                // Dispose old scope if it exists
+                _ngrokSetupWizardScope?.Dispose();
+
+                // Create a new scope for this ViewModel
+                _ngrokSetupWizardScope = _serviceProvider.CreateScope();
+                _ngrokSetupWizardViewModel = _ngrokSetupWizardScope.ServiceProvider.GetRequiredService<NgrokSetupWizardViewModel>();
+                _logger.LogInformation("NgrokSetupWizardViewModel created");
+
+                // Hook up completion event
+                _ngrokSetupWizardViewModel.SetupCompleted += (s, e) =>
+                {
+                    _logger.LogInformation("Ngrok setup wizard completed, navigating to home");
+                    NavigateToHomeCommand.Execute(null);
+                };
+            }
+
+            CurrentViewModel = _ngrokSetupWizardViewModel;
+            Title = "VyralBot - Ngrok Setup";
+            _logger.LogInformation("Navigation to Ngrok Setup complete");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to ngrok setup wizard");
+        }
+    }
+
+    public void DisposeSettingsViewModel()
+    {
+        _logger.LogInformation("Disposing SettingsViewModel to force refresh");
+        _settingsViewModel = null;
+        _settingsScope?.Dispose();
+        _settingsScope = null;
+    }
+
+    [RelayCommand]
+    private async Task NavigateToPlatformsAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Platforms");
+        try
+        {
+            // CRITICAL ORDER: Null CurrentViewModel FIRST to release WPF references
+            CurrentViewModel = null;
+
+            // Now dispose after WPF releases its references
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _platformsViewModel);
+
+            // Always recreate Platforms to ensure fresh state
+            _platformsScope?.Dispose();
+            _platformsScope = _serviceProvider.CreateScope();
+            _platformsViewModel = _platformsScope.ServiceProvider.GetRequiredService<PlatformsViewModel>();
+
+            // Set callbacks for platform connections and navigation
+            _platformsViewModel.SetConnectionChangedCallback(async () =>
+            {
+                await RefreshPlatformConnectionsAsync();
+            });
+
+            _platformsViewModel.SetNavigationCallback(async () =>
+            {
+                // Just ensure Platforms view is current, don't re-initialize
+                if (CurrentViewModel != _platformsViewModel)
+                {
+                    CurrentViewModel = _platformsViewModel;
+                    Title = "VyralBot - Connections";
+                }
+                await Task.CompletedTask;
+            });
+
+            await _platformsViewModel.InitializeAsync();
+            CurrentViewModel = _platformsViewModel;
+            Title = "VyralBot - Connections";
+
+            // Don't call CheckPlatformConnectionsAsync - InitializeAsync already loaded platform status
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error navigating to platforms: {ex}");
+            // Don't navigate if there's an error
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToChatHubAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Chat Hub");
+
+        if (!CheckSetupInProgress(out _))
+            return;
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _chatHubViewModel);
+
+            _chatHubScope?.Dispose();
+            _chatHubScope = _serviceProvider.CreateScope();
+            _chatHubViewModel = _chatHubScope.ServiceProvider.GetRequiredService<ChatHubViewModel>();
+            await _chatHubViewModel.InitializeAsync();
+            CurrentViewModel = _chatHubViewModel;
+            Title = "VyralBot - Chat Hub";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to Chat Hub");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToToolsAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Tools");
+
+        if (!CheckSetupInProgress(out _))
+            return;
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _toolsViewModel);
+
+            _toolsScope?.Dispose();
+            _toolsScope = _serviceProvider.CreateScope();
+            _toolsViewModel = _toolsScope.ServiceProvider.GetRequiredService<ToolsViewModel>();
+            CurrentViewModel = _toolsViewModel;
+            Title = "VyralBot - Tools";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to Tools");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToIntegrationsAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Integrations");
+
+        if (!CheckSetupInProgress(out _))
+            return;
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _integrationsViewModel);
+
+            _integrationsScope?.Dispose();
+            _integrationsScope = _serviceProvider.CreateScope();
+            _integrationsViewModel = _integrationsScope.ServiceProvider.GetRequiredService<IntegrationsViewModel>();
+            CurrentViewModel = _integrationsViewModel;
+            Title = "VyralBot - Integrations";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to Integrations");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToDocumentationAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Documentation");
+
+        if (!CheckSetupInProgress(out _))
+            return;
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _documentationViewModel);
+
+            _documentationScope?.Dispose();
+            _documentationScope = _serviceProvider.CreateScope();
+            _documentationViewModel = _documentationScope.ServiceProvider.GetRequiredService<DocumentationViewModel>();
+            CurrentViewModel = _documentationViewModel;
+            Title = "VyralBot - Documentation";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to Documentation");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToTwitchSettingsAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Twitch Dashboard");
+
+        // Check if setup is in progress and prompt user
+        if (!CheckSetupInProgress(out _))
+        {
+            return; // User cancelled navigation
+        }
+
+        try
+        {
+            // CRITICAL ORDER: Null CurrentViewModel FIRST to release WPF references
+            CurrentViewModel = null;
+
+            // Now dispose after WPF releases its references
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _twitchDashboardViewModel);
+
+            // Always recreate to free memory
+            _twitchDashboardScope?.Dispose();
+            _twitchDashboardScope = _serviceProvider.CreateScope();
+            _twitchDashboardViewModel = _twitchDashboardScope.ServiceProvider.GetRequiredService<TwitchDashboardViewModel>();
+            await _twitchDashboardViewModel.InitializeAsync();
+            CurrentViewModel = _twitchDashboardViewModel;
+            Title = "VyralBot - Twitch";
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error navigating to Twitch dashboard: {ex}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateToKickSettingsAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Kick Dashboard");
+
+        // Check if setup is in progress and prompt user
+        if (!CheckSetupInProgress(out _))
+        {
+            return; // User cancelled navigation
+        }
+
+        try
+        {
+            // CRITICAL ORDER: Null CurrentViewModel FIRST to release WPF references
+            CurrentViewModel = null;
+
+            // Now dispose after WPF releases its references
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _kickDashboardViewModel);
+
+            // Always recreate to free memory
+            _kickDashboardScope?.Dispose();
+            _kickDashboardScope = _serviceProvider.CreateScope();
+            _kickDashboardViewModel = _kickDashboardScope.ServiceProvider.GetRequiredService<KickDashboardViewModel>();
+            await _kickDashboardViewModel.InitializeAsync();
+            CurrentViewModel = _kickDashboardViewModel;
+            Title = "VyralBot - Kick";
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error navigating to Kick dashboard: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// Shows the profile selector overlay with the list of profiles.
+    /// Called during app startup if multiple profiles exist.
+    /// </summary>
+    public async Task ShowProfileSelectorAsync()
+    {
+        try
+        {
+            var profilesList = await _profileService.GetProfilesAsync();
+            Profiles = new ObservableCollection<Profile>(profilesList);
+            ShowProfileSelector = true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading profiles: {ex}");
+        }
+    }
+
+    [RelayCommand]
+    private void SelectProfile(Profile profile)
+    {
+        _logger.LogInformation("User clicked: Select Profile '{DisplayName}' ({Name})", profile.DisplayName, profile.Name);
+        _selectedProfile = profile;
+
+        // If profile has PIN, show PIN entry
+        if (!string.IsNullOrEmpty(profile.PinCode))
+        {
+            _logger.LogInformation("Profile has PIN protection, showing PIN entry");
+            ShowPinEntry = true;
+            ProfileErrorMessage = null;
+        }
+        else
+        {
+            // No PIN, select immediately
+            _logger.LogInformation("Profile has no PIN, selecting immediately");
+            _ = ConfirmProfileSelectionAsync();
+        }
+    }
+
+    [RelayCommand]
+    private async Task ConfirmProfileSelectionAsync()
+    {
+        if (_selectedProfile == null) return;
+
+        _logger.LogInformation("User clicked: Confirm Profile Selection for '{ProfileName}'", _selectedProfile.Name);
+
+        try
+        {
+            // Validate PIN if profile has one
+            if (!string.IsNullOrEmpty(_selectedProfile.PinCode))
+            {
+                _logger.LogInformation("Validating PIN for profile selection");
+                var isValid = await _profileService.ValidatePinAsync(_selectedProfile.Name, ProfilePin);
+                if (!isValid)
+                {
+                    _logger.LogWarning("Invalid PIN provided");
+                    ProfileErrorMessage = "Invalid PIN. Please try again.";
+                    return;
+                }
+                _logger.LogInformation("PIN validated successfully");
+            }
+
+            await _profileService.SwitchProfileAsync(_selectedProfile.Name, string.IsNullOrEmpty(ProfilePin) ? null : ProfilePin);
+            _logger.LogInformation("Successfully switched to profile '{ProfileName}'", _selectedProfile.Name);
+            ShowProfileSelector = false;
+            ShowPinEntry = false;
+            ProfilePin = string.Empty;
+            ProfileErrorMessage = null;
+
+            // Update title with new profile
+            _ = UpdateTitleAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error switching to profile '{ProfileName}'", _selectedProfile.Name);
+            ProfileErrorMessage = $"Error switching profile: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Disposes non-essential ViewModels to free memory when navigating between views.
+    /// Essential ViewModels (Dashboard, Chat) are kept alive for performance.
+    /// </summary>
+    private async Task DisposeNonEssentialViewModelsAsync(ViewModelBase? excludeViewModel = null)
+    {
+        var disposedCount = 0;
+
+        // NEVER dispose ChatViewModel (singleton, frequently used)
+        // NEVER dispose DashboardViewModel (singleton, lightweight home screen)
+        // ALWAYS dispose everything else when navigating away
+
+        // Dispose Settings (heavy, loads all settings on each init)
+        if (_settingsViewModel != null && _settingsViewModel != excludeViewModel)
+        {
+            _settingsScope?.Dispose();
+            _settingsScope = null;
+            _settingsViewModel = null;
+            _logger.LogInformation("♻️ Disposed SettingsViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Audio Settings (not frequently used)
+        if (_audioSettingsViewModel != null && _audioSettingsViewModel != excludeViewModel)
+        {
+            _audioSettingsScope?.Dispose();
+            _audioSettingsScope = null;
+            _audioSettingsViewModel = null;
+            _logger.LogInformation("♻️ Disposed AudioSettingsViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Sounds (not frequently used)
+        if (_soundsViewModel != null && _soundsViewModel != excludeViewModel)
+        {
+            _soundsScope?.Dispose();
+            _soundsScope = null;
+            _soundsViewModel = null;
+            _logger.LogInformation("♻️ Disposed SoundsViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Statistics (not frequently used)
+        if (_statisticsViewModel != null && _statisticsViewModel != excludeViewModel)
+        {
+            _statisticsScope?.Dispose();
+            _statisticsScope = null;
+            _statisticsViewModel = null;
+            _logger.LogInformation("♻️ Disposed StatisticsViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Event History (not frequently used)
+        if (_eventHistoryViewModel != null && _eventHistoryViewModel != excludeViewModel)
+        {
+            _eventHistoryScope?.Dispose();
+            _eventHistoryScope = null;
+            _eventHistoryViewModel = null;
+            _logger.LogInformation("♻️ Disposed EventHistoryViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Alert Settings (not frequently used)
+        if (_alertSettingsViewModel != null && _alertSettingsViewModel != excludeViewModel)
+        {
+            _alertSettingsScope?.Dispose();
+            _alertSettingsScope = null;
+            _alertSettingsViewModel = null;
+            _logger.LogInformation("♻️ Disposed AlertSettingsViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Conditional Rules (not frequently used)
+        if (_conditionalRulesViewModel != null && _conditionalRulesViewModel != excludeViewModel)
+        {
+            _conditionalRulesScope?.Dispose();
+            _conditionalRulesScope = null;
+            _conditionalRulesViewModel = null;
+            _logger.LogInformation("♻️ Disposed ConditionalRulesViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Giveaways (not frequently used)
+        if (_giveawayViewModel != null && _giveawayViewModel != excludeViewModel)
+        {
+            _giveawayScope?.Dispose();
+            _giveawayScope = null;
+            _giveawayViewModel = null;
+            _logger.LogInformation("♻️ Disposed GiveawayViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Polls (not frequently used)
+        if (_pollViewModel != null && _pollViewModel != excludeViewModel)
+        {
+            _pollScope?.Dispose();
+            _pollScope = null;
+            _pollViewModel = null;
+            _logger.LogInformation("♻️ Disposed PollViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Watchtime (not frequently used)
+        if (_watchtimeViewModel != null && _watchtimeViewModel != excludeViewModel)
+        {
+            _watchtimeScope?.Dispose();
+            _watchtimeScope = null;
+            _watchtimeViewModel = null;
+            _logger.LogInformation("♻️ Disposed WatchtimeViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Event Testing (developer tool)
+        if (_eventTestingViewModel != null && _eventTestingViewModel != excludeViewModel)
+        {
+            _eventTestingScope?.Dispose();
+            _eventTestingScope = null;
+            _eventTestingViewModel = null;
+            _logger.LogInformation("♻️ Disposed EventTestingViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Platforms (re-initializes on each navigation)
+        if (_platformsViewModel != null && _platformsViewModel != excludeViewModel)
+        {
+            _platformsScope?.Dispose();
+            _platformsScope = null;
+            _platformsViewModel = null;
+            _logger.LogInformation("♻️ Disposed PlatformsViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Kick Dashboard (not frequently used)
+        if (_kickDashboardViewModel != null && _kickDashboardViewModel != excludeViewModel)
+        {
+            _kickDashboardScope?.Dispose();
+            _kickDashboardScope = null;
+            _kickDashboardViewModel = null;
+            _logger.LogInformation("♻️ Disposed KickDashboardViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Twitch Dashboard (not frequently used)
+        if (_twitchDashboardViewModel != null && _twitchDashboardViewModel != excludeViewModel)
+        {
+            _twitchDashboardScope?.Dispose();
+            _twitchDashboardScope = null;
+            _twitchDashboardViewModel = null;
+            _logger.LogInformation("♻️ Disposed TwitchDashboardViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Demo Setup (rarely used)
+        if (_demoSetupViewModel != null && _demoSetupViewModel != excludeViewModel)
+        {
+            _demoSetupScope?.Dispose();
+            _demoSetupScope = null;
+            _demoSetupViewModel = null;
+            _logger.LogInformation("♻️ Disposed DemoSetupViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Ngrok Setup Wizard (rarely used)
+        if (_ngrokSetupWizardViewModel != null && _ngrokSetupWizardViewModel != excludeViewModel)
+        {
+            _ngrokSetupWizardScope?.Dispose();
+            _ngrokSetupWizardScope = null;
+            _ngrokSetupWizardViewModel = null;
+            _logger.LogInformation("♻️ Disposed NgrokSetupWizardViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Chat Hub (hub page, re-initializes each time)
+        if (_chatHubViewModel != null && _chatHubViewModel != excludeViewModel)
+        {
+            _chatHubScope?.Dispose();
+            _chatHubScope = null;
+            _chatHubViewModel = null;
+            _logger.LogInformation("♻️ Disposed ChatHubViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Tools (lightweight hub)
+        if (_toolsViewModel != null && _toolsViewModel != excludeViewModel)
+        {
+            _toolsScope?.Dispose();
+            _toolsScope = null;
+            _toolsViewModel = null;
+            _logger.LogInformation("♻️ Disposed ToolsViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Integrations (lightweight hub)
+        if (_integrationsViewModel != null && _integrationsViewModel != excludeViewModel)
+        {
+            _integrationsScope?.Dispose();
+            _integrationsScope = null;
+            _integrationsViewModel = null;
+            _logger.LogInformation("♻️ Disposed IntegrationsViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Documentation
+        if (_documentationViewModel != null && _documentationViewModel != excludeViewModel)
+        {
+            _documentationScope?.Dispose();
+            _documentationScope = null;
+            _documentationViewModel = null;
+            _logger.LogInformation("♻️ Disposed DocumentationViewModel to free memory");
+            disposedCount++;
+        }
+
+        if (disposedCount > 0)
+        {
+            _logger.LogInformation("♻️ Disposed {Count} ViewModels, forcing UI update and GC...", disposedCount);
+
+            // CRITICAL: Force WPF to process ALL pending UI updates synchronously
+            // This ensures ContentControl releases the old view before GC
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                // Force layout and rendering updates
+                System.Windows.Application.Current.MainWindow?.UpdateLayout();
+            }, System.Windows.Threading.DispatcherPriority.Loaded);
+
+            // Wait for WPF rendering thread to complete
+            await Task.Delay(100);
+
+            _logger.LogInformation("♻️ Triggering Gen2 GC with compacting...");
+            // Aggressive compacting collection to reclaim SettingsViewModel memory
+            // Blocking is necessary to ensure disposal completes before navigation continues
+            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+
+            _logger.LogInformation("♻️ Memory reclaim complete");
+        }
+    }
+
+    [RelayCommand]
+    private void CreateNewProfile()
+    {
+        _logger.LogInformation("User clicked: Create New Profile");
+        ShowCreateProfile = true;
+        NewProfileName = string.Empty;
+        NewProfileDisplayName = string.Empty;
+        NewProfilePin = string.Empty;
+        ProfileErrorMessage = null;
+    }
+
+    [RelayCommand]
+    private void CancelCreateProfile()
+    {
+        _logger.LogInformation("User clicked: Cancel Create Profile");
+        ShowCreateProfile = false;
+        NewProfileName = string.Empty;
+        NewProfileDisplayName = string.Empty;
+        NewProfilePin = string.Empty;
+        ProfileErrorMessage = null;
+    }
+
+    [RelayCommand]
+    private async Task ConfirmCreateProfileAsync()
+    {
+        _logger.LogInformation("User clicked: Confirm Create Profile (Name: '{Name}')", NewProfileName);
+
+        try
+        {
+            // Validate profile name
+            if (string.IsNullOrWhiteSpace(NewProfileName))
+            {
+                ProfileErrorMessage = "Profile name is required";
+                _logger.LogWarning("Profile creation failed: Name is empty");
+                return;
+            }
+
+            // Create the profile
+            var displayName = string.IsNullOrWhiteSpace(NewProfileDisplayName) ? NewProfileName : NewProfileDisplayName;
+            var pin = string.IsNullOrWhiteSpace(NewProfilePin) ? null : NewProfilePin;
+
+            _logger.LogInformation("Creating profile '{Name}' with display name '{DisplayName}'", NewProfileName, displayName);
+            var profile = await _profileService.CreateProfileAsync(NewProfileName, displayName, pin);
+
+            // Switch to the new profile (pass PIN if it was set)
+            await _profileService.SwitchProfileAsync(profile.Name, pin);
+            _logger.LogInformation("Successfully created and switched to profile '{Name}'", profile.Name);
+
+            // Hide profile selector
+            ShowCreateProfile = false;
+            ShowProfileSelector = false;
+            ProfileErrorMessage = null;
+
+            // Update title
+            _ = UpdateTitleAsync();
+
+            // Refresh the main view
+            await CheckPlatformConnectionsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating profile '{Name}'", NewProfileName);
+            ProfileErrorMessage = $"Error creating profile: {ex.Message}";
+        }
+    }
+}

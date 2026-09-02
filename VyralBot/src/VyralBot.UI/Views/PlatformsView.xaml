@@ -1,0 +1,1112 @@
+<UserControl x:Class="VyralBot.UI.Views.PlatformsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:local="clr-namespace:VyralBot.UI.Views"
+             xmlns:converters="clr-namespace:VyralBot.UI.Converters"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="800"
+             Background="{StaticResource BackgroundDarkBrush}">
+    <UserControl.Resources>
+        <converters:InvertBooleanConverter x:Key="InvertBooleanConverter"/>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <converters:InvertBooleanToVisibilityConverter x:Key="InvertBooleanToVisibilityConverter"/>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- Back Button -->
+        <Button Content="BACK TO HOME →"
+                Command="{Binding DataContext.NavigateToHomeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                Style="{StaticResource MaterialDesignFlatButton}"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Margin="24,16"
+                Height="40"
+                Padding="16,0"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Panel.ZIndex="999"/>
+
+        <!-- Platform Selection (shown when no platform selected) -->
+        <Grid Visibility="{Binding ShowPlatformSelection, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Sticky Header -->
+            <StackPanel Grid.Row="0"
+                        Background="{StaticResource BackgroundDarkBrush}"
+                        Margin="24,24,24,0">
+                <TextBlock Text="Platform Connections"
+                         FontSize="28"
+                         FontWeight="Bold"
+                         Margin="0,0,0,8"
+                         Foreground="{StaticResource TextPrimaryBrush}"/>
+
+                <TextBlock Text="Select a platform to connect"
+                         FontSize="14"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         Margin="0,0,0,24"/>
+            </StackPanel>
+
+            <!-- Scrollable Platform Grid -->
+            <ScrollViewer Grid.Row="1"
+                         VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="24,8,24,24">
+                <!-- Platform Grid -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="16"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="16"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Twitch Card -->
+                    <materialDesign:Card Grid.Row="0" Grid.Column="0"
+                                        Padding="32"
+                                        Background="{StaticResource CardBackgroundBrush}"
+                                        Effect="{StaticResource CardShadow}"
+                                        Cursor="Hand">
+                        <materialDesign:Card.InputBindings>
+                            <MouseBinding Command="{Binding SelectTwitchCommand}" MouseAction="LeftClick"/>
+                        </materialDesign:Card.InputBindings>
+                        <StackPanel HorizontalAlignment="Center">
+                            <Image Source="/Resources/Images/twitch-logo.png"
+                                   Width="64"
+                                   Height="64"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,16"/>
+                            <TextBlock Text="Twitch"
+                                     FontSize="24"
+                                     FontWeight="Bold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,8"/>
+                            <TextBlock Text="Live streaming platform"
+                                     FontSize="14"
+                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,16"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Ellipse Width="8" Height="8" Margin="0,0,4,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{StaticResource ErrorRedBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsTwitchConnected}" Value="True">
+                                                    <Setter Property="Fill" Value="{StaticResource SuccessGreenBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Not Connected"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsTwitchConnected}" Value="True">
+                                                    <Setter Property="Text" Value="Connected"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                    </materialDesign:Card>
+
+                    <!-- Kick Card -->
+                    <materialDesign:Card Grid.Row="0" Grid.Column="2"
+                                        Padding="32"
+                                        Background="{StaticResource CardBackgroundBrush}"
+                                        Effect="{StaticResource CardShadow}"
+                                        Cursor="Hand">
+                        <materialDesign:Card.InputBindings>
+                            <MouseBinding Command="{Binding SelectKickCommand}" MouseAction="LeftClick"/>
+                        </materialDesign:Card.InputBindings>
+                        <StackPanel HorizontalAlignment="Center">
+                            <Image Source="/Resources/Images/kick-logo.png"
+                                   Width="64"
+                                   Height="64"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,16"/>
+                            <TextBlock Text="Kick"
+                                     FontSize="24"
+                                     FontWeight="Bold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,8"/>
+                            <TextBlock Text="Live streaming platform"
+                                     FontSize="14"
+                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,16"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Ellipse Width="8" Height="8" Margin="0,0,4,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{StaticResource ErrorRedBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsKickConnected}" Value="True">
+                                                    <Setter Property="Fill" Value="{StaticResource SuccessGreenBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Not Connected"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsKickConnected}" Value="True">
+                                                    <Setter Property="Text" Value="Connected"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                    </materialDesign:Card>
+
+                    <!-- YouTube Card -->
+                    <materialDesign:Card Grid.Row="2" Grid.Column="0"
+                                        Padding="32"
+                                        Background="{StaticResource CardBackgroundBrush}"
+                                        Effect="{StaticResource CardShadow}"
+                                        Cursor="Hand">
+                        <materialDesign:Card.InputBindings>
+                            <MouseBinding Command="{Binding SelectYouTubeCommand}" MouseAction="LeftClick"/>
+                        </materialDesign:Card.InputBindings>
+                        <StackPanel HorizontalAlignment="Center">
+                            <Image Source="/Resources/Images/youtube-logo.png"
+                                   Width="64"
+                                   Height="64"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,16"/>
+                            <TextBlock Text="YouTube"
+                                     FontSize="24"
+                                     FontWeight="Bold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,8"/>
+                            <TextBlock Text="Live streaming platform"
+                                     FontSize="14"
+                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,16"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Ellipse Width="8" Height="8" Margin="0,0,4,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{StaticResource ErrorRedBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsYouTubeConnected}" Value="True">
+                                                    <Setter Property="Fill" Value="{StaticResource SuccessGreenBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Not Connected"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsYouTubeConnected}" Value="True">
+                                                    <Setter Property="Text" Value="Connected"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                    </materialDesign:Card>
+
+                    <!-- TikTok Card -->
+                    <materialDesign:Card Grid.Row="2" Grid.Column="2"
+                                        Padding="32"
+                                        Background="{StaticResource CardBackgroundBrush}"
+                                        Effect="{StaticResource CardShadow}"
+                                        Cursor="Hand">
+                        <materialDesign:Card.InputBindings>
+                            <MouseBinding Command="{Binding SelectTikTokCommand}" MouseAction="LeftClick"/>
+                        </materialDesign:Card.InputBindings>
+                        <StackPanel HorizontalAlignment="Center">
+                            <Image Source="/Resources/Images/tiktok-logo.png"
+                                   Width="64"
+                                   Height="64"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,16"/>
+                            <TextBlock Text="TikTok"
+                                     FontSize="24"
+                                     FontWeight="Bold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,8"/>
+                            <TextBlock Text="Live streaming platform"
+                                     FontSize="14"
+                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,16"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Ellipse Width="8" Height="8" Margin="0,0,4,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{StaticResource ErrorRedBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsTikTokConnected}" Value="True">
+                                                    <Setter Property="Fill" Value="{StaticResource SuccessGreenBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Not Connected"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsTikTokConnected}" Value="True">
+                                                    <Setter Property="Text" Value="Connected"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                    </materialDesign:Card>
+
+                    <!-- Discord Card -->
+                    <materialDesign:Card Grid.Row="4" Grid.Column="0"
+                                        Padding="32"
+                                        Background="{StaticResource CardBackgroundBrush}"
+                                        Effect="{StaticResource CardShadow}"
+                                        Cursor="Hand">
+                        <materialDesign:Card.InputBindings>
+                            <MouseBinding Command="{Binding SelectDiscordCommand}" MouseAction="LeftClick"/>
+                        </materialDesign:Card.InputBindings>
+                        <StackPanel HorizontalAlignment="Center">
+                            <Image Source="/Resources/Images/discord-logo.png"
+                                   Width="64"
+                                   Height="64"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,16"/>
+                            <TextBlock Text="Discord"
+                                     FontSize="24"
+                                     FontWeight="Bold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,8"/>
+                            <TextBlock Text="Communication platform"
+                                     FontSize="14"
+                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,16"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Ellipse Width="8" Height="8" Margin="0,0,4,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{StaticResource ErrorRedBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsDiscordConnected}" Value="True">
+                                                    <Setter Property="Fill" Value="{StaticResource SuccessGreenBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Not Connected"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsDiscordConnected}" Value="True">
+                                                    <Setter Property="Text" Value="Connected"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                    </materialDesign:Card>
+
+                    <!-- OBS Card -->
+                    <materialDesign:Card Grid.Row="4" Grid.Column="2"
+                                        Padding="32"
+                                        Background="{StaticResource CardBackgroundBrush}"
+                                        Effect="{StaticResource CardShadow}"
+                                        Opacity="0.6">
+                        <StackPanel HorizontalAlignment="Center">
+                            <Image Source="/Resources/Images/obs-logo.png"
+                                   Width="64"
+                                   Height="64"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,16"/>
+                            <TextBlock Text="OBS"
+                                     FontSize="24"
+                                     FontWeight="Bold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,8"/>
+                            <TextBlock Text="Coming Soon"
+                                     FontSize="14"
+                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,16"/>
+                            <TextBlock Text="Not Available"
+                                     FontSize="12"
+                                     Foreground="{StaticResource TextMutedBrush}"
+                                     HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </materialDesign:Card>
+                </Grid>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- WebView Setup (lazy loaded when visible to prevent WebView2 overhead) -->
+        <ContentControl x:Name="TwitchSetupContainer" Margin="0,64,0,0"
+                        Visibility="{Binding DataContext.ShowTwitchSetup, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+        <!-- Kick WebView Setup (lazy loaded when visible to prevent WebView2 overhead) -->
+        <ContentControl x:Name="KickSetupContainer" Margin="0,64,0,0"
+                        Visibility="{Binding DataContext.ShowKickSetup, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+        <!-- YouTube WebView Setup (lazy loaded when visible to prevent WebView2 overhead) -->
+        <ContentControl x:Name="YouTubeSetupContainer" Margin="0,64,0,0"
+                        Visibility="{Binding DataContext.ShowYouTubeSetup, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+        <!-- TikTok WebView Setup (lazy loaded when visible to prevent WebView2 overhead) -->
+        <ContentControl x:Name="TikTokSetupContainer" Margin="0,64,0,0"
+                        Visibility="{Binding DataContext.ShowTikTokSetup, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+        <!-- Discord WebView Setup (lazy loaded when visible to prevent WebView2 overhead) -->
+        <ContentControl x:Name="DiscordSetupContainer" Margin="0,64,0,0"
+                        Visibility="{Binding DataContext.ShowDiscordSetup, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+        <!-- Main View (shown when viewing a specific platform connection) -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ScrollViewer.Style>
+                <Style TargetType="ScrollViewer">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <!-- Show when either Twitch or Kick connection view is active -->
+                        <DataTrigger Binding="{Binding ShowTwitchConnection}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding ShowKickConnection}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding ShowYouTubeConnection}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding ShowTikTokConnection}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding ShowDiscordConnection}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ScrollViewer.Style>
+            <StackPanel Margin="24">
+            <!-- Twitch Section -->
+            <TextBlock Text="Twitch Connection"
+                     FontSize="28"
+                     FontWeight="Bold"
+                     Margin="0,0,0,24"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     Visibility="{Binding ShowTwitchConnection, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+            <!-- Connected Account Card -->
+            <materialDesign:Card Margin="0,0,0,16"
+                                Padding="32"
+                                Background="{StaticResource CardBackgroundBrush}"
+                                Effect="{StaticResource CardShadow}"
+                                Visibility="{Binding ShowTwitchConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel>
+                    <!-- Header with Status -->
+                    <Grid Margin="0,0,0,24">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Image Grid.Column="0"
+                                               Source="/Resources/Images/twitch-logo.png"
+                                               Width="48"
+                                               Height="48"
+                                               VerticalAlignment="Center"/>                        <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding TwitchUsername, StringFormat='Connected as @{0}'}"
+                                     FontSize="20"
+                                     FontWeight="Bold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Margin="0,0,0,4"/>
+                            <TextBlock Text="All systems operational"
+                                     FontSize="14"
+                                     Foreground="{StaticResource SuccessGreenBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="12"
+                                   Height="12"
+                                   Fill="{StaticResource SuccessGreenBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"/>
+                            <TextBlock Text="Connected"
+                                     FontSize="14"
+                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Credentials Info -->
+                    <Border Background="{StaticResource BackgroundDarkBrush}"
+                            CornerRadius="8"
+                            Padding="16"
+                            Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="Credentials"
+                                     FontSize="16"
+                                     FontWeight="SemiBold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Margin="0,0,0,12"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="8"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0"
+                                         Text="Client ID:"
+                                         FontSize="14"
+                                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1"
+                                         Text="****************************"
+                                         FontSize="14"
+                                         Foreground="{StaticResource TextMutedBrush}"
+                                         FontFamily="Consolas"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0"
+                                         Text="Client Secret:"
+                                         FontSize="14"
+                                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1"
+                                         Text="••••••••••••••••••••••••••••"
+                                         FontSize="14"
+                                         Foreground="{StaticResource TextMutedBrush}"
+                                         FontFamily="Consolas"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Permissions -->
+                    <TextBlock Text="OAuth Permissions"
+                             FontSize="16"
+                             FontWeight="SemiBold"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Margin="0,0,0,12"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <TextBlock Text="✓ Chat read/write" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Moderation" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Channel management" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Polls &amp; predictions" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Subscriptions" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Followers" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Bits &amp; donations" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Clips &amp; videos" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                            <TextBlock Text="✓ Channel rewards" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Raids" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Whispers" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Announcements" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Stream schedule" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Stream key" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Extensions" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Analytics" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="✓ AutoMod" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Blocked users/terms" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ VIPs &amp; moderators" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Shield mode" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Shoutouts" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Guest star" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Ads management" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Emotes &amp; chat color" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Actions -->
+                    <Grid Margin="0,24,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0"
+                              Content="← BACK"
+                              Command="{Binding BackToPlatformSelectionCommand}"
+                              Style="{StaticResource MaterialDesignOutlinedButton}"
+                              Height="40"
+                              Padding="24,0"
+                              VerticalContentAlignment="Center"/>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <Button Content="RECONNECT"
+                                  Command="{Binding ReconnectTwitchCommand}"
+                                  Style="{StaticResource MaterialDesignRaisedButton}"
+                                  Background="{StaticResource VyralRedBrush}"
+                                  Margin="0,0,12,0"
+                                  Height="40"
+                                  Padding="24,0"
+                                  VerticalContentAlignment="Center"/>
+
+                            <Button Content="DISCONNECT"
+                                  Command="{Binding DisconnectTwitchCommand}"
+                                  Style="{StaticResource MaterialDesignOutlinedButton}"
+                                  Height="40"
+                                  Padding="24,0"
+                                  VerticalContentAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- Kick Connection Section (only visible when Kick is connected) -->
+            <TextBlock FontSize="28"
+                     FontWeight="Bold"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     Visibility="{Binding ShowKickConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Text" Value="Kick Connection"/>
+                        <Setter Property="Margin" Value="0,0,0,24"/>
+                        <Style.Triggers>
+                            <!-- Add top margin only when Twitch is also visible -->
+                            <DataTrigger Binding="{Binding ShowTwitchConnection}" Value="True">
+                                <Setter Property="Margin" Value="0,48,0,24"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <!-- Connected Account Card -->
+            <materialDesign:Card Margin="0,0,0,16"
+                                Padding="32"
+                                Background="{StaticResource CardBackgroundBrush}"
+                                Effect="{StaticResource CardShadow}"
+                                Visibility="{Binding ShowKickConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel>
+                    <!-- Header with Status -->
+                    <Grid Margin="0,0,0,24">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Image Grid.Column="0"
+                                               Source="/Resources/Images/kick-logo.png"
+                                               Width="48"
+                                               Height="48"
+                                               VerticalAlignment="Center"/>                        <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding KickUsername, StringFormat='Connected as @{0}'}"
+                                     FontSize="20"
+                                     FontWeight="Bold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Margin="0,0,0,4"/>
+                            <TextBlock Text="All systems operational"
+                                     FontSize="14"
+                                     Foreground="{StaticResource SuccessGreenBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="12"
+                                   Height="12"
+                                   Fill="{StaticResource SuccessGreenBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"/>
+                            <TextBlock Text="Connected"
+                                     FontSize="14"
+                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Credentials Info -->
+                    <Border Background="{StaticResource BackgroundDarkBrush}"
+                            CornerRadius="8"
+                            Padding="16"
+                            Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="Credentials"
+                                     FontSize="16"
+                                     FontWeight="SemiBold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Margin="0,0,0,12"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="8"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0"
+                                         Text="Client ID:"
+                                         FontSize="14"
+                                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1"
+                                         Text="****************************"
+                                         FontSize="14"
+                                         Foreground="{StaticResource TextMutedBrush}"
+                                         FontFamily="Consolas"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0"
+                                         Text="Client Secret:"
+                                         FontSize="14"
+                                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1"
+                                         Text="••••••••••••••••••••••••••••"
+                                         FontSize="14"
+                                         Foreground="{StaticResource TextMutedBrush}"
+                                         FontFamily="Consolas"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Permissions -->
+                    <TextBlock Text="OAuth Permissions"
+                             FontSize="16"
+                             FontWeight="SemiBold"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Margin="0,0,0,12"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <TextBlock Text="✓ Read user info" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read channel data" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Write to channel" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                            <TextBlock Text="✓ Write chat messages" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read stream key" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Subscribe to events" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="✓ Moderation &amp; bans" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read kicks" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Actions -->
+                    <Grid Margin="0,24,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0"
+                              Content="← BACK"
+                              Command="{Binding BackToPlatformSelectionCommand}"
+                              Style="{StaticResource MaterialDesignOutlinedButton}"
+                              Height="40"
+                              Padding="24,0"
+                              VerticalContentAlignment="Center"/>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <Button Content="RECONNECT"
+                                  Command="{Binding ReconnectKickCommand}"
+                                  Style="{StaticResource MaterialDesignRaisedButton}"
+                                  Background="{StaticResource VyralRedBrush}"
+                                  Margin="0,0,12,0"
+                                  Height="40"
+                                  Padding="24,0"
+                                  VerticalContentAlignment="Center"/>
+
+                            <Button Content="DISCONNECT"
+                                  Command="{Binding DisconnectKickCommand}"
+                                  Style="{StaticResource MaterialDesignOutlinedButton}"
+                                  Height="40"
+                                  Padding="24,0"
+                                  VerticalContentAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- YouTube Connection Section (only visible when YouTube is connected) -->
+            <TextBlock FontSize="28"
+                     FontWeight="Bold"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     Visibility="{Binding ShowYouTubeConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Text" Value="YouTube Connection"/>
+                        <Setter Property="Margin" Value="0,48,0,24"/>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <materialDesign:Card Margin="0,0,0,16"
+                                Padding="32"
+                                Background="{StaticResource CardBackgroundBrush}"
+                                Effect="{StaticResource CardShadow}"
+                                Visibility="{Binding ShowYouTubeConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,24">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Image Grid.Column="0"
+                               Source="/Resources/Images/youtube-logo.png"
+                               Width="48"
+                               Height="48"
+                               VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding YoutubeUsername, StringFormat='Connected as @{0}'}"
+                                     FontSize="20"
+                                     FontWeight="Bold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Margin="0,0,0,4"/>
+                            <TextBlock Text="All systems operational"
+                                     FontSize="14"
+                                     Foreground="{StaticResource SuccessGreenBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="12" Height="12" Fill="{StaticResource SuccessGreenBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Connected" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Background="{StaticResource BackgroundDarkBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="Credentials" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="8"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Client ID:" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="****************************" FontSize="14" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Client Secret:" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="••••••••••••••••••••••••••••" FontSize="14" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="OAuth Permissions" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <TextBlock Text="✓ Read user info" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read channel data" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Manage live streams" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                            <TextBlock Text="✓ Read live chat" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Write chat messages" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Subscribe to events" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="✓ Moderation" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Super Chat" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,24,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="← BACK" Command="{Binding BackToPlatformSelectionCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <Button Content="RECONNECT" Command="{Binding ReconnectYouTubeCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{StaticResource VyralRedBrush}" Margin="0,0,12,0" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
+                            <Button Content="DISCONNECT" Command="{Binding DisconnectYouTubeCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- TikTok Connection Section (only visible when TikTok is connected) -->
+            <TextBlock FontSize="28"
+                     FontWeight="Bold"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     Visibility="{Binding ShowTikTokConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Text" Value="TikTok Connection"/>
+                        <Setter Property="Margin" Value="0,48,0,24"/>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <materialDesign:Card Margin="0,0,0,16"
+                                Padding="32"
+                                Background="{StaticResource CardBackgroundBrush}"
+                                Effect="{StaticResource CardShadow}"
+                                Visibility="{Binding ShowTikTokConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,24">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Image Grid.Column="0"
+                               Source="/Resources/Images/tiktok-logo.png"
+                               Width="48"
+                               Height="48"
+                               VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding TiktokUsername, StringFormat='Connected as @{0}'}"
+                                     FontSize="20"
+                                     FontWeight="Bold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Margin="0,0,0,4"/>
+                            <TextBlock Text="All systems operational"
+                                     FontSize="14"
+                                     Foreground="{StaticResource SuccessGreenBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="12" Height="12" Fill="{StaticResource SuccessGreenBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Connected" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Background="{StaticResource BackgroundDarkBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="Credentials" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="8"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Client ID:" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="****************************" FontSize="14" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Client Secret:" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="••••••••••••••••••••••••••••" FontSize="14" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="OAuth Permissions" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <TextBlock Text="✓ Read user info" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read live data" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Manage live streams" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                            <TextBlock Text="✓ Read live chat" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Write chat messages" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Subscribe to events" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="✓ Moderation" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Gifts &amp; donations" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,24,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="← BACK" Command="{Binding BackToPlatformSelectionCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <Button Content="RECONNECT" Command="{Binding ReconnectTikTokCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{StaticResource VyralRedBrush}" Margin="0,0,12,0" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
+                            <Button Content="DISCONNECT" Command="{Binding DisconnectTikTokCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- Discord Connection Section (only visible when Discord is connected) -->
+            <TextBlock FontSize="28"
+                     FontWeight="Bold"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     Visibility="{Binding ShowDiscordConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Text" Value="Discord Connection"/>
+                        <Setter Property="Margin" Value="0,48,0,24"/>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <materialDesign:Card Margin="0,0,0,16"
+                                Padding="32"
+                                Background="{StaticResource CardBackgroundBrush}"
+                                Effect="{StaticResource CardShadow}"
+                                Visibility="{Binding ShowDiscordConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,24">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Image Grid.Column="0"
+                               Source="/Resources/Images/discord-logo.png"
+                               Width="48"
+                               Height="48"
+                               VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding DiscordUsername, StringFormat='Connected as @{0}'}"
+                                     FontSize="20"
+                                     FontWeight="Bold"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Margin="0,0,0,4"/>
+                            <TextBlock Text="All systems operational"
+                                     FontSize="14"
+                                     Foreground="{StaticResource SuccessGreenBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="12" Height="12" Fill="{StaticResource SuccessGreenBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Connected" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Background="{StaticResource BackgroundDarkBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="Credentials" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="8"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Client ID:" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="****************************" FontSize="14" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Bot Token:" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="••••••••••••••••••••••••••••" FontSize="14" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="Bot Permissions" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <TextBlock Text="✓ Read messages" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Send messages" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Manage channels" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                            <TextBlock Text="✓ Manage roles" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Manage webhooks" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ View audit log" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="✓ Moderation" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Voice channels" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,24,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Content="← BACK" Command="{Binding BackToPlatformSelectionCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <Button Content="RECONNECT" Command="{Binding ReconnectDiscordCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{StaticResource VyralRedBrush}" Margin="0,0,12,0" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
+                            <Button Content="DISCONNECT" Command="{Binding DisconnectDiscordCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </materialDesign:Card>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

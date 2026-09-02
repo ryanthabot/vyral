@@ -1,0 +1,1188 @@
+<UserControl x:Class="VyralBot.UI.Views.SettingsView"
+             x:Name="SettingsViewRoot"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:converters="clr-namespace:VyralBot.UI.Converters"
+             Background="{DynamicResource BackgroundPrimaryBrush}">
+    
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <converters:InvertBooleanToVisibilityConverter x:Key="InvertBooleanToVisibilityConverter"/>
+        <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
+        <converters:EqualsToVisibilityConverter x:Key="EqualsToVisibilityConverter"/>
+    </UserControl.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Margin="0,0,0,24">
+            <TextBlock Text="Settings" 
+                       FontSize="28" 
+                       FontWeight="Bold" 
+                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+        </Grid>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Category Navigation Sidebar -->
+            <Border Grid.Column="0" 
+                    Background="{DynamicResource BackgroundSecondaryBrush}"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="0,0,16,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <!-- Profile Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="Profile"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Account" 
+                                                         Width="20" 
+                                                         Height="20" 
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Profile" 
+                                           FontSize="14" 
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Theme Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="Theme"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Palette" 
+                                                         Width="20" 
+                                                         Height="20" 
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Theme" 
+                                           FontSize="14" 
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Platforms Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="Platforms"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="ViewDashboard" 
+                                                         Width="20" 
+                                                         Height="20" 
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Platforms" 
+                                           FontSize="14" 
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Data Management Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="Data"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Database" 
+                                                         Width="20" 
+                                                         Height="20" 
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Data Management" 
+                                           FontSize="14" 
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Notifications Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="Notifications"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Bell" 
+                                                         Width="20" 
+                                                         Height="20" 
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Notifications" 
+                                           FontSize="14" 
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Commands Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="Commands"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="CodeBraces" 
+                                                         Width="20" 
+                                                         Height="20" 
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Commands" 
+                                           FontSize="14" 
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Variables Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="Variables"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Variable" 
+                                                         Width="20" 
+                                                         Height="20" 
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Variables" 
+                                           FontSize="14" 
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Timers Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="Timers"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="ClockOutline" 
+                                                         Width="20" 
+                                                         Height="20" 
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Timers" 
+                                           FontSize="14" 
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Automation Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="Automation"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Robot" 
+                                                         Width="20" 
+                                                         Height="20" 
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Automation" 
+                                           FontSize="14" 
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- API & Webhooks Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="API"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Api" 
+                                                         Width="20" 
+                                                         Height="20" 
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="API &amp; Webhooks" 
+                                           FontSize="14" 
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Performance Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="Performance"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Speedometer" 
+                                                         Width="20" 
+                                                         Height="20" 
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Performance" 
+                                           FontSize="14" 
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Security Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="Security"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Security" 
+                                                         Width="20" 
+                                                         Height="20" 
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Security" 
+                                           FontSize="14" 
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Advanced Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="Advanced"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Cog" 
+                                                         Width="20" 
+                                                         Height="20" 
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Advanced" 
+                                           FontSize="14" 
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- Content Area -->
+            <Border Grid.Column="1" 
+                    Background="{DynamicResource BackgroundSecondaryBrush}"
+                    CornerRadius="8">
+                <Grid>
+                    <!-- Main Settings Content (with ScrollViewer) -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding ShowPlatformGrid, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel Margin="24">
+                        
+                        <!-- Status Message -->
+                        <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                BorderBrush="{DynamicResource PrimaryBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="16,12"
+                                Margin="0,0,0,16"
+                                Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}}">
+                            <TextBlock Text="{Binding StatusMessage}"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </Border>
+
+                        <!-- Profile Panel - Content will be added next -->
+                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Profile}">
+                            
+                            <!-- General Settings Section -->
+                            <materialDesign:Card Padding="24" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="General" 
+                                               FontSize="20" 
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,16"/>
+
+                                    <!-- Auto-Login Setting -->
+                                    <Grid Margin="0,0,0,16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Auto-Login" 
+                                                       FontSize="14" 
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Skip profile selection and automatically login to the current profile" 
+                                                       FontSize="12" 
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                        
+                                        <ToggleButton Grid.Column="1"
+                                                      IsChecked="{Binding AutoLogin}"
+                                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="16,0,0,0"/>
+                                    </Grid>
+
+                                    <Button Content="Save Settings"
+                                            Command="{Binding SaveAutoLoginCommand}"
+                                            Style="{StaticResource MaterialDesignRaisedButton}"
+                                            Background="{DynamicResource PrimaryBrush}"
+                                            HorizontalAlignment="Right"/>
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <!-- Support Links Section -->
+                            <materialDesign:Card Padding="24" Margin="0,16,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Support Links"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,4"/>
+                                    <TextBlock Text="Links opened by the Discord and Ideas &amp; Suggestions rows on the Home page"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,16"/>
+
+                                    <TextBlock Text="Discord Invite URL"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,4"/>
+                                    <TextBox Text="{Binding DiscordInviteUrl, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                             materialDesign:HintAssist.Hint="https://discord.gg/your-invite"
+                                             Margin="0,0,0,12"/>
+
+                                    <TextBlock Text="Ideas &amp; Suggestions URL"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,4"/>
+                                    <TextBox Text="{Binding IdeasUrl, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                             materialDesign:HintAssist.Hint="https://github.com/you/VyralBot/issues"
+                                             Margin="0,0,0,16"/>
+
+                                    <Button Content="Save Support Links"
+                                            Command="{Binding SaveSupportLinksCommand}"
+                                            Style="{StaticResource MaterialDesignRaisedButton}"
+                                            Background="{DynamicResource PrimaryBrush}"
+                                            HorizontalAlignment="Right"/>
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <!-- Profile Management Section -->
+                            <materialDesign:Card Padding="24">
+                                <StackPanel>
+                                    <TextBlock Text="Profile Management" 
+                                               FontSize="20" 
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,16"/>
+
+                                    <TextBlock Text="Current Profile:" 
+                                               FontSize="12" 
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Margin="0,0,0,8"/>
+                                    
+                                    <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                            BorderBrush="{DynamicResource PrimaryBrush}"
+                                            BorderThickness="2"
+                                            CornerRadius="4"
+                                            Padding="12"
+                                            Margin="0,0,0,16">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding CurrentProfile.DisplayName}" 
+                                                           FontSize="16" 
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                <TextBlock Text="{Binding CurrentProfile.Name}" 
+                                                           FontSize="12" 
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                            
+                                            <Button Grid.Column="1"
+                                                    Command="{Binding ShowChangePinDialogForProfileCommand}"
+                                                    CommandParameter="{Binding CurrentProfile}"
+                                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                                    Padding="8,4">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <materialDesign:PackIcon Kind="Lock" 
+                                                                             Width="16" 
+                                                                             Height="16" 
+                                                                             VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Change PIN" 
+                                                               Margin="4,0,0,0" 
+                                                               VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+
+                                    <Grid Margin="0,0,0,16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <TextBlock Grid.Column="0"
+                                                   Text="All Profiles:" 
+                                                   FontSize="12" 
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   VerticalAlignment="Center"/>
+                                        
+                                        <Button Grid.Column="1"
+                                                Command="{Binding ShowCreateProfileDialogForSettingsCommand}"
+                                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                                Background="{DynamicResource PrimaryBrush}"
+                                                Padding="12,6">
+                                            <StackPanel Orientation="Horizontal">
+                                                <materialDesign:PackIcon Kind="Plus" 
+                                                                         Width="16" 
+                                                                         Height="16" 
+                                                                         VerticalAlignment="Center"/>
+                                                <TextBlock Text="New Profile" 
+                                                           Margin="4,0,0,0" 
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- Profiles List -->
+                                    <ItemsControl ItemsSource="{Binding Profiles}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        Padding="16,12"
+                                                        Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        
+                                                        <StackPanel Grid.Column="0">
+                                                            <TextBlock Text="{Binding DisplayName}" 
+                                                                       FontSize="14" 
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                            <TextBlock Text="{Binding Name}" 
+                                                                       FontSize="11" 
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                       Margin="0,2,0,0"/>
+                                                            <TextBlock FontSize="10" 
+                                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                                       Margin="0,4,0,0">
+                                                                <Run Text="Last used: "/>
+                                                                <Run Text="{Binding LastUsedAt, StringFormat='MMM dd, yyyy'}"/>
+                                                            </TextBlock>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="1" 
+                                                                    Orientation="Horizontal" 
+                                                                    VerticalAlignment="Center">
+                                                            <Button Command="{Binding DataContext.ShowSwitchProfileDialogForProfileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                                                    Padding="8,4"
+                                                                    Margin="0,0,8,0">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <materialDesign:PackIcon Kind="SwapHorizontal" 
+                                                                                             Width="16" 
+                                                                                             Height="16" 
+                                                                                             VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Switch" 
+                                                                               Margin="4,0,0,0" 
+                                                                               VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            
+                                                            <Button Command="{Binding DataContext.ExportProfileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                                                    Padding="8,4"
+                                                                    Margin="0,0,8,0">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <materialDesign:PackIcon Kind="Export" 
+                                                                                             Width="16" 
+                                                                                             Height="16" 
+                                                                                             VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Export" 
+                                                                               Margin="4,0,0,0" 
+                                                                               VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            
+                                                            <Button Command="{Binding DataContext.RequestDeleteProfileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                                                    Padding="8,4"
+                                                                    Foreground="{DynamicResource ErrorBrush}">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <materialDesign:PackIcon Kind="Delete" 
+                                                                                             Width="16" 
+                                                                                             Height="16" 
+                                                                                             VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Delete" 
+                                                                               Margin="4,0,0,0" 
+                                                                               VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </materialDesign:Card>
+                            
+                        </StackPanel>
+
+                        <!-- Theme Panel -->
+                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Theme}">
+                            <TextBlock Text="Theme Settings" 
+                                       FontSize="20" 
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,0,0,16"/>
+                            <TextBlock Text="Coming Soon..." 
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Platforms Panel -->
+                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Platforms}">
+                            
+                            <!-- Platform Selection Grid -->
+                            <UniformGrid Rows="3" 
+                                         Columns="2" 
+                                         Margin="0,0,0,24"
+                                         Visibility="{Binding ShowPlatformGrid, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <!-- Twitch Platform Card -->
+                                <Button Command="{Binding NavigateToTwitchSettingsCommand}"
+                                        Style="{StaticResource MaterialDesignRaisedButton}"
+                                        Height="140"
+                                        Margin="0,0,8,8"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        IsEnabled="{Binding IsTwitchConnected}">
+                                    <StackPanel>
+                                        <Image Source="/Resources/Images/twitch-logo.png" 
+                                               Width="64" 
+                                               Height="64" 
+                                               Margin="0,0,0,12"/>
+                                        <TextBlock Text="Twitch" 
+                                                   FontSize="18" 
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock FontSize="12"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   Margin="0,4,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="Configure Twitch integration"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsTwitchConnected}" Value="False">
+                                                            <Setter Property="Text" Value="Not connected"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Button>
+
+                                <!-- Kick Platform Card -->
+                                <Button Command="{Binding NavigateToKickSettingsCommand}"
+                                        Style="{StaticResource MaterialDesignRaisedButton}"
+                                        Height="140"
+                                        Margin="8,0,0,8"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        IsEnabled="{Binding IsKickConnected}">
+                                    <StackPanel>
+                                        <Image Source="/Resources/Images/kick-logo.png" 
+                                               Width="64" 
+                                               Height="64" 
+                                               Margin="0,0,0,12"/>
+                                        <TextBlock Text="Kick" 
+                                                   FontSize="18" 
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock FontSize="12"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   Margin="0,4,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="Configure Kick integration"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsKickConnected}" Value="False">
+                                                            <Setter Property="Text" Value="Not connected"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Button>
+
+                                <!-- YouTube Platform Card -->
+                                <Button Style="{StaticResource MaterialDesignRaisedButton}"
+                                        Height="140"
+                                        Margin="0,0,8,8"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        IsEnabled="False"
+                                        ToolTipService.ShowOnDisabled="True"
+                                        ToolTip="Configure YouTube chat in the Chat hub">
+                                    <StackPanel>
+                                        <Image Source="/Resources/Images/youtube-logo.png"
+                                               Width="64"
+                                               Height="64"
+                                               Margin="0,0,0,12"/>
+                                        <TextBlock Text="YouTube" 
+                                                   FontSize="18" 
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock FontSize="12"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   Margin="0,4,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="Configure YouTube integration"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsYouTubeConnected}" Value="False">
+                                                            <Setter Property="Text" Value="Not connected"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Button>
+
+                                <!-- TikTok Platform Card -->
+                                <Button Style="{StaticResource MaterialDesignRaisedButton}"
+                                        Height="140"
+                                        Margin="8,0,0,8"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        IsEnabled="False"
+                                        ToolTipService.ShowOnDisabled="True"
+                                        ToolTip="This platform is not available yet">
+                                    <StackPanel>
+                                        <Image Source="/Resources/Images/tiktok-logo.png"
+                                               Width="64"
+                                               Height="64"
+                                               Margin="0,0,0,12"/>
+                                        <TextBlock Text="TikTok" 
+                                                   FontSize="18" 
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock FontSize="12"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   Margin="0,4,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="Configure TikTok integration"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsTikTokConnected}" Value="False">
+                                                            <Setter Property="Text" Value="Not connected"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Button>
+
+                                <!-- Discord Platform Card -->
+                                <Button Style="{StaticResource MaterialDesignRaisedButton}"
+                                        Height="140"
+                                        Margin="0,0,8,0"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        IsEnabled="False"
+                                        ToolTipService.ShowOnDisabled="True"
+                                        ToolTip="This platform is not available yet">
+                                    <StackPanel>
+                                        <Image Source="/Resources/Images/discord-logo.png"
+                                               Width="64"
+                                               Height="64"
+                                               Margin="0,0,0,12"/>
+                                        <TextBlock Text="Discord" 
+                                                   FontSize="18" 
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock FontSize="12"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   Margin="0,4,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="Configure Discord integration"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsDiscordConnected}" Value="False">
+                                                            <Setter Property="Text" Value="Not connected"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Button>
+
+                                <!-- OBS Platform Card -->
+                                <Button Style="{StaticResource MaterialDesignRaisedButton}"
+                                        Height="140"
+                                        Margin="8,0,0,0"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        IsEnabled="False"
+                                        ToolTipService.ShowOnDisabled="True"
+                                        ToolTip="This platform is not available yet">
+                                    <StackPanel>
+                                        <Image Source="/Resources/Images/obs-logo.png"
+                                               Width="64"
+                                               Height="64"
+                                               Margin="0,0,0,12"/>
+                                        <TextBlock Text="OBS" 
+                                                   FontSize="18" 
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock FontSize="12"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   Margin="0,4,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="Configure OBS integration"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsOBSConnected}" Value="False">
+                                                            <Setter Property="Text" Value="Not connected"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Button>
+                            </UniformGrid>
+                        </StackPanel>
+
+                        <!-- Data Panel -->
+                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Data}">
+                            <TextBlock Text="Data Management" 
+                                       FontSize="20" 
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,0,0,16"/>
+                            <TextBlock Text="Coming Soon..." 
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Notifications Panel -->
+                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Notifications}">
+                            <TextBlock Text="Notifications" 
+                                       FontSize="20" 
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,0,0,16"/>
+                            <TextBlock Text="Coming Soon..." 
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Commands Panel -->
+                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Commands}">
+                            <TextBlock Text="Commands" 
+                                       FontSize="20" 
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,0,0,16"/>
+                            <TextBlock Text="Coming Soon..." 
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Variables Panel -->
+                        <ContentControl Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Variables}"
+                                        Content="{Binding VariablesViewModel}"/>
+
+                        <!-- Timers Panel -->
+                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Timers}">
+                            <TextBlock Text="Timers" 
+                                       FontSize="20" 
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,0,0,16"/>
+                            <TextBlock Text="Coming Soon..." 
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Automation Panel -->
+                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Automation}">
+                            <TextBlock Text="Automation" 
+                                       FontSize="20" 
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,0,0,16"/>
+                            <TextBlock Text="Coming Soon..." 
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- API Panel -->
+                        <ContentControl Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=API}"
+                                      Content="{Binding WebServerSettingsViewModel}"/>
+
+                        <!-- Performance Panel -->
+                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Performance}">
+                            <TextBlock Text="Performance" 
+                                       FontSize="20" 
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,0,0,16"/>
+                            <TextBlock Text="Coming Soon..." 
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Security Panel -->
+                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Security}">
+                            <TextBlock Text="Security" 
+                                       FontSize="20" 
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,0,0,16"/>
+                            <TextBlock Text="Coming Soon..." 
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Advanced Panel -->
+                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Advanced}">
+                            <TextBlock Text="Advanced" 
+                                       FontSize="20" 
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,0,0,16"/>
+                            <TextBlock Text="Coming Soon..." 
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </StackPanel>
+
+                    </StackPanel>
+                </ScrollViewer>
+                
+                <!-- Selected Platform View (Outside ScrollViewer for sticky header) -->
+                <ContentControl Content="{Binding SelectedPlatformViewModel}"
+                                Visibility="{Binding ShowPlatformGrid, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Delete Confirmation Overlay -->
+        <Grid Grid.Row="1" Visibility="{Binding ShowDeleteConfirmation, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Border Background="{DynamicResource ModalBackgroundBrush}"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"/>
+            
+            <materialDesign:Card Width="400"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                Padding="24">
+                <StackPanel>
+                    <TextBlock Text="Delete Profile?" 
+                               FontSize="18" 
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,16"/>
+                    
+                    <TextBlock Text="This action cannot be undone. All profile data will be permanently deleted." 
+                               FontSize="13" 
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,24"/>
+                    
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Cancel"
+                                Command="{Binding CancelDeleteCommand}"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                Margin="0,0,8,0"/>
+                        <Button Content="Delete"
+                                Command="{Binding ConfirmDeleteCommand}"
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Background="{DynamicResource ErrorBrush}"/>
+                    </StackPanel>
+                </StackPanel>
+            </materialDesign:Card>
+        </Grid>
+
+        <!-- Change PIN Overlay -->
+        <Grid Grid.Row="1" Visibility="{Binding ShowChangePinDialog, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Border Background="{DynamicResource ModalBackgroundBrush}"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"/>
+            
+            <materialDesign:Card Width="450"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                Padding="32">
+                <StackPanel>
+                    <TextBlock Text="Change PIN" 
+                               FontSize="20" 
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,20"/>
+
+                    <!-- Current PIN -->
+                    <TextBlock Text="Current PIN (if set)" 
+                               FontSize="12" 
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="0,0,0,5"/>
+                    <PasswordBox x:Name="CurrentPinBox"
+                                 MaxLength="6"
+                                 FontSize="14"
+                                 Padding="8"
+                                 Margin="0,0,0,15"
+                                 PasswordChanged="CurrentPinBox_PasswordChanged"/>
+
+                    <!-- New PIN -->
+                    <TextBlock Text="New PIN (4-6 digits, leave blank to remove)" 
+                               FontSize="12" 
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="0,0,0,5"/>
+                    <PasswordBox x:Name="NewPinBox"
+                                 MaxLength="6"
+                                 FontSize="14"
+                                 Padding="8"
+                                 Margin="0,0,0,15"
+                                 PasswordChanged="NewPinBox_PasswordChanged"/>
+
+                    <!-- Confirm New PIN -->
+                    <TextBlock Text="Confirm New PIN" 
+                               FontSize="12" 
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="0,0,0,5"/>
+                    <PasswordBox x:Name="ConfirmNewPinBox"
+                                 MaxLength="6"
+                                 FontSize="14"
+                                 Padding="8"
+                                 Margin="0,0,0,20"
+                                 PasswordChanged="ConfirmNewPinBox_PasswordChanged"/>
+                    
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Cancel"
+                                Command="{Binding CancelChangePinCommand}"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                Margin="0,0,8,0"/>
+                        <Button Content="Save"
+                                Command="{Binding ConfirmChangePinCommand}"
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Background="{DynamicResource PrimaryBrush}"/>
+                    </StackPanel>
+                </StackPanel>
+            </materialDesign:Card>
+        </Grid>
+
+        <!-- Create Profile Overlay -->
+        <Grid Grid.Row="1" Visibility="{Binding ShowCreateProfileDialog, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Border Background="{DynamicResource ModalBackgroundBrush}"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"/>
+            
+            <materialDesign:Card Width="500"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                Padding="32">
+                <StackPanel>
+                    <TextBlock Text="Create New Profile" 
+                               FontSize="20" 
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,20"/>
+
+                    <!-- Profile Name -->
+                    <TextBlock Text="Profile Name *" 
+                               FontSize="12" 
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="0,0,0,5"/>
+                    <TextBox Text="{Binding NewProfileName, UpdateSourceTrigger=PropertyChanged}"
+                             materialDesign:HintAssist.Hint="e.g., mybotaccount"
+                             FontSize="14"
+                             Padding="8"
+                             Margin="0,0,0,5"/>
+                    <TextBlock Text="(letters, numbers, underscore, hyphen only)" 
+                               FontSize="10" 
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               Margin="0,0,0,15"/>
+
+                    <!-- Display Name -->
+                    <TextBlock Text="Display Name (optional)" 
+                               FontSize="12" 
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="0,0,0,5"/>
+                    <TextBox Text="{Binding NewProfileDisplayName, UpdateSourceTrigger=PropertyChanged}"
+                             materialDesign:HintAssist.Hint="e.g., My Bot Account"
+                             FontSize="14"
+                             Padding="8"
+                             Margin="0,0,0,15"/>
+
+                    <!-- PIN -->
+                    <TextBlock Text="PIN Code (optional)" 
+                               FontSize="12" 
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="0,0,0,5"/>
+                    <PasswordBox x:Name="NewProfilePinBoxSettings"
+                                 MaxLength="6"
+                                 FontSize="14"
+                                 Padding="8"
+                                 Margin="0,0,0,5"
+                                 PasswordChanged="NewProfilePinBoxSettings_PasswordChanged"/>
+                    <TextBlock Text="Protect this profile with a 4-6 digit PIN" 
+                               FontSize="10" 
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               Margin="0,0,0,20"/>
+                    
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Cancel"
+                                Command="{Binding CancelCreateProfileCommand}"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                Margin="0,0,8,0"/>
+                        <Button Content="Create"
+                                Command="{Binding ConfirmCreateProfileCommand}"
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Background="{DynamicResource PrimaryBrush}"/>
+                    </StackPanel>
+                </StackPanel>
+            </materialDesign:Card>
+        </Grid>
+
+        <!-- Switch Profile Overlay -->
+        <Grid Grid.Row="1" Visibility="{Binding ShowSwitchProfileDialog, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Border Background="{DynamicResource ModalBackgroundBrush}"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"/>
+            
+            <materialDesign:Card Width="400"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                Padding="24">
+                <StackPanel>
+                    <TextBlock Text="Switch Profile" 
+                               FontSize="20" 
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,10"/>
+                    
+                    <TextBlock TextWrapping="Wrap"
+                               FontSize="13"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="0,0,0,20">
+                        <Run Text="Enter the PIN for "/>
+                        <Run Text="{Binding _profileToSwitchTo.DisplayName, Mode=OneWay}" FontWeight="SemiBold"/>
+                        <Run Text=" to switch to this profile."/>
+                    </TextBlock>
+
+                    <!-- PIN -->
+                    <TextBlock Text="PIN Code" 
+                               FontSize="12" 
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="0,0,0,5"/>
+                    <PasswordBox x:Name="SwitchProfilePinBox"
+                                 MaxLength="6"
+                                 FontSize="14"
+                                 Padding="8"
+                                 Margin="0,0,0,20"
+                                 PasswordChanged="SwitchProfilePinBox_PasswordChanged"/>
+                    
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Cancel"
+                                Command="{Binding CancelSwitchProfileCommand}"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                Margin="0,0,8,0"/>
+                        <Button Content="Switch Profile"
+                                Command="{Binding ConfirmSwitchProfileCommand}"
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Background="{DynamicResource PrimaryBrush}"/>
+                    </StackPanel>
+                </StackPanel>
+            </materialDesign:Card>
+        </Grid>
+    </Grid>
+</UserControl>

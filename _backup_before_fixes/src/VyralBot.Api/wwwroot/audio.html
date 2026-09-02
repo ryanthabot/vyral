@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VyralBot Audio - Browser Source</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: opacity 0.3s;
+            z-index: 9999;
+        }
+        .connected {
+            background: rgba(0, 255, 0, 0.2);
+            color: lime;
+            border: 2px solid lime;
+        }
+        .disconnected {
+            background: rgba(255, 0, 0, 0.2);
+            color: red;
+            border: 2px solid red;
+        }
+        .connecting {
+            background: rgba(255, 255, 0, 0.2);
+            color: yellow;
+            border: 2px solid yellow;
+        }
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="status" class="connecting">Connecting to VyralBot...</div>
+    <script>
+        // Configuration
+        const WS_URL = 'ws://localhost:5000/audio-ws';
+        const SOUNDS_URL = 'http://localhost:5000/sounds/';
+        const RECONNECT_DELAY = 3000; // 3 seconds
+        const STATUS_HIDE_DELAY = 5000; // 5 seconds
+        // State
+        let ws = null;
+        let soundCache = {};
+        let reconnectTimeout = null;
+        let statusHideTimeout = null;
+        // DOM Elements
+        const statusDiv = document.getElementById('status');
+        // Initialize
+        connectWebSocket();
+        function connectWebSocket() {
+            updateStatus('Connecting to VyralBot...', 'connecting');
+            ws = new WebSocket(WS_URL);
+            ws.onopen = () => {
+                console.log('✅ Connected to VyralBot Audio WebSocket');
+                updateStatus('Connected to VyralBot', 'connected');
+                hideStatusAfterDelay();
+            };
+            ws.onclose = () => {
+                console.log('❌ Disconnected from VyralBot Audio WebSocket');
+                updateStatus('Disconnected from VyralBot', 'disconnected');
+                reconnectTimeout = setTimeout(connectWebSocket, RECONNECT_DELAY);
+            };
+            ws.onerror = (err) => {
+                console.error('WebSocket error:', err);
+                ws.close();
+            };
+            ws.onmessage = (event) => {
+                // Handle audio events here
+                // Example: { type: 'play', sound: 'alert.mp3' }
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'play' && data.sound) {
+                        playSound(data.sound);
+                    }
+                } catch (e) {
+                    console.error('Invalid message:', event.data);
+                }
+            };
+        }
+        function playSound(soundFile) {
+            if (!soundFile) return;
+            let audio = soundCache[soundFile];
+            if (!audio) {
+                audio = new Audio(SOUNDS_URL + encodeURIComponent(soundFile));
+                soundCache[soundFile] = audio;
+            }
+            audio.currentTime = 0;
+            audio.play();
+        }
+        function updateStatus(text, statusClass) {
+            statusDiv.textContent = text;
+            statusDiv.className = statusClass;
+        }
+        function hideStatusAfterDelay() {
+            if (statusHideTimeout) clearTimeout(statusHideTimeout);
+            statusHideTimeout = setTimeout(() => {
+                statusDiv.classList.add('hidden');
+            }, STATUS_HIDE_DELAY);
+        }
+    </script>
+</body>
+</html>

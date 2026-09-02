@@ -1,0 +1,331 @@
+<UserControl x:Class="VyralBot.UI.Views.DiscordDashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             Background="{StaticResource BackgroundDarkBrush}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+    </UserControl.Resources>
+
+    <Grid Margin="8">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*" MinWidth="420"/>
+            <ColumnDefinition Width="12"/>
+            <ColumnDefinition Width="*" MinWidth="300" MaxWidth="420"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Left Column: Servers -->
+        <materialDesign:Card Grid.Column="0"
+                            Background="{StaticResource CardBackgroundBrush}"
+                            VerticalAlignment="Stretch">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Panel Header -->
+                <Border Grid.Row="0"
+                        Background="{StaticResource BackgroundDarkBrush}"
+                        BorderBrush="{StaticResource BorderColorBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="12,8">
+                    <Grid>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <materialDesign:PackIcon Kind="AccountGroup"
+                                                     Width="18"
+                                                     Height="18"
+                                                     Foreground="{StaticResource DiscordBrush}"
+                                                     VerticalAlignment="Center"
+                                                     Margin="0,0,8,0"/>
+                            <TextBlock Text="Discord Servers"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <Button Command="{Binding RefreshCommand}"
+                                Style="{StaticResource MaterialDesignIconButton}"
+                                ToolTip="Refresh servers and connection status"
+                                Width="28"
+                                Height="28"
+                                Padding="0"
+                                HorizontalAlignment="Right">
+                            <materialDesign:PackIcon Kind="Refresh" Width="16" Height="16"/>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- Servers List -->
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto">
+                    <Grid>
+                        <!-- Guilds list -->
+                        <ItemsControl ItemsSource="{Binding Guilds}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{StaticResource BorderColorBrush}"
+                                            BorderThickness="0,0,0,1"
+                                            Padding="16,12">
+                                        <StackPanel>
+                                            <Grid>
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           HorizontalAlignment="Left"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding MemberCountText}"
+                                                           FontSize="12"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Channel picker row (hidden when the bot sees no text channels) -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasChannels}" Value="False">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+                                                <ComboBox Width="220"
+                                                          ItemsSource="{Binding Channels}"
+                                                          DisplayMemberPath="Name"
+                                                          SelectedValuePath="Id"
+                                                          SelectedValue="{Binding SelectedChannelId, Mode=TwoWay}"
+                                                          materialDesign:HintAssist.Hint="Text channel"
+                                                          VerticalAlignment="Center"/>
+
+                                                <Button Content="SET ACTIVE CHANNEL"
+                                                        Command="{Binding DataContext.SetChannelCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource MaterialDesignOutlinedButton}"
+                                                        Height="34"
+                                                        FontSize="11"
+                                                        Margin="8,0,0,0"
+                                                        VerticalAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <TextBlock Text="No text channels visible to the bot"
+                                                       FontSize="11"
+                                                       FontStyle="Italic"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       Margin="0,4,0,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasChannels}" Value="False">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Empty state -->
+                        <StackPanel VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Margin="24">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasGuilds}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <materialDesign:PackIcon Kind="AccountPlus"
+                                                     Width="48"
+                                                     Height="48"
+                                                     Foreground="{StaticResource TextMutedBrush}"
+                                                     HorizontalAlignment="Center"
+                                                     Margin="0,0,0,12"/>
+                            <TextBlock Text="No servers yet"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock Text="Invite the bot to a server using the invite link from the setup wizard"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       Margin="12,0,12,16"/>
+                            <Button Content="OPEN INVITE LINK"
+                                    Command="{Binding OpenInviteLinkCommand}"
+                                    Style="{StaticResource MaterialDesignRaisedButton}"
+                                    Background="{DynamicResource DiscordBrush}"
+                                    Foreground="White"
+                                    Height="44"
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    IsEnabled="{Binding InviteUrlAvailable}"
+                                    ToolTip="Requires the bot token saved by the Discord setup wizard"
+                                    HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </Grid>
+        </materialDesign:Card>
+
+        <!-- Right Column: Connection Status + Test Message -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Connection Status Card -->
+            <materialDesign:Card Grid.Row="0"
+                                Background="{StaticResource CardBackgroundBrush}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Panel Header -->
+                    <Border Grid.Row="0"
+                            Background="{StaticResource BackgroundDarkBrush}"
+                            BorderBrush="{StaticResource BorderColorBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="12,8">
+                        <TextBlock Text="Connection"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                    </Border>
+
+                    <StackPanel Grid.Row="1" Margin="16">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{StaticResource ErrorRedBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                <Setter Property="Fill" Value="{StaticResource SuccessGreenBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="{Binding Status}"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+
+                        <TextBlock Text="The bot account Vyral uses to listen for commands and post messages in Discord."
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,16"/>
+
+                        <WrapPanel>
+                            <Button Content="RECONNECT"
+                                    Command="{Binding ReconnectCommand}"
+                                    Style="{StaticResource MaterialDesignRaisedButton}"
+                                    Background="{DynamicResource DiscordBrush}"
+                                    Foreground="White"
+                                    Height="40"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Margin="0,0,8,8"
+                                    IsEnabled="{Binding IsNotBusy}"
+                                    ToolTip="Disconnect and reconnect the bot using the saved token"/>
+                            <Button Content="DISCONNECT"
+                                    Command="{Binding DisconnectCommand}"
+                                    Style="{StaticResource MaterialDesignRaisedButton}"
+                                    Background="{StaticResource ErrorRedBrush}"
+                                    Foreground="White"
+                                    Height="40"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Margin="0,0,8,8"
+                                    IsEnabled="{Binding IsNotBusy}"
+                                    ToolTip="Stop the bot session (the saved token is kept)"/>
+                            <Button Content="REFRESH"
+                                    Command="{Binding RefreshCommand}"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                                    Height="40"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Margin="0,0,0,8"
+                                    IsEnabled="{Binding IsNotBusy}"/>
+                        </WrapPanel>
+                    </StackPanel>
+                </Grid>
+            </materialDesign:Card>
+
+            <!-- Test Message Card -->
+            <materialDesign:Card Grid.Row="1"
+                                Background="{StaticResource CardBackgroundBrush}"
+                                Margin="0,12,0,0"
+                                VerticalAlignment="Top">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Panel Header -->
+                    <Border Grid.Row="0"
+                            Background="{StaticResource BackgroundDarkBrush}"
+                            BorderBrush="{StaticResource BorderColorBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="12,8">
+                        <TextBlock Text="Test Message"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                    </Border>
+
+                    <StackPanel Grid.Row="1" Margin="16">
+                        <Button Content="SEND TEST MESSAGE"
+                                Command="{Binding SendTestMessageCommand}"
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Background="{DynamicResource DiscordBrush}"
+                                Foreground="White"
+                                Height="44"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Margin="0,0,0,12"/>
+
+                        <TextBlock Text="{Binding TestMessageStatus}"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,12"/>
+
+                        <TextBlock Text="The active channel is where the bot listens for commands and sends its messages — pick one next to a server in the list on the left."
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Grid>
+            </materialDesign:Card>
+        </Grid>
+    </Grid>
+</UserControl>

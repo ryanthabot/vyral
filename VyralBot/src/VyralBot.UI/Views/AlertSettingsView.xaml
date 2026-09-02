@@ -1,0 +1,229 @@
+<UserControl x:Class="VyralBot.UI.Views.AlertSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="800" d:DesignWidth="900">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="20">
+            
+            <!-- Header -->
+            <materialDesign:Card Padding="20" Margin="0,0,0,20">
+                <StackPanel>
+                    <TextBlock Text="Visual Alerts Settings" 
+                              Style="{StaticResource MaterialDesignHeadline5TextBlock}"
+                              Margin="0,0,0,10"/>
+                    <TextBlock Text="Configure on-screen alerts for stream events"
+                              Style="{StaticResource MaterialDesignBody2TextBlock}"
+                              Foreground="{StaticResource MaterialDesignBodyLight}"/>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- General Settings -->
+            <materialDesign:Card Padding="20" Margin="0,0,0,20">
+                <StackPanel>
+                    <TextBlock Text="General Settings" 
+                              Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                              Margin="0,0,0,15"/>
+
+                    <!-- Enable Alerts -->
+                    <Grid Margin="0,0,0,15">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Enable Visual Alerts"
+                                      FontWeight="SemiBold"
+                                      Margin="0,0,0,5"/>
+                            <TextBlock Text="Show on-screen popups for stream events"
+                                      FontSize="12"
+                                      Foreground="{StaticResource MaterialDesignBodyLight}"/>
+                        </StackPanel>
+                        
+                        <ToggleButton Grid.Column="1"
+                                     Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                     IsChecked="{Binding AlertsEnabled}"
+                                     VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <Separator Margin="0,10,0,15"/>
+
+                    <!-- Alert Duration -->
+                    <StackPanel Margin="0,0,0,15">
+                        <TextBlock Text="Alert Duration (seconds)"
+                                  FontWeight="SemiBold"
+                                  Margin="0,0,0,10"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <Slider Grid.Column="0"
+                                   Value="{Binding AlertDuration}"
+                                   Minimum="1"
+                                   Maximum="15"
+                                   TickFrequency="1"
+                                   IsSnapToTickEnabled="True"
+                                   Margin="0,0,20,0"/>
+                            
+                            <TextBlock Grid.Column="1"
+                                      Text="{Binding AlertDuration, StringFormat='{}{0}s'}"
+                                      FontSize="14"
+                                      FontWeight="SemiBold"
+                                      VerticalAlignment="Center"
+                                      MinWidth="40"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <Separator Margin="0,10,0,15"/>
+
+                    <!-- Animation Style -->
+                    <StackPanel Margin="0,0,0,15">
+                        <TextBlock Text="Animation Style"
+                                  FontWeight="SemiBold"
+                                  Margin="0,0,0,10"/>
+                        <ComboBox ItemsSource="{Binding Animations}"
+                                 SelectedItem="{Binding SelectedAnimation}"
+                                 materialDesign:HintAssist.Hint="Select animation"/>
+                    </StackPanel>
+
+                    <Separator Margin="0,10,0,15"/>
+
+                    <!-- Position -->
+                    <StackPanel Margin="0,0,0,15">
+                        <TextBlock Text="Screen Position"
+                                  FontWeight="SemiBold"
+                                  Margin="0,0,0,10"/>
+                        <ComboBox ItemsSource="{Binding Positions}"
+                                 SelectedItem="{Binding SelectedPosition}"
+                                 materialDesign:HintAssist.Hint="Select position"/>
+                    </StackPanel>
+
+                    <Separator Margin="0,10,0,15"/>
+
+                    <!-- Test Button -->
+                    <Button Content="Test Alert"
+                           Command="{Binding TestAlertCommand}"
+                           Style="{StaticResource MaterialDesignRaisedButton}"
+                           Background="#FF9C27B0"
+                           HorizontalAlignment="Left"
+                           Padding="30,10"/>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- Event Type Toggles -->
+            <materialDesign:Card Padding="20" Margin="0,0,0,20">
+                <StackPanel>
+                    <TextBlock Text="Alert Events" 
+                              Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                              Margin="0,0,0,15"/>
+                    
+                    <TextBlock Text="Choose which events should trigger visual alerts"
+                              FontSize="12"
+                              Foreground="{StaticResource MaterialDesignBodyLight}"
+                              Margin="0,0,0,15"/>
+
+                    <!-- Follow Alerts -->
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBlock Grid.Column="0" Text="New Followers" VerticalAlignment="Center"/>
+                        <ToggleButton Grid.Column="1"
+                                     Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                     IsChecked="{Binding ShowFollowAlerts}"/>
+                    </Grid>
+
+                    <!-- Subscribe Alerts -->
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBlock Grid.Column="0" Text="New Subscribers" VerticalAlignment="Center"/>
+                        <ToggleButton Grid.Column="1"
+                                     Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                     IsChecked="{Binding ShowSubscribeAlerts}"/>
+                    </Grid>
+
+                    <!-- Gift Sub Alerts -->
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBlock Grid.Column="0" Text="Gifted Subscriptions" VerticalAlignment="Center"/>
+                        <ToggleButton Grid.Column="1"
+                                     Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                     IsChecked="{Binding ShowGiftSubAlerts}"/>
+                    </Grid>
+
+                    <!-- Raid Alerts -->
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBlock Grid.Column="0" Text="Raids" VerticalAlignment="Center"/>
+                        <ToggleButton Grid.Column="1"
+                                     Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                     IsChecked="{Binding ShowRaidAlerts}"/>
+                    </Grid>
+
+                    <!-- Host Alerts -->
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBlock Grid.Column="0" Text="Hosts" VerticalAlignment="Center"/>
+                        <ToggleButton Grid.Column="1"
+                                     Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                     IsChecked="{Binding ShowHostAlerts}"/>
+                    </Grid>
+
+                    <!-- Cheer Alerts -->
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBlock Grid.Column="0" Text="Bits/Cheers" VerticalAlignment="Center"/>
+                        <ToggleButton Grid.Column="1"
+                                     Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                     IsChecked="{Binding ShowCheerAlerts}"/>
+                    </Grid>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- Action Buttons -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Reset to Defaults"
+                       Command="{Binding ResetToDefaultsCommand}"
+                       Style="{StaticResource MaterialDesignOutlinedButton}"
+                       Margin="0,0,10,0"
+                       Padding="20,10"/>
+                
+                <Button Content="Save Settings"
+                       Command="{Binding SaveSettingsCommand}"
+                       Style="{StaticResource MaterialDesignRaisedButton}"
+                       Background="#FF4CAF50"
+                       Padding="30,10"/>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

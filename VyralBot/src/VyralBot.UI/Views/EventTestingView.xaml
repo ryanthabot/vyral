@@ -1,0 +1,189 @@
+<UserControl x:Class="VyralBot.UI.Views.EventTestingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:viewModels="clr-namespace:VyralBot.UI.ViewModels"
+             mc:Ignorable="d" 
+             d:DataContext="{d:DesignInstance Type=viewModels:EventTestingViewModel}"
+             d:DesignHeight="900" d:DesignWidth="800"
+             Background="{StaticResource BackgroundDarkBrush}">
+    
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="20">
+            <!-- Header -->
+            <materialDesign:Card Background="{StaticResource BackgroundMediumBrush}" 
+                                Margin="0,0,0,20" Padding="20">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="TestTube" 
+                                                Width="32" Height="32"
+                                                VerticalAlignment="Center"
+                                                Margin="0,0,12,0"/>
+                        <TextBlock Text="Event Testing Tool" 
+                                  Style="{StaticResource MaterialDesignHeadline5TextBlock}"
+                                  VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <TextBlock Text="Developer tool for testing chat events manually. Events are published to the EventBus and will trigger all normal handlers (display, auto-reply, sounds, etc.)"
+                              Style="{StaticResource MaterialDesignBody2TextBlock}"
+                              Opacity="0.7"
+                              Margin="0,8,0,0"
+                              TextWrapping="Wrap"/>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- Configuration -->
+            <materialDesign:Card Background="{StaticResource BackgroundMediumBrush}" 
+                                Margin="0,0,0,20" Padding="20">
+                <StackPanel>
+                    <TextBlock Text="Test Configuration" 
+                              Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                              Margin="0,0,0,12"/>
+                    
+                    <TextBox materialDesign:HintAssist.Hint="Test Username"
+                            Text="{Binding TestUsername, UpdateSourceTrigger=PropertyChanged}"
+                            Margin="0,0,0,12"/>
+                    
+                    <TextBox materialDesign:HintAssist.Hint="Test Message (for events with messages)"
+                            Text="{Binding TestMessage, UpdateSourceTrigger=PropertyChanged}"
+                            TextWrapping="Wrap"
+                            AcceptsReturn="True"
+                            MinHeight="60"/>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- Kick Events -->
+            <materialDesign:Card Background="{StaticResource BackgroundMediumBrush}" 
+                                Margin="0,0,0,20" Padding="20">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                        <materialDesign:PackIcon Kind="Kickstarter" 
+                                                Width="24" Height="24"
+                                                VerticalAlignment="Center"
+                                                Margin="0,0,8,0"
+                                                Foreground="#53FC18"/>
+                        <TextBlock Text="Kick Events" 
+                                  Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                                  VerticalAlignment="Center"/>
+                    </StackPanel>
+                    
+                    <UniformGrid Columns="2" Rows="3">
+                        <Button Content="Follow Event"
+                               Command="{Binding TriggerKickFollowCommand}"
+                               Margin="0,0,8,8"
+                               Style="{StaticResource MaterialDesignRaisedButton}">
+                            <Button.CommandParameter>
+                                <materialDesign:PackIcon Kind="AccountPlus"/>
+                            </Button.CommandParameter>
+                        </Button>
+                        
+                        <Button Content="Subscribe Event"
+                               Command="{Binding TriggerKickSubscribeCommand}"
+                               Margin="8,0,0,8"
+                               Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        
+                        <Button Content="Gift Sub Event"
+                               Command="{Binding TriggerKickGiftSubCommand}"
+                               Margin="0,0,8,8"
+                               Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        
+                        <Button Content="Host Event"
+                               Command="{Binding TriggerKickHostCommand}"
+                               Margin="8,0,0,8"
+                               Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        
+                        <Button Content="Kicks Gifted Event"
+                               Command="{Binding TriggerKickKicksGiftedCommand}"
+                               Margin="0,0,8,8"
+                               Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        
+                        <Button Content="Reward Redeemed Event"
+                               Command="{Binding TriggerKickRewardRedeemedCommand}"
+                               Margin="8,0,0,8"
+                               Style="{StaticResource MaterialDesignRaisedButton}"/>
+                    </UniformGrid>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- Twitch Events -->
+            <materialDesign:Card Background="{StaticResource BackgroundMediumBrush}" 
+                                Margin="0,0,0,20" Padding="20">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                        <materialDesign:PackIcon Kind="Twitch" 
+                                                Width="24" Height="24"
+                                                VerticalAlignment="Center"
+                                                Margin="0,0,8,0"
+                                                Foreground="#9147FF"/>
+                        <TextBlock Text="Twitch Events" 
+                                  Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                                  VerticalAlignment="Center"/>
+                    </StackPanel>
+                    
+                    <UniformGrid Columns="2" Rows="3">
+                        <Button Content="Follow Event"
+                               Command="{Binding TriggerTwitchFollowCommand}"
+                               Margin="0,0,8,8"
+                               Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        
+                        <Button Content="Subscribe Event"
+                               Command="{Binding TriggerTwitchSubscribeCommand}"
+                               Margin="8,0,0,8"
+                               Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        
+                        <Button Content="Resub Event"
+                               Command="{Binding TriggerTwitchResubCommand}"
+                               Margin="0,0,8,8"
+                               Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        
+                        <Button Content="Gift Sub Event"
+                               Command="{Binding TriggerTwitchGiftSubCommand}"
+                               Margin="8,0,0,8"
+                               Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        
+                        <Button Content="Raid Event"
+                               Command="{Binding TriggerTwitchRaidCommand}"
+                               Margin="0,0,8,8"
+                               Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        
+                        <Button Content="Cheer Event"
+                               Command="{Binding TriggerTwitchCheerCommand}"
+                               Margin="8,0,0,8"
+                               Style="{StaticResource MaterialDesignRaisedButton}"/>
+                    </UniformGrid>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- Output Log -->
+            <materialDesign:Card Background="{StaticResource BackgroundMediumBrush}" 
+                                Padding="20">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <TextBlock Text="Event Log" 
+                                  Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                                  VerticalAlignment="Center"
+                                  Margin="0,0,12,0"/>
+                        <Button Content="Clear Log"
+                               Command="{Binding ClearLogCommand}"
+                               Style="{StaticResource MaterialDesignOutlinedButton}"
+                               Padding="8,4"/>
+                    </StackPanel>
+                    
+                    <Border BorderBrush="{StaticResource BorderLightBrush}"
+                           BorderThickness="1"
+                           CornerRadius="4"
+                           Background="{StaticResource BackgroundDarkBrush}"
+                           Padding="12">
+                        <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
+                            <TextBlock Text="{Binding OutputLog}"
+                                      FontFamily="Consolas"
+                                      FontSize="11"
+                                      TextWrapping="Wrap"/>
+                        </ScrollViewer>
+                    </Border>
+                </StackPanel>
+            </materialDesign:Card>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

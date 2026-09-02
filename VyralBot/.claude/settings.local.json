@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude-code --version)",
+      "Bash(dotnet build:*)",
+      "Bash(dir /s /b *.md)",
+      "Bash(findstr:*)",
+      "Bash(Select-String -Pattern \"CS1998|CS0649|CS0414|CS0067|IDE0161|IDE0044\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,17 @@
+# Build outputs
+bin/
+obj/
+artifacts/
+
+# Logs
+*.log
+logs/
+
+# VS/IDE
+.vs/
+*.user
+*.suo
+
+# App runtime data
+VyralBot/appdata/profiles/*/
+VyralBot/appdata/*.txt

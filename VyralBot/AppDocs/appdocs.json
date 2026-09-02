@@ -1,0 +1,240 @@
+{
+  "title": "Vyral Documentation",
+  "version": 1,
+  "sections": [
+    {
+      "title": "Start Here",
+      "pages": [
+        {
+          "path": "index.md",
+          "title": "Overview"
+        }
+      ]
+    },
+    {
+      "title": "Getting Started",
+      "pages": [
+        {
+          "path": "getting-started/profiles.md",
+          "title": "Profiles"
+        }
+      ]
+    },
+    {
+      "title": "Home",
+      "pages": [
+        {
+          "path": "home/dashboard.md",
+          "title": "Dashboard"
+        },
+        {
+          "path": "home/app-shell.md",
+          "title": "App Shell & Navigation"
+        },
+        {
+          "path": "home/tools-hub.md",
+          "title": "Tools Hub"
+        },
+        {
+          "path": "home/integrations.md",
+          "title": "Integrations"
+        },
+        {
+          "path": "home/demo-wizard.md",
+          "title": "Demo Wizard"
+        },
+        {
+          "path": "home/documentation.md",
+          "title": "Documentation & Contributing"
+        }
+      ]
+    },
+    {
+      "title": "Chat",
+      "pages": [
+        {
+          "path": "chat/chat-window.md",
+          "title": "Chat Window"
+        },
+        {
+          "path": "chat/sending-messages.md",
+          "title": "Sending Messages"
+        },
+        {
+          "path": "chat/chat-settings.md",
+          "title": "Chat Settings"
+        },
+        {
+          "path": "chat/event-reactions.md",
+          "title": "Event Reactions"
+        }
+      ]
+    },
+    {
+      "title": "Platforms",
+      "pages": [
+        {
+          "path": "platforms/overview.md",
+          "title": "Platforms Overview"
+        },
+        {
+          "path": "platforms/twitch.md",
+          "title": "Twitch"
+        },
+        {
+          "path": "platforms/kick.md",
+          "title": "Kick"
+        },
+        {
+          "path": "platforms/discord.md",
+          "title": "Discord"
+        },
+        {
+          "path": "platforms/youtube.md",
+          "title": "YouTube"
+        },
+        {
+          "path": "platforms/tiktok-discord-obs.md",
+          "title": "TikTok & OBS"
+        },
+        {
+          "path": "platforms/dashboards.md",
+          "title": "Platform Dashboards"
+        }
+      ]
+    },
+    {
+      "title": "Chat Features",
+      "pages": [
+        {
+          "path": "chat-features/commands.md",
+          "title": "Commands"
+        },
+        {
+          "path": "chat-features/variables.md",
+          "title": "Variables"
+        },
+        {
+          "path": "chat-features/auto-replies.md",
+          "title": "Auto-Replies"
+        },
+        {
+          "path": "chat-features/conditional-rules.md",
+          "title": "Conditional Rules"
+        },
+        {
+          "path": "chat-features/event-history.md",
+          "title": "Event History"
+        },
+        {
+          "path": "chat-features/event-testing.md",
+          "title": "Event Testing"
+        },
+        {
+          "path": "chat-features/automation.md",
+          "title": "Automation"
+        }
+      ]
+    },
+    {
+      "title": "Stream Tools",
+      "pages": [
+        {
+          "path": "stream-tools/browser-sources.md",
+          "title": "Browser Sources"
+        },
+        {
+          "path": "stream-tools/audio.md",
+          "title": "Audio Settings"
+        },
+        {
+          "path": "stream-tools/sounds.md",
+          "title": "Sounds"
+        },
+        {
+          "path": "stream-tools/visual-alerts.md",
+          "title": "Visual Alerts"
+        },
+        {
+          "path": "stream-tools/giveaways.md",
+          "title": "Giveaways"
+        },
+        {
+          "path": "stream-tools/polls.md",
+          "title": "Polls"
+        },
+        {
+          "path": "stream-tools/watchtime.md",
+          "title": "Watchtime"
+        },
+        {
+          "path": "stream-tools/statistics.md",
+          "title": "Statistics"
+        },
+        {
+          "path": "stream-tools/currency.md",
+          "title": "Currency & Rewards"
+        }
+      ]
+    },
+    {
+      "title": "Settings",
+      "pages": [
+        {
+          "path": "settings/overview.md",
+          "title": "Settings Overview"
+        },
+        {
+          "path": "settings/web-server-ngrok.md",
+          "title": "API, Web Server & ngrok"
+        }
+      ]
+    },
+    {
+      "title": "Architecture",
+      "pages": [
+        {
+          "path": "architecture/startup-lifecycle.md",
+          "title": "Startup & Lifecycle"
+        },
+        {
+          "path": "architecture/event-bus.md",
+          "title": "Event Bus"
+        },
+        {
+          "path": "architecture/data-layer.md",
+          "title": "Data Layer"
+        },
+        {
+          "path": "architecture/web-server.md",
+          "title": "Web Server & ngrok Stack"
+        }
+      ]
+    },
+    {
+      "title": "Reference",
+      "pages": [
+        {
+          "path": "reference/command-catalog.md",
+          "title": "Command Catalog"
+        },
+        {
+          "path": "reference/variables-catalog.md",
+          "title": "Variables Catalog"
+        },
+        {
+          "path": "reference/database-reference.md",
+          "title": "Database Reference"
+        },
+        {
+          "path": "reference/ui-reference.md",
+          "title": "UI Reference"
+        },
+        {
+          "path": "reference/known-issues.md",
+          "title": "Known Issues Ledger"
+        }
+      ]
+    }
+  ]
+}

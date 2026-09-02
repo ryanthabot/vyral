@@ -1,0 +1,256 @@
+<UserControl x:Class="VyralBot.UI.Views.ToolsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:vm="clr-namespace:VyralBot.UI.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ToolsViewModel}">
+
+    <UserControl.Resources>
+        <Style x:Key="ToolCardButton" TargetType="materialDesign:Card">
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="Background" Value="{StaticResource CardBackgroundBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,0,0,0"/>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+
+            <!-- Back Button -->
+            <Button Content="← BACK TO HOME"
+                    Style="{StaticResource MaterialDesignFlatButton}"
+                    Command="{Binding DataContext.NavigateToHomeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                    HorizontalAlignment="Left"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Margin="0,0,0,16"/>
+
+            <!-- Title -->
+            <TextBlock Text="Tools"
+                       FontSize="24" FontWeight="Bold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       Margin="0,0,0,4"/>
+            <TextBlock Text="Stream tools, chat features, and more"
+                       FontSize="14"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       Margin="0,0,0,24"/>
+
+            <!-- Chat Features Section -->
+            <TextBlock Text="Chat Features" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+
+            <Grid Margin="0,0,0,32">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Events & Alerts -->
+                <materialDesign:Card Grid.Column="0" Style="{StaticResource ToolCardButton}">
+                    <materialDesign:Card.InputBindings>
+                        <MouseBinding Command="{Binding DataContext.NavigateToAlertSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                    </materialDesign:Card.InputBindings>
+                    <StackPanel HorizontalAlignment="Center">
+                        <materialDesign:PackIcon Kind="BellAlert" Width="36" Height="36"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock Text="Events &amp; Alerts" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Currency & Rewards -->
+                <materialDesign:Card Grid.Column="2" Style="{StaticResource ToolCardButton}">
+                    <materialDesign:Card.InputBindings>
+                        <MouseBinding Command="{Binding DataContext.NavigateToCurrencyCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                    </materialDesign:Card.InputBindings>
+                    <StackPanel HorizontalAlignment="Center">
+                        <materialDesign:PackIcon Kind="CurrencyUsd" Width="36" Height="36"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock Text="Currency &amp; Rewards" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Commands -->
+                <materialDesign:Card Grid.Column="4" Style="{StaticResource ToolCardButton}">
+                    <materialDesign:Card.InputBindings>
+                        <MouseBinding Command="{Binding DataContext.NavigateToCommandsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                    </materialDesign:Card.InputBindings>
+                    <StackPanel HorizontalAlignment="Center">
+                        <materialDesign:PackIcon Kind="CodeBraces" Width="36" Height="36"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock Text="Commands" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Event History -->
+                <materialDesign:Card Grid.Column="6" Style="{StaticResource ToolCardButton}">
+                    <materialDesign:Card.InputBindings>
+                        <MouseBinding Command="{Binding DataContext.NavigateToEventHistoryCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                    </materialDesign:Card.InputBindings>
+                    <StackPanel HorizontalAlignment="Center">
+                        <materialDesign:PackIcon Kind="History" Width="36" Height="36"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock Text="Event History" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </materialDesign:Card>
+            </Grid>
+
+            <!-- Stream Tools Section -->
+            <TextBlock Text="Stream Tools" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+
+            <!-- Row 1 -->
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Audio Settings -->
+                <materialDesign:Card Grid.Column="0" Style="{StaticResource ToolCardButton}">
+                    <materialDesign:Card.InputBindings>
+                        <MouseBinding Command="{Binding DataContext.NavigateToAudioSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                    </materialDesign:Card.InputBindings>
+                    <StackPanel HorizontalAlignment="Center">
+                        <materialDesign:PackIcon Kind="VolumeHigh" Width="36" Height="36"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock Text="Audio Settings" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Sounds -->
+                <materialDesign:Card Grid.Column="2" Style="{StaticResource ToolCardButton}">
+                    <materialDesign:Card.InputBindings>
+                        <MouseBinding Command="{Binding DataContext.NavigateToSoundsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                    </materialDesign:Card.InputBindings>
+                    <StackPanel HorizontalAlignment="Center">
+                        <materialDesign:PackIcon Kind="MusicNote" Width="36" Height="36"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock Text="Sounds" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Statistics -->
+                <materialDesign:Card Grid.Column="4" Style="{StaticResource ToolCardButton}">
+                    <materialDesign:Card.InputBindings>
+                        <MouseBinding Command="{Binding DataContext.NavigateToStatisticsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                    </materialDesign:Card.InputBindings>
+                    <StackPanel HorizontalAlignment="Center">
+                        <materialDesign:PackIcon Kind="ChartBar" Width="36" Height="36"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock Text="Statistics" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Visual Alerts -->
+                <materialDesign:Card Grid.Column="6" Style="{StaticResource ToolCardButton}">
+                    <materialDesign:Card.InputBindings>
+                        <MouseBinding Command="{Binding DataContext.NavigateToAlertSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                    </materialDesign:Card.InputBindings>
+                    <StackPanel HorizontalAlignment="Center">
+                        <materialDesign:PackIcon Kind="AnimationPlay" Width="36" Height="36"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock Text="Visual Alerts" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </materialDesign:Card>
+            </Grid>
+
+            <!-- Row 2 -->
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Conditional Rules -->
+                <materialDesign:Card Grid.Column="0" Style="{StaticResource ToolCardButton}">
+                    <materialDesign:Card.InputBindings>
+                        <MouseBinding Command="{Binding DataContext.NavigateToConditionalRulesCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                    </materialDesign:Card.InputBindings>
+                    <StackPanel HorizontalAlignment="Center">
+                        <materialDesign:PackIcon Kind="FilterCog" Width="36" Height="36"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock Text="Conditional Rules" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Giveaways -->
+                <materialDesign:Card Grid.Column="2" Style="{StaticResource ToolCardButton}">
+                    <materialDesign:Card.InputBindings>
+                        <MouseBinding Command="{Binding DataContext.NavigateToGiveawaysCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                    </materialDesign:Card.InputBindings>
+                    <StackPanel HorizontalAlignment="Center">
+                        <materialDesign:PackIcon Kind="Gift" Width="36" Height="36"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock Text="Giveaways" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Polls -->
+                <materialDesign:Card Grid.Column="4" Style="{StaticResource ToolCardButton}">
+                    <materialDesign:Card.InputBindings>
+                        <MouseBinding Command="{Binding DataContext.NavigateToPollsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                    </materialDesign:Card.InputBindings>
+                    <StackPanel HorizontalAlignment="Center">
+                        <materialDesign:PackIcon Kind="Poll" Width="36" Height="36"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock Text="Polls" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Watchtime -->
+                <materialDesign:Card Grid.Column="6" Style="{StaticResource ToolCardButton}">
+                    <materialDesign:Card.InputBindings>
+                        <MouseBinding Command="{Binding DataContext.NavigateToWatchtimeCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                    </materialDesign:Card.InputBindings>
+                    <StackPanel HorizontalAlignment="Center">
+                        <materialDesign:PackIcon Kind="ClockOutline" Width="36" Height="36"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        <TextBlock Text="Watchtime" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </materialDesign:Card>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

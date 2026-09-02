@@ -1,0 +1,58 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VyralBot.UI", "VyralBot.UI\VyralBot.UI.csproj", "{A922FDFF-52E5-4500-8890-56577E27CA81}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VyralBot.Core", "VyralBot.Core\VyralBot.Core.csproj", "{C06074A5-3B1D-444D-B66F-2B26237C131C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VyralBot.Data", "VyralBot.Data\VyralBot.Data.csproj", "{57487F60-9756-4ECE-AA3C-D90EDAD8F31E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VyralBot.Integrations", "VyralBot.Integrations\VyralBot.Integrations.csproj", "{99F77857-8EFA-45FB-860C-7D9DC3CD44F8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VyralBot.Scripting", "VyralBot.Scripting\VyralBot.Scripting.csproj", "{BC796F51-7638-4610-933D-DFD631D6D32B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VyralBot.Plugins", "VyralBot.Plugins\VyralBot.Plugins.csproj", "{DFD0846E-112A-4061-809F-4EBD3CB20A17}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VyralBot.Api", "VyralBot.Api\VyralBot.Api.csproj", "{BB91D97E-3F82-4170-9E39-9C306C1C4553}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A922FDFF-52E5-4500-8890-56577E27CA81}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A922FDFF-52E5-4500-8890-56577E27CA81}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A922FDFF-52E5-4500-8890-56577E27CA81}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A922FDFF-52E5-4500-8890-56577E27CA81}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C06074A5-3B1D-444D-B66F-2B26237C131C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C06074A5-3B1D-444D-B66F-2B26237C131C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C06074A5-3B1D-444D-B66F-2B26237C131C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C06074A5-3B1D-444D-B66F-2B26237C131C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{57487F60-9756-4ECE-AA3C-D90EDAD8F31E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{57487F60-9756-4ECE-AA3C-D90EDAD8F31E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{57487F60-9756-4ECE-AA3C-D90EDAD8F31E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{57487F60-9756-4ECE-AA3C-D90EDAD8F31E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{99F77857-8EFA-45FB-860C-7D9DC3CD44F8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{99F77857-8EFA-45FB-860C-7D9DC3CD44F8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{99F77857-8EFA-45FB-860C-7D9DC3CD44F8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{99F77857-8EFA-45FB-860C-7D9DC3CD44F8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BC796F51-7638-4610-933D-DFD631D6D32B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BC796F51-7638-4610-933D-DFD631D6D32B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BC796F51-7638-4610-933D-DFD631D6D32B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BC796F51-7638-4610-933D-DFD631D6D32B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DFD0846E-112A-4061-809F-4EBD3CB20A17}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DFD0846E-112A-4061-809F-4EBD3CB20A17}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DFD0846E-112A-4061-809F-4EBD3CB20A17}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DFD0846E-112A-4061-809F-4EBD3CB20A17}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BB91D97E-3F82-4170-9E39-9C306C1C4553}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BB91D97E-3F82-4170-9E39-9C306C1C4553}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BB91D97E-3F82-4170-9E39-9C306C1C4553}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BB91D97E-3F82-4170-9E39-9C306C1C4553}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

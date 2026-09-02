@@ -1,0 +1,976 @@
+<UserControl x:Class="VyralBot.UI.Views.DiscordWebSetupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             Background="{StaticResource BackgroundDarkBrush}">
+
+    <UserControl.Resources>
+
+    <!-- Plain raised button template: deterministic hit area, no adorner-layer ripple -->
+    <Style x:Key="VyralPlainRaisedButton" TargetType="Button">
+        <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Padding" Value="24,0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="btnBorder"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="4"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="btnBorder" Property="Opacity" Value="0.85"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="btnBorder" Property="Opacity" Value="0.7"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="btnBorder" Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Stepper Header -->
+            <RowDefinition Height="Auto"/>
+            <!-- Content -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Step Navigation Header -->
+        <Border Grid.Row="0"
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource BorderColorBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="24,10">
+            <StackPanel>
+                <!-- Title -->
+                <TextBlock Text="Discord Setup Wizard"
+                         FontSize="18"
+                         FontWeight="Bold"
+                         Foreground="{StaticResource TextPrimaryBrush}"
+                         Margin="0,0,0,10"/>
+
+                <!-- Stepper -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Step 1 -->
+                    <Button Grid.Column="0"
+                            Command="{Binding GoToStep1Command}"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="46"
+                            Padding="12,4"
+                            IsEnabled="False"
+                            Cursor="Arrow">
+                        <StackPanel>
+                            <Border Width="30" Height="30"
+                                    CornerRadius="15"
+                                    Margin="0,0,0,6"
+                                    HorizontalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderColorBrush}"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="1">
+                                                <Setter Property="Background" Value="{StaticResource DiscordBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{StaticResource DiscordBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="1"
+                                         FontSize="20"
+                                         FontWeight="Bold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Create App"
+                                     FontSize="14"
+                                     HorizontalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="1">
+                                                <Setter Property="Foreground" Value="{StaticResource DiscordBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Connector 1 -->
+                    <Rectangle Grid.Column="1"
+                             Width="40"
+                             Height="2"
+                             Fill="{StaticResource BorderColorBrush}"
+                             VerticalAlignment="Center"
+                             Margin="8,0"/>
+
+                    <!-- Step 2 -->
+                    <Button Grid.Column="2"
+                            Command="{Binding GoToStep2Command}"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="46"
+                            Padding="12,4"
+                            IsEnabled="False"
+                            Cursor="Arrow">
+                        <StackPanel>
+                            <Border Width="30" Height="30"
+                                    CornerRadius="15"
+                                    Margin="0,0,0,6"
+                                    HorizontalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderColorBrush}"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="2">
+                                                <Setter Property="Background" Value="{StaticResource DiscordBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{StaticResource DiscordBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="2"
+                                         FontSize="20"
+                                         FontWeight="Bold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Bot &amp; Token"
+                                     FontSize="14"
+                                     HorizontalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="2">
+                                                <Setter Property="Foreground" Value="{StaticResource DiscordBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Connector 2 -->
+                    <Rectangle Grid.Column="3"
+                             Width="40"
+                             Height="2"
+                             Fill="{StaticResource BorderColorBrush}"
+                             VerticalAlignment="Center"
+                             Margin="8,0"/>
+
+                    <!-- Step 3 -->
+                    <Button Grid.Column="4"
+                            Command="{Binding GoToStep3Command}"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="46"
+                            Padding="12,4"
+                            IsEnabled="False"
+                            Cursor="Arrow">
+                        <StackPanel>
+                            <Border Width="30" Height="30"
+                                    CornerRadius="15"
+                                    Margin="0,0,0,6"
+                                    HorizontalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderColorBrush}"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="3">
+                                                <Setter Property="Background" Value="{StaticResource DiscordBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{StaticResource DiscordBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="3"
+                                         FontSize="20"
+                                         FontWeight="Bold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Invite &amp; Authorize"
+                                     FontSize="14"
+                                     HorizontalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="3">
+                                                <Setter Property="Foreground" Value="{StaticResource DiscordBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Connector 3 -->
+                    <Rectangle Grid.Column="5"
+                             Width="40"
+                             Height="2"
+                             Fill="{StaticResource BorderColorBrush}"
+                             VerticalAlignment="Center"
+                             Margin="8,0"/>
+
+                    <!-- Step 4 -->
+                    <Button Grid.Column="6"
+                            Command="{Binding GoToStep4Command}"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="46"
+                            Padding="12,4"
+                            IsEnabled="False"
+                            Cursor="Arrow">
+                        <StackPanel>
+                            <Border Width="30" Height="30"
+                                    CornerRadius="15"
+                                    Margin="0,0,0,6"
+                                    HorizontalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource BorderColorBrush}"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="4">
+                                                <Setter Property="Background" Value="{StaticResource DiscordBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{StaticResource DiscordBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="4"
+                                         FontSize="20"
+                                         FontWeight="Bold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Test &amp; Finish"
+                                     FontSize="14"
+                                     HorizontalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentStep}" Value="4">
+                                                <Setter Property="Foreground" Value="{StaticResource DiscordBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Content Area -->
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Main Content Area -->
+            <Grid Grid.Row="0">
+                <!-- WebView2 Browser (embedded Discord pages) -->
+                <Border Background="{StaticResource BackgroundDarkBrush}">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding ShowBrowser}" Value="True"/>
+                                        <Condition Binding="{Binding ShowModal}" Value="False"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Border x:Name="WebView2Container"/>
+                </Border>
+
+                <!-- Step 1 Instructions: Create Application -->
+                <Grid>
+                    <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" MaxWidth="800" Margin="16,24">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding CurrentStep}" Value="1"/>
+                                            <Condition Binding="{Binding ShowBrowser}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="Step 1: Create Application"
+                                 FontSize="18"
+                                 FontWeight="Bold"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 Margin="0,0,0,10"/>
+
+                        <materialDesign:Card Padding="20" Background="{StaticResource CardBackgroundBrush}">
+                            <StackPanel>
+                                <TextBlock Text="Register a Discord application"
+                                         FontSize="18"
+                                         FontWeight="SemiBold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Margin="0,0,0,16"/>
+
+                                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                    <Run Text="Vyral connects to Discord as a bot, and every bot belongs to a Discord application."/>
+                                    <LineBreak/><LineBreak/>
+                                    <Run Text="1. Click the button below — the Discord Developer Portal opens inside Vyral."/>
+                                    <LineBreak/>
+                                    <Run Text="2. Sign in with your Discord account if asked."/>
+                                    <LineBreak/>
+                                    <Run Text="3. Click 'New Application', give it a name (for example 'Vyral Bot'), and click Create."/>
+                                    <LineBreak/>
+                                    <Run Text="4. Leave the application page open — the next step configures its bot user."/>
+                                </TextBlock>
+
+                                <Button x:Name="Step1PortalButton" Content="OPEN DEVELOPER PORTAL"
+                                       Command="{Binding OpenStep1BrowserCommand}"
+                                       Style="{StaticResource VyralPlainRaisedButton}"
+                                       Background="{DynamicResource DiscordBrush}"
+                                       Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </materialDesign:Card>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Step 2 Instructions: Create Bot & Copy Token -->
+                <Grid>
+                    <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" MaxWidth="800" Margin="16,24">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding CurrentStep}" Value="2"/>
+                                            <Condition Binding="{Binding ShowBrowser}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="Step 2: Create Bot &amp; Copy Token"
+                                 FontSize="18"
+                                 FontWeight="Bold"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 Margin="0,0,0,10"/>
+
+                        <materialDesign:Card Padding="20" Background="{StaticResource CardBackgroundBrush}">
+                            <StackPanel>
+                                <Border Background="#2010B981"
+                                        BorderBrush="#10B981"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="12,8"
+                                        Margin="0,0,0,16"
+                                        Visibility="{Binding TokenSaved, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="&#10004; BOT TOKEN SAVED &#8212; continue to the next step (you can re-save any time)"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="#34D399"
+                                               TextWrapping="Wrap"/>
+                                </Border>
+
+                                <TextBlock Text="Configure the bot and copy its token"
+                                         FontSize="18"
+                                         FontWeight="SemiBold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Margin="0,0,0,16"/>
+
+                                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="1. Open the Developer Portal and select your application."/>
+                                    <LineBreak/>
+                                    <Run Text="2. Open the 'Bot' tab in the left menu."/>
+                                    <LineBreak/>
+                                    <Run Text="3. Click 'Reset Token', confirm, and copy the token — Discord shows it only once."/>
+                                    <LineBreak/>
+                                    <Run Text="4. IMPORTANT: still on the Bot tab, scroll to 'Privileged Gateway Intents' and enable"/>
+                                    <LineBreak/>
+                                    <Run Text="    'MESSAGE CONTENT INTENT' — Vyral needs it to read messages. Click 'Save Changes'."/>
+                                    <LineBreak/>
+                                    <Run Text="5. Click 'Save Bot Token' below and paste the token."/>
+                                    <LineBreak/><LineBreak/>
+                                    <Run Text="Treat the bot token like a password — anyone who has it can control your bot."/>
+                                </TextBlock>
+
+                                <!-- Saved token confirmation -->
+                                <Border BorderBrush="{StaticResource BorderColorBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="12"
+                                        Margin="0,16,0,0"
+                                        Visibility="{Binding TokenSaved, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Text="Saved bot token:"
+                                                 FontSize="12"
+                                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                                 Margin="0,0,0,4"/>
+                                        <TextBlock Text="{Binding MaskedBotToken, Mode=OneWay}"
+                                                 FontSize="14"
+                                                 FontFamily="Consolas"
+                                                 Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Button Content="OPEN DEVELOPER PORTAL"
+                                       Command="{Binding OpenStep2BrowserCommand}"
+                                       Style="{StaticResource VyralPlainRaisedButton}"
+                                       Background="{DynamicResource DiscordBrush}"
+                                       Height="44"
+                                       Margin="0,16,0,0"/>
+                            </StackPanel>
+                        </materialDesign:Card>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Step 3: Invite & Authorize -->
+                <Grid>
+                    <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" MaxWidth="800" Margin="16,24">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding CurrentStep}" Value="3"/>
+                                            <Condition Binding="{Binding ShowBrowser}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="Step 3: Invite &amp; Authorize"
+                                 FontSize="18"
+                                 FontWeight="Bold"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 Margin="0,0,0,10"/>
+
+                        <!-- Invite card -->
+                        <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Invite the bot to your server"
+                                         FontSize="18"
+                                         FontWeight="SemiBold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Margin="0,0,0,16"/>
+
+                                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                    <Run Text="The invite link is generated from the application ID encoded in your bot token."/>
+                                    <LineBreak/>
+                                    <Run Text="It requests Administrator permissions, so the bot can fully manage the server without re-inviting later."/>
+                                    <LineBreak/>
+                                    <Run Text="Authorizing requires the 'Manage Server' permission on your Discord account."/>
+                                </TextBlock>
+
+                                <Button Content="OPEN INVITE LINK"
+                                       Command="{Binding OpenInviteBrowserCommand}"
+                                       Style="{StaticResource MaterialDesignRaisedButton}"
+                                       Background="{DynamicResource DiscordBrush}"
+                                       Foreground="White"
+                                       Height="40"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       IsEnabled="{Binding HasInviteUrl}"
+                                       ToolTip="Save the bot token in Step 2 so the invite link can be built"/>
+
+                                <TextBox Text="{Binding InviteUrl, Mode=OneWay}"
+                                         IsReadOnly="True"
+                                         TextWrapping="Wrap"
+                                         FontSize="11"
+                                         FontFamily="Consolas"
+                                         Background="{StaticResource BackgroundDarkBrush}"
+                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         BorderThickness="0"
+                                         Margin="0,12,0,0"
+                                         Visibility="{Binding HasInviteUrl, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                         ToolTip="If the embedded browser cannot authorize, copy this link into your default browser"/>
+                            </StackPanel>
+                        </materialDesign:Card>
+
+                        <!-- Connect card -->
+                        <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Connect Vyral to Discord"
+                                         FontSize="18"
+                                         FontWeight="SemiBold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Margin="0,0,0,16"/>
+
+                                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                    <Run Text="This validates the bot token and opens the Discord gateway connection."/>
+                                    <LineBreak/>
+                                    <Run Text="The bot should already be invited to at least one server."/>
+                                </TextBlock>
+
+                                <Button Content="CONNECT BOT"
+                                       Command="{Binding ConnectBotCommand}"
+                                       Style="{StaticResource MaterialDesignRaisedButton}"
+                                       Background="{DynamicResource PrimaryBrush}"
+                                       Foreground="White"
+                                       Height="40"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"/>
+
+                                <TextBlock Text="{Binding ConnectStatus}"
+                                         FontSize="14"
+                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         TextWrapping="Wrap"
+                                         Margin="0,12,0,0"/>
+                            </StackPanel>
+                        </materialDesign:Card>
+
+                        <!-- Manual fallback card -->
+                        <materialDesign:Card Padding="24" Background="{StaticResource CardBackgroundBrush}">
+                            <StackPanel>
+                                <TextBlock Text="Manual fallback"
+                                         FontSize="16"
+                                         FontWeight="SemiBold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Margin="0,0,0,8"/>
+
+                                <TextBlock Text="If the token was not saved in Step 2, paste the bot token here and click 'Use Token'."
+                                         FontSize="12"
+                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         TextWrapping="Wrap"
+                                         Margin="0,0,0,12"/>
+
+                                <TextBox Text="{Binding ManualTokenInput, UpdateSourceTrigger=PropertyChanged}"
+                                         materialDesign:HintAssist.Hint="Paste bot token"
+                                         FontSize="13"
+                                         FontFamily="Consolas"
+                                         Background="{StaticResource BackgroundDarkBrush}"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Margin="0,0,0,12"/>
+
+                                <Button Content="USE TOKEN &amp; CONNECT"
+                                        Command="{Binding ConnectBotCommand}"
+                                        Style="{StaticResource VyralPlainRaisedButton}"
+                                        Background="{DynamicResource DiscordBrush}"
+                                        Height="40"
+                                        FontSize="13"
+                                        FontWeight="SemiBold"
+                                        HorizontalAlignment="Left"/>
+                            </StackPanel>
+                        </materialDesign:Card>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Step 4: Test & Finish -->
+                <Grid>
+                    <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" MaxWidth="800" Margin="16,24">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentStep}" Value="4">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="Step 4: Test &amp; Finish"
+                                 FontSize="18"
+                                 FontWeight="Bold"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 Margin="0,0,0,10"/>
+
+                        <materialDesign:Card Padding="20" Background="{StaticResource CardBackgroundBrush}">
+                            <StackPanel>
+                                <TextBlock Text="Send a test message"
+                                         FontSize="18"
+                                         FontWeight="SemiBold"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Margin="0,0,0,8"/>
+
+                                <TextBlock Text="The test creates a private channel only you (the server owner) and the bot can see, and pings you in it."
+                                         FontSize="12"
+                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         Margin="0,0,0,16"/>
+
+                                <TextBox Text="{Binding ConnectedBotUsername, Mode=OneWay}"
+                                       materialDesign:HintAssist.Hint="Connected as"
+                                       FontSize="14"
+                                       IsReadOnly="True"
+                                       Background="{StaticResource BackgroundDarkBrush}"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Margin="0,0,0,10"/>
+
+                                <Button Content="SEND TEST MESSAGE"
+                                       Command="{Binding SendTestMessageCommand}"
+                                       Style="{StaticResource MaterialDesignRaisedButton}"
+                                       Background="{DynamicResource DiscordBrush}"
+                                       Foreground="White"
+                                       Height="40"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,16"/>
+
+                                <TextBlock Text="{Binding TestMessageStatus}"
+                                         FontSize="14"
+                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         TextWrapping="Wrap"
+                                         Margin="0,0,0,16"/>
+
+                                <TextBlock Text="The channel is named vyral-test and is reused on repeated tests. Regular chat channels are chosen on the Discord page after finishing."
+                                         FontSize="12"
+                                         Foreground="{StaticResource TextMutedBrush}"
+                                         TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </materialDesign:Card>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+
+            <!-- Bottom Action Bar -->
+            <Border Grid.Row="1"
+                    Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource BorderColorBrush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="24,8">
+                <Grid>
+                    <!-- Back Button (Steps 2, 3, and 4) -->
+                    <Button Content="← BACK"
+                            Command="{Binding GoBackCommand}"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Height="40"
+                            Padding="24,0"
+                            HorizontalAlignment="Left">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignFlatButton}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentStep}" Value="2">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding CurrentStep}" Value="3">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding CurrentStep}" Value="4">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- Step 1 Continue Button (Non-Browser Mode) -->
+                    <Button Content="CONTINUE"
+                            Command="{Binding ContinueFromStep1Command}"
+                            Background="{DynamicResource PrimaryBrush}"
+                            Foreground="White"
+                            Height="40"
+                            Padding="32,0"
+                            HorizontalAlignment="Right">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding CurrentStep}" Value="1"/>
+                                            <Condition Binding="{Binding ShowBrowser}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- Step 1 Continue Button (Browser Mode) -->
+                    <Button Content="DONE — CONTINUE"
+                            Command="{Binding ContinueFromStep1Command}"
+                            Background="{DynamicResource PrimaryBrush}"
+                            Foreground="White"
+                            Height="40"
+                            Padding="32,0"
+                            HorizontalAlignment="Right">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding CurrentStep}" Value="1"/>
+                                            <Condition Binding="{Binding ShowBrowser}" Value="True"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- Step 2 bottom actions: persistent SAVE BOT TOKEN + CONTINUE when saved (Twitch-style) -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding CurrentStep}" Value="2"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <Button Command="{Binding SaveBotTokenCommand}"
+                                Height="40"
+                                Padding="24,0"
+                                Margin="0,0,12,0"
+                                Foreground="White">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                    <Setter Property="Content" Value="SAVE BOT TOKEN"/>
+                                    <Setter Property="Background" Value="{DynamicResource DiscordBrush}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding TokenSaved}" Value="True">
+                                            <Setter Property="Content" Value="RE-SAVE TOKEN"/>
+                                            <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Content="CONTINUE"
+                                Command="{Binding ContinueFromStep2Command}"
+                                Background="{DynamicResource PrimaryBrush}"
+                                Foreground="White"
+                                Height="40"
+                                Padding="32,0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding TokenSaved}" Value="True"/>
+                                                <Condition Binding="{Binding ShowBrowser}" Value="False"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+
+
+                    <!-- Step 2 Continue Button (Browser Mode) — only after the token is saved -->
+                    <Button Content="DONE — CONTINUE"
+                            Command="{Binding ContinueFromStep2Command}"
+                            Background="{DynamicResource PrimaryBrush}"
+                            Foreground="White"
+                            Height="40"
+                            Padding="32,0"
+                            HorizontalAlignment="Right">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding CurrentStep}" Value="2"/>
+                                            <Condition Binding="{Binding ShowBrowser}" Value="True"/>
+                                            <Condition Binding="{Binding TokenSaved}" Value="True"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- Step 3 Close Browser Button (Browser Mode) -->
+                    <Button Content="CLOSE BROWSER"
+                            Command="{Binding CloseBrowserCommand}"
+                            Background="{DynamicResource PrimaryBrush}"
+                            Foreground="White"
+                            Height="40"
+                            Padding="32,0"
+                            HorizontalAlignment="Right">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding CurrentStep}" Value="3"/>
+                                            <Condition Binding="{Binding ShowBrowser}" Value="True"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- Step 3 Continue Button (shows when connected) -->
+                    <Button Content="CONTINUE"
+                            Command="{Binding ContinueFromStep3Command}"
+                            Background="{DynamicResource PrimaryBrush}"
+                            Foreground="White"
+                            Height="40"
+                            Padding="32,0"
+                            HorizontalAlignment="Right">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding CurrentStep}" Value="3"/>
+                                            <Condition Binding="{Binding ShowBrowser}" Value="False"/>
+                                            <Condition Binding="{Binding IsConnected}" Value="True"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- Step 4 Finish Setup Button -->
+                    <Button Content="✓ FINISH SETUP"
+                            Command="{Binding CompleteSetupCommand}"
+                            Background="{StaticResource SuccessGreenBrush}"
+                            Foreground="White"
+                            Height="40"
+                            Padding="32,0"
+                            FontWeight="Bold"
+                            IsEnabled="{Binding IsConnected}"
+                            HorizontalAlignment="Right">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentStep}" Value="4">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Modal for Bot Token Input (masked) - at root level to overlay everything -->
+        <Border Grid.RowSpan="2"
+                Background="{DynamicResource OverlayBackgroundBrush}"
+                Panel.ZIndex="1000">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowModal}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <materialDesign:Card Width="500"
+                                Padding="32"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                Background="{StaticResource CardBackgroundBrush}">
+                <StackPanel>
+                    <TextBlock Text="{Binding ModalTitle}"
+                             FontSize="20"
+                             FontWeight="Bold"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Margin="0,0,0,16"/>
+
+                    <TextBlock Text="{Binding ModalDescription}"
+                             FontSize="14"
+                             Foreground="{StaticResource TextSecondaryBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"/>
+
+                    <PasswordBox x:Name="ModalSecretBox"
+                                 PasswordChanged="ModalSecretBox_PasswordChanged"
+                                 materialDesign:HintAssist.Hint="Paste bot token"
+                                 FontFamily="Consolas"
+                                 FontSize="14"
+                                 Padding="12"
+                                 Margin="0,0,0,10"/>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="CANCEL"
+                              Command="{Binding CloseModalCommand}"
+                              Style="{StaticResource MaterialDesignFlatButton}"
+                              Margin="0,0,8,0"
+                              Padding="16,8"/>
+
+                        <Button Content="SAVE TOKEN"
+                              Command="{Binding SaveModalCommand}"
+                              Style="{StaticResource MaterialDesignRaisedButton}"
+                              Background="{StaticResource DiscordBrush}"
+                              Foreground="White"
+                              Padding="16,8"/>
+                    </StackPanel>
+                </StackPanel>
+            </materialDesign:Card>
+        </Border>
+    </Grid>
+</UserControl>

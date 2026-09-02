@@ -1,0 +1,162 @@
+<Window x:Class="VyralBot.UI.Views.AlertOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Alert Overlay"
+        Width="600" Height="200"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        WindowStartupLocation="Manual"
+        Left="0" Top="0">
+    
+    <Window.Resources>
+        <!-- Slide In From Top Animation -->
+        <Storyboard x:Key="SlideInFromTop">
+            <DoubleAnimation Storyboard.TargetName="AlertContainer"
+                           Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                           From="-200" To="0"
+                           Duration="0:0:0.5">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="AlertContainer"
+                           Storyboard.TargetProperty="Opacity"
+                           From="0" To="1"
+                           Duration="0:0:0.3"/>
+        </Storyboard>
+
+        <!-- Slide In From Bottom Animation -->
+        <Storyboard x:Key="SlideInFromBottom">
+            <DoubleAnimation Storyboard.TargetName="AlertContainer"
+                           Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                           From="200" To="0"
+                           Duration="0:0:0.5">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="AlertContainer"
+                           Storyboard.TargetProperty="Opacity"
+                           From="0" To="1"
+                           Duration="0:0:0.3"/>
+        </Storyboard>
+
+        <!-- Fade In Animation -->
+        <Storyboard x:Key="FadeIn">
+            <DoubleAnimation Storyboard.TargetName="AlertContainer"
+                           Storyboard.TargetProperty="Opacity"
+                           From="0" To="1"
+                           Duration="0:0:0.5"/>
+        </Storyboard>
+
+        <!-- Bounce Animation -->
+        <Storyboard x:Key="Bounce">
+            <DoubleAnimation Storyboard.TargetName="AlertContainer"
+                           Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                           From="0" To="1"
+                           Duration="0:0:0.6">
+                <DoubleAnimation.EasingFunction>
+                    <ElasticEase EasingMode="EaseOut" Oscillations="2" Springiness="5"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="AlertContainer"
+                           Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                           From="0" To="1"
+                           Duration="0:0:0.6">
+                <DoubleAnimation.EasingFunction>
+                    <ElasticEase EasingMode="EaseOut" Oscillations="2" Springiness="5"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="AlertContainer"
+                           Storyboard.TargetProperty="Opacity"
+                           From="0" To="1"
+                           Duration="0:0:0.3"/>
+        </Storyboard>
+
+        <!-- Fade Out Animation -->
+        <Storyboard x:Key="FadeOut" Completed="FadeOut_Completed">
+            <DoubleAnimation Storyboard.TargetName="AlertContainer"
+                           Storyboard.TargetProperty="Opacity"
+                           From="1" To="0"
+                           Duration="0:0:0.5"/>
+        </Storyboard>
+    </Window.Resources>
+
+    <Grid>
+        <Border x:Name="AlertContainer"
+                Background="#DD000000"
+                BorderBrush="#FF00D9FF"
+                BorderThickness="2"
+                CornerRadius="10"
+                Padding="20"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+                <TransformGroup>
+                    <ScaleTransform x:Name="ScaleTransform"/>
+                    <TranslateTransform x:Name="TranslateTransform"/>
+                </TransformGroup>
+            </Border.RenderTransform>
+            
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <!-- Alert Title -->
+                <TextBlock x:Name="AlertTitle"
+                          Grid.Row="0"
+                          Text="New Follower!"
+                          FontSize="32"
+                          FontWeight="Bold"
+                          Foreground="#FF00D9FF"
+                          HorizontalAlignment="Center"
+                          Margin="0,0,0,10"/>
+                
+                <!-- Alert Content -->
+                <StackPanel Grid.Row="1" 
+                           Orientation="Horizontal"
+                           HorizontalAlignment="Center">
+                    
+                    <!-- Alert Image (Optional) -->
+                    <Image x:Name="AlertImage"
+                          Width="80" Height="80"
+                          Margin="0,0,20,0"
+                          Visibility="Collapsed"
+                          Stretch="UniformToFill">
+                        <Image.Clip>
+                            <EllipseGeometry Center="40,40" RadiusX="40" RadiusY="40"/>
+                        </Image.Clip>
+                    </Image>
+                    
+                    <!-- Alert Text -->
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="AlertUsername"
+                                  Text="Username"
+                                  FontSize="28"
+                                  FontWeight="SemiBold"
+                                  Foreground="White"
+                                  HorizontalAlignment="Center"/>
+                        
+                        <TextBlock x:Name="AlertMessage"
+                                  Text="Thanks for following!"
+                                  FontSize="18"
+                                  Foreground="#FFCCCCCC"
+                                  HorizontalAlignment="Center"
+                                  Margin="0,5,0,0"
+                                  Visibility="Collapsed"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

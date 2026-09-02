@@ -1,0 +1,267 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ========================================= -->
+    <!-- VyralBot Teal/Slate Theme -->
+    <!-- ========================================= -->
+    
+    <!-- ===== Primary Brand Colors ===== -->
+    <Color x:Key="PrimaryColor">#14B8A6</Color>
+    <Color x:Key="PrimaryHover">#2DD4BF</Color>
+    <Color x:Key="PrimaryPressed">#0D9488</Color>
+    <Color x:Key="PrimaryLight">#5EEAD4</Color>
+    <Color x:Key="PrimaryDark">#0F766E</Color>
+
+    <!-- ===== Background Colors ===== -->
+    <Color x:Key="BackgroundPrimary">#0F172A</Color>
+    <Color x:Key="BackgroundSecondary">#1E293B</Color>
+    <Color x:Key="BackgroundTertiary">#334155</Color>
+    <Color x:Key="SurfaceColor">#1E293B</Color>
+    <Color x:Key="SurfaceHover">#334155</Color>
+    <Color x:Key="SurfacePressed">#475569</Color>
+    
+    <!-- ===== Overlay/Modal Colors ===== -->
+    <Color x:Key="OverlayBackground">#CC000000</Color>
+    <Color x:Key="ModalBackground">#DD000000</Color>
+    <Color x:Key="GlassBackground">#1A1E293B</Color>
+    <Color x:Key="GlassBorder">#3314B8A6</Color>
+
+    <!-- ===== Text Colors ===== -->
+    <Color x:Key="TextPrimary">#F1F5F9</Color>
+    <Color x:Key="TextSecondary">#94A3B8</Color>
+    <Color x:Key="TextMuted">#64748B</Color>
+    <Color x:Key="TextDisabled">#475569</Color>
+    <Color x:Key="TextOnPrimary">#FFFFFF</Color>
+    <Color x:Key="TextOnDark">#FFFFFF</Color>
+    <Color x:Key="TextOnLight">#1E293B</Color>
+
+    <!-- ===== Border Colors ===== -->
+    <Color x:Key="BorderPrimary">#475569</Color>
+    <Color x:Key="BorderSecondary">#334155</Color>
+    <Color x:Key="BorderLight">#64748B</Color>
+    <Color x:Key="BorderAccent">#14B8A6</Color>
+
+    <!-- ===== Semantic Colors ===== -->
+    <Color x:Key="SuccessColor">#10B981</Color>
+    <Color x:Key="SuccessHover">#059669</Color>
+    <Color x:Key="SuccessLight">#34D399</Color>
+    
+    <Color x:Key="WarningColor">#F59E0B</Color>
+    <Color x:Key="WarningHover">#D97706</Color>
+    <Color x:Key="WarningLight">#FBBF24</Color>
+    
+    <Color x:Key="ErrorColor">#EF4444</Color>
+    <Color x:Key="ErrorHover">#DC2626</Color>
+    <Color x:Key="ErrorLight">#F87171</Color>
+    
+    <Color x:Key="InfoColor">#3B82F6</Color>
+    <Color x:Key="InfoHover">#2563EB</Color>
+    <Color x:Key="InfoLight">#60A5FA</Color>
+
+    <!-- ===== Platform-Specific Colors ===== -->
+    <!-- Twitch -->
+    <Color x:Key="TwitchPrimary">#9146FF</Color>
+    <Color x:Key="TwitchHover">#772CE8</Color>
+    <Color x:Key="TwitchPressed">#5C16C5</Color>
+    <Color x:Key="TwitchBackground">#0E0E10</Color>
+    <Color x:Key="TwitchSurface">#18181B</Color>
+    <Color x:Key="TwitchDark">#1F1F23</Color>
+    
+    <!-- Kick -->
+    <Color x:Key="KickPrimary">#53FC18</Color>
+    <Color x:Key="KickHover">#42D412</Color>
+    <Color x:Key="KickPressed">#32A40E</Color>
+    <Color x:Key="KickBackground">#0E0E10</Color>
+    <Color x:Key="KickOnPrimary">#0E0E10</Color>
+    
+    <!-- YouTube -->
+    <Color x:Key="YouTubePrimary">#FF0000</Color>
+    <Color x:Key="YouTubeHover">#CC0000</Color>
+    
+    <!-- TikTok -->
+    <Color x:Key="TikTokPrimary">#00F2EA</Color>
+    <Color x:Key="TikTokAccent">#FF0050</Color>
+
+    <!-- ===== Input/Control Colors ===== -->
+    <Color x:Key="InputBackground">#1E293B</Color>
+    <Color x:Key="InputBorder">#475569</Color>
+    <Color x:Key="InputFocusBorder">#14B8A6</Color>
+    <Color x:Key="InputDisabled">#334155</Color>
+    <Color x:Key="InputPlaceholder">#64748B</Color>
+
+    <!-- ===== Chat Badge Colors ===== -->
+    <Color x:Key="ModeratorBadge">#00AD03</Color>
+    <Color x:Key="SubscriberBadge">#9146FF</Color>
+    <Color x:Key="VipBadge">#E005B9</Color>
+    <Color x:Key="DiscordColor">#5865F2</Color>
+    <Color x:Key="OrangeBadge">#FFA500</Color>
+
+    <!-- ========================================= -->
+    <!-- Solid Color Brushes -->
+    <!-- ========================================= -->
+    
+    <!-- ===== Primary Brushes ===== -->
+    <SolidColorBrush x:Key="PrimaryBrush" Color="{DynamicResource PrimaryColor}"/>
+    <SolidColorBrush x:Key="PrimaryHoverBrush" Color="{DynamicResource PrimaryHover}"/>
+    <SolidColorBrush x:Key="PrimaryPressedBrush" Color="{DynamicResource PrimaryPressed}"/>
+    <SolidColorBrush x:Key="PrimaryLightBrush" Color="{DynamicResource PrimaryLight}"/>
+    <SolidColorBrush x:Key="PrimaryDarkBrush" Color="{DynamicResource PrimaryDark}"/>
+
+    <!-- Legacy aliases for backward compatibility -->
+    <SolidColorBrush x:Key="VyralRedBrush" Color="{DynamicResource PrimaryColor}"/>
+    <SolidColorBrush x:Key="VyralRedHoverBrush" Color="{DynamicResource PrimaryHover}"/>
+    <SolidColorBrush x:Key="VyralRedPressedBrush" Color="{DynamicResource PrimaryPressed}"/>
+    <SolidColorBrush x:Key="PrimaryRedBrush" Color="{DynamicResource PrimaryColor}"/>
+    <SolidColorBrush x:Key="PrimaryRedHoverBrush" Color="{DynamicResource PrimaryHover}"/>
+    <SolidColorBrush x:Key="PrimaryRedPressedBrush" Color="{DynamicResource PrimaryPressed}"/>
+
+    <!-- ===== Background Brushes ===== -->
+    <SolidColorBrush x:Key="BackgroundPrimaryBrush" Color="{DynamicResource BackgroundPrimary}"/>
+    <SolidColorBrush x:Key="BackgroundSecondaryBrush" Color="{DynamicResource BackgroundSecondary}"/>
+    <SolidColorBrush x:Key="BackgroundTertiaryBrush" Color="{DynamicResource BackgroundTertiary}"/>
+    <SolidColorBrush x:Key="BackgroundMediumBrush" Color="{DynamicResource BackgroundTertiary}"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="{DynamicResource SurfaceColor}"/>
+    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="{DynamicResource SurfaceHover}"/>
+    <SolidColorBrush x:Key="SurfacePressedBrush" Color="{DynamicResource SurfacePressed}"/>
+    
+    <!-- Legacy aliases -->
+    <SolidColorBrush x:Key="BackgroundDarkBrush" Color="{DynamicResource BackgroundPrimary}"/>
+    <SolidColorBrush x:Key="CardBackgroundBrush" Color="{DynamicResource BackgroundSecondary}"/>
+    <SolidColorBrush x:Key="CardHoverBrush" Color="{DynamicResource BackgroundTertiary}"/>
+
+    <!-- ===== Overlay Brushes ===== -->
+    <SolidColorBrush x:Key="OverlayBackgroundBrush" Color="{DynamicResource OverlayBackground}"/>
+    <SolidColorBrush x:Key="ModalBackgroundBrush" Color="{DynamicResource ModalBackground}"/>
+    <SolidColorBrush x:Key="GlassBackgroundBrush" Color="{DynamicResource GlassBackground}" Opacity="0.8"/>
+    <SolidColorBrush x:Key="GlassBorderBrush" Color="{DynamicResource GlassBorder}"/>
+
+    <!-- ===== Text Brushes ===== -->
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{DynamicResource TextPrimary}"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{DynamicResource TextSecondary}"/>
+    <SolidColorBrush x:Key="TextMutedBrush" Color="{DynamicResource TextMuted}"/>
+    <SolidColorBrush x:Key="TextDisabledBrush" Color="{DynamicResource TextDisabled}"/>
+    <SolidColorBrush x:Key="TextOnPrimaryBrush" Color="{DynamicResource TextOnPrimary}"/>
+    <SolidColorBrush x:Key="TextOnDarkBrush" Color="{DynamicResource TextOnDark}"/>
+    <SolidColorBrush x:Key="TextOnLightBrush" Color="{DynamicResource TextOnLight}"/>
+
+    <!-- ===== Border Brushes ===== -->
+    <SolidColorBrush x:Key="BorderPrimaryBrush" Color="{DynamicResource BorderPrimary}"/>
+    <SolidColorBrush x:Key="BorderSecondaryBrush" Color="{DynamicResource BorderSecondary}"/>
+    <SolidColorBrush x:Key="BorderLightBrush" Color="{DynamicResource BorderLight}"/>
+    <SolidColorBrush x:Key="BorderAccentBrush" Color="{DynamicResource BorderAccent}"/>
+    <SolidColorBrush x:Key="BorderColorBrush" Color="{DynamicResource BorderPrimary}"/>
+
+    <!-- ===== Semantic Brushes ===== -->
+    <SolidColorBrush x:Key="SuccessBrush" Color="{DynamicResource SuccessColor}"/>
+    <SolidColorBrush x:Key="SuccessHoverBrush" Color="{DynamicResource SuccessHover}"/>
+    <SolidColorBrush x:Key="SuccessLightBrush" Color="{DynamicResource SuccessLight}"/>
+    <SolidColorBrush x:Key="SuccessGreenBrush" Color="{DynamicResource SuccessColor}"/>
+    
+    <SolidColorBrush x:Key="WarningBrush" Color="{DynamicResource WarningColor}"/>
+    <SolidColorBrush x:Key="WarningHoverBrush" Color="{DynamicResource WarningHover}"/>
+    <SolidColorBrush x:Key="WarningLightBrush" Color="{DynamicResource WarningLight}"/>
+    <SolidColorBrush x:Key="WarningYellowBrush" Color="{DynamicResource WarningColor}"/>
+    
+    <SolidColorBrush x:Key="ErrorBrush" Color="{DynamicResource ErrorColor}"/>
+    <SolidColorBrush x:Key="ErrorHoverBrush" Color="{DynamicResource ErrorHover}"/>
+    <SolidColorBrush x:Key="ErrorLightBrush" Color="{DynamicResource ErrorLight}"/>
+    <SolidColorBrush x:Key="ErrorRedBrush" Color="{DynamicResource ErrorColor}"/>
+    
+    <SolidColorBrush x:Key="InfoBrush" Color="{DynamicResource InfoColor}"/>
+    <SolidColorBrush x:Key="InfoHoverBrush" Color="{DynamicResource InfoHover}"/>
+    <SolidColorBrush x:Key="InfoLightBrush" Color="{DynamicResource InfoLight}"/>
+
+    <!-- ===== Platform Brushes ===== -->
+    <SolidColorBrush x:Key="TwitchBrush" Color="{DynamicResource TwitchPrimary}"/>
+    <SolidColorBrush x:Key="TwitchHoverBrush" Color="{DynamicResource TwitchHover}"/>
+    <SolidColorBrush x:Key="TwitchPressedBrush" Color="{DynamicResource TwitchPressed}"/>
+    <SolidColorBrush x:Key="TwitchBackgroundBrush" Color="{DynamicResource TwitchBackground}"/>
+    <SolidColorBrush x:Key="TwitchSurfaceBrush" Color="{DynamicResource TwitchSurface}"/>
+    <SolidColorBrush x:Key="TwitchDarkBrush" Color="{DynamicResource TwitchDark}"/>
+    
+    <SolidColorBrush x:Key="KickBrush" Color="{DynamicResource KickPrimary}"/>
+    <SolidColorBrush x:Key="KickHoverBrush" Color="{DynamicResource KickHover}"/>
+    <SolidColorBrush x:Key="KickPressedBrush" Color="{DynamicResource KickPressed}"/>
+    <SolidColorBrush x:Key="KickBackgroundBrush" Color="{DynamicResource KickBackground}"/>
+    <SolidColorBrush x:Key="KickOnPrimaryBrush" Color="{DynamicResource KickOnPrimary}"/>
+    
+    <SolidColorBrush x:Key="YouTubeBrush" Color="{DynamicResource YouTubePrimary}"/>
+    <SolidColorBrush x:Key="YouTubeHoverBrush" Color="{DynamicResource YouTubeHover}"/>
+    
+    <SolidColorBrush x:Key="TikTokBrush" Color="{DynamicResource TikTokPrimary}"/>
+    <SolidColorBrush x:Key="TikTokAccentBrush" Color="{DynamicResource TikTokAccent}"/>
+
+    <!-- ===== Input Brushes ===== -->
+    <SolidColorBrush x:Key="InputBackgroundBrush" Color="{DynamicResource InputBackground}"/>
+    <SolidColorBrush x:Key="InputBorderBrush" Color="{DynamicResource InputBorder}"/>
+    <SolidColorBrush x:Key="InputFocusBorderBrush" Color="{DynamicResource InputFocusBorder}"/>
+    <SolidColorBrush x:Key="InputDisabledBrush" Color="{DynamicResource InputDisabled}"/>
+    <SolidColorBrush x:Key="InputPlaceholderBrush" Color="{DynamicResource InputPlaceholder}"/>
+
+    <!-- ===== Chat Badge Brushes ===== -->
+    <SolidColorBrush x:Key="ModeratorBadgeBrush" Color="{DynamicResource ModeratorBadge}"/>
+    <SolidColorBrush x:Key="SubscriberBadgeBrush" Color="{DynamicResource SubscriberBadge}"/>
+    <SolidColorBrush x:Key="VipBadgeBrush" Color="{DynamicResource VipBadge}"/>
+    <SolidColorBrush x:Key="DiscordBrush" Color="{DynamicResource DiscordColor}"/>
+    <SolidColorBrush x:Key="OrangeBadgeBrush" Color="{DynamicResource OrangeBadge}"/>
+
+    <!-- ========================================= -->
+    <!-- Styles -->
+    <!-- ========================================= -->
+    
+    <!-- Premium Scrollbar Style -->
+    <Style x:Key="VyralScrollBarThumb" TargetType="{x:Type Thumb}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Thumb}">
+                    <Border Background="{DynamicResource PrimaryBrush}" 
+                            CornerRadius="4"
+                            Opacity="0.6"/>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Opacity" Value="0.8"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="{x:Type ScrollBar}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Width" Value="8"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ScrollBar}">
+                    <Grid>
+                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource VyralScrollBarThumb}"/>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Width" Value="Auto"/>
+                <Setter Property="Height" Value="8"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Drop Shadows -->
+    <DropShadowEffect x:Key="CardShadow" 
+                      BlurRadius="20" 
+                      ShadowDepth="0" 
+                      Opacity="0.3" 
+                      Color="#000000"/>
+    
+    <DropShadowEffect x:Key="HoverShadow" 
+                      BlurRadius="30" 
+                      ShadowDepth="0" 
+                      Opacity="0.5" 
+                      Color="#000000"/>
+
+</ResourceDictionary>

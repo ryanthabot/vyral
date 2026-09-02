@@ -1,0 +1,272 @@
+<UserControl x:Class="VyralBot.UI.Views.AudioSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d" 
+             d:DesignHeight="600" d:DesignWidth="800">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,20">
+            <TextBlock Text="Audio Settings" 
+                       Style="{StaticResource MaterialDesignHeadline4TextBlock}" 
+                       Margin="0,0,0,5"/>
+            <TextBlock Text="Configure sound playback for events and browser sources" 
+                       Style="{StaticResource MaterialDesignBody2TextBlock}" 
+                       Foreground="{DynamicResource MaterialDesignBodyLight}"/>
+        </StackPanel>
+
+        <!-- Settings Content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                
+                <!-- Sound Output Options -->
+                <materialDesign:Card Margin="0,0,0,15" Padding="20">
+                    <StackPanel>
+                        <TextBlock Text="Sound Output" 
+                                   Style="{StaticResource MaterialDesignHeadline6TextBlock}" 
+                                   Margin="0,0,0,15"/>
+
+                        <!-- Streamer Sounds Toggle -->
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="🔊 Streamer Sounds" 
+                                           FontWeight="SemiBold" 
+                                           FontSize="14"/>
+                                <TextBlock Text="Play sounds locally in the app (you hear them)" 
+                                           Foreground="{DynamicResource MaterialDesignBodyLight}" 
+                                           TextWrapping="Wrap" 
+                                           Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          IsChecked="{Binding StreamerSoundsEnabled}" 
+                                          Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                          VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <Separator Margin="0,10"/>
+
+                        <!-- Stream Sounds Toggle -->
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="🌐 Stream Sounds" 
+                                           FontWeight="SemiBold" 
+                                           FontSize="14"/>
+                                <TextBlock Text="Send sounds to browser source (viewers hear them)" 
+                                           Foreground="{DynamicResource MaterialDesignBodyLight}" 
+                                           TextWrapping="Wrap" 
+                                           Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          IsChecked="{Binding StreamSoundsEnabled}" 
+                                          Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                          VerticalAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Volume Control -->
+                <materialDesign:Card Margin="0,0,0,15" Padding="20">
+                    <StackPanel>
+                        <TextBlock Text="Volume" 
+                                   Style="{StaticResource MaterialDesignHeadline6TextBlock}" 
+                                   Margin="0,0,0,15"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Slider Grid.Column="0" 
+                                    Minimum="0" 
+                                    Maximum="100" 
+                                    Value="{Binding MasterVolume}" 
+                                    TickFrequency="10" 
+                                    IsSnapToTickEnabled="True"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,15,0"/>
+
+                            <TextBlock Grid.Column="1" 
+                                       Text="{Binding MasterVolume, StringFormat={}{0}%}" 
+                                       FontSize="18" 
+                                       FontWeight="Bold" 
+                                       VerticalAlignment="Center"
+                                       MinWidth="50"/>
+                        </Grid>
+
+                        <TextBlock Text="Master volume affects all event sounds" 
+                                   Foreground="{DynamicResource MaterialDesignBodyLight}" 
+                                   Margin="0,5,0,0"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Server Configuration -->
+                <materialDesign:Card Margin="0,0,0,15" Padding="20">
+                    <StackPanel>
+                        <TextBlock Text="WebSocket Server" 
+                                   Style="{StaticResource MaterialDesignHeadline6TextBlock}" 
+                                   Margin="0,0,0,15"/>
+
+                        <!-- Server Status -->
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Ellipse Grid.Column="0" 
+                                     Width="12" 
+                                     Height="12" 
+                                     Margin="0,0,8,0" 
+                                     VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="Red"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsServerRunning}" Value="True">
+                                                <Setter Property="Fill" Value="LimeGreen"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+
+                            <StackPanel Grid.Column="1">
+                                <TextBlock FontWeight="SemiBold">
+                                    <Run Text="Status:"/>
+                                    <Run>
+                                        <Run.Style>
+                                            <Style TargetType="Run">
+                                                <Setter Property="Text" Value="Stopped"/>
+                                                <Setter Property="Foreground" Value="Red"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsServerRunning}" Value="True">
+                                                        <Setter Property="Text" Value="Running"/>
+                                                        <Setter Property="Foreground" Value="LimeGreen"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Run.Style>
+                                    </Run>
+                                </TextBlock>
+                                <TextBlock Foreground="{DynamicResource MaterialDesignBodyLight}">
+                                    <Run Text="Connected Clients:"/>
+                                    <Run Text="{Binding ConnectedClients}" FontWeight="Bold"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Grid>
+
+                        <Separator Margin="0,10"/>
+
+                        <!-- Port Configuration -->
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" 
+                                       Text="Port:" 
+                                       VerticalAlignment="Center" 
+                                       Margin="0,0,10,0"/>
+
+                            <TextBox Grid.Column="1" 
+                                     Text="{Binding WebSocketPort, UpdateSourceTrigger=PropertyChanged}" 
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     materialDesign:HintAssist.Hint="Port (fixed at 5000)"
+                                     Width="150"
+                                     HorizontalAlignment="Left"/>
+                        </Grid>
+
+                        <Button Content="Restart Server" 
+                                Command="{Binding RestartServerCommand}" 
+                                Style="{StaticResource MaterialDesignOutlinedButton}"
+                                Margin="0,15,0,0"
+                                HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Browser Source Setup -->
+                <materialDesign:Card Margin="0,0,0,15" Padding="20">
+                    <StackPanel>
+                        <TextBlock Text="Browser Source (OBS)" 
+                                   Style="{StaticResource MaterialDesignHeadline6TextBlock}" 
+                                   Margin="0,0,0,15"/>
+
+                        <TextBlock Text="Add this URL as a Browser Source in OBS:" 
+                                   Foreground="{DynamicResource MaterialDesignBodyLight}" 
+                                   Margin="0,0,0,10"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox Grid.Column="0" 
+                                     Text="{Binding BrowserSourceUrl, Mode=OneWay}" 
+                                     IsReadOnly="True"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     Margin="0,0,10,0"/>
+
+                            <Button Grid.Column="1" 
+                                    Content="Copy URL" 
+                                    Command="{Binding CopyBrowserSourceUrlCommand}"
+                                    Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        </Grid>
+
+                        <TextBlock Text="OBS Setup Instructions:" 
+                                   FontWeight="SemiBold" 
+                                   Margin="0,20,0,10"/>
+
+                        <StackPanel Margin="15,0,0,0">
+                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,5">
+                                <Run Text="1."/>
+                                <Run Text="In OBS, add a new Browser Source to your scene"/>
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,5">
+                                <Run Text="2."/>
+                                <Run Text="Paste the URL above into the URL field"/>
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,5">
+                                <Run Text="3."/>
+                                <Run Text="Set width/height to 1920x1080 (or your stream resolution)"/>
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,5">
+                                <Run Text="4."/>
+                                <Run Text="Sounds will play automatically when events occur"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Test & Save Buttons -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Test Sound" 
+                            Command="{Binding TestSoundCommand}" 
+                            Style="{StaticResource MaterialDesignOutlinedButton}"
+                            Margin="0,0,10,0"/>
+                    <Button Content="Save Settings" 
+                            Command="{Binding SaveSettingsCommand}" 
+                            Style="{StaticResource MaterialDesignRaisedButton}"/>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
