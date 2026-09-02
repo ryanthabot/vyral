@@ -1,12 +1,16 @@
 using System;
+using System.Collections.Generic;
 using System.Windows.Media;
 using VyralBot.Workflows.Abstractions;
 
 namespace VyralBot.UI.Controls.FlowCanvas;
 
 /// <summary>
-/// Shared dark-theme palette and small color helpers for the flow canvas
-/// visuals (nodes, ports, wires, grid).
+/// Shared palette and small color helpers for the flow canvas visuals
+/// (nodes, ports, wires, grid). Surface/text roles resolve through the
+/// active theme's FlowCanvas* color resources (Themes/Colors/*.xaml); the
+/// const strings below are only the fallback defaults used when no theme
+/// system is available (designer/tests).
 /// </summary>
 internal static class FlowCanvasPalette
 {
@@ -43,6 +47,34 @@ internal static class FlowCanvasPalette
 
     public const string ParameterAccent = "#A855F7";  // purple icon chip of the parameter option cards
     public const string ParameterWarning = "#F59E0B"; // orange "!" badge on a parameter card with a warning
+
+    /// <summary>
+    /// Default hex → theme resource key. Consts are compile-time inlined at call
+    /// sites, so the lookup maps by value. Case/trigger accent share a resource.
+    /// </summary>
+    private static readonly Dictionary<string, string> ThemedResourceKeys = new()
+    {
+        [CanvasBackground] = "FlowCanvasBackground",
+        [GridDot] = "FlowCanvasGridDot",
+        [NodeBackground] = "FlowCanvasNodeBackground",
+        [NodeBorder] = "FlowCanvasNodeBorder",
+        [NodeHover] = "FlowCanvasNodeHover",
+        [Selection] = "FlowCanvasSelection",
+        [TextPrimary] = "FlowCanvasTextPrimary",
+        [TextSecondary] = "FlowCanvasTextSecondary",
+        [DescriptionText] = "FlowCanvasDescriptionText",
+        [PortNeutral] = "FlowCanvasPortNeutral",
+        [MainWire] = "FlowCanvasMainWire",
+        [CasePortColor] = "FlowCanvasCasePort",
+        [TriggerAccent] = "FlowCanvasCasePort",
+        [Rejected] = "FlowCanvasRejected",
+        [CanvasButtonBackground] = "FlowCanvasButtonBackground",
+        [CanvasButtonHover] = "FlowCanvasButtonHover",
+        [CanvasButtonForeground] = "FlowCanvasButtonForeground",
+        [ChipBackground] = "FlowCanvasChipBackground",
+        [ChipBorder] = "FlowCanvasChipBorder",
+        [ChipBorderHover] = "FlowCanvasChipBorderHover",
+    };
 
     /// <summary>
     /// THE port/wire color rule (single source of truth — used for the output
@@ -86,9 +118,16 @@ internal static class FlowCanvasPalette
     public static bool IsAttachmentColor(System.Windows.Media.Color color) =>
         color == Color(PortNeutral);
 
-    /// <summary>Parses a "#RRGGBB" string, falling back to gray on bad input.</summary>
+    /// <summary>Parses a "#RRGGBB" string, preferring the themed color for known palette roles.</summary>
     public static Color Color(string hex)
     {
+        // Theme-aware: known palette roles resolve from the active theme's resources.
+        if (hex is not null && ThemedResourceKeys.TryGetValue(hex, out var resourceKey))
+        {
+            if (System.Windows.Application.Current?.TryFindResource(resourceKey) is System.Windows.Media.Color themed)
+                return themed;
+        }
+
         try
         {
             return (Color)ColorConverter.ConvertFromString(hex);
