@@ -896,6 +896,11 @@
                             <local:SettingsView/>
                         </DataTemplate>
 
+                        <!-- Performance Monitor View (Settings → Performance tab) -->
+                        <DataTemplate DataType="{x:Type vm:PerformanceViewModel}">
+                            <local:PerformanceView/>
+                        </DataTemplate>
+
                         <!-- Audio Settings View -->
                         <DataTemplate DataType="{x:Type vm:AudioSettingsViewModel}">
                             <local:AudioSettingsView/>

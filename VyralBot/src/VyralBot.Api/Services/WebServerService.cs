@@ -11,6 +11,7 @@ public class WebServerService : IDisposable
 {
     private readonly ILogger<WebServerService> _logger;
     private readonly IServiceProvider _parentServices; // Shared services from WPF app
+    private readonly VyralBot.Core.Services.Performance.IMetricsRegistry? _metrics;
     private WebApplication? _app;
     private IHostApplicationLifetime? _appLifetime;
     private CancellationTokenSource? _cts;
@@ -22,10 +23,12 @@ public class WebServerService : IDisposable
     public int Port => _currentPort;
     public string? LocalUrl => _isRunning ? $"http://localhost:{_currentPort}" : null;
 
-    public WebServerService(ILogger<WebServerService> logger, IServiceProvider parentServices)
+    public WebServerService(ILogger<WebServerService> logger, IServiceProvider parentServices,
+        VyralBot.Core.Services.Performance.IMetricsRegistry? metrics = null)
     {
         _logger = logger;
         _parentServices = parentServices;
+        _metrics = metrics;
     }
 
     public async Task<bool> StartAsync(int port = 5000)
@@ -80,6 +83,23 @@ public class WebServerService : IDisposable
             _appLifetime = _app.Services.GetService<IHostApplicationLifetime>();
 
             // Configure middleware
+            _app.Use(async (context, next) =>
+            {
+                _metrics?.Increment("WebServer", "requests");
+                try
+                {
+                    await next();
+                    if (context.Response.StatusCode >= 400)
+                    {
+                        _metrics?.Increment("WebServer", "errors");
+                    }
+                }
+                catch (Exception)
+                {
+                    _metrics?.Increment("WebServer", "errors");
+                    throw;
+                }
+            });
             _app.UseWebSockets();
             _app.UseStaticFiles(); // Serve wwwroot (audio.html, sounds)
             _app.UseRouting();

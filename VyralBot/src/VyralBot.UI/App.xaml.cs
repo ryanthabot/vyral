@@ -114,6 +114,14 @@ public partial class App : Application
                 services.AddSingleton<IProcessManager, ProcessManager>();
                 services.AddHostedService<PerformanceMonitor>();
 
+                // Live performance telemetry (Settings → Performance tab):
+                // registry is the shared counter sink every instrumented
+                // service writes to; telemetry service samples process/child
+                // process metrics once per second for the UI.
+                services.AddSingleton<VyralBot.Core.Services.Performance.IMetricsRegistry,
+                    VyralBot.Core.Services.Performance.MetricsRegistry>();
+                services.AddHostedService<VyralBot.Core.Services.Performance.PerformanceTelemetryService>();
+
                 // Currency system
                 services.AddSingleton<ICurrencyService, CurrencyService>();
                 services.AddSingleton<ICurrencyRewardsService, CurrencyRewardsService>();
@@ -146,6 +154,7 @@ public partial class App : Application
                 services.AddSingleton<ICommandService, CommandService>();
                 services.AddSingleton<CommandTimerService>(); // scheduled command firing (Commands page → Timers tab)
                 services.AddSingleton<CommandActionRunner>(); // custom-command action-sequence executor (needs every platform sender)
+                services.AddSingleton<UI.Services.PlatformConnectionService>(); // shared connect/disconnect/token-refresh for Settings + Chat Hub
 
                 // Workflow automation engine (Automation page)
                 var workflowNodeRegistry = new VyralBot.Workflows.Nodes.NodeRegistry();
@@ -273,6 +282,9 @@ public partial class App : Application
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<ProfileSelectorViewModel>();
                 services.AddSingleton<WebServerSettingsViewModel>();
+                services.AddSingleton<PerformanceViewModel>();
+                services.AddTransient<PlatformStartupSettingsViewModel>(); // Settings → Platforms startup cards (fresh per navigation)
+                services.AddTransient<DataManagementViewModel>();           // Settings → Data Management (fresh per navigation)
 
                 // Views
                 services.AddTransient<Views.TwitchDashboardView>();

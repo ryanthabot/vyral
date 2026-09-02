@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
+using VyralBot.Core.Services.Performance;
 
 namespace VyralBot.Core.Services.EventBus;
 
@@ -17,15 +18,17 @@ public class EventBus : IEventBus, IDisposable
     private readonly SemaphoreSlim _handlerSemaphore;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _processingTask;
+    private readonly IMetricsRegistry? _metrics;
     private bool _disposed;
     private const int MaxConcurrentHandlers = 4;
     private const int ChannelCapacity = 500;
 
     public int SubscriptionCount => _subscriptions.Sum(kvp => kvp.Value.Count);
 
-    public EventBus(ILogger<EventBus> logger)
+    public EventBus(ILogger<EventBus> logger, IMetricsRegistry? metrics = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _metrics = metrics;
 
         // Create BOUNDED channel with DropOldest policy for backpressure
         _eventChannel = Channel.CreateBounded<(IEvent, Type)>(new BoundedChannelOptions(ChannelCapacity)
@@ -41,7 +44,7 @@ public class EventBus : IEventBus, IDisposable
         // Start background processing task
         _processingTask = Task.Run(ProcessEventsAsync);
 
-        _logger.LogInformation("EventBus started (Capacity: {Capacity}, MaxConcurrent: {MaxConcurrent})", 
+        _logger.LogInformation("EventBus started (Capacity: {Capacity}, MaxConcurrent: {MaxConcurrent})",
             ChannelCapacity, MaxConcurrentHandlers);
     }
 
@@ -54,6 +57,10 @@ public class EventBus : IEventBus, IDisposable
 
         _logger.LogDebug("Publishing event {EventType} ({EventId}) from {Source}",
             typeof(TEvent).Name, @event.EventId, @event.Source);
+
+        _metrics?.Increment("EventBus", "published");
+        _metrics?.Increment(@event.Source, "events");
+        _metrics?.Increment(@event.Source, "events:" + typeof(TEvent).Name);
 
         // Write to channel (non-blocking)
         await _eventChannel.Writer.WriteAsync((@event, typeof(TEvent)), cancellationToken);
@@ -138,6 +145,8 @@ public class EventBus : IEventBus, IDisposable
             return;
         }
 
+        _metrics?.Increment("EventBus", "processed");
+
         // Snapshot subscriptions to avoid long lock
         var handlers = typeSubscriptions.ToArray();
         var tasks = new List<Task>(handlers.Length);
@@ -157,6 +166,7 @@ public class EventBus : IEventBus, IDisposable
                 }
                 catch (Exception ex)
                 {
+                    _metrics?.Increment("EventBus", "handler_errors");
                     _logger.LogError(ex, "Error invoking handler for {EventType} (Subscription: {SubscriptionId})",
                         eventType.Name, subscriptionId);
                 }
