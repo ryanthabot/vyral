@@ -106,6 +106,8 @@
 
 ## Deviations from the main plan
 
+- **2026-09-02 follow-up fix:** the theme cards rendered clipped (half-cut swatches/names) because `MaterialDesignRaisedButton` constrains button height; fixed with explicit `Height="76"` on the cards (same override pattern as the platform cards' `Height="140"`), plus a "Light/Dark · built-in" subtitle via `BoolToStringConverter`. Commit `87c7261`.
+
 - **UiPreferencesService JSON options:** the plan's code serialized with `JsonOptions` but deserialized without them; `System.Text.Json` is case-sensitive by default, so a camelCase `themeId` silently loaded as native. Fixed (`PropertyNameCaseInsensitive = true` + options passed to `Deserialize`) and locked in with the `Load_reads_camel_case_json` regression test.
 - **LogoVariantExists:** `StreamResourceInfo` is not `IDisposable`; dropped the `using` (plan code didn't compile as written).
 - **Test project path:** solution lives at `VyralBot/src/`, tests at repo root — ProjectReference is `..\..\VyralBot\src\...` (plan had `..\..\src\...`).
