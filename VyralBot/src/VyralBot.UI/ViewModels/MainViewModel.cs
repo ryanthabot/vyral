@@ -38,6 +38,8 @@ public partial class MainViewModel : ViewModelBase
     private TwitchDashboardViewModel? _twitchDashboardViewModel;
     private IServiceScope? _kickDashboardScope;
     private KickDashboardViewModel? _kickDashboardViewModel;
+    private IServiceScope? _youTubeDashboardScope;
+    private YouTubeDashboardViewModel? _youTubeDashboardViewModel;
     private IServiceScope? _discordDashboardScope;
     private DiscordDashboardViewModel? _discordDashboardViewModel;
     private IServiceScope? _discordBotsScope;
@@ -1800,6 +1802,39 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task NavigateToYouTubeSettingsAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to YouTube Dashboard");
+
+        // Check if setup is in progress and prompt user
+        if (!CheckSetupInProgress(out _))
+        {
+            return; // User cancelled navigation
+        }
+
+        try
+        {
+            // CRITICAL ORDER: Null CurrentViewModel FIRST to release WPF references
+            CurrentViewModel = null;
+
+            // Now dispose after WPF releases its references
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _youTubeDashboardViewModel);
+
+            // Always recreate to free memory
+            _youTubeDashboardScope?.Dispose();
+            _youTubeDashboardScope = _serviceProvider.CreateScope();
+            _youTubeDashboardViewModel = _youTubeDashboardScope.ServiceProvider.GetRequiredService<YouTubeDashboardViewModel>();
+            await _youTubeDashboardViewModel.InitializeAsync();
+            CurrentViewModel = _youTubeDashboardViewModel;
+            Title = "Vyral - YouTube";
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error navigating to YouTube dashboard: {ex}");
+        }
+    }
+
+    [RelayCommand]
     private async Task NavigateToKickSettingsAsync()
     {
         _logger.LogInformation("User clicked: Navigate to Kick Dashboard");
@@ -2162,6 +2197,16 @@ public partial class MainViewModel : ViewModelBase
             _kickDashboardScope = null;
             _kickDashboardViewModel = null;
             _logger.LogInformation("♻️ Disposed KickDashboardViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose YouTube Dashboard (not frequently used)
+        if (_youTubeDashboardViewModel != null && _youTubeDashboardViewModel != excludeViewModel)
+        {
+            _youTubeDashboardScope?.Dispose();
+            _youTubeDashboardScope = null;
+            _youTubeDashboardViewModel = null;
+            _logger.LogInformation("♻️ Disposed YouTubeDashboardViewModel to free memory");
             disposedCount++;
         }
 

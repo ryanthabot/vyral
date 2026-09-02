@@ -218,6 +218,19 @@
                                 </StackPanel>
                             </Button>
 
+                            <!-- YouTube (only shown when connected) -->
+                            <Button Style="{StaticResource MaterialDesignFlatButton}"
+                                    Height="40"
+                                    HorizontalContentAlignment="Left"
+                                    Padding="48,0,16,0"
+                                    Command="{Binding NavigateToYouTubeSettingsCommand}"
+                                    Visibility="{Binding IsYouTubeConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Image Source="/Resources/Images/youtube-logo.png" Width="18" Height="18" VerticalAlignment="Center"/>
+                                    <TextBlock Text="YouTube" Margin="12,0,0,0" VerticalAlignment="Center" FontSize="13"/>
+                                </StackPanel>
+                            </Button>
+
                             <!-- Discord (multi-bot management home, always reachable) -->
                             <Button Style="{StaticResource MaterialDesignFlatButton}"
                                     Height="40"
@@ -827,6 +840,10 @@
                         <!-- Kick Dashboard View -->
                         <DataTemplate DataType="{x:Type vm:KickDashboardViewModel}">
                             <local:KickDashboardView/>
+                        </DataTemplate>
+
+                        <DataTemplate DataType="{x:Type vm:YouTubeDashboardViewModel}">
+                            <local:YouTubeDashboardView/>
                         </DataTemplate>
 
                         <!-- Discord Dashboard View -->

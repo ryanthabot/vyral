@@ -240,6 +240,7 @@ public partial class App : Application
                 services.AddSingleton<TikTokWebSetupViewModel>();
                 services.AddSingleton<DiscordWebSetupViewModel>();
                 services.AddSingleton<KickDashboardViewModel>();
+                services.AddSingleton<YouTubeDashboardViewModel>();
                 services.AddSingleton<DiscordDashboardViewModel>();
                 services.AddSingleton<DiscordBotsViewModel>();
                 services.AddSingleton<DiscordBotDetailViewModel>();
