@@ -117,10 +117,14 @@ public partial class App : Application
                 // Live performance telemetry (Settings → Performance tab):
                 // registry is the shared counter sink every instrumented
                 // service writes to; telemetry service samples process/child
-                // process metrics once per second for the UI.
+                // process metrics once per second for the UI. The concrete
+                // singleton is what PerformanceViewModel injects; the hosted
+                // wrapper starts that same instance with the app lifetime.
                 services.AddSingleton<VyralBot.Core.Services.Performance.IMetricsRegistry,
                     VyralBot.Core.Services.Performance.MetricsRegistry>();
-                services.AddHostedService<VyralBot.Core.Services.Performance.PerformanceTelemetryService>();
+                services.AddSingleton<VyralBot.Core.Services.Performance.PerformanceTelemetryService>();
+                services.AddHostedService(sp =>
+                    sp.GetRequiredService<VyralBot.Core.Services.Performance.PerformanceTelemetryService>());
 
                 // Currency system
                 services.AddSingleton<ICurrencyService, CurrencyService>();
