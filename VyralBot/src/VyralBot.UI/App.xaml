@@ -12,9 +12,11 @@
                 <!-- MaterialDesign Base Themes -->
                 <materialDesign:BundledTheme BaseTheme="Dark" PrimaryColor="Teal" SecondaryColor="Cyan" />
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign3.Defaults.xaml" />
-                
-                <!-- VyralBot Custom Theme -->
-                <ResourceDictionary Source="/Resources/Themes/RedSlate.xaml" />
+
+                <!-- VyralBot Theme System: brushes wrap colors via DynamicResource, so
+                     ThemeManager can swap the colors dictionary at runtime. -->
+                <ResourceDictionary Source="/Themes/ThemeBrushes.xaml" />
+                <ResourceDictionary Source="/Themes/Colors/NativeColors.xaml" />
             </ResourceDictionary.MergedDictionaries>
             
             <!-- Define theme colors for Teal primary and Cyan secondary -->
@@ -108,12 +110,12 @@
                                         <Thumb>
                                             <Thumb.Style>
                                                 <Style TargetType="{x:Type Thumb}">
-                                                    <Setter Property="Background" Value="#404040"/>
+                                                    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
                                                     <Setter Property="BorderBrush" Value="Transparent"/>
                                                     <Setter Property="Template">
                                                         <Setter.Value>
                                                             <ControlTemplate TargetType="{x:Type Thumb}">
-                                                                <Border Background="{TemplateBinding Background}" 
+                                                                <Border Background="{TemplateBinding Background}"
                                                                         CornerRadius="4"
                                                                         Margin="2,0"/>
                                                             </ControlTemplate>
@@ -121,10 +123,10 @@
                                                     </Setter>
                                                     <Style.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter Property="Background" Value="#606060"/>
+                                                            <Setter Property="Background" Value="{DynamicResource BorderLightBrush}"/>
                                                         </Trigger>
                                                         <Trigger Property="IsDragging" Value="True">
-                                                            <Setter Property="Background" Value="#808080"/>
+                                                            <Setter Property="Background" Value="{DynamicResource TextMutedBrush}"/>
                                                         </Trigger>
                                                     </Style.Triggers>
                                                 </Style>

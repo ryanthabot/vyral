@@ -1,0 +1,117 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ========================================= -->
+    <!-- Dark — neutral graphite dark mode, teal accent -->
+    <!-- ========================================= -->
+
+    <!-- ===== Primary Brand Colors ===== -->
+    <Color x:Key="PrimaryColor">#14B8A6</Color>
+    <Color x:Key="PrimaryHover">#2DD4BF</Color>
+    <Color x:Key="PrimaryPressed">#0D9488</Color>
+    <Color x:Key="PrimaryLight">#5EEAD4</Color>
+    <Color x:Key="PrimaryDark">#0F766E</Color>
+
+    <!-- ===== Background Colors ===== -->
+    <Color x:Key="BackgroundPrimary">#0B0F14</Color>
+    <Color x:Key="BackgroundSecondary">#161B22</Color>
+    <Color x:Key="BackgroundTertiary">#21262D</Color>
+    <Color x:Key="SurfaceColor">#161B22</Color>
+    <Color x:Key="SurfaceHover">#21262D</Color>
+    <Color x:Key="SurfacePressed">#2D333B</Color>
+
+    <!-- ===== Overlay/Modal Colors ===== -->
+    <Color x:Key="OverlayBackground">#CC000000</Color>
+    <Color x:Key="ModalBackground">#DD000000</Color>
+    <Color x:Key="GlassBackground">#1A161B22</Color>
+    <Color x:Key="GlassBorder">#3314B8A6</Color>
+
+    <!-- ===== Text Colors ===== -->
+    <Color x:Key="TextPrimary">#E6EDF3</Color>
+    <Color x:Key="TextSecondary">#8B949E</Color>
+    <Color x:Key="TextMuted">#6E7681</Color>
+    <Color x:Key="TextDisabled">#484F58</Color>
+    <Color x:Key="TextOnPrimary">#FFFFFF</Color>
+    <Color x:Key="TextOnDark">#FFFFFF</Color>
+    <Color x:Key="TextOnLight">#161B22</Color>
+
+    <!-- ===== Border Colors ===== -->
+    <Color x:Key="BorderPrimary">#30363D</Color>
+    <Color x:Key="BorderSecondary">#21262D</Color>
+    <Color x:Key="BorderLight">#6E7681</Color>
+    <Color x:Key="BorderAccent">#14B8A6</Color>
+
+    <!-- ===== Semantic Colors ===== -->
+    <Color x:Key="SuccessColor">#10B981</Color>
+    <Color x:Key="SuccessHover">#059669</Color>
+    <Color x:Key="SuccessLight">#34D399</Color>
+
+    <Color x:Key="WarningColor">#F59E0B</Color>
+    <Color x:Key="WarningHover">#D97706</Color>
+    <Color x:Key="WarningLight">#FBBF24</Color>
+
+    <Color x:Key="ErrorColor">#EF4444</Color>
+    <Color x:Key="ErrorHover">#DC2626</Color>
+    <Color x:Key="ErrorLight">#F87171</Color>
+
+    <Color x:Key="InfoColor">#3B82F6</Color>
+    <Color x:Key="InfoHover">#2563EB</Color>
+    <Color x:Key="InfoLight">#60A5FA</Color>
+
+    <!-- ===== Platform-Specific Colors (brand colors — identical in every theme) ===== -->
+    <Color x:Key="TwitchPrimary">#9146FF</Color>
+    <Color x:Key="TwitchHover">#772CE8</Color>
+    <Color x:Key="TwitchPressed">#5C16C5</Color>
+    <Color x:Key="TwitchBackground">#0E0E10</Color>
+    <Color x:Key="TwitchSurface">#18181B</Color>
+    <Color x:Key="TwitchDark">#1F1F23</Color>
+
+    <Color x:Key="KickPrimary">#53FC18</Color>
+    <Color x:Key="KickHover">#42D412</Color>
+    <Color x:Key="KickPressed">#32A40E</Color>
+    <Color x:Key="KickBackground">#0E0E10</Color>
+    <Color x:Key="KickOnPrimary">#0E0E10</Color>
+
+    <Color x:Key="YouTubePrimary">#FF0000</Color>
+    <Color x:Key="YouTubeHover">#CC0000</Color>
+
+    <Color x:Key="TikTokPrimary">#00F2EA</Color>
+    <Color x:Key="TikTokAccent">#FF0050</Color>
+
+    <!-- ===== Input/Control Colors ===== -->
+    <Color x:Key="InputBackground">#161B22</Color>
+    <Color x:Key="InputBorder">#30363D</Color>
+    <Color x:Key="InputFocusBorder">#14B8A6</Color>
+    <Color x:Key="InputDisabled">#21262D</Color>
+    <Color x:Key="InputPlaceholder">#6E7681</Color>
+
+    <!-- ===== Chat Badge Colors (constant across themes) ===== -->
+    <Color x:Key="ModeratorBadge">#00AD03</Color>
+    <Color x:Key="SubscriberBadge">#9146FF</Color>
+    <Color x:Key="VipBadge">#E005B9</Color>
+    <Color x:Key="DiscordColor">#5865F2</Color>
+    <Color x:Key="OrangeBadge">#FFA500</Color>
+
+    <!-- ===== Flow Canvas (neutral dark) ===== -->
+    <Color x:Key="FlowCanvasBackground">#0D1117</Color>
+    <Color x:Key="FlowCanvasGridDot">#1C2430</Color>
+    <Color x:Key="FlowCanvasNodeBackground">#161B22</Color>
+    <Color x:Key="FlowCanvasNodeBorder">#30363D</Color>
+    <Color x:Key="FlowCanvasNodeHover">#21262D</Color>
+    <Color x:Key="FlowCanvasSelection">#6366F1</Color>
+    <Color x:Key="FlowCanvasTextPrimary">#E6EDF3</Color>
+    <Color x:Key="FlowCanvasTextSecondary">#8B949E</Color>
+    <Color x:Key="FlowCanvasDescriptionText">#6E7681</Color>
+    <Color x:Key="FlowCanvasPortNeutral">#8B949E</Color>
+    <Color x:Key="FlowCanvasMainWire">#3B82F6</Color>
+    <Color x:Key="FlowCanvasCasePort">#F59E0B</Color>
+    <Color x:Key="FlowCanvasTriggerAccent">#F59E0B</Color>
+    <Color x:Key="FlowCanvasRejected">#EF4444</Color>
+    <Color x:Key="FlowCanvasButtonBackground">#FFFFFF</Color>
+    <Color x:Key="FlowCanvasButtonHover">#F3F4F6</Color>
+    <Color x:Key="FlowCanvasButtonForeground">#1F2937</Color>
+    <Color x:Key="FlowCanvasChipBackground">#161B22</Color>
+    <Color x:Key="FlowCanvasChipBorder">#30363D</Color>
+    <Color x:Key="FlowCanvasChipBorderHover">#6E7681</Color>
+
+</ResourceDictionary>
