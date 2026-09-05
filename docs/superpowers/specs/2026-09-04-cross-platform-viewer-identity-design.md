@@ -310,6 +310,35 @@ redemption path (Purpose check both ways), the old one-sided `!unlink` chat comm
 by a `!delink` pointer, and every admin unlink path now detaches `ViewerPlatformStatus.ViewerId`
 so removed/banned accounts stop contributing tier/follower boosts and goal aggregates.
 
+---
+
+# v3 Amendment (2026-09-05) — Discord bot roles & auto-detected identity
+
+## Motivation
+
+With multiple Discord bots connected, every bot currently answers link DMs and there is no way to
+say "this bot handles linking, that one handles giveaways". Bot name/ID must also be typed by the
+user today; Discord already tells us both at connect time.
+
+## Design
+
+1. **Auto-detected identity** — when a Discord bot connects, the app captures
+   `CurrentUser.Id` (snowflake) and `CurrentUser.Username` (+ avatar URL) and persists them on
+   that bot's `DiscordBots` row (new nullable columns `ApplicationId`, `BotUsername`, `AvatarUrl`).
+   UI displays them read-only, labelled "auto-detected", refreshing on `BotsChanged`.
+2. **Bot roles (single-select per role)** — new `RoleLinking` / `RoleGiveaway` flags on the bot
+   rows. Assigning a role to one bot clears it from all others. Unset roles resolve to the
+   Primary bot (existing behavior). Role constants live in `DiscordBotRoles` (extensible list).
+3. **Role consumption**:
+   - *Account Linking*: Discord DM link/delink intake and replies only run on the linking bot.
+     `Linking.Enabled` unchanged.
+   - *Giveaway announcements*: Discord legs of giveaway announcements (start/winners/intake-mode/
+     auto-end) go through the giveaway bot when set.
+4. **UI** — Discord bot detail: "Identity (auto-detected)" read-only fields + "Bot roles"
+   checkboxes; bots list cards show detected username + ID; Viewer Hub → Account Linking gains an
+   "Account linking Discord bot" selector (same backing flags). Defaults need zero configuration:
+   with no roles assigned everything behaves as today via Primary.
+
 ## Viewer profile (click any username in chat)
 
 Clicking a username in the chat window opens a **Viewer Profile** window showing everything the
