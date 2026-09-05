@@ -270,3 +270,44 @@ All changes compile against the existing schema (additive `CREATE TABLE IF NOT E
 `AddColumnIfNotExistsAsync`); first run migrates automatically. Features default to safe states:
 linking enabled, multi-platform bonus Off, odds boosts off per giveaway, goals enabled with the
 4 seeds, intake thresholds conservative (120/min).
+
+---
+
+# v2 Amendment (2026-09-05) — Linking hardening + viewer profiles
+
+## Motivation
+
+Codes generated in public chat are copyable: a stranger who sees a victim's code can redeem it on
+their own platform account and graft themselves into the victim's identity. Removal today is also
+one-sided. Additionally the host has no way to inspect a viewer from the chat window.
+
+## Hardened linking rules
+
+1. **One account per platform per viewer identity.** `RedeemCodeAsync` rejects any redemption
+   (and any merge) that would leave the target identity with two accounts on the same platform.
+   Error copy: "Your link group already has a {platform} account ({name}). Remove it first with
+   !delink."
+2. **Two-sided removal (`!delink`)** — removing a platform account requires proof from another
+   account in the same identity plus action on the account being removed:
+   - From any linked account that is NOT the one being removed (Discord DM is the natural
+     channel; chat works too): `!delink <platform>` → generates a one-time Delink code
+     (same 5-min expiry, `LinkCodes.Purpose='Delink'`, `TargetPlatform=<platform>`).
+   - On the platform being removed: `!delink <code>` → validates same identity, target platform
+     match, unexpired/unredeemed → deletes that `LinkedAccount` row and nulls its
+     `ViewerPlatformStatus.ViewerId` (history preserved, aggregation stops).
+   - A single-account identity cannot delink itself ("ask the streamer"); the streamer removes
+     accounts from the Viewer Hub / viewer profile UI (banned-user path).
+3. **Admin removal** — Viewer Hub Linked Viewers rows and the new viewer profile window both get
+   per-account unlink buttons (banned users who can't type commands).
+
+## Viewer profile (click any username in chat)
+
+Clicking a username in the chat window opens a **Viewer Profile** window showing everything the
+host can see: unified identity (ViewerId + all linked accounts, each with platform, name, verified
+state, and an unlink button), per-platform status (sub tier, follower, months), economy (balance,
+total earned/spent per platform + recent transactions), activity (watchtime, streaks, first/last
+seen), Vyral goals completed, giveaway entries with results, perks, and recent event statistics.
+Implementation: `IViewerProfileService` aggregate query + `ViewerProfileViewModel` +
+`ViewerProfileWindow` opened from a click command in `ChatViewModel` (ChatView username becomes a
+clickable button). New data access: `GetViewerGoalCompletionsByViewerIdAsync(viewerId)`,
+`GetGiveawayEntriesForUserAsync(username, platform)`.
