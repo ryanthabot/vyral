@@ -300,6 +300,16 @@ one-sided. Additionally the host has no way to inspect a viewer from the chat wi
 3. **Admin removal** — Viewer Hub Linked Viewers rows and the new viewer profile window both get
    per-account unlink buttons (banned users who can't type commands).
 
+## v2.1 ruling (post-review, 2026-09-05)
+
+The one-per-platform guard is absolute: **no account row in the target identity is exempt** (the
+drafted creator-row exemption was removed — it allowed a chat-copying stranger on the same
+platform as the code's creator to graft into the identity). A group member re-typing a code gets
+an explicit "already part of this link group" no-op. Delink codes are rejected by the link
+redemption path (Purpose check both ways), the old one-sided `!unlink` chat command was replaced
+by a `!delink` pointer, and every admin unlink path now detaches `ViewerPlatformStatus.ViewerId`
+so removed/banned accounts stop contributing tier/follower boosts and goal aggregates.
+
 ## Viewer profile (click any username in chat)
 
 Clicking a username in the chat window opens a **Viewer Profile** window showing everything the
