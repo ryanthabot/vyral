@@ -1340,16 +1340,35 @@ public class ChatViewModel : ViewModelBase
 			_logger.LogWarning("DM reply to {Username} skipped: DM channel id unknown (no DM recorded yet)", conversation.Username);
 			return;
 		}
-		IDiscordService bot = ResolveDiscordDmSendTarget(conversation.BotId);
+		// Reply routing: prefer the DM channel we have on file; otherwise
+		// resolve the recipient by username so replies work even when the
+		// conversation predates this session or the origin bot changed.
+		IDiscordService? bot = null;
+		bool byUsername = false;
+		if (!string.IsNullOrEmpty(conversation.ChannelId))
+		{
+			bot = ResolveDiscordDmSendTarget(conversation.BotId);
+		}
 		if (bot == null || !bot.IsConnected)
 		{
-			_logger.LogWarning("DM reply to {Username} skipped (no connected bot for origin '{OriginBotId}'): channel {ChannelId}", conversation.Username, string.IsNullOrEmpty(conversation.BotId) ? "unknown" : conversation.BotId, conversation.ChannelId);
+			bot = _discordBotManager.Connected.FirstOrDefault() ?? (_discordService.IsConnected ? _discordService : null);
+			byUsername = true;
+		}
+		if (bot == null || !bot.IsConnected)
+		{
+			_logger.LogWarning("DM reply to {Username} skipped: no connected Discord bot", conversation.Username);
 			return;
 		}
 		bool delivered;
 		try
 		{
-			delivered = await bot.SendDmToChannelAsync(conversation.ChannelId, text);
+			delivered = byUsername
+				? await bot.SendDmAsync(conversation.Username, text, null)
+				: await bot.SendDmToChannelAsync(conversation.ChannelId, text);
+			if (!delivered && !byUsername)
+			{
+				delivered = await bot.SendDmAsync(conversation.Username, text, null);
+			}
 		}
 		catch (Exception ex)
 		{
