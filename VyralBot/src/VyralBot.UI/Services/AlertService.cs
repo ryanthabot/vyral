@@ -87,6 +87,18 @@ public class AlertService : IAlertService
     private readonly IDataService _dataService;
     private Views.AlertOverlayWindow? _currentAlert;
     private readonly object _lock = new();
+    private readonly Queue<QueuedAlert> _pendingAlerts = new();
+    private bool _isShowing;
+
+    /// <summary>An alert request waiting in the FIFO queue while another alert is on screen.</summary>
+    private sealed record QueuedAlert(
+        string Title,
+        string Username,
+        string? Message,
+        string? ImageUrl,
+        Views.AlertAnimation Animation,
+        Views.AlertPosition Position,
+        int DurationSeconds);
 
     public bool IsAlertVisible => _currentAlert?.IsVisible ?? false;
 
@@ -137,30 +149,112 @@ public class AlertService : IAlertService
 
             await Application.Current.Dispatcher.InvokeAsync(async () =>
             {
-                lock (_lock)
+                try
                 {
-                    // Hide current alert if one is showing
-                    if (_currentAlert?.IsVisible == true)
+                    lock (_lock)
                     {
-                        _currentAlert.Hide();
-                        _currentAlert.Close();
-                        _currentAlert = null;
+                        // FIFO queue: if an alert is currently on screen, enqueue this
+                        // request instead of killing the visible alert (last-wins).
+                        if (_isShowing)
+                        {
+                            _pendingAlerts.Enqueue(new QueuedAlert(
+                                title, username, message, imageUrl,
+                                effectiveAnimation, effectivePosition, effectiveDuration));
+                            _logger.LogDebug("Alert queued ({Count} pending): {Title} - {Username}",
+                                _pendingAlerts.Count, title, username);
+                            return;
+                        }
+
+                        _isShowing = true;
                     }
 
-                    // Create new alert window
-                    _currentAlert = new Views.AlertOverlayWindow();
-                }
-
-                if (_currentAlert != null)
-                {
-                    await _currentAlert.ShowAlertAsync(title, username, message, imageUrl, effectiveAnimation, effectivePosition, effectiveDuration);
+                    await ShowCore(new QueuedAlert(
+                        title, username, message, imageUrl,
+                        effectiveAnimation, effectivePosition, effectiveDuration));
                     _logger.LogInformation("Alert shown: {Title} - {Username}", title, username);
+                }
+                catch (Exception ex)
+                {
+                    // Own try/catch: this body runs inside a Dispatcher async operation,
+                    // so exceptions here would otherwise escape the surrounding catch.
+                    _logger.LogError(ex, "Error showing alert: {Title} - {Username}", title, username);
+
+                    lock (_lock)
+                    {
+                        _isShowing = false;
+                    }
                 }
             });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error showing alert: {Title} - {Username}", title, username);
+        }
+    }
+
+    /// <summary>
+    /// Creates and shows the overlay window for the given request.
+    /// Must be called on the UI thread with <see cref="_isShowing"/> already true.
+    /// </summary>
+    private Task ShowCore(QueuedAlert request)
+    {
+        Views.AlertOverlayWindow alert;
+        lock (_lock)
+        {
+            alert = new Views.AlertOverlayWindow();
+            _currentAlert = alert;
+        }
+
+        // When the window closes, show the next queued alert (if any).
+        alert.Closed += OnAlertWindowClosed;
+
+        return alert.ShowAlertAsync(
+            request.Title,
+            request.Username,
+            request.Message,
+            request.ImageUrl,
+            request.Animation,
+            request.Position,
+            request.DurationSeconds);
+    }
+
+    private async void OnAlertWindowClosed(object? sender, EventArgs e)
+    {
+        if (sender is Views.AlertOverlayWindow closed)
+        {
+            closed.Closed -= OnAlertWindowClosed;
+        }
+
+        QueuedAlert? next = null;
+        lock (_lock)
+        {
+            _currentAlert = null;
+
+            if (_pendingAlerts.Count > 0)
+            {
+                next = _pendingAlerts.Dequeue();
+            }
+            else
+            {
+                _isShowing = false;
+            }
+        }
+
+        if (next != null)
+        {
+            try
+            {
+                await ShowCore(next);
+                _logger.LogInformation("Alert shown from queue: {Title} - {Username}", next.Title, next.Username);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error showing queued alert: {Title} - {Username}", next.Title, next.Username);
+                lock (_lock)
+                {
+                    _isShowing = false;
+                }
+            }
         }
     }
 

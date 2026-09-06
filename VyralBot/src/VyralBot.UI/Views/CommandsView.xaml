@@ -7,7 +7,7 @@
              xmlns:vm="clr-namespace:VyralBot.UI.ViewModels"
              mc:Ignorable="d"
              d:DesignHeight="700" d:DesignWidth="1000"
-             Background="{StaticResource BackgroundDarkBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
 
     <UserControl.Resources>
         <vm:CommandBotNameConverter x:Key="CommandBotNameConverter"/>
@@ -90,7 +90,7 @@
 
         <!-- Plain danger button: red, for destructive actions -->
         <Style x:Key="VyralPlainDangerButton" TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource ErrorRedBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource ErrorRedBrush}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="Height" Value="40"/>
             <Setter Property="FontSize" Value="13"/>
@@ -184,12 +184,12 @@
                     <TextBlock Text="Commands"
                                FontSize="28"
                                FontWeight="Bold"
-                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock Text="Every command — built-in or custom — edits in the Visual Builder. SAVE adopts it into a flow Vyral runs."
                            FontSize="14"
-                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
                            Margin="0,6,0,0"/>
             </StackPanel>
 
@@ -204,8 +204,8 @@
         <!-- Bot scope bar: only when Discord bots are configured -->
         <materialDesign:Card Grid.Row="1"
                              Padding="16,12"
-                             Background="{StaticResource CardBackgroundBrush}"
-                             Effect="{StaticResource CardShadow}"
+                             Background="{DynamicResource CardBackgroundBrush}"
+                             Effect="{DynamicResource CardShadow}"
                              Margin="0,0,0,12"
                              Visibility="{Binding HasDiscordBots, Converter={StaticResource BoolToVisibilityConverter}}">
             <Grid>
@@ -229,7 +229,7 @@
                            Text="Bot scope"
                            FontSize="13"
                            FontWeight="SemiBold"
-                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            VerticalAlignment="Center"/>
 
                 <ComboBox Grid.Column="2"
@@ -242,7 +242,7 @@
                 <TextBlock Grid.Column="3"
                            Text="{Binding ScopeHint}"
                            FontSize="12"
-                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
                            VerticalAlignment="Center"
                            TextWrapping="Wrap"
                            Margin="4,0,16,0"/>
@@ -275,7 +275,7 @@
                                 Margin="0,0,12,0"
                                 ToolTip="Edit in Visual Builder"/>
                         <TextBlock Text="Pre-configured commands. EDIT opens the Visual Builder on a flow seeded from the built-in — SAVE adopts the command."
-                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    VerticalAlignment="Center"
                                    TextWrapping="Wrap"/>
                     </StackPanel>
@@ -285,8 +285,8 @@
                               SelectedItem="{Binding SelectedCommand, Mode=TwoWay}"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
-                              Background="{StaticResource CardBackgroundBrush}"
-                              Foreground="{StaticResource TextPrimaryBrush}"
+                              Background="{DynamicResource CardBackgroundBrush}"
+                              Foreground="{DynamicResource TextPrimaryBrush}"
                               BorderBrush="{DynamicResource BorderColorBrush}"
                               GridLinesVisibility="Horizontal"
                               HorizontalGridLinesBrush="{DynamicResource BorderColorBrush}"
@@ -312,7 +312,7 @@
                             <DataGridTextColumn Header="Response" Binding="{Binding Response}" Width="*" IsReadOnly="True">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                         <Setter Property="Padding" Value="5"/>
                                         <Setter Property="TextWrapping" Value="Wrap"/>
                                     </Style>
@@ -334,7 +334,7 @@
                                 </DataGridTextColumn.Binding>
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                         <Setter Property="Padding" Value="5"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
@@ -376,7 +376,7 @@
                             <DataGridTextColumn Header="Usage" Binding="{Binding UsageCount}" Width="70" IsReadOnly="True">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
                                         <Setter Property="Padding" Value="5"/>
                                         <Setter Property="HorizontalAlignment" Value="Center"/>
                                     </Style>
@@ -420,8 +420,8 @@
                               SelectedItem="{Binding SelectedCommand, Mode=TwoWay}"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
-                              Background="{StaticResource CardBackgroundBrush}"
-                              Foreground="{StaticResource TextPrimaryBrush}"
+                              Background="{DynamicResource CardBackgroundBrush}"
+                              Foreground="{DynamicResource TextPrimaryBrush}"
                               BorderBrush="{DynamicResource BorderColorBrush}"
                               GridLinesVisibility="Horizontal"
                               HorizontalGridLinesBrush="{DynamicResource BorderColorBrush}"
@@ -447,7 +447,7 @@
                             <DataGridTextColumn Header="Response" Binding="{Binding Response}" Width="*">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                         <Setter Property="Padding" Value="5"/>
                                         <Setter Property="TextWrapping" Value="Wrap"/>
                                     </Style>
@@ -472,7 +472,7 @@
                                 </DataGridTextColumn.Binding>
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
                                         <Setter Property="Padding" Value="5"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
@@ -484,7 +484,7 @@
                                 </DataGridTextColumn.Binding>
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                         <Setter Property="Padding" Value="5"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
@@ -520,7 +520,7 @@
                             <DataGridTextColumn Header="Usage" Binding="{Binding UsageCount}" Width="70">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
                                         <Setter Property="Padding" Value="5"/>
                                         <Setter Property="HorizontalAlignment" Value="Center"/>
                                     </Style>
@@ -559,7 +559,7 @@
                                 Style="{StaticResource VyralPlainDangerButton}"
                                 ToolTip="Delete the selected timer"/>
                         <TextBlock Text="Timers fire their command automatically on a schedule — they only run while a profile is loaded."
-                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    VerticalAlignment="Center"
                                    Margin="12,0,0,0"
                                    TextWrapping="Wrap"/>
@@ -571,8 +571,8 @@
                               SelectedItem="{Binding SelectedTimer, Mode=TwoWay}"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
-                              Background="{StaticResource CardBackgroundBrush}"
-                              Foreground="{StaticResource TextPrimaryBrush}"
+                              Background="{DynamicResource CardBackgroundBrush}"
+                              Foreground="{DynamicResource TextPrimaryBrush}"
                               BorderBrush="{DynamicResource BorderColorBrush}"
                               GridLinesVisibility="Horizontal"
                               HorizontalGridLinesBrush="{DynamicResource BorderColorBrush}"
@@ -597,7 +597,7 @@
                             <DataGridTextColumn Header="Command" Binding="{Binding CommandName}" Width="120">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                         <Setter Property="FontFamily" Value="Consolas"/>
                                         <Setter Property="Padding" Value="5"/>
                                     </Style>
@@ -607,7 +607,7 @@
                             <DataGridTextColumn Header="Every (min)" Binding="{Binding IntervalMinutes}" Width="90">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                         <Setter Property="Padding" Value="5"/>
                                         <Setter Property="HorizontalAlignment" Value="Center"/>
                                     </Style>
@@ -626,7 +626,7 @@
                             <DataGridTemplateColumn Header="Bot" Width="110">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Padding="5" Foreground="{StaticResource TextSecondaryBrush}">
+                                        <TextBlock Padding="5" Foreground="{DynamicResource TextSecondaryBrush}">
                                             <TextBlock.Text>
                                                 <Binding Path="." Converter="{StaticResource CommandTimerBotLabelConverter}"/>
                                             </TextBlock.Text>
@@ -652,7 +652,7 @@
                                 </DataGridTextColumn.Binding>
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
                                         <Setter Property="Padding" Value="5"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
@@ -663,15 +663,15 @@
                     <!-- Timer form -->
                     <materialDesign:Card Grid.Row="2"
                                          Padding="20"
-                                         Background="{StaticResource CardBackgroundBrush}"
-                                         Effect="{StaticResource CardShadow}"
+                                         Background="{DynamicResource CardBackgroundBrush}"
+                                         Effect="{DynamicResource CardShadow}"
                                          Margin="0,12,0,0"
                                          Visibility="{Binding IsEditingTimer, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel>
                             <TextBlock Text="{Binding TimerEditHeader}"
                                        FontSize="16"
                                        FontWeight="Bold"
-                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,0,0,14"/>
 
                             <Grid>
@@ -689,7 +689,7 @@
 
                                 <!-- Timer name -->
                                 <StackPanel Grid.Row="0" Grid.Column="0">
-                                    <TextBlock Text="Timer name" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                    <TextBlock Text="Timer name" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                     <TextBox Text="{Binding TimerName, UpdateSourceTrigger=PropertyChanged}"
                                              Padding="8"
                                              materialDesign:HintAssist.Hint="Socials blast"/>
@@ -697,7 +697,7 @@
 
                                 <!-- Command to fire -->
                                 <StackPanel Grid.Row="0" Grid.Column="2">
-                                    <TextBlock Text="Command" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                    <TextBlock Text="Command" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                     <ComboBox ItemsSource="{Binding TimerCommandNames}"
                                               Text="{Binding TimerCommandName, UpdateSourceTrigger=PropertyChanged}"
                                               IsEditable="True"
@@ -707,14 +707,14 @@
 
                                 <!-- Interval -->
                                 <StackPanel Grid.Row="0" Grid.Column="4">
-                                    <TextBlock Text="Every (minutes, min 5)" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                    <TextBlock Text="Every (minutes, min 5)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                     <TextBox Text="{Binding TimerIntervalMinutes, UpdateSourceTrigger=PropertyChanged}"
                                              Padding="8"/>
                                 </StackPanel>
 
                                 <!-- Platform -->
                                 <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,12,0,0">
-                                    <TextBlock Text="Platform" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                    <TextBlock Text="Platform" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                     <ComboBox ItemsSource="{Binding TimerPlatforms}"
                                               SelectedItem="{Binding TimerTargetPlatform}"
                                               Padding="8"/>
@@ -723,7 +723,7 @@
                                 <!-- Discord bot (Discord timers only, when bots are configured) -->
                                 <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,12,0,0"
                                             Visibility="{Binding ShowTimerBotPicker, Converter={StaticResource BoolToVisibilityConverter}}">
-                                    <TextBlock Text="Discord bot" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                    <TextBlock Text="Discord bot" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                     <ComboBox ItemsSource="{Binding TimerBotOptions}"
                                               DisplayMemberPath="Name"
                                               SelectedItem="{Binding SelectedTimerBot}"
@@ -733,7 +733,7 @@
                                 <!-- Enabled toggle -->
                                 <StackPanel Grid.Row="1" Grid.Column="4" Margin="0,12,0,0" VerticalAlignment="Bottom">
                                     <CheckBox Content="Enabled" IsChecked="{Binding TimerIsEnabled}"
-                                              Foreground="{StaticResource TextPrimaryBrush}"/>
+                                              Foreground="{DynamicResource TextPrimaryBrush}"/>
                                 </StackPanel>
                             </Grid>
 
@@ -763,63 +763,63 @@
             <TabItem Header="HELP">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,16,0,0">
                     <StackPanel MaxWidth="800" Margin="8,0,16,24">
-                        <TextBlock Text="Command variables" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
-                        <TextBlock Text="Drop these into any response — the builder's live preview fills them with sample values as you type:" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10"/>
+                        <TextBlock Text="Command variables" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                        <TextBlock Text="Drop these into any response — the builder's live preview fills them with sample values as you type:" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,10"/>
 
-                        <Border Background="{StaticResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" Margin="0,0,0,10" CornerRadius="4">
+                        <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" Margin="0,0,0,10" CornerRadius="4">
                             <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{username} - User who triggered the command"/>
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{platform} - Platform (Twitch, Kick, Discord...)"/>
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{channel} - Channel name"/>
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{balance} - User's currency balance"/>
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{role} - Broadcaster, Moderator, VIP, Subscriber or Viewer"/>
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Text="{}{uptime} / {watchtime} - Stream uptime and user watchtime"/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{username} - User who triggered the command"/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{platform} - Platform (Twitch, Kick, Discord...)"/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{channel} - Channel name"/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{balance} - User's currency balance"/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{role} - Broadcaster, Moderator, VIP, Subscriber or Viewer"/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Text="{}{uptime} / {watchtime} - Stream uptime and user watchtime"/>
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Text="Permission levels" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,16,0,12"/>
-                        <TextBlock Text="Control who can fire each command:" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10"/>
+                        <TextBlock Text="Permission levels" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,16,0,12"/>
+                        <TextBlock Text="Control who can fire each command:" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,10"/>
 
-                        <Border Background="{StaticResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" Margin="0,0,0,10" CornerRadius="4">
+                        <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" Margin="0,0,0,10" CornerRadius="4">
                             <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5">
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5">
                                     <Run Text="Everyone" Foreground="{DynamicResource SecondaryHueMidBrush}" FontWeight="Bold"/>
                                     <Run Text=" - All chat users"/>
                                 </TextBlock>
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5">
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5">
                                     <Run Text="Subscriber" Foreground="{DynamicResource SecondaryHueMidBrush}" FontWeight="Bold"/>
                                     <Run Text=" - Subscribers and above"/>
                                 </TextBlock>
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5">
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5">
                                     <Run Text="VIP" Foreground="{DynamicResource SecondaryHueMidBrush}" FontWeight="Bold"/>
                                     <Run Text=" - VIPs and above"/>
                                 </TextBlock>
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5">
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5">
                                     <Run Text="Moderator" Foreground="{DynamicResource SecondaryHueMidBrush}" FontWeight="Bold"/>
                                     <Run Text=" - Moderators and broadcaster"/>
                                 </TextBlock>
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}">
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}">
                                     <Run Text="Broadcaster" Foreground="{DynamicResource SecondaryHueMidBrush}" FontWeight="Bold"/>
                                     <Run Text=" - Broadcaster only"/>
                                 </TextBlock>
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Text="Bot scope" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,16,0,12"/>
-                        <Border Background="{StaticResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" Margin="0,0,0,10" CornerRadius="4">
+                        <TextBlock Text="Bot scope" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,16,0,12"/>
+                        <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" Margin="0,0,0,10" CornerRadius="4">
                             <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,5" TextWrapping="Wrap" Text="All bots - every Discord bot (and every enabled platform) fires the command."/>
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" Text="This bot only - just the bot picked in the scope bar fires it; the others stay quiet."/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" TextWrapping="Wrap" Text="All bots - every Discord bot (and every enabled platform) fires the command."/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" Text="This bot only - just the bot picked in the scope bar fires it; the others stay quiet."/>
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Text="Examples" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,16,0,12"/>
+                        <TextBlock Text="Examples" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,16,0,12"/>
 
-                        <Border Background="{StaticResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" CornerRadius="4">
+                        <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" CornerRadius="4">
                             <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10" TextWrapping="Wrap" Text="{}!hello&#x0a;Welcome {username} to the stream!" />
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10" TextWrapping="Wrap" Text="{}!gamble&#x0a;{username} gambled and won! New balance: {balance}" />
-                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" Text="{}!lurk&#x0a;Thanks for lurking, {username}! Your {balance} points are safe." />
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10" TextWrapping="Wrap" Text="{}!hello&#x0a;Welcome {username} to the stream!" />
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10" TextWrapping="Wrap" Text="{}!gamble&#x0a;{username} gambled and won! New balance: {balance}" />
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" Text="{}!lurk&#x0a;Thanks for lurking, {username}! Your {balance} points are safe." />
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -845,7 +845,7 @@
         <Border x:Name="FlowEditorOverlay"
                 Grid.Row="0"
                 Panel.ZIndex="100"
-                Background="{StaticResource BackgroundDarkBrush}"
+                Background="{DynamicResource BackgroundDarkBrush}"
                 Visibility="Collapsed">
             <ContentControl x:Name="FlowEditorHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
         </Border>

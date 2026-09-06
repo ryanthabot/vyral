@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
-             Background="{StaticResource BackgroundDarkBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
     
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -19,8 +19,8 @@
 
         <!-- Step Navigation Header -->
         <Border Grid.Row="0" 
-                Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource BorderLightBrush}"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderLightBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="32,24">
             <Border.Style>
@@ -38,7 +38,7 @@
                 <TextBlock Text="TikTok Setup Wizard" 
                          FontSize="24"
                          FontWeight="Bold"
-                         Foreground="{StaticResource TextPrimaryBrush}"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
                          Margin="0,0,0,24"/>
                 
                 <!-- Stepper -->
@@ -68,13 +68,13 @@
                                     HorizontalAlignment="Center">
                                 <Border.Style>
                                     <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="1">
-                                                <Setter Property="Background" Value="{StaticResource TikTokBrush}"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource TikTokBrush}"/>
+                                                <Setter Property="Background" Value="{DynamicResource TikTokBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource TikTokBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -82,7 +82,7 @@
                                 <TextBlock Text="1" 
                                          FontSize="20" 
                                          FontWeight="Bold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
                             </Border>
@@ -91,10 +91,10 @@
                                      HorizontalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="1">
-                                                <Setter Property="Foreground" Value="{StaticResource TikTokBrush}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource TikTokBrush}"/>
                                                 <Setter Property="FontWeight" Value="SemiBold"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -108,7 +108,7 @@
                     <Rectangle Grid.Column="1" 
                              Width="40" 
                              Height="2" 
-                             Fill="{StaticResource BorderLightBrush}"
+                             Fill="{DynamicResource BorderLightBrush}"
                              VerticalAlignment="Center"
                              Margin="8,0"/>
 
@@ -127,13 +127,13 @@
                                     HorizontalAlignment="Center">
                                 <Border.Style>
                                     <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="2">
-                                                <Setter Property="Background" Value="{StaticResource TikTokBrush}"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource TikTokBrush}"/>
+                                                <Setter Property="Background" Value="{DynamicResource TikTokBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource TikTokBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -141,7 +141,7 @@
                                 <TextBlock Text="2" 
                                          FontSize="20" 
                                          FontWeight="Bold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
                             </Border>
@@ -150,10 +150,10 @@
                                      HorizontalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="2">
-                                                <Setter Property="Foreground" Value="{StaticResource TikTokBrush}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource TikTokBrush}"/>
                                                 <Setter Property="FontWeight" Value="SemiBold"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -167,7 +167,7 @@
                     <Rectangle Grid.Column="3" 
                              Width="40" 
                              Height="2" 
-                             Fill="{StaticResource BorderLightBrush}"
+                             Fill="{DynamicResource BorderLightBrush}"
                              VerticalAlignment="Center"
                              Margin="8,0"/>
 
@@ -186,13 +186,13 @@
                                     HorizontalAlignment="Center">
                                 <Border.Style>
                                     <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="3">
-                                                <Setter Property="Background" Value="{StaticResource TikTokBrush}"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource TikTokBrush}"/>
+                                                <Setter Property="Background" Value="{DynamicResource TikTokBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource TikTokBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -200,7 +200,7 @@
                                 <TextBlock Text="3" 
                                          FontSize="20" 
                                          FontWeight="Bold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
                             </Border>
@@ -209,10 +209,10 @@
                                      HorizontalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="3">
-                                                <Setter Property="Foreground" Value="{StaticResource TikTokBrush}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource TikTokBrush}"/>
                                                 <Setter Property="FontWeight" Value="SemiBold"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -226,7 +226,7 @@
                     <Rectangle Grid.Column="5" 
                              Width="40" 
                              Height="2" 
-                             Fill="{StaticResource BorderLightBrush}"
+                             Fill="{DynamicResource BorderLightBrush}"
                              VerticalAlignment="Center"
                              Margin="8,0"/>
 
@@ -245,13 +245,13 @@
                                     HorizontalAlignment="Center">
                                 <Border.Style>
                                     <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="4">
-                                                <Setter Property="Background" Value="{StaticResource TikTokBrush}"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource TikTokBrush}"/>
+                                                <Setter Property="Background" Value="{DynamicResource TikTokBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource TikTokBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -259,7 +259,7 @@
                                 <TextBlock Text="4" 
                                          FontSize="20" 
                                          FontWeight="Bold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
                             </Border>
@@ -268,10 +268,10 @@
                                      HorizontalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="4">
-                                                <Setter Property="Foreground" Value="{StaticResource TikTokBrush}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource TikTokBrush}"/>
                                                 <Setter Property="FontWeight" Value="SemiBold"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -287,7 +287,7 @@
         <!-- Content Area -->
         <Grid Grid.Row="1">
             <!-- Success Screen (Step 3) -->
-            <Border Background="{StaticResource BackgroundDarkBrush}">
+            <Border Background="{DynamicResource BackgroundDarkBrush}">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -302,24 +302,24 @@
                     <TextBlock Text="✓ Setup Complete!" 
                              FontSize="32"
                              FontWeight="Bold"
-                             Foreground="{StaticResource SuccessGreenBrush}"
+                             Foreground="{DynamicResource SuccessGreenBrush}"
                              HorizontalAlignment="Center"
                              Margin="0,0,0,16"/>
                     
                     <TextBlock Text="Your TikTok credentials have been saved securely." 
                              FontSize="16"
-                             Foreground="{StaticResource TextSecondaryBrush}"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
                              HorizontalAlignment="Center"
                              Margin="0,0,0,32"/>
                     
                     <materialDesign:Card Padding="24" 
-                                        Background="{StaticResource CardBackgroundBrush}"
+                                        Background="{DynamicResource CardBackgroundBrush}"
                                         Margin="0,0,0,32">
                         <StackPanel>
                             <TextBlock Text="Saved Credentials" 
                                      FontSize="18"
                                      FontWeight="SemiBold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,16"/>
                             
                             <Grid>
@@ -335,24 +335,24 @@
                                 <TextBlock Grid.Row="0" Grid.Column="0"
                                          Text="Client ID:" 
                                          FontSize="14"
-                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         Foreground="{DynamicResource TextSecondaryBrush}"
                                          Margin="0,0,16,8"/>
                                 <TextBlock Grid.Row="0" Grid.Column="1"
                                          Text="{Binding MaskedClientId}" 
                                          FontSize="14"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          FontFamily="Consolas"
                                          Margin="0,0,0,8"/>
                                 
                                 <TextBlock Grid.Row="1" Grid.Column="0"
                                          Text="Client Secret:" 
                                          FontSize="14"
-                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         Foreground="{DynamicResource TextSecondaryBrush}"
                                          Margin="0,0,16,0"/>
                                 <TextBlock Grid.Row="1" Grid.Column="1"
                                          Text="••••••••••••••••" 
                                          FontSize="14"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          FontFamily="Consolas"/>
                             </Grid>
                         </StackPanel>
@@ -373,7 +373,7 @@
             </Border>
             
             <!-- Step Content (Steps 1-2) - Shows instructions or browser -->
-            <Grid Background="{StaticResource BackgroundDarkBrush}">
+            <Grid Background="{DynamicResource BackgroundDarkBrush}">
                 <Grid.Style>
                     <Style TargetType="Grid">
                         <Setter Property="Visibility" Value="Visible"/>
@@ -412,7 +412,7 @@
                 <!-- Main Content Area -->
                 <Grid Grid.Row="1">
                     <!-- WebView2 Browser (Steps 1 & 2) -->
-                    <Border Background="{StaticResource BackgroundDarkBrush}">
+                    <Border Background="{DynamicResource BackgroundDarkBrush}">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -449,18 +449,18 @@
                             <TextBlock Text="Step 1: Sign In to TikTok" 
                                      FontSize="28"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,24"/>
                             
-                            <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                            <materialDesign:Card Padding="32" Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,24">
                                 <StackPanel>
                                     <TextBlock Text="Account Access Required" 
                                              FontSize="18"
                                              FontWeight="SemiBold"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,0,0,16"/>
                                     
-                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16">
                                         <Run Text="You will need to use your TikTok account in various steps throughout this setup:"/>
                                         <LineBreak/><LineBreak/>
                                         <Run Text="• Signing into TikTok"/>
@@ -504,18 +504,18 @@
                             <TextBlock Text="Step 2: Create Application" 
                                      FontSize="28"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,24"/>
                             
-                            <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                            <materialDesign:Card Padding="32" Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,24">
                                 <StackPanel>
                                     <TextBlock Text="Get your Client ID and Secret" 
                                              FontSize="18"
                                              FontWeight="SemiBold"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,0,0,16"/>
                                     
-                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16">
                                         <Run Text="1. Click the button below to open the TikTok Developer Portal"/>
                                         <LineBreak/><LineBreak/>
                                         <Run Text="2. Register a new application:"/>
@@ -560,7 +560,7 @@
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Visible"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding ShowOAuthWebView}" Value="True">
+                                        <DataTrigger Binding="{Binding ShowBrowser}" Value="True">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -570,18 +570,18 @@
                             <TextBlock Text="Step 3: Authorize Account" 
                                      FontSize="28"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,24"/>
                             
-                            <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                            <materialDesign:Card Padding="32" Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,24">
                                 <StackPanel>
                                     <TextBlock Text="Get OAuth Access Token" 
                                              FontSize="18"
                                              FontWeight="SemiBold"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,0,0,16"/>
                                     
-                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16">
                                         <Run Text="Click the button below to authorize VyralBot with your TikTok account."/>
                                         <LineBreak/><LineBreak/>
                                         <Run Text="This will:"/>
@@ -597,7 +597,7 @@
                                     
                                     <TextBlock Text="{Binding OAuthStatus}" 
                                              FontSize="14"
-                                             Foreground="{StaticResource TextSecondaryBrush}"
+                                             Foreground="{DynamicResource TextSecondaryBrush}"
                                              TextWrapping="Wrap"
                                              HorizontalAlignment="Center"
                                              Margin="0,0,0,16"/>
@@ -657,11 +657,11 @@
                                                         <TextBlock Text="📋 Paste the callback URL from your browser:" 
                                                                    FontSize="14" 
                                                                    FontWeight="SemiBold" 
-                                                                   Foreground="#333"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                                                    Margin="0,0,0,12"/>
                                                         <TextBlock Text="After authorizing in your browser, you'll be redirected to a page that says 'This site can't be reached'. Copy the FULL URL from the address bar and paste it below."
                                                                    FontSize="12"
-                                                                   Foreground="#666"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                                                    TextWrapping="Wrap"
                                                                    Margin="0,0,0,12"/>
                                                         <TextBox Text="{Binding CallbackUrlInput, UpdateSourceTrigger=PropertyChanged}"
@@ -699,27 +699,27 @@
                             <TextBlock Text="Step 4: Test Connection" 
                                      FontSize="28"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,24"/>
                             
-                            <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                            <materialDesign:Card Padding="32" Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,24">
                                 <StackPanel>
                                     <TextBlock Text="Your Authorized Channel" 
                                              FontSize="18"
                                              FontWeight="SemiBold"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,0,0,8"/>
                                     
                                     <TextBlock Text="This is the channel that was authorized in Step 3" 
                                              FontSize="12"
-                                             Foreground="{StaticResource TextSecondaryBrush}"
+                                             Foreground="{DynamicResource TextSecondaryBrush}"
                                              Margin="0,0,0,16"/>
                                     
                                     <TextBox Text="{Binding ChannelName, Mode=OneWay}"
                                            materialDesign:HintAssist.Hint="Authorized channel"
                                            FontSize="14"
                                            IsReadOnly="True"
-                                           Background="{StaticResource BackgroundDarkBrush}"
+                                           Background="{DynamicResource BackgroundDarkBrush}"
                                            Margin="0,0,0,24"/>
                                     
                                     <Button Content="SEND TEST MESSAGE"
@@ -734,7 +734,7 @@
                                     
                                     <TextBlock Text="{Binding TestMessageStatus}" 
                                              FontSize="14"
-                                             Foreground="{StaticResource TextSecondaryBrush}"
+                                             Foreground="{DynamicResource TextSecondaryBrush}"
                                              TextWrapping="Wrap"
                                              Margin="0,0,0,16"/>
                                 </StackPanel>
@@ -744,15 +744,15 @@
                 
                 <!-- Bottom Action Bar -->
                 <Border Grid.Row="2" 
-                        Background="{StaticResource CardBackgroundBrush}"
-                        BorderBrush="{StaticResource BorderLightBrush}"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderLightBrush}"
                         BorderThickness="0,1,0,0"
                         Padding="24,16">
                     <Grid>
                         <!-- Back Button (Steps 2, 3, and 4) -->
                         <Button Content="← BACK"
                                 Command="{Binding GoBackCommand}"
-                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
                                 Height="40"
                                 Padding="24,0"
                                 HorizontalAlignment="Left">
@@ -799,7 +799,7 @@
                                   Foreground="White">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
-                                        <Setter Property="Background" Value="{StaticResource TikTokBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource TikTokBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding ClientIdSaved}" Value="True">
                                                 <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
@@ -816,7 +816,7 @@
                                   Foreground="White">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
-                                        <Setter Property="Background" Value="{StaticResource TikTokBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource TikTokBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding ClientSecretSaved}" Value="True">
                                                 <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
@@ -976,7 +976,7 @@
                         <!-- Step 4 Complete Setup Button (✓ IT WORKED!) -->
                         <Button Content="✓ IT WORKED!" 
                                 Command="{Binding CompleteSetupCommand}"
-                                Background="{StaticResource SuccessGreenBrush}"
+                                Background="{DynamicResource SuccessGreenBrush}"
                                 Foreground="White"
                                 Height="40"
                                 Padding="32,0"
@@ -1016,17 +1016,17 @@
                                 Padding="32"
                                 VerticalAlignment="Center"
                                 HorizontalAlignment="Center"
-                                Background="{StaticResource CardBackgroundBrush}">
+                                Background="{DynamicResource CardBackgroundBrush}">
                 <StackPanel>
                     <TextBlock Text="{Binding ModalTitle}" 
                              FontSize="20"
                              FontWeight="Bold"
-                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Foreground="{DynamicResource TextPrimaryBrush}"
                              Margin="0,0,0,16"/>
                     
                     <TextBlock Text="{Binding ModalDescription}" 
                              FontSize="14"
-                             Foreground="{StaticResource TextSecondaryBrush}"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
                              TextWrapping="Wrap"
                              Margin="0,0,0,24"/>
                     
@@ -1036,7 +1036,7 @@
                            FontSize="14"
                            Padding="12"
                            Margin="0,0,0,24"
-                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            x:Name="ModalInputTextBox"/>
                     
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
@@ -1049,7 +1049,7 @@
                         <Button Content="SAVE"
                               Command="{Binding SaveModalCommand}"
                               Style="{StaticResource MaterialDesignRaisedButton}"
-                              Background="{StaticResource TikTokBrush}"
+                              Background="{DynamicResource TikTokBrush}"
                               Padding="16,8"/>
                     </StackPanel>
                 </StackPanel>

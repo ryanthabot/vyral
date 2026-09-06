@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using System.Threading;
+using VyralBot.Core.Services.Commands;
 using VyralBot.Core.Services.Variables;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
@@ -19,10 +20,12 @@ namespace VyralBot.UI.Services;
 ///
 /// Each tick (every 30s, reentrancy-guarded) loads the CommandTimers rows and,
 /// for every enabled timer whose interval has elapsed since LastRunAt,
-/// resolves the command by name, runs its Response through the variable
-/// replacement service with a minimal context, sends it to the target
-/// platform and persists the new LastRunAt. All failures are logged and never
-/// crash the tick.
+/// resolves the command by name, runs its reply (the single Response or a
+/// random ResponsesJson entry) through the variable replacement service with
+/// a minimal context — or, for action-sequence commands, executes the steps
+/// via CommandActionRunner — and sends it to the target platform. LastRunAt
+/// is stamped ONLY when something was actually sent. All failures are logged
+/// and never crash the tick.
 /// </summary>
 public class CommandTimerService
 {
@@ -32,6 +35,10 @@ public class CommandTimerService
     private readonly IKickService _kickService;
     private readonly IDiscordBotManager _discordBotManager;
     private readonly IVariableReplacementService _variableReplacementService;
+    // Runs action-sequence commands (Command.ActionsJson) — the same executor
+    // the chat command path uses. Null when DI skipped it: those commands are
+    // then skipped with a warning instead of crashing the tick.
+    private readonly CommandActionRunner? _commandActionRunner;
 
     private readonly TimeSpan _tickInterval = TimeSpan.FromSeconds(30);
     private Timer? _tickTimer;
@@ -46,7 +53,8 @@ public class CommandTimerService
         ITwitchService twitchService,
         IKickService kickService,
         IDiscordBotManager discordBotManager,
-        IVariableReplacementService variableReplacementService)
+        IVariableReplacementService variableReplacementService,
+        CommandActionRunner? commandActionRunner = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
@@ -54,6 +62,7 @@ public class CommandTimerService
         _kickService = kickService ?? throw new ArgumentNullException(nameof(kickService));
         _discordBotManager = discordBotManager ?? throw new ArgumentNullException(nameof(discordBotManager));
         _variableReplacementService = variableReplacementService ?? throw new ArgumentNullException(nameof(variableReplacementService));
+        _commandActionRunner = commandActionRunner;
     }
 
     /// <summary>Starts the scheduler. Idempotent — a second call is a no-op.</summary>
@@ -142,9 +151,8 @@ public class CommandTimerService
                 "Command timer {TimerName} skipped: command {CommandName} is missing or disabled",
                 timer.Name, timer.CommandName);
 
-            // Mark the slot as consumed so the warning logs once per interval
-            // instead of every 30s tick.
-            await MarkRanAsync(timer, now);
+            // Nothing was sent — LastRunAt stays untouched so the slot keeps
+            // its place instead of being treated as consumed.
             return;
         }
 
@@ -164,18 +172,74 @@ public class CommandTimerService
             ["channel"] = channel ?? string.Empty
         };
 
-        var response = await _variableReplacementService.ReplaceVariablesAsync(
-            command.Response, contextVariables, timer.TargetPlatform);
+        bool sent;
+        if (!string.IsNullOrWhiteSpace(command.ActionsJson))
+        {
+            // Action-sequence command: run the steps via the same runner the
+            // chat command path uses — its "send" steps do the messaging, so
+            // the plain Response is NOT sent separately (mirrors ChatViewModel).
+            sent = await RunActionsAsync(timer, command, channel);
+        }
+        else
+        {
+            // Random replies win when configured (same pick as
+            // CommandService.PickResponse), falling back to the single Response.
+            var responses = CommandService.ParseResponses(command.ResponsesJson);
+            var response = responses.Count > 0
+                ? responses[Random.Shared.Next(responses.Count)]
+                : command.Response;
 
-        var sent = await SendAsync(timer, response);
+            response = await _variableReplacementService.ReplaceVariablesAsync(
+                response, contextVariables, timer.TargetPlatform);
+
+            sent = await SendAsync(timer, response);
+        }
+
+        // Only stamp the slot when a send actually happened — a skipped send
+        // (command missing/disabled, platform offline) retries on the next
+        // 30s tick instead of waiting another full interval.
+        if (!sent)
+        {
+            return;
+        }
 
         await MarkRanAsync(timer, now);
 
-        if (sent)
+        _logger.LogInformation("Command timer {TimerName} fired {CommandName} on {Platform}",
+            timer.Name, timer.CommandName, timer.TargetPlatform);
+    }
+
+    /// <summary>
+    /// Runs a command's action sequence via <see cref="CommandActionRunner"/>
+    /// (same executor as ChatViewModel.RunCommandActionsAsync). Returns true
+    /// when at least one step ran.
+    /// </summary>
+    private async Task<bool> RunActionsAsync(CommandTimer timer, Command command, string? channel)
+    {
+        if (_commandActionRunner == null)
         {
-            _logger.LogInformation("Command timer {TimerName} fired {CommandName} on {Platform}",
-                timer.Name, timer.CommandName, timer.TargetPlatform);
+            _logger.LogWarning("Command timer {TimerName} skipped: action-sequence runner unavailable", timer.Name);
+            return false;
         }
+
+        var context = new CommandContext
+        {
+            Username = "Vyral",
+            Platform = timer.TargetPlatform,
+            Channel = channel ?? string.Empty
+        };
+
+        var summary = await _commandActionRunner.RunAsync(command, context);
+        if (summary == null)
+        {
+            _logger.LogWarning("Command timer {TimerName}: command {CommandName} has no runnable action steps",
+                timer.Name, timer.CommandName);
+            return false;
+        }
+
+        _logger.LogInformation("Command timer {TimerName} ran action sequence for {CommandName}: {Summary}",
+            timer.Name, timer.CommandName, summary);
+        return true;
     }
 
     private async Task<bool> SendAsync(CommandTimer timer, string message)

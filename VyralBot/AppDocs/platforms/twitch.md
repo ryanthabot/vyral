@@ -39,6 +39,9 @@ The card now shows the **Twitch Connection** view: your username, masked Client 
 
 ### Reconnecting and disconnecting
 
+When the Twitch chat connects or drops, the Chat window posts a gold System line ("Twitch chat connected — listening to #channel" / "Twitch chat disconnected") so you can confirm the chat is live at a glance. App-only — never broadcast.
+
+
 - **RECONNECT** re-opens the wizard at step 3 so you re-authorize. This is deliberate: the app re-asks Twitch for consent rather than silently refreshing an expired grant.
 - **DISCONNECT** removes Twitch completely — the stored credentials row is deleted from the database. To use Twitch again you must run the whole wizard. This is stricter than every other platform (see [Platforms overview](overview.md)).
 - If chat cannot connect at launch (for example, the stored token was revoked), the platform shows **"Connected (Chat offline)"** — the saved configuration is fine, only the live chat socket failed.

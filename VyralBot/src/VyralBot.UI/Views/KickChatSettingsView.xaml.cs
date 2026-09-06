@@ -1,7 +1,6 @@
-using System;
 using System.Windows.Controls;
-using Microsoft.Extensions.DependencyInjection;
 using VyralBot.UI.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace VyralBot.UI.Views;
 
@@ -11,22 +10,20 @@ public partial class KickChatSettingsView : UserControl
     {
         InitializeComponent();
 
-        // Resolve KickChatSettingsViewModel from the application's DI container
+        // Resolve the singleton from the application's DI container (mirrors the
+        // Discord/YouTube/TikTok views) so every popup shares one VM instance.
         var provider = App.ServiceProvider;
         if (provider != null)
         {
-            var logger = provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<KickChatSettingsViewModel>>();
-            var eventSettingsService = provider.GetRequiredService<VyralBot.Core.Services.Chat.IChatEventSettingsService>();
-            
-            var vm = new KickChatSettingsViewModel(logger, eventSettingsService);
-            DataContext = vm;
-            
-            // Initialize settings asynchronously
-            _ = vm.InitializeAsync();
+            DataContext = provider.GetRequiredService<KickChatSettingsViewModel>();
+            if (DataContext is KickChatSettingsViewModel vm)
+            {
+                _ = vm.InitializeAsync();
+            }
         }
         else
         {
-            // Fallback: create transient instance to avoid runtime error in design-time scenarios
+            // Fallback: design-time / no host scenario
             DataContext = new KickChatSettingsViewModel(
                 provider?.GetService<Microsoft.Extensions.Logging.ILogger<KickChatSettingsViewModel>>()!,
                 provider?.GetService<VyralBot.Core.Services.Chat.IChatEventSettingsService>()!);

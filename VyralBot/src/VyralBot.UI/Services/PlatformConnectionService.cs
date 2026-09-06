@@ -297,19 +297,30 @@ public class PlatformConnectionService
     {
         try
         {
-            if (_discordService.IsConnected)
-                return (true, "Discord is already connected.");
-
             var platform = await _dataService.GetPlatformByNameAsync("Discord");
             if (platform == null || string.IsNullOrEmpty(platform.AccessToken))
                 return (false, "Discord is not set up yet — add a bot on the Discord Bots page first.");
 
-            var connected = await _discordService.ConnectAsync(platform.AccessToken);
-            if (!connected)
-                return (false, "Discord bot failed to connect — check the bot token.");
+            // Single source of truth: the Platform row stays the config store
+            // for the Home connection, but the RUNNING session is owned by the
+            // bot manager. Adoption finds/creates the DiscordBots row for this
+            // token, connects/keeps the legacy singleton on it and claims that
+            // session as a managed bot — exactly one gateway per token. It is
+            // also idempotent, so it safely replaces the old "already
+            // connected" early return (which skipped adoption when the legacy
+            // session was live but not yet claimed — the split-brain case).
+            var adoption = await _discordBotManager.AdoptPlatformTokenAsync(platform.AccessToken, platform.Username);
+            if (!adoption.Success)
+                return (false, adoption.Error ?? "Discord bot failed to connect — check the bot token.");
+
+            // Keep the Platforms → Discord section honest: reflect the bot that
+            // actually connected (a stale Username from a previous bot would
+            // otherwise linger when the wizard token changed).
+            if (!string.IsNullOrWhiteSpace(adoption.BotUsername))
+                platform.Username = adoption.BotUsername;
 
             await MarkConnectedAsync(platform, null);
-            return (true, $"Connected to Discord as {_discordService.BotUsername ?? platform.Username}.");
+            return (true, $"Connected to Discord as {adoption.BotUsername ?? platform.Username}.");
         }
         catch (Exception ex)
         {
@@ -322,8 +333,17 @@ public class PlatformConnectionService
     {
         try
         {
+            // The Home session runs as an adopted managed bot — stop exactly
+            // that bot through the manager so the running world, the Discord
+            // Bots page and the Platforms section agree. Unrelated manager
+            // bots are never touched.
+            var homeBotId = _discordBotManager.PlatformAdoptedBotId;
+
             if (_discordService.IsConnected)
                 await _discordService.DisconnectAsync();
+
+            if (homeBotId != null)
+                await _discordBotManager.StopBotAsync(homeBotId);
 
             await MarkDisconnectedAsync("Discord");
             return (true, "Discord disconnected.");

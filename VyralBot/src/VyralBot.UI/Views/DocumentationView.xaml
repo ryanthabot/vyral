@@ -12,8 +12,8 @@
     <DockPanel>
 
         <!-- Toolbar -->
-        <Border DockPanel.Dock="Top" Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource BorderColorBrush}" BorderThickness="0,0,0,1" Padding="12,8">
+        <Border DockPanel.Dock="Top" Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,0,0,1" Padding="12,8">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -27,7 +27,7 @@
                 <Button Grid.Column="0" Content="← BACK TO HOME"
                         Style="{StaticResource MaterialDesignFlatButton}"
                         Command="{Binding DataContext.NavigateToHomeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Foreground="{DynamicResource TextSecondaryBrush}"
                         Margin="0,0,8,0"
                         VerticalAlignment="Center"/>
 
@@ -44,9 +44,9 @@
 
                 <StackPanel Grid.Column="2" Orientation="Vertical" VerticalAlignment="Center" Margin="4,0,12,0">
                     <TextBlock Text="{Binding CurrentPageTitle}" FontSize="15" FontWeight="SemiBold"
-                               Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis"/>
+                               Foreground="{DynamicResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis"/>
                     <TextBlock Text="{Binding CurrentPath}" FontSize="11"
-                               Foreground="{StaticResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
+                               Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
 
                 <TextBox Grid.Column="3" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
@@ -64,15 +64,15 @@
         </Border>
 
         <!-- Status / error bar -->
-        <Border DockPanel.Dock="Bottom" Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="12,5">
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,1,0,0" Padding="12,5">
             <TextBlock Text="{Binding StatusMessage}" FontSize="11.5"
-                       Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
+                       Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
         </Border>
 
         <!-- Left navigation tree (sections always expanded, GitBook-style) -->
-        <Border DockPanel.Dock="Left" Width="290" Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource BorderColorBrush}" BorderThickness="0,0,1,0">
+        <Border DockPanel.Dock="Left" Width="290" Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="0,0,1,0">
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                           Padding="10,12,6,12">
                 <ItemsControl ItemsSource="{Binding Sections}">
@@ -81,7 +81,7 @@
                             <StackPanel Margin="0,12,0,0"
                                         Visibility="{Binding IsVisible, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="11"
-                                           Foreground="{StaticResource TextMutedBrush}" Margin="10,0,0,4"
+                                           Foreground="{DynamicResource TextMutedBrush}" Margin="10,0,0,4"
                                            ToolTip="{Binding Title}"/>
                                 <ItemsControl ItemsSource="{Binding Pages}">
                                     <ItemsControl.ItemTemplate>
@@ -104,13 +104,13 @@
                                                                 </Style>
                                                             </Border.Style>
                                                             <TextBlock x:Name="NavText" Text="{Binding Title}" FontSize="12.5"
-                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                                                        TextTrimming="CharacterEllipsis"/>
                                                         </Border>
                                                         <ControlTemplate.Triggers>
                                                                             <Trigger Property="IsMouseOver" Value="True">
                                                                                 <Setter TargetName="NavBorder" Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
-                                                                                <Setter TargetName="NavText" Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                                                                <Setter TargetName="NavText" Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                                                             </Trigger>
                                                                             <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                                                                 <Setter TargetName="NavText" Property="Foreground" Value="#FF6B6B"/>

@@ -11,13 +11,24 @@ public partial class TwitchChatSettingsView : UserControl
     public TwitchChatSettingsView()
     {
         InitializeComponent();
-        
-        var logger = App.ServiceProvider?.GetRequiredService<ILogger<TwitchChatSettingsViewModel>>();
-        var settingsService = App.ServiceProvider?.GetRequiredService<IChatEventSettingsService>();
-        var viewModel = new TwitchChatSettingsViewModel(logger!, settingsService!);
-        DataContext = viewModel;
-        
-        _ = viewModel.InitializeAsync();
+
+        // Resolve the singleton from the application's DI container (mirrors the
+        // Discord/YouTube/TikTok views) so every popup shares one VM instance.
+        var provider = App.ServiceProvider;
+        if (provider != null)
+        {
+            DataContext = provider.GetRequiredService<TwitchChatSettingsViewModel>();
+            if (DataContext is TwitchChatSettingsViewModel vm)
+            {
+                _ = vm.InitializeAsync();
+            }
+        }
+        else
+        {
+            // Fallback: design-time / no host scenario
+            DataContext = new TwitchChatSettingsViewModel(
+                provider?.GetService<ILogger<TwitchChatSettingsViewModel>>()!,
+                provider?.GetService<IChatEventSettingsService>()!);
+        }
     }
 }
-

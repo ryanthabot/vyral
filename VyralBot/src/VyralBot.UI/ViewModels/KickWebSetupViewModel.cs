@@ -74,6 +74,12 @@ public partial class KickWebSetupViewModel : ObservableObject
     private string? _oAuthUrl;
 
     [ObservableProperty]
+    private bool _showManualCallbackInput = false;
+
+    [ObservableProperty]
+    private string _callbackUrlInput = "";
+
+    [ObservableProperty]
     private string _authorizedUsername = "KickUser";
 
     [ObservableProperty]
@@ -334,6 +340,9 @@ public partial class KickWebSetupViewModel : ObservableObject
             // Store verifier for later use
             _currentVerifier = verifier;
 
+            // Surface the built authorization URL so the debug panel can show it
+            OAuthUrl = authUrl;
+
             OAuthStatus = "Opening authorization page...";
 
             // Request WebView2 initialization
@@ -478,6 +487,19 @@ public partial class KickWebSetupViewModel : ObservableObject
         }
     }
 
+    [RelayCommand]
+    private async Task SubmitCallbackUrlAsync()
+    {
+        if (string.IsNullOrWhiteSpace(CallbackUrlInput))
+        {
+            OAuthStatus = "❌ Please enter the callback URL";
+            return;
+        }
+
+        _logger.LogInformation("Manual callback URL submitted: {Url}", CallbackUrlInput);
+        await HandleOAuthCallbackAsync(CallbackUrlInput);
+    }
+
     private async Task HandleOAuthCallbackAsync(string url)
     {
         _logger.LogInformation("OAuth callback received: {Url}", url);
@@ -492,6 +514,7 @@ public partial class KickWebSetupViewModel : ObservableObject
             if (string.IsNullOrEmpty(code))
             {
                 OAuthStatus = "❌ Authorization failed: No code received";
+                ShowManualCallbackInput = true; // let the user paste the callback URL manually
                 return;
             }
 
@@ -518,6 +541,7 @@ public partial class KickWebSetupViewModel : ObservableObject
             if (string.IsNullOrEmpty(verifier))
             {
                 OAuthStatus = "❌ Missing code verifier";
+                ShowManualCallbackInput = true; // let the user paste the callback URL manually
                 _logger.LogError("Code verifier is null or empty");
                 return;
             }
@@ -569,11 +593,13 @@ public partial class KickWebSetupViewModel : ObservableObject
             else
             {
                 OAuthStatus = "❌ Failed to exchange code for tokens";
+                ShowManualCallbackInput = true; // let the user retry by pasting the callback URL again
             }
         }
         catch (Exception ex)
         {
             OAuthStatus = $"❌ Error: {ex.Message}";
+            ShowManualCallbackInput = true; // let the user paste the callback URL manually
             _logger.LogError(ex, "Failed to handle OAuth callback");
         }
     }
@@ -925,6 +951,9 @@ public partial class KickWebSetupViewModel : ObservableObject
         ShowSuccessScreen = false;
         ShowBrowser = false;
         ShowModal = false;
+        ShowManualCallbackInput = false;
+        CallbackUrlInput = "";
+        OAuthUrl = null;
         BothCredentialsSaved = false;
         ClientIdSaved = false;
         ClientSecretSaved = false;

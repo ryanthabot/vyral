@@ -25,15 +25,15 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="TabBorder" Property="Background" Value="{StaticResource BackgroundTertiaryBrush}"/>
-                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource BackgroundTertiaryBrush}"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
                             </Trigger>
                             <MultiTrigger>
                                 <MultiTrigger.Conditions>
                                     <Condition Property="IsMouseOver" Value="True"/>
                                     <Condition Property="IsChecked" Value="False"/>
                                 </MultiTrigger.Conditions>
-                                <Setter TargetName="TabBorder" Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
+                                <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource SurfaceHoverBrush}"/>
                             </MultiTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -53,67 +53,71 @@
             <!-- Header -->
             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                 <materialDesign:PackIcon Kind="ChatProcessing" Width="28" Height="28"
-                                         Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                         Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
                 <TextBlock Text="Chat Management"
                            FontSize="24" FontWeight="Bold"
-                           Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
             </StackPanel>
             <TextBlock Text="Configure chat behavior, event notifications, and auto-replies for each platform"
                        FontSize="13"
-                       Foreground="{StaticResource TextSecondaryBrush}"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
                        Margin="0,0,0,24"/>
 
             <!-- Platform Tabs -->
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="0,0,0,20">
                 <StackPanel Orientation="Horizontal">
                     <RadioButton Style="{StaticResource PlatformTab}" GroupName="Platform"
-                                 IsChecked="{Binding SelectedPlatform, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Twitch, Mode=OneWay}"
+                                 IsChecked="{Binding IsTwitchSelected, Mode=OneWay}"
                                  Command="{Binding SelectPlatformCommand}" CommandParameter="Twitch">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="/Resources/Images/twitch-logo.png" Width="20" Height="20" RenderOptions.BitmapScalingMode="HighQuality"/>
                             <TextBlock Text="Twitch" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="13"
-                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
                         </StackPanel>
                     </RadioButton>
                     <RadioButton Style="{StaticResource PlatformTab}" GroupName="Platform"
+                                 IsChecked="{Binding IsKickSelected, Mode=OneWay}"
                                  Command="{Binding SelectPlatformCommand}" CommandParameter="Kick">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="/Resources/Images/kick-logo.png" Width="20" Height="20" RenderOptions.BitmapScalingMode="HighQuality"/>
                             <TextBlock Text="Kick" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="13"
-                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
                         </StackPanel>
                     </RadioButton>
                     <RadioButton Style="{StaticResource PlatformTab}" GroupName="Platform"
+                                 IsChecked="{Binding IsYouTubeSelected, Mode=OneWay}"
                                  Command="{Binding SelectPlatformCommand}" CommandParameter="YouTube">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="/Resources/Images/youtube-logo.png" Width="20" Height="20" RenderOptions.BitmapScalingMode="HighQuality"/>
                             <TextBlock Text="YouTube" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="13"
-                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
                         </StackPanel>
                     </RadioButton>
                     <RadioButton Style="{StaticResource PlatformTab}" GroupName="Platform"
+                                 IsChecked="{Binding IsTiktokSelected, Mode=OneWay}"
                                  Command="{Binding SelectPlatformCommand}" CommandParameter="TikTok">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="/Resources/Images/tiktok-logo.png" Width="20" Height="20" RenderOptions.BitmapScalingMode="HighQuality"/>
                             <TextBlock Text="TikTok" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="13"
-                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
                         </StackPanel>
                     </RadioButton>
                     <RadioButton Style="{StaticResource PlatformTab}" GroupName="Platform"
+                                 IsChecked="{Binding IsDiscordSelected, Mode=OneWay}"
                                  Command="{Binding SelectPlatformCommand}" CommandParameter="Discord">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="/Resources/Images/discord-logo.png" Width="20" Height="20" RenderOptions.BitmapScalingMode="HighQuality"/>
                             <TextBlock Text="Discord" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="13"
-                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
                         </StackPanel>
                     </RadioButton>
                 </StackPanel>
             </ScrollViewer>
 
             <!-- Connection Status Bar -->
-            <Border Background="{StaticResource CardBackgroundBrush}"
+            <Border Background="{DynamicResource CardBackgroundBrush}"
                     CornerRadius="8" Padding="20,14" Margin="0,0,0,20"
-                    BorderBrush="{StaticResource BorderSecondaryBrush}" BorderThickness="1">
+                    BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="1">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -122,7 +126,7 @@
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0" FontSize="16" FontWeight="SemiBold"
-                               Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center">
+                               Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center">
                         <TextBlock.Text>
                             <MultiBinding StringFormat="{}{0} Chat Settings">
                                 <Binding Path="SelectedPlatform"/>
@@ -133,7 +137,7 @@
                     <!-- Connection action result -->
                     <TextBlock Grid.Column="1" Text="{Binding ConnectionActionMessage}"
                                FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"
                                Margin="16,0,16,0">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
@@ -151,16 +155,21 @@
                     </TextBlock>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Content="Connect"
-                                Command="{Binding ConnectCurrentPlatformCommand}"
-                                Style="{StaticResource MaterialDesignRaisedButton}"
-                                Padding="12,4" Margin="0,0,8,0"
-                                Visibility="{Binding IsCurrentPlatformConnected, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
-                        <Button Content="Disconnect"
-                                Command="{Binding DisconnectCurrentPlatformCommand}"
-                                Style="{StaticResource MaterialDesignFlatButton}"
-                                Padding="12,4" Margin="0,0,8,0"
-                                Visibility="{Binding IsCurrentPlatformConnected, Converter={StaticResource BoolToVis}}"/>
+                        <!-- Connect/Disconnect are hidden entirely when the platform isn't
+                             manageable from here (TikTok): the commands would silently no-op. -->
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding IsCurrentPlatformManageable, Converter={StaticResource BoolToVis}}">
+                            <Button Content="Connect"
+                                    Command="{Binding ConnectCurrentPlatformCommand}"
+                                    Style="{StaticResource MaterialDesignRaisedButton}"
+                                    Padding="12,4" Margin="0,0,8,0"
+                                    Visibility="{Binding IsCurrentPlatformConnected, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
+                            <Button Content="Disconnect"
+                                    Command="{Binding DisconnectCurrentPlatformCommand}"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    Padding="12,4" Margin="0,0,8,0"
+                                    Visibility="{Binding IsCurrentPlatformConnected, Converter={StaticResource BoolToVis}}"/>
+                        </StackPanel>
                         <Button Content="Refresh Tokens"
                                 Command="{Binding RefreshCurrentPlatformTokensCommand}"
                                 Style="{StaticResource MaterialDesignFlatButton}"
@@ -169,10 +178,10 @@
                         <Ellipse Width="8" Height="8" Margin="0,0,6,0">
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse">
-                                    <Setter Property="Fill" Value="{StaticResource ErrorBrush}"/>
+                                    <Setter Property="Fill" Value="{DynamicResource ErrorBrush}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsCurrentPlatformConnected}" Value="True">
-                                            <Setter Property="Fill" Value="{StaticResource SuccessBrush}"/>
+                                            <Setter Property="Fill" Value="{DynamicResource SuccessBrush}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -182,11 +191,11 @@
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Text" Value="Not Connected"/>
-                                    <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                    <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsCurrentPlatformConnected}" Value="True">
                                             <Setter Property="Text" Value="Connected"/>
-                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -202,9 +211,9 @@
                     Visibility="{Binding IsCurrentPlatformConnected, Converter={StaticResource InvertBooleanToVisibilityConverter}}">
                 <StackPanel Orientation="Horizontal">
                     <materialDesign:PackIcon Kind="AlertCircle" Width="20" Height="20"
-                                             Foreground="{StaticResource ErrorBrush}" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                             Foreground="{DynamicResource ErrorBrush}" Margin="0,0,10,0" VerticalAlignment="Center"/>
                     <TextBlock Text="Connect this platform in Connections to manage chat settings"
-                               FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                               FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                 </StackPanel>
             </Border>
 
@@ -228,11 +237,11 @@
                     <!-- GENERAL SETTINGS CARD -->
                     <!-- ══════════════════════════════════ -->
                     <TextBlock Text="General" FontSize="15" FontWeight="SemiBold"
-                               Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10"/>
+                               Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10"/>
 
-                    <Border Background="{StaticResource CardBackgroundBrush}"
+                    <Border Background="{DynamicResource CardBackgroundBrush}"
                             CornerRadius="8" Padding="20" Margin="0,0,0,24"
-                            BorderBrush="{StaticResource BorderSecondaryBrush}" BorderThickness="1">
+                            BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="1">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -250,8 +259,8 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Text="Chat Enabled" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Show messages from this platform" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Text="Chat Enabled" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Show messages from this platform" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
                                 </StackPanel>
                                 <ToggleButton Grid.Column="1"
                                               IsChecked="{Binding CurrentPlatformSettings.IsChatEnabled, Mode=TwoWay}"
@@ -265,8 +274,8 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Text="Auto-Start Chat" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Connect on app launch" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Text="Auto-Start Chat" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Connect on app launch" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
                                 </StackPanel>
                                 <ToggleButton Grid.Column="1"
                                               IsChecked="{Binding CurrentPlatformSettings.AutoStartChat, Mode=TwoWay}"
@@ -280,8 +289,8 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Text="Auto-Replies" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Send automatic responses to events" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Text="Auto-Replies" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Send automatic responses to events" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
                                 </StackPanel>
                                 <ToggleButton Grid.Column="1"
                                               IsChecked="{Binding CurrentPlatformSettings.AutoRepliesEnabled, Mode=TwoWay}"
@@ -306,147 +315,147 @@
                         </StackPanel.Style>
 
                         <TextBlock Text="Event Notifications &amp; Auto-Replies" FontSize="15" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10"/>
 
-                        <Border Background="{StaticResource CardBackgroundBrush}"
+                        <Border Background="{DynamicResource CardBackgroundBrush}"
                                 CornerRadius="8" Padding="20" Margin="0,0,0,8"
-                                BorderBrush="{StaticResource BorderSecondaryBrush}" BorderThickness="1">
+                                BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="1">
                             <StackPanel>
                                 <!-- Follow -->
                                 <Expander Margin="0,0,0,6">
                                     <Expander.Header>
-                                        <TextBlock Text="Follow Events" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Follow Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </Expander.Header>
                                     <StackPanel Margin="12,8,0,0">
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding TwitchSettings.ShowFollowsInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding TwitchSettings.FollowAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <TextBox Text="{Binding TwitchSettings.FollowAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding TwitchSettings.FollowAutoReplyEnabled}"
                                                  materialDesign:HintAssist.Hint="Auto-reply message"/>
-                                        <TextBlock Text="Variables: {username}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Variables: {username}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Expander>
 
                                 <!-- Subscribe -->
                                 <Expander Margin="0,0,0,6">
                                     <Expander.Header>
-                                        <TextBlock Text="Subscribe Events" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Subscribe Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </Expander.Header>
                                     <StackPanel Margin="12,8,0,0">
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding TwitchSettings.ShowSubscribesInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding TwitchSettings.SubscribeAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <TextBox Text="{Binding TwitchSettings.SubscribeAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding TwitchSettings.SubscribeAutoReplyEnabled}"
                                                  materialDesign:HintAssist.Hint="Auto-reply message"/>
-                                        <TextBlock Text="Variables: {username}, {tier}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Variables: {username}, {tier}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Expander>
 
                                 <!-- Resub -->
                                 <Expander Margin="0,0,0,6">
                                     <Expander.Header>
-                                        <TextBlock Text="Resub Events" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Resub Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </Expander.Header>
                                     <StackPanel Margin="12,8,0,0">
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding TwitchSettings.ShowResubsInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding TwitchSettings.ResubAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <TextBox Text="{Binding TwitchSettings.ResubAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding TwitchSettings.ResubAutoReplyEnabled}"
                                                  materialDesign:HintAssist.Hint="Auto-reply message"/>
-                                        <TextBlock Text="Variables: {username}, {months}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Variables: {username}, {months}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Expander>
 
                                 <!-- Gift Sub -->
                                 <Expander Margin="0,0,0,6">
                                     <Expander.Header>
-                                        <TextBlock Text="Gift Sub Events" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Gift Sub Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </Expander.Header>
                                     <StackPanel Margin="12,8,0,0">
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding TwitchSettings.ShowGiftSubsInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding TwitchSettings.GiftSubAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <TextBox Text="{Binding TwitchSettings.GiftSubAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding TwitchSettings.GiftSubAutoReplyEnabled}"
                                                  materialDesign:HintAssist.Hint="Auto-reply message"/>
-                                        <TextBlock Text="Variables: {gifter}, {count}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Variables: {gifter}, {count}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Expander>
 
                                 <!-- Raid -->
                                 <Expander Margin="0,0,0,6">
                                     <Expander.Header>
-                                        <TextBlock Text="Raid Events" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Raid Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </Expander.Header>
                                     <StackPanel Margin="12,8,0,0">
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding TwitchSettings.ShowRaidsInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding TwitchSettings.RaidAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <TextBox Text="{Binding TwitchSettings.RaidAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding TwitchSettings.RaidAutoReplyEnabled}"
                                                  materialDesign:HintAssist.Hint="Auto-reply message"/>
-                                        <TextBlock Text="Variables: {raider}, {viewers}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Variables: {raider}, {viewers}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Expander>
 
                                 <!-- Cheer -->
                                 <Expander Margin="0,0,0,6">
                                     <Expander.Header>
-                                        <TextBlock Text="Cheer Events" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Cheer Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </Expander.Header>
                                     <StackPanel Margin="12,8,0,0">
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding TwitchSettings.ShowCheersInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding TwitchSettings.CheerAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <TextBox Text="{Binding TwitchSettings.CheerAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding TwitchSettings.CheerAutoReplyEnabled}"
                                                  materialDesign:HintAssist.Hint="Auto-reply message"/>
-                                        <TextBlock Text="Variables: {username}, {bits}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Variables: {username}, {bits}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Expander>
                             </StackPanel>
@@ -469,159 +478,159 @@
                         </StackPanel.Style>
 
                         <TextBlock Text="Event Notifications &amp; Auto-Replies" FontSize="15" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10"/>
 
-                        <Border Background="{StaticResource CardBackgroundBrush}"
+                        <Border Background="{DynamicResource CardBackgroundBrush}"
                                 CornerRadius="8" Padding="20" Margin="0,0,0,8"
-                                BorderBrush="{StaticResource BorderSecondaryBrush}" BorderThickness="1">
+                                BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="1">
                             <StackPanel>
                                 <!-- Follow -->
                                 <Expander Margin="0,0,0,6">
                                     <Expander.Header>
-                                        <TextBlock Text="Follow Events" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Follow Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </Expander.Header>
                                     <StackPanel Margin="12,8,0,0">
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding KickSettings.ShowFollowsInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding KickSettings.FollowAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <TextBox Text="{Binding KickSettings.FollowAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding KickSettings.FollowAutoReplyEnabled}"
                                                  materialDesign:HintAssist.Hint="Auto-reply message"/>
-                                        <TextBlock Text="Variables: {username}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Variables: {username}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Expander>
 
                                 <!-- Subscribe -->
                                 <Expander Margin="0,0,0,6">
                                     <Expander.Header>
-                                        <TextBlock Text="Subscribe Events" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Subscribe Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </Expander.Header>
                                     <StackPanel Margin="12,8,0,0">
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding KickSettings.ShowSubscribesInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding KickSettings.SubscribeAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <TextBox Text="{Binding KickSettings.SubscribeAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding KickSettings.SubscribeAutoReplyEnabled}"
                                                  materialDesign:HintAssist.Hint="Auto-reply message"/>
-                                        <TextBlock Text="Variables: {username}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Variables: {username}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Expander>
 
                                 <!-- Gift Sub -->
                                 <Expander Margin="0,0,0,6">
                                     <Expander.Header>
-                                        <TextBlock Text="Gift Sub Events" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Gift Sub Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </Expander.Header>
                                     <StackPanel Margin="12,8,0,0">
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding KickSettings.ShowGiftSubsInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding KickSettings.GiftSubAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <TextBox Text="{Binding KickSettings.GiftSubAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding KickSettings.GiftSubAutoReplyEnabled}"
                                                  materialDesign:HintAssist.Hint="Auto-reply message"/>
-                                        <TextBlock Text="Variables: {gifter}, {count}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Variables: {gifter}, {count}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Expander>
 
                                 <!-- Host -->
                                 <Expander Margin="0,0,0,6">
                                     <Expander.Header>
-                                        <TextBlock Text="Host Events" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Host Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </Expander.Header>
                                     <StackPanel Margin="12,8,0,0">
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding KickSettings.ShowHostsInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding KickSettings.HostAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <TextBox Text="{Binding KickSettings.HostAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding KickSettings.HostAutoReplyEnabled}"
                                                  materialDesign:HintAssist.Hint="Auto-reply message"/>
-                                        <TextBlock Text="Variables: {hoster}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Variables: {hoster}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Expander>
 
                                 <!-- Kicks Gifted -->
                                 <Expander Margin="0,0,0,6">
                                     <Expander.Header>
-                                        <TextBlock Text="Kicks Gifted Events" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Kicks Gifted Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </Expander.Header>
                                     <StackPanel Margin="12,8,0,0">
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding KickSettings.ShowKicksGiftedInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding KickSettings.KicksGiftedAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <TextBox Text="{Binding KickSettings.KicksGiftedAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding KickSettings.KicksGiftedAutoReplyEnabled}"
                                                  materialDesign:HintAssist.Hint="Auto-reply message"/>
-                                        <TextBlock Text="Variables: {sender}, {amount}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Variables: {sender}, {amount}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Expander>
 
                                 <!-- Reward Redeemed -->
                                 <Expander Margin="0,0,0,6">
                                     <Expander.Header>
-                                        <TextBlock Text="Reward Redeemed Events" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Reward Redeemed Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </Expander.Header>
                                     <StackPanel Margin="12,8,0,0">
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding KickSettings.ShowRewardsInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding KickSettings.RewardAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                         <TextBox Text="{Binding KickSettings.RewardAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding KickSettings.RewardAutoReplyEnabled}"
                                                  materialDesign:HintAssist.Hint="Auto-reply message"/>
-                                        <TextBlock Text="Variables: {username}, {reward}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Variables: {username}, {reward}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Expander>
 
                                 <!-- Stream Status -->
                                 <Expander Margin="0,0,0,6">
                                     <Expander.Header>
-                                        <TextBlock Text="Stream Status Events" FontSize="13" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Stream Status Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </Expander.Header>
                                     <StackPanel Margin="12,8,0,0">
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <ToggleButton Grid.Column="1" IsChecked="{Binding KickSettings.ShowStreamStatusInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                                         </Grid>
                                     </StackPanel>
@@ -646,19 +655,19 @@
                         </StackPanel.Style>
 
                         <TextBlock Text="Display Options" FontSize="15" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10"/>
 
-                        <Border Background="{StaticResource CardBackgroundBrush}"
+                        <Border Background="{DynamicResource CardBackgroundBrush}"
                                 CornerRadius="8" Padding="20" Margin="0,0,0,8"
-                                BorderBrush="{StaticResource BorderSecondaryBrush}" BorderThickness="1">
+                                BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="1">
                             <StackPanel>
                                 <TextBlock Text="YouTube Live Chat display settings. Event-based auto-replies will be added in a future update."
-                                           FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                                           FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,12" TextWrapping="Wrap"/>
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="Show messages" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="Show YouTube messages in the unified chat" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                        <TextBlock Text="Show messages" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Show YouTube messages in the unified chat" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
                                     </StackPanel>
                                     <ToggleButton Grid.Column="1" IsChecked="{Binding YoutubeSettings.IsChatEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}" VerticalAlignment="Center"/>
                                 </Grid>
@@ -682,19 +691,19 @@
                         </StackPanel.Style>
 
                         <TextBlock Text="Display Options" FontSize="15" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10"/>
 
-                        <Border Background="{StaticResource CardBackgroundBrush}"
+                        <Border Background="{DynamicResource CardBackgroundBrush}"
                                 CornerRadius="8" Padding="20" Margin="0,0,0,8"
-                                BorderBrush="{StaticResource BorderSecondaryBrush}" BorderThickness="1">
+                                BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="1">
                             <StackPanel>
                                 <TextBlock Text="TikTok LIVE chat display settings. Event-based auto-replies will be added in a future update."
-                                           FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                                           FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,12" TextWrapping="Wrap"/>
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="Show messages" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="Show TikTok messages in the unified chat" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                        <TextBlock Text="Show messages" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Show TikTok messages in the unified chat" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
                                     </StackPanel>
                                     <ToggleButton Grid.Column="1" IsChecked="{Binding TiktokSettings.IsChatEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}" VerticalAlignment="Center"/>
                                 </Grid>
@@ -718,19 +727,19 @@
                         </StackPanel.Style>
 
                         <TextBlock Text="Display Options" FontSize="15" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10"/>
 
-                        <Border Background="{StaticResource CardBackgroundBrush}"
+                        <Border Background="{DynamicResource CardBackgroundBrush}"
                                 CornerRadius="8" Padding="20" Margin="0,0,0,8"
-                                BorderBrush="{StaticResource BorderSecondaryBrush}" BorderThickness="1">
+                                BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="1">
                             <StackPanel>
                                 <TextBlock Text="Discord chat relay display settings. Event-based auto-replies will be added in a future update."
-                                           FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                                           FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,12" TextWrapping="Wrap"/>
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="Show messages" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="Show Discord messages in the unified chat" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                        <TextBlock Text="Show messages" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Show Discord messages in the unified chat" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
                                     </StackPanel>
                                     <ToggleButton Grid.Column="1" IsChecked="{Binding DiscordSettings.IsChatEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}" VerticalAlignment="Center"/>
                                 </Grid>
@@ -748,7 +757,7 @@
                             Cursor="Hand">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
-                                <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+                                <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
                                 <Setter Property="Foreground" Value="White"/>
                             </Style>
                         </Button.Style>
@@ -760,7 +769,7 @@
 
                     <!-- Status Message -->
                     <TextBlock Text="{Binding CurrentPlatformSettings.Status}" FontSize="12"
-                               Foreground="{StaticResource PrimaryBrush}" Margin="0,8,0,0"/>
+                               Foreground="{DynamicResource PrimaryBrush}" Margin="0,8,0,0"/>
                 </StackPanel>
             </Border>
         </StackPanel>

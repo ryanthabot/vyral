@@ -94,9 +94,14 @@ public partial class PlatformStartupSettingsViewModel : ViewModelBase
     private readonly ILogger<PlatformStartupSettingsViewModel> _logger;
     private readonly IDataService _dataService;
     private readonly PlatformConnectionService _connectionService;
+    private readonly WindowsStartupService _windowsStartupService;
 
     [ObservableProperty]
     private string? _statusMessage;
+
+    /// <summary>"Launch VyralBot when my PC starts" — backed by the HKCU Run key (registry is the truth).</summary>
+    [ObservableProperty]
+    private bool _launchOnPcStart;
 
     [ObservableProperty]
     private bool _discordBotsAutoConnect = true;
@@ -109,17 +114,21 @@ public partial class PlatformStartupSettingsViewModel : ViewModelBase
     public PlatformStartupSettingsViewModel(
         ILogger<PlatformStartupSettingsViewModel> logger,
         IDataService dataService,
-        PlatformConnectionService connectionService)
+        PlatformConnectionService connectionService,
+        WindowsStartupService windowsStartupService)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _connectionService = connectionService ?? throw new ArgumentNullException(nameof(connectionService));
+        _windowsStartupService = windowsStartupService ?? throw new ArgumentNullException(nameof(windowsStartupService));
 
         Platforms.Add(new PlatformStartupItem(this, "Twitch", "Twitch IRC chat + events", supportsTokenRefresh: true));
         Platforms.Add(new PlatformStartupItem(this, "Kick", "Kick chat + webhooks", supportsTokenRefresh: true));
         Platforms.Add(new PlatformStartupItem(this, "YouTube", "YouTube Live Chat", supportsTokenRefresh: false));
         Platforms.Add(new PlatformStartupItem(this, "Discord", "Primary Discord bot", supportsTokenRefresh: false));
         Platforms.Add(new PlatformStartupItem(this, "TikTok", "Not available yet", supportsTokenRefresh: false, isImplemented: false));
+        Platforms.Add(new PlatformStartupItem(this, "Facebook", "Not available yet", supportsTokenRefresh: false, isImplemented: false));
+        Platforms.Add(new PlatformStartupItem(this, "Rumble", "Not available yet", supportsTokenRefresh: false, isImplemented: false));
     }
 
     public async Task InitializeAsync()
@@ -148,6 +157,16 @@ public partial class PlatformStartupSettingsViewModel : ViewModelBase
             if (bool.TryParse(botsAutoStart, out var autoStart))
             {
                 DiscordBotsAutoConnect = autoStart;
+            }
+
+            // "Launch VyralBot when my PC starts": the Windows Run key is the
+            // truth — if the config key disagrees (or is missing), the registry
+            // wins and the config key is corrected.
+            LaunchOnPcStart = _windowsStartupService.IsEnabled();
+            var configLaunchOnPcStart = await _dataService.GetConfigValueAsync("Startup.LaunchOnPcStart");
+            if (!bool.TryParse(configLaunchOnPcStart, out var launchOnPcStart) || launchOnPcStart != LaunchOnPcStart)
+            {
+                await _dataService.SetConfigValueAsync("Startup.LaunchOnPcStart", LaunchOnPcStart.ToString(), "Startup");
             }
 
             _isLoaded = true;
@@ -322,6 +341,15 @@ public partial class PlatformStartupSettingsViewModel : ViewModelBase
         }
     }
 
+    partial void OnLaunchOnPcStartChanged(bool value)
+    {
+        if (_isLoaded)
+        {
+            _windowsStartupService.SetEnabled(value);
+            _ = PersistLaunchOnPcStartAsync(value);
+        }
+    }
+
     private bool _isLoaded;
 
     private async Task PersistDiscordBotsAutoConnectAsync(bool value)
@@ -335,6 +363,21 @@ public partial class PlatformStartupSettingsViewModel : ViewModelBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving Discord bots auto-start setting");
+            StatusMessage = $"Error saving setting: {ex.Message}";
+        }
+    }
+
+    private async Task PersistLaunchOnPcStartAsync(bool value)
+    {
+        try
+        {
+            await _dataService.SetConfigValueAsync("Startup.LaunchOnPcStart", value.ToString(), "Startup");
+            StatusMessage = $"VyralBot will {(value ? "launch" : "not launch")} when your PC starts";
+            _logger.LogInformation("Launch VyralBot when my PC starts saved: {Value}", value);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving launch-on-PC-start setting");
             StatusMessage = $"Error saving setting: {ex.Message}";
         }
     }

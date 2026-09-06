@@ -9,6 +9,7 @@ using VyralBot.Core.Models;
 using VyralBot.Core.Services;
 using VyralBot.Core.Services.Chat;
 using VyralBot.Core.Services.EventBus;
+using VyralBot.Core.Services.EventBus.Events;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
 using VyralBot.Integrations.Kick.Events;
@@ -283,6 +284,56 @@ public class KickLibChatService : IKickService, IDisposable
         }
     }
 
+    #region Safe publish / store helpers
+
+    /// <summary>
+    /// Publishes an event to the EventBus without blocking the Pusher callback thread,
+    /// swallowing and logging failures (a publish must never break the websocket handlers).
+    /// </summary>
+    private void SafePublishAsync<TEvent>(TEvent evt, string name) where TEvent : IEvent
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _eventBus.PublishAsync(evt);
+                _logger.LogDebug("✅ Published {Event} to EventBus", name);
+            }
+            catch (Exception pubEx)
+            {
+                _logger.LogError(pubEx, "❌ Failed to publish {Event} to EventBus", name);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Persists a chat event to the message store without blocking the Pusher callback
+    /// thread, swallowing and logging failures.
+    /// </summary>
+    private void SafeStoreAsync(string platform, IEvent evt)
+    {
+        if (_chatMessageStore == null)
+        {
+            return;
+        }
+
+        var store = _chatMessageStore;
+        var channel = _currentChannel ?? "Unknown";
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await store.AddAsync(platform, channel, evt);
+            }
+            catch (Exception storeEx)
+            {
+                _logger.LogError(storeEx, "❌ Failed to store {Event} in the message store", evt.GetType().Name);
+            }
+        });
+    }
+
+    #endregion
+
     #region Event Handlers - Convert KickLib events to VyralBot events
 
     private void OnChatMessage(object? sender, ChatMessageEventArgs e)
@@ -312,18 +363,7 @@ public class KickLibChatService : IKickService, IDisposable
         // Publish to EventBus (triggers ChatViewModel, TriggerEngine, etc.)
         // Use Task.Run to avoid blocking the Pusher event thread and ensure delivery
         _logger.LogInformation("📢 Publishing KickChatMessageEvent to EventBus for {Username}", msg.Sender.Username);
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await _eventBus.PublishAsync(chatEvent);
-                _logger.LogDebug("✅ Published KickChatMessageEvent to EventBus for {Username}", msg.Sender.Username);
-            }
-            catch (Exception pubEx)
-            {
-                _logger.LogError(pubEx, "❌ Failed to publish KickChatMessageEvent to EventBus for {Username}", msg.Sender.Username);
-            }
-        });
+        SafePublishAsync(chatEvent, nameof(KickChatMessageEvent));
 
         // Also publish the platform-agnostic chat message event so unified
         // pipelines (commands, currency, giveaways, polls, watchtime) run for
@@ -342,22 +382,11 @@ public class KickLibChatService : IKickService, IDisposable
             MessageId = string.IsNullOrEmpty(msg.Id) ? null : $"kick:{msg.Id}"
         };
 
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await _eventBus.PublishAsync(genericEvent);
-                _logger.LogDebug("✅ Published ChatMessageReceivedEvent to EventBus for Kick user {Username}", msg.Sender.Username);
-            }
-            catch (Exception pubEx)
-            {
-                _logger.LogError(pubEx, "❌ Failed to publish ChatMessageReceivedEvent to EventBus for {Username}", msg.Sender.Username);
-            }
-        });
+        SafePublishAsync(genericEvent, nameof(ChatMessageReceivedEvent));
 
         // Store in database (always store for history, regardless of KickChatEnabled)
         _logger.LogDebug("💾 Storing message in database for channel: {Channel}", _currentChannel ?? "Unknown");
-        _chatMessageStore?.AddAsync("Kick", _currentChannel ?? "Unknown", chatEvent);
+        SafeStoreAsync("Kick", chatEvent);
 
         _logger.LogInformation("✅ Chat message processed: {Username}: {Message}", msg.Sender.Username, msg.Content);
     }
@@ -374,7 +403,7 @@ public class KickLibChatService : IKickService, IDisposable
             UserId = "0", // KickLib's SubscriptionEvent doesn't provide user ID
             MonthsSubscribed = sub.Months
         };
-        _ = _eventBus.PublishAsync(subscribeEvent);
+        SafePublishAsync(subscribeEvent, nameof(KickSubscribeEvent));
 
         // Also create chat message for display
         var chatEvent = new KickChatMessageEvent
@@ -387,11 +416,11 @@ public class KickLibChatService : IKickService, IDisposable
             Message = $"🎉 {sub.Username} just subscribed! (Month {sub.Months})"
         };
 
-        _ = _eventBus.PublishAsync(chatEvent);
+        SafePublishAsync(chatEvent, nameof(KickChatMessageEvent));
 
         if (_platform?.KickChatEnabled ?? true)
         {
-            _chatMessageStore?.AddAsync("Kick", _currentChannel ?? "Unknown", chatEvent);
+            SafeStoreAsync("Kick", chatEvent);
         }
 
         _logger.LogInformation("🎉 Subscription: {Username} (Month {Months})", sub.Username, sub.Months);
@@ -410,7 +439,7 @@ public class KickLibChatService : IKickService, IDisposable
             Count = gift.GiftedTo.Count,
             RecipientUsernames = gift.GiftedTo.ToList()
         };
-        _ = _eventBus.PublishAsync(giftSubEvent);
+        SafePublishAsync(giftSubEvent, nameof(KickGiftSubEvent));
 
         // Also create chat message for display
         var chatEvent = new KickChatMessageEvent
@@ -423,11 +452,11 @@ public class KickLibChatService : IKickService, IDisposable
             Message = $"🎁 {gift.GifterUsername} gifted {gift.GiftedTo.Count} subscriptions to the community!"
         };
 
-        _ = _eventBus.PublishAsync(chatEvent);
+        SafePublishAsync(chatEvent, nameof(KickChatMessageEvent));
 
         if (_platform?.KickChatEnabled ?? true)
         {
-            _chatMessageStore?.AddAsync("Kick", _currentChannel ?? "Unknown", chatEvent);
+            SafeStoreAsync("Kick", chatEvent);
         }
 
         _logger.LogInformation("🎁 Gifted subs: {Gifter} gifted {Count} subs", gift.GifterUsername, gift.GiftedTo.Count);
@@ -457,6 +486,16 @@ public class KickLibChatService : IKickService, IDisposable
         var status = e.IsLive ? "🔴 ONLINE" : "⚫ OFFLINE";
         _logger.LogInformation("📡 Stream status changed: {Status}", status);
 
+        // Publish the dedicated stream-status event so the Kick dashboard badge,
+        // ChatViewModel handlers and workflows react to live/offline transitions.
+        var statusEvent = new KickStreamStatusEvent
+        {
+            Source = "Kick",
+            IsLive = e.IsLive,
+            Title = e.Data?.SessionTitle ?? string.Empty
+        };
+        SafePublishAsync(statusEvent, nameof(KickStreamStatusEvent));
+
         if (e.IsLive && e.Data != null)
         {
             var chatEvent = new KickChatMessageEvent
@@ -469,8 +508,8 @@ public class KickLibChatService : IKickService, IDisposable
                 Message = $"🔴 Stream is now LIVE! - {e.Data.SessionTitle}"
             };
 
-            _ = _eventBus.PublishAsync(chatEvent);
-            _chatMessageStore?.AddAsync("Kick", _currentChannel ?? "Unknown", chatEvent);
+            SafePublishAsync(chatEvent, nameof(KickChatMessageEvent));
+            SafeStoreAsync("Kick", chatEvent);
         }
     }
 
@@ -478,6 +517,17 @@ public class KickLibChatService : IKickService, IDisposable
     {
         var host = e.Data;
         _logger.LogInformation("🎯 Stream hosted by: {Username}", host.HostUsername);
+
+        // Publish the dedicated host event so the dashboard feed, ChatViewModel
+        // "Hosts" alert and workflows see it (KickLib doesn't provide a host user id).
+        var hostEvent = new KickHostEvent
+        {
+            Source = "Kick",
+            HostUsername = host.HostUsername,
+            HostUserId = "0", // KickLib limitation - user id not provided
+            ViewerCount = host.NumberViewers
+        };
+        SafePublishAsync(hostEvent, nameof(KickHostEvent));
 
         var chatEvent = new KickChatMessageEvent
         {
@@ -489,8 +539,8 @@ public class KickLibChatService : IKickService, IDisposable
             Message = $"🎯 Hosted by {host.HostUsername} with {host.NumberViewers} viewers!"
         };
 
-        _ = _eventBus.PublishAsync(chatEvent);
-        _chatMessageStore?.AddAsync("Kick", _currentChannel ?? "Unknown", chatEvent);
+        SafePublishAsync(chatEvent, nameof(KickChatMessageEvent));
+        SafeStoreAsync("Kick", chatEvent);
     }
 
     private void OnFollowersUpdated(object? sender, FollowersUpdatedEventArgs e)
@@ -508,8 +558,16 @@ public class KickLibChatService : IKickService, IDisposable
             }
         });
 
-        // Publish dedicated Follow event from Pusher (takes priority over webhooks)
-        // Note: KickLib Pusher doesn't provide follower username in this event
+        // Publish dedicated Follow event from Pusher ONLY when webhooks aren't covering
+        // follows — Pusher reports only the follower count, not the username, so this
+        // event would otherwise render as "Unknown" in alerts. When the webhook
+        // subscription for channel.followed is live, it delivers the real username.
+        if (KickEventRouting.WebhookFollowsActive)
+        {
+            _logger.LogInformation("👥 Follower count updated to {Count} (follow event delivered via webhooks)", e.Data.FollowersCount);
+            return;
+        }
+
         var followEvent = new KickFollowEvent
         {
             Source = "Kick",
@@ -517,7 +575,7 @@ public class KickLibChatService : IKickService, IDisposable
             UserId = "0",
             FollowerCount = e.Data.FollowersCount
         };
-        _ = _eventBus.PublishAsync(followEvent);
+        SafePublishAsync(followEvent, nameof(KickFollowEvent));
 
         _logger.LogInformation("👥 New follower! Total followers: {Count}", e.Data.FollowersCount);
     }
@@ -536,7 +594,7 @@ public class KickLibChatService : IKickService, IDisposable
             Cost = 0, // KickLib doesn't provide cost
             UserInput = reward.UserInput
         };
-        _ = _eventBus.PublishAsync(rewardEvent);
+        SafePublishAsync(rewardEvent, nameof(KickRewardRedeemedEvent));
 
         _logger.LogInformation("🏆 Reward redeemed: {Reward} by {Username}", reward.RewardTitle, reward.Username);
     }
@@ -554,7 +612,7 @@ public class KickLibChatService : IKickService, IDisposable
             Amount = gift.Gift.Amount,
             Message = gift.Message
         };
-        _ = _eventBus.PublishAsync(kicksEvent);
+        SafePublishAsync(kicksEvent, nameof(KickKicksGiftedEvent));
 
         _logger.LogInformation("💰 Kicks gifted: {Amount} by {Username}", gift.Gift.Amount, gift.Sender.Username);
     }

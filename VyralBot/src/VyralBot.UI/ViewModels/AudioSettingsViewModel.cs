@@ -18,7 +18,11 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
     private readonly IDataService _dataService;
     // private readonly IAudioWebSocketServer _audioWebSocketServer; // No longer needed
     private readonly ISoundService _soundService;
+    private readonly VyralBot.Api.Services.WebhookCoordinatorService? _webhookCoordinator;
     private DispatcherTimer? _clientCountTimer;
+
+    // Port of the embedded web server (source of the browser-source URL); 5000 fallback
+    private int _serverPort = 5000;
 
     [ObservableProperty]
     private bool _streamerSoundsEnabled = true;
@@ -44,11 +48,29 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
     public AudioSettingsViewModel(
         ILogger<AudioSettingsViewModel> logger,
         IDataService dataService,
-        ISoundService soundService)
+        ISoundService soundService,
+        VyralBot.Api.Services.WebhookCoordinatorService? webhookCoordinator = null)
     {
         _logger = logger;
         _dataService = dataService;
         _soundService = soundService;
+        _webhookCoordinator = webhookCoordinator;
+
+        // Reflect the real web-server state instead of a hardcoded true
+        if (_webhookCoordinator != null)
+        {
+            _webhookCoordinator.StatusChanged += OnWebhookStatusChanged;
+            IsServerRunning = _webhookCoordinator.IsRunning;
+        }
+    }
+
+    private void OnWebhookStatusChanged(object? sender, string status)
+    {
+        // The coordinator raises StatusChanged from background threads - marshal to the UI thread
+        System.Windows.Application.Current?.Dispatcher.InvokeAsync(() =>
+        {
+            IsServerRunning = _webhookCoordinator?.IsRunning ?? false;
+        });
     }
 
     public async Task InitializeAsync()
@@ -67,9 +89,26 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
                     MasterVolume = settings.MasterVolume;
                 }
             }
-            WebSocketPort = 5000;
-            BrowserSourceUrl = "http://localhost:5000/audio.html";
-            IsServerRunning = true;
+            // The browser source is served by the embedded Kestrel web server; build the
+            // OBS URL from the port persisted in the web-server settings (5000 fallback).
+            var port = 5000;
+            try
+            {
+                var webSettings = await _dataService.GetWebServerSettingsAsync();
+                if (webSettings is not null && webSettings.Port > 0)
+                {
+                    port = webSettings.Port;
+                }
+            }
+            catch (Exception portEx)
+            {
+                _logger.LogWarning(portEx, "Could not load web-server settings - using default port 5000 for the browser source URL");
+            }
+
+            _serverPort = port;
+            WebSocketPort = port;
+            BrowserSourceUrl = $"http://localhost:{port}/audio.html";
+            IsServerRunning = _webhookCoordinator?.IsRunning ?? false;
 
             // Poll the live browser-source client count while the page is open.
             StartClientCountPolling();
@@ -181,20 +220,67 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task RestartServerAsync()
     {
-        // No longer needed; server is always running on port 5000
-        System.Windows.MessageBox.Show(
-            "Audio server is now always running on port 5000.",
-            "Info",
-            System.Windows.MessageBoxButton.OK,
-            System.Windows.MessageBoxImage.Information);
-        await Task.CompletedTask;
+        if (_webhookCoordinator == null)
+        {
+            System.Windows.MessageBox.Show(
+                "The web server coordinator service is not available, so the server cannot be restarted.",
+                "Restart Server",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            IsServerRunning = false;
+            await _webhookCoordinator.StopAsync();
+            var started = await _webhookCoordinator.StartAsync();
+            IsServerRunning = _webhookCoordinator.IsRunning;
+
+            if (started)
+            {
+                // Refresh the browser-source URL in case the configured port changed
+                if (_webhookCoordinator.Port > 0)
+                {
+                    _serverPort = _webhookCoordinator.Port;
+                    WebSocketPort = _serverPort;
+                    BrowserSourceUrl = $"http://localhost:{_serverPort}/audio.html";
+                }
+
+                _logger.LogInformation("Web server restarted successfully on port {Port}", _serverPort);
+                System.Windows.MessageBox.Show(
+                    $"Web server restarted successfully on port {_serverPort}.",
+                    "Restart Server",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Information);
+            }
+            else
+            {
+                _logger.LogWarning("Web server restart failed - port may be in use");
+                System.Windows.MessageBox.Show(
+                    $"Failed to restart the web server. Port {_serverPort} may be in use - check the logs for details.",
+                    "Restart Server",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            IsServerRunning = _webhookCoordinator.IsRunning;
+            _logger.LogError(ex, "Error restarting web server");
+            System.Windows.MessageBox.Show(
+                $"Failed to restart the web server: {ex.Message}",
+                "Restart Server",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
+        }
     }
 
     private void UpdateServerStatus()
     {
         // The audio browser source is served by the embedded Kestrel web server,
-        // which is managed from the Web Server settings; shown as running here.
-        IsServerRunning = true;
+        // which is managed from the Web Server settings; reflect its real state.
+        IsServerRunning = _webhookCoordinator?.IsRunning ?? false;
         UpdateConnectedClientCount();
     }
 
@@ -239,6 +325,11 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
             _clientCountTimer.Tick -= OnClientCountTimerTick;
             _clientCountTimer = null;
         }
+
+        if (_webhookCoordinator != null)
+        {
+            _webhookCoordinator.StatusChanged -= OnWebhookStatusChanged;
+        }
     }
 
     partial void OnMasterVolumeChanged(int value)
@@ -250,14 +341,14 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
 
     partial void OnWebSocketPortChanged(int value)
     {
-        // The port is fixed at 5000. The browser-source page derives its WebSocket
-        // and sound URLs from window.location, so the copied URL adapts automatically
-        // and no port configuration is needed here.
-        if (value != 5000)
+        // The port is owned by the Web Server settings (embedded Kestrel). The
+        // browser-source page derives its WebSocket and sound URLs from
+        // window.location, so user edits here are reverted to the configured port.
+        if (value != _serverPort)
         {
-            _logger.LogWarning("Audio browser source port is fixed at 5000. Ignoring user port change ({Port}).", value);
-            WebSocketPort = 5000;
+            _logger.LogWarning("Audio browser source port is managed by Web Server settings ({Port}). Reverting change ({Value}).", _serverPort, value);
+            WebSocketPort = _serverPort;
         }
-        BrowserSourceUrl = "http://localhost:5000/audio.html";
+        BrowserSourceUrl = $"http://localhost:{_serverPort}/audio.html";
     }
 }

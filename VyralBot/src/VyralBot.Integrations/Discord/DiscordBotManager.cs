@@ -13,10 +13,18 @@ namespace VyralBot.Integrations.Discord;
 /// through a semaphore; dictionary access is guarded by a lock.
 /// </summary>
 /// <remarks>
+/// The legacy DI-singleton DiscordService (the setup wizard's "primary"
+/// service) is folded into this world via adoption: every connect with the
+/// Platform row's token — whether started by this manager's adoption flow or
+/// by a legacy path (wizard / Platforms page / dashboard) — ends up owned by
+/// the manager (see <see cref="AdoptPlatformTokenAsync"/>), so exactly one
+/// gateway session runs per token.
+/// </remarks>
+/// <remarks>
 /// Each DiscordService still persists the legacy shared Platform row Name="Discord"
-/// on connect/disconnect (last writer wins). That row is intentionally ignored by
-/// the manager — the DiscordBots table is the source of truth for multi-bot
-/// tokens/status/selected channel.
+/// on connect/disconnect (last writer wins). That row remains the CONFIG store
+/// for the Home connection; the DiscordBots table is the source of truth for
+/// multi-bot tokens/status/selected channel.
 /// </remarks>
 public class DiscordBotManager : IDiscordBotManager, IDisposable
 {
@@ -36,10 +44,24 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
     private readonly ILogger<DiscordBotManager> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly SemaphoreSlim _operationGate = new(1, 1);
+
+    // Serializes Home-connection adoptions (AdoptPlatformTokenAsync). Kept
+    // SEPARATE from _operationGate: adoption orchestrates Start/StopBotAsync
+    // (which take the operation gate) and must never hold it itself.
+    private readonly SemaphoreSlim _adoptionGate = new(1, 1);
+
     private readonly object _sync = new();
     private readonly Dictionary<string, ManagedBot> _running = new(StringComparer.Ordinal);
     private bool _schemaEnsured;
     private bool _disposed;
+
+    // The bot row (and its token) currently serving "the Discord connection
+    // from Home" (legacy Platform row). In-memory on purpose: gateway sessions
+    // do not survive a restart, so retirement of a previous Home session is a
+    // within-process concern. Guarded by _adoptionGate (written) / _sync-safe
+    // reads via the PlatformAdoptedBotId getter.
+    private string? _platformAdoptedBotId;
+    private string? _platformAdoptedToken;
 
     public event Action? BotsChanged;
 
@@ -71,6 +93,16 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
         _legacyService = legacyService as DiscordService;
+
+        if (_legacyService != null)
+        {
+            // Auto-adoption trigger for the legacy connect paths this manager
+            // does not own (setup wizard, Platforms page auto-connect,
+            // dashboard refresh): whenever the singleton completes a connect,
+            // its session is claimed as a managed bot so the legacy world and
+            // the manager world can never diverge.
+            _legacyService.BotIdentityDetected += OnLegacyServiceIdentityDetected;
+        }
     }
 
     /// <inheritdoc />
@@ -90,6 +122,26 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
 
     /// <inheritdoc />
     public IDiscordService? Primary => Connected.FirstOrDefault();
+
+    /// <inheritdoc />
+    public string? PlatformAdoptedBotId
+    {
+        get
+        {
+            var id = _platformAdoptedBotId;
+            if (id == null)
+            {
+                return null;
+            }
+
+            lock (_sync)
+            {
+                // Only while the tracked row actually runs: a stale id after a
+                // Stop must not make the Home disconnect flow "stop" a ghost.
+                return _running.ContainsKey(id) ? id : null;
+            }
+        }
+    }
 
 
     private async Task<bool> LegacyTokenMatches(string token)
@@ -153,7 +205,12 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             Name = bot.Name.Trim(),
             Token = bot.Token,
             Status = StatusDisconnected,
-            SelectedChannelId = bot.SelectedChannelId
+            SelectedChannelId = bot.SelectedChannelId,
+            ApplicationId = bot.ApplicationId,
+            BotUsername = bot.BotUsername,
+            AvatarUrl = bot.AvatarUrl,
+            RoleLinking = bot.RoleLinking,
+            RoleGiveaway = bot.RoleGiveaway
         };
 
         await _dataService.SaveDiscordBotAsync(row).ConfigureAwait(false);
@@ -210,6 +267,11 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             row.SelectedChannelId = bot.SelectedChannelId;
             channelChanged = true;
         }
+
+        // Per-bot auto-start flips take effect on the next app launch; nothing
+        // live to apply here.
+        var autoStartChanged = bot.AutoStart != row.AutoStart;
+        row.AutoStart = bot.AutoStart;
 
         await _dataService.SaveDiscordBotAsync(row).ConfigureAwait(false);
         _logger.LogInformation("✅ Updated Discord bot '{Name}' ({BotId})", row.Name, row.Id);
@@ -270,6 +332,7 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             if (running != null)
             {
                 // Let lifecycle subscribers unhook BEFORE the service is torn down
+                UnhookIdentity(running.Service);
                 RaiseServiceEvent(ServiceStopped, running.Service);
                 await ShutdownBotAsync(running).ConfigureAwait(false);
             }
@@ -358,6 +421,8 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             // Guard against connecting the same token twice inside the manager:
             // two gateway sessions for one token duplicate every incoming event.
             // (A bot never conflicts with itself — its stale entry was evicted above.)
+            Task statusUpdateTask = Task.CompletedTask;
+            var adoptedLegacy = false;
             lock (_sync)
             {
                 var duplicate = _running.Values.FirstOrDefault(b =>
@@ -368,26 +433,52 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
                     _logger.LogWarning(
                         "⚠️ Discord bot '{Name}' shares a token with running bot '{Other}' — skipping start to avoid duplicate events",
                         row.Name, duplicate.Config.Name);
-                    return true;
+                    // Report failure so the UI does not claim the bot "is up and
+                    // running" while its card stays Offline.
+                    return false;
                 }
 
                 // Manual START for a bot whose token is served by the not-yet-adopted
-                // legacy singleton: adopt that session instead of failing.
+                // legacy singleton: adopt that session instead of failing. The LIVE
+                // ConnectedToken is the ground truth (the wizard can rewrite the
+                // Platform row's AccessToken while the old session is still up);
+                // the Platform-row match stays as a fallback so a session whose
+                // token was persisted normally keeps adopting as before.
                 if (_legacyService is { IsConnected: true }
-                    && LegacyTokenMatches(row.Token).GetAwaiter().GetResult())
+                    && (string.Equals(_legacyService.ConnectedToken?.Trim(), row.Token, StringComparison.Ordinal)
+                        || LegacyTokenMatches(row.Token).GetAwaiter().GetResult()))
                 {
-                    lock (_sync)
+                    if (!_running.ContainsKey(row.Id))
                     {
-                        if (!_running.ContainsKey(row.Id))
-                        {
-                            _legacyService.BotId = row.Id;
-                            _running[row.Id] = new ManagedBot { Config = ToConfig(row), Service = _legacyService };
-                        }
+                        _legacyService.BotId = row.Id;
+                        _running[row.Id] = new ManagedBot { Config = ToConfig(row), Service = _legacyService };
                     }
-                    RaiseServiceEvent(ServiceStarted, _legacyService);
-                    BotsChanged?.Invoke();
-                    return true;
+
+                    // The adoption check proved the legacy session serves this
+                    // row's token (live ConnectedToken or the Platform row),
+                    // so this adopted session IS the Home session — track it
+                    // so a later token change retires exactly this row.
+                    _platformAdoptedBotId = row.Id;
+                    _platformAdoptedToken = row.Token;
+
+                    // Identity: subscribe and backfill whatever the adopted
+                    // session already detected (its connect predates us).
+                    HookIdentity(_legacyService);
+                    _ = PersistIdentityAsync(row.Id);
+
+                    // Keep the row status honest (the bot IS online). The task
+                    // starts here but is awaited outside the lock — C# forbids
+                    // await inside a lock statement.
+                    statusUpdateTask = UpdateRowStatusAsync(row.Id, StatusConnected);
+                    adoptedLegacy = true;
                 }
+            }
+
+            if (adoptedLegacy)
+            {
+                await statusUpdateTask.ConfigureAwait(false);
+                BotsChanged?.Invoke();
+                return true;
             }
 
             var service = new DiscordService(
@@ -400,10 +491,16 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             // carries the correct origin for per-bot reply routing.
             service.BotId = row.Id;
 
+            // Identity persistence: subscribe BEFORE connecting so the
+            // BotIdentityDetected raise during ConnectAsync/READY is caught;
+            // the subscription also covers later reconnects of this client.
+            HookIdentity(service);
+
             _logger.LogInformation("🚀 Starting Discord bot '{Name}' ({BotId})...", row.Name, row.Id);
             var connected = await service.ConnectAsync(row.Token!).ConfigureAwait(false);
             if (!connected)
             {
+                UnhookIdentity(service);
                 service.Dispose();
                 await SetStatusAsync(row, StatusError).ConfigureAwait(false);
                 _logger.LogError("❌ Discord bot '{Name}' failed to connect", row.Name);
@@ -426,6 +523,12 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             // Notify lifecycle subscribers (outside the lock so a slow
             // subscriber never blocks the manager's dictionary).
             RaiseServiceEvent(ServiceStarted, service);
+
+            // Backfill: the identity event can fire during ConnectAsync — i.e.
+            // BEFORE the running entry above existed — so persist whatever the
+            // service already detected now that it is in the running set.
+            // No-op when nothing was detected or nothing changed.
+            _ = PersistIdentityAsync(row.Id);
 
             await SetStatusAsync(row, StatusConnected).ConfigureAwait(false);
             _logger.LogInformation("✅ Discord bot '{Name}' connected as {Username}", row.Name, service.BotUsername);
@@ -466,6 +569,7 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             }
 
             // Let lifecycle subscribers unhook BEFORE the service is torn down
+            UnhookIdentity(running.Service);
             RaiseServiceEvent(ServiceStopped, running.Service);
             await ShutdownBotAsync(running).ConfigureAwait(false);
         }
@@ -544,6 +648,11 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
                         Token = legacyToken,
                         Status = StatusConnected,
                         SelectedChannelId = migrated.SelectedChannelId,
+                        ApplicationId = migrated.ApplicationId,
+                        BotUsername = migrated.BotUsername,
+                        AvatarUrl = migrated.AvatarUrl,
+                        RoleLinking = migrated.RoleLinking,
+                        RoleGiveaway = migrated.RoleGiveaway,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     }).ConfigureAwait(false);
@@ -563,11 +672,16 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             var wantsStart = string.Equals(bot.Status, StatusConnected, StringComparison.OrdinalIgnoreCase);
             var isLegacyBot = legacyConnected && string.Equals(bot.Token, legacyToken, StringComparison.Ordinal);
 
-            if (isLegacyBot && _legacyService is { IsConnected: true })
+            if (isLegacyBot
+                && _legacyService is { IsConnected: true }
+                && string.Equals(_legacyService.ConnectedToken?.Trim(), bot.Token, StringComparison.Ordinal))
             {
                 // ADOPT the already-running legacy gateway session as this bot's
                 // managed instance: one session, correct dashboard status, working
                 // START/STOP. Without this, the bot shows offline while running.
+                // The ConnectedToken check (not just the Platform row) guarantees
+                // the live session REALLY serves this row's token before it is
+                // claimed here — a stale-row match would track the wrong session.
                 lock (_sync)
                 {
                     if (!_running.ContainsKey(bot.Id))
@@ -588,6 +702,17 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
                 {
                     // status sync is best-effort
                 }
+
+                // bot.Token == legacyToken (isLegacyBot above): the adopted
+                // session is the Home session — track it for later token-change
+                // retirement.
+                _platformAdoptedBotId = bot.Id;
+                _platformAdoptedToken = bot.Token;
+
+                // Identity: subscribe and backfill whatever the adopted session
+                // already detected (its connect predates the manager's hook).
+                HookIdentity(_legacyService);
+                _ = PersistIdentityAsync(bot.Id);
 
                 RaiseServiceEvent(ServiceStarted, _legacyService);
                 BotsChanged?.Invoke();
@@ -621,6 +746,564 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
         lock (_sync)
         {
             return _running.TryGetValue(botId, out var bot) ? bot.Service : null;
+        }
+    }
+
+    // ==================================================================
+    // Home-connection adoption (single source of truth)
+    //
+    // The legacy Platform row (Name="Discord") is the CONFIG store for "the
+    // Discord connection from Home"; the RUNNING world is this manager.
+    // AdoptPlatformTokenAsync is the one funnel every Home connect goes
+    // through — PlatformConnectionService calls it directly, and legacy
+    // connect paths that predate the manager (setup wizard, Platforms page
+    // auto-connect, dashboard refresh) land here via the legacy singleton's
+    // BotIdentityDetected hook. Result: exactly one gateway session per
+    // token, every event tagged with a DiscordBots row id.
+    // ==================================================================
+
+    /// <inheritdoc />
+    public async Task<DiscordAdoptionResult> AdoptPlatformTokenAsync(string platformToken, string? preferredName = null)
+    {
+        if (string.IsNullOrWhiteSpace(platformToken))
+        {
+            return new DiscordAdoptionResult(false, Error: "No Discord bot token is saved.");
+        }
+
+        platformToken = platformToken.Trim();
+
+        await _adoptionGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await EnsureSchemaAsync().ConfigureAwait(false);
+
+            // 1) Token changed since the last adoption: retire the row that
+            //    served the PREVIOUS platform token — and only that row.
+            //    Unrelated multi-bot rows are never stopped here.
+            var previousToken = _platformAdoptedToken;
+            var previousBotId = _platformAdoptedBotId;
+            if (previousToken != null && previousBotId != null
+                && !string.Equals(previousToken, platformToken, StringComparison.Ordinal))
+            {
+                _platformAdoptedBotId = null;
+                _platformAdoptedToken = null;
+
+                var previousRows = await _dataService.GetDiscordBotsAsync().ConfigureAwait(false);
+                var previousRow = previousRows.FirstOrDefault(r => string.Equals(r.Id, previousBotId, StringComparison.Ordinal));
+                if (previousRow != null
+                    && string.Equals(previousRow.Token, previousToken, StringComparison.Ordinal))
+                {
+                    _logger.LogInformation(
+                        "🔁 The Home Discord token changed — stopping bot '{Name}' which served the previous token",
+                        previousRow.Name);
+                    await StopBotAsync(previousBotId).ConfigureAwait(false);
+                }
+            }
+
+            // 2) Point the legacy singleton (the session every legacy UI path
+            //    keys off) at the Home token. A session already serving the
+            //    token is kept as-is; a stale one is replaced. A failed connect
+            //    falls through to a manager-owned session in step 4.
+            //
+            //    Skip the reconnect entirely when a manager-owned service
+            //    already serves this token: a second legacy gateway for the
+            //    same token is neither needed nor allowed (DiscordService's
+            //    single-session guard would refuse it, and a racing second
+            //    IDENTIFY is exactly what kills live sessions with close
+            //    4003). The row machinery below adopts the manager session.
+            bool managerAlreadyServing;
+            lock (_sync)
+            {
+                managerAlreadyServing = _running.Values.Any(b =>
+                    !ReferenceEquals(b.Service, _legacyService)
+                    && b.Service.IsConnected
+                    && string.Equals(b.Service.ConnectedToken?.Trim(), platformToken, StringComparison.Ordinal));
+            }
+
+            if (_legacyService != null && !managerAlreadyServing)
+            {
+                var legacyServing = _legacyService.IsConnected
+                    && string.Equals(_legacyService.ConnectedToken?.Trim(), platformToken, StringComparison.Ordinal);
+                if (!legacyServing)
+                {
+                    if (_legacyService.IsConnected)
+                    {
+                        // Still serving the previous Home token: retire that
+                        // session before opening the new one (two gateways for
+                        // one token would duplicate every incoming event).
+                        await _legacyService.DisconnectAsync().ConfigureAwait(false);
+                    }
+
+                    var legacyConnected = await _legacyService.ConnectAsync(platformToken).ConfigureAwait(false);
+                    if (legacyConnected)
+                    {
+                        _logger.LogInformation(
+                            "🤝 Home Discord session is up as {Username} — adopting it as a managed bot",
+                            _legacyService.BotUsername ?? "(unknown)");
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "⚠️ Home Discord connect failed — falling back to a manager-owned session");
+                    }
+                }
+            }
+
+            // 3) Find or create the DiscordBots row for this token.
+            var rows = await _dataService.GetDiscordBotsAsync().ConfigureAwait(false);
+            var row = rows.FirstOrDefault(r => string.Equals(r.Token, platformToken, StringComparison.Ordinal));
+            var createdRow = false;
+            if (row == null)
+            {
+                var liveUsername = _legacyService is { IsConnected: true }
+                    && string.Equals(_legacyService.ConnectedToken?.Trim(), platformToken, StringComparison.Ordinal)
+                        ? (_legacyService.DetectedBotUsername ?? _legacyService.BotUsername)
+                        : null;
+                var desiredName = !string.IsNullOrWhiteSpace(liveUsername)
+                    ? liveUsername
+                    : (string.IsNullOrWhiteSpace(preferredName) ? null : preferredName.Trim());
+
+                var config = new DiscordBotConfig(
+                    Id: Guid.NewGuid().ToString("N"),
+                    Name: UniqueBotName(desiredName, rows),
+                    Token: platformToken,
+                    Status: StatusDisconnected);
+
+                if (!await AddBotAsync(config).ConfigureAwait(false))
+                {
+                    return new DiscordAdoptionResult(false, Error: "Could not save the Discord bot row for the Home connection.");
+                }
+
+                createdRow = true;
+                rows = await _dataService.GetDiscordBotsAsync().ConfigureAwait(false);
+                row = rows.FirstOrDefault(r => string.Equals(r.Token, platformToken, StringComparison.Ordinal));
+                if (row == null)
+                {
+                    return new DiscordAdoptionResult(false, Error: "The Discord bot row for the Home connection could not be loaded.");
+                }
+
+                _logger.LogInformation(
+                    "➕ Created Discord bot '{Name}' ({BotId}) for the Home connection",
+                    row.Name, row.Id);
+            }
+
+            // 4) Ensure the row runs through the manager. StartBotAsync adopts
+            //    the legacy singleton's session when it serves this token —
+            //    the exact machinery StartAllSavedAsync uses at startup.
+            ManagedBot? running;
+            lock (_sync)
+            {
+                _running.TryGetValue(row.Id, out running);
+            }
+
+            if (running == null || !running.Service.IsConnected)
+            {
+                if (!await StartBotAsync(row.Id).ConfigureAwait(false))
+                {
+                    return new DiscordAdoptionResult(
+                        false,
+                        row.Id,
+                        Error: "Discord bot failed to connect — check the bot token.");
+                }
+            }
+
+            // 5) Duplicate-session healing: a legacy path connected the
+            //    singleton with the Home token while a manager-created service
+            //    already runs the same row (two gateways for one token would
+            //    duplicate every event). Keep the legacy session — all legacy
+            //    UI state keys off it — by re-running the start so the
+            //    adoption branch claims the row.
+            if (_legacyService is { IsConnected: true }
+                && string.Equals(_legacyService.ConnectedToken?.Trim(), platformToken, StringComparison.Ordinal))
+            {
+                lock (_sync)
+                {
+                    _running.TryGetValue(row.Id, out running);
+                }
+
+                if (running != null && !ReferenceEquals(running.Service, _legacyService))
+                {
+                    _logger.LogInformation(
+                        "♻️ Two live sessions for the Home Discord token — collapsing onto the adopted Home session");
+                    await StopBotAsync(row.Id).ConfigureAwait(false);
+                    await StartBotAsync(row.Id).ConfigureAwait(false);
+                }
+            }
+
+            // 6) Post-adoption sync: row status, display name of freshly
+            //    created rows, per-bot channel preference, identity backfill,
+            //    Home tracking.
+            rows = await _dataService.GetDiscordBotsAsync().ConfigureAwait(false);
+            row = rows.FirstOrDefault(r => string.Equals(r.Id, row.Id, StringComparison.Ordinal)) ?? row;
+
+            await UpdateRowStatusAsync(row.Id, StatusConnected).ConfigureAwait(false);
+
+            if (createdRow)
+            {
+                // Prefer the detected username as the display name of a freshly
+                // created row once the identity is known ("prefer the detected
+                // username once connected").
+                var adoptedService = Get(row.Id);
+                var detected = adoptedService?.DetectedBotUsername;
+                if (!string.IsNullOrWhiteSpace(detected)
+                    && !string.Equals(detected, row.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    row.Name = UniqueBotName(
+                        detected,
+                        rows.Where(r => !string.Equals(r.Id, row.Id, StringComparison.Ordinal)));
+                    await _dataService.SaveDiscordBotAsync(row).ConfigureAwait(false);
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(row.SelectedChannelId))
+            {
+                lock (_sync)
+                {
+                    _running.TryGetValue(row.Id, out running);
+                }
+
+                if (running != null
+                    && !string.Equals(running.Service.SelectedChannelId, row.SelectedChannelId, StringComparison.Ordinal))
+                {
+                    // The adopted Home session restored the Platform row's
+                    // channel; this bot's own saved selection wins.
+                    await ApplySelectedChannelAsync(running.Service, row.SelectedChannelId).ConfigureAwait(false);
+                }
+            }
+
+            _platformAdoptedBotId = row.Id;
+            _platformAdoptedToken = platformToken;
+
+            // Identity backfill: an adopted session's connect (and its
+            // identity raise) predate the manager's subscription.
+            _ = PersistIdentityAsync(row.Id);
+
+            string? botUsername;
+            lock (_sync)
+            {
+                botUsername = _running.TryGetValue(row.Id, out running) ? running.Service.BotUsername : null;
+            }
+            botUsername ??= row.BotUsername;
+
+            RaiseBotsChanged();
+
+            _logger.LogInformation(
+                "✅ Home Discord connection adopted as managed bot '{Name}' ({BotId}) as {Username}",
+                row.Name, row.Id, botUsername ?? "(unknown)");
+
+            return new DiscordAdoptionResult(true, row.Id, botUsername);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ Adopting the Home Discord connection failed");
+            return new DiscordAdoptionResult(false, Error: $"Connecting the Discord bot failed: {ex.Message}");
+        }
+        finally
+        {
+            _adoptionGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Auto-adoption trigger for the legacy connect paths this manager does
+    /// not own: the legacy singleton completed a connect, so claim its session
+    /// (idempotent — a no-op once the token's row already runs via adoption).
+    /// </summary>
+    private void OnLegacyServiceIdentityDetected(string botId)
+    {
+        // Fire-and-forget: the gateway thread must never block on adoption
+        // (which connects/stops services and writes the database). The
+        // adoption gate serializes with any concurrent adoption.
+        _ = AdoptLegacySessionAsync();
+    }
+
+    private async Task AdoptLegacySessionAsync()
+    {
+        try
+        {
+            if (_legacyService is not { IsConnected: true })
+            {
+                return;
+            }
+
+            // The singleton persists its token to the Platform row on connect,
+            // so that row's AccessToken is the token the live session uses.
+            var platform = await _dataService.GetPlatformByNameAsync(LegacyPlatformName).ConfigureAwait(false);
+            var token = platform?.AccessToken?.Trim();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return;
+            }
+
+            await AdoptPlatformTokenAsync(
+                token,
+                _legacyService.DetectedBotUsername ?? _legacyService.BotUsername).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ Auto-adopting the legacy Discord session failed");
+        }
+    }
+
+    /// <summary>
+    /// First bot-row display name derived from <paramref name="desired"/> that
+    /// no existing row uses ("Discord Bot" placeholder when empty), with a
+    /// numeric suffix when the base name is taken.
+    /// </summary>
+    private string UniqueBotName(string? desired, IEnumerable<DiscordBot> existingRows)
+    {
+        var baseName = string.IsNullOrWhiteSpace(desired) ? "Discord Bot" : desired.Trim();
+        var taken = new HashSet<string>(
+            existingRows.Select(r => r.Name ?? string.Empty),
+            StringComparer.OrdinalIgnoreCase);
+
+        if (!taken.Contains(baseName))
+        {
+            return baseName;
+        }
+
+        var suffix = 2;
+        while (taken.Contains($"{baseName} {suffix}"))
+        {
+            suffix++;
+        }
+
+        return $"{baseName} {suffix}";
+    }
+
+    // ==================================================================
+    // Per-bot roles (V3): single-assignment flags on the DiscordBots rows.
+    // AssignRoleAsync(assigned: true) gives the role to ONE bot and clears it
+    // on every other row; assigned: false clears just that bot;
+    // ClearRoleAsync unassigns everywhere. Role resolution is case-sensitive
+    // on the DiscordBotRoles constants.
+    // ==================================================================
+
+    /// <inheritdoc />
+    public async Task<string?> GetBotIdForRoleAsync(string role)
+    {
+        if (!DiscordBotRoles.All.Contains(role))
+        {
+            _logger.LogWarning("❌ Unknown Discord bot role '{Role}'", role ?? "(null)");
+            return null;
+        }
+
+        await EnsureSchemaAsync().ConfigureAwait(false);
+
+        var rows = await _dataService.GetDiscordBotsAsync().ConfigureAwait(false);
+        return rows.FirstOrDefault(r => HasRoleFlag(r, role))?.Id;
+    }
+
+    /// <inheritdoc />
+    public async Task<string?> ResolveBotIdForRoleAsync(string role)
+    {
+        var assigned = await GetBotIdForRoleAsync(role).ConfigureAwait(false);
+        return assigned ?? Primary?.BotId;
+    }
+
+    /// <inheritdoc />
+    public async Task AssignRoleAsync(string botId, string role, bool assigned)
+    {
+        if (string.IsNullOrWhiteSpace(botId) || !DiscordBotRoles.All.Contains(role))
+        {
+            _logger.LogWarning("❌ Cannot assign Discord bot role '{Role}' to {BotId}: unknown role or empty bot id",
+                role ?? "(null)", botId ?? "(null)");
+            return;
+        }
+
+        await EnsureSchemaAsync().ConfigureAwait(false);
+
+        var rows = (await _dataService.GetDiscordBotsAsync().ConfigureAwait(false)).ToList();
+        var target = rows.FirstOrDefault(r => string.Equals(r.Id, botId, StringComparison.Ordinal));
+        if (target == null)
+        {
+            _logger.LogWarning("❌ Cannot assign Discord bot role '{Role}': bot {BotId} not found", role, botId);
+            return;
+        }
+
+        var changed = false;
+        foreach (var row in rows)
+        {
+            // assigned:true touches every row (flag the target, clear the rest);
+            // assigned:false touches just the target row.
+            var isTarget = string.Equals(row.Id, botId, StringComparison.Ordinal);
+            if (!assigned && !isTarget)
+            {
+                continue;
+            }
+
+            if (SetRoleFlag(row, role, assigned && isTarget))
+            {
+                await _dataService.SaveDiscordBotAsync(row).ConfigureAwait(false);
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            _logger.LogInformation("✅ {Verb} Discord bot role '{Role}' {Prep} bot '{Name}' ({BotId})",
+                assigned ? "Assigned" : "Unassigned", role, assigned ? "to" : "from", target.Name, botId);
+            RaiseBotsChanged();
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task ClearRoleAsync(string role)
+    {
+        if (!DiscordBotRoles.All.Contains(role))
+        {
+            _logger.LogWarning("❌ Cannot clear unknown Discord bot role '{Role}'", role ?? "(null)");
+            return;
+        }
+
+        await EnsureSchemaAsync().ConfigureAwait(false);
+
+        var changed = false;
+        var rows = await _dataService.GetDiscordBotsAsync().ConfigureAwait(false);
+        foreach (var row in rows)
+        {
+            if (SetRoleFlag(row, role, false))
+            {
+                await _dataService.SaveDiscordBotAsync(row).ConfigureAwait(false);
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            _logger.LogInformation("✅ Cleared Discord bot role '{Role}' from every bot", role);
+            RaiseBotsChanged();
+        }
+    }
+
+    private static bool HasRoleFlag(DiscordBot row, string role) => role switch
+    {
+        DiscordBotRoles.Linking => row.RoleLinking,
+        DiscordBotRoles.Giveaway => row.RoleGiveaway,
+        _ => false
+    };
+
+    /// <summary>
+    /// Writes the role flag when it differs from the current value. Returns
+    /// true when the row changed (and therefore needs persisting).
+    /// </summary>
+    private static bool SetRoleFlag(DiscordBot row, string role, bool value)
+    {
+        switch (role)
+        {
+            case DiscordBotRoles.Linking:
+                if (row.RoleLinking == value) return false;
+                row.RoleLinking = value;
+                return true;
+            case DiscordBotRoles.Giveaway:
+                if (row.RoleGiveaway == value) return false;
+                row.RoleGiveaway = value;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // ==================================================================
+    // Bot identity persistence (V3): DiscordService raises
+    // BotIdentityDetected once per connection; the manager persists ONLY the
+    // three identity fields on that bot's row (UpdatedAt is stamped by
+    // SaveDiscordBotAsync) — never Name/Token/Status/SelectedChannelId/roles —
+    // and raises BotsChanged so open UI refreshes.
+    // ==================================================================
+
+    private void HookIdentity(DiscordService service)
+    {
+        // "-=" then "+=" keeps adoption of the same instance (the legacy
+        // service can be adopted repeatedly) a single subscription.
+        service.BotIdentityDetected -= OnBotIdentityDetected;
+        service.BotIdentityDetected += OnBotIdentityDetected;
+    }
+
+    private void UnhookIdentity(DiscordService service)
+    {
+        service.BotIdentityDetected -= OnBotIdentityDetected;
+    }
+
+    private void OnBotIdentityDetected(string botId)
+    {
+        // Fire-and-forget: the DB write must not block the gateway thread and
+        // an Action<string> handler cannot await. PersistIdentityAsync never
+        // throws (all failures are logged inside).
+        _ = PersistIdentityAsync(botId);
+    }
+
+    /// <summary>
+    /// Persists the detected identity of a RUNNING bot onto its row. Loads the
+    /// row fresh from the database, mutates only ApplicationId/BotUsername/
+    /// AvatarUrl (UpdatedAt is stamped by SaveDiscordBotAsync) and raises
+    /// <see cref="BotsChanged"/> when anything changed. Safe to call
+    /// redundantly — a no-op when nothing was detected or nothing changed.
+    /// </summary>
+    private async Task PersistIdentityAsync(string botId)
+    {
+        try
+        {
+            IDiscordService? service;
+            lock (_sync)
+            {
+                service = _running.TryGetValue(botId, out var running) ? running.Service : null;
+            }
+
+            if (service == null)
+            {
+                // The bot left the running set before the event was handled.
+                return;
+            }
+
+            var username = service.DetectedBotUsername;
+            var applicationId = service.DetectedApplicationId;
+            var avatarUrl = service.DetectedAvatarUrl;
+            if (string.IsNullOrEmpty(username) && string.IsNullOrEmpty(applicationId) && string.IsNullOrEmpty(avatarUrl))
+            {
+                return; // nothing detected yet
+            }
+
+            await EnsureSchemaAsync().ConfigureAwait(false);
+
+            var rows = await _dataService.GetDiscordBotsAsync().ConfigureAwait(false);
+            var row = rows.FirstOrDefault(r => string.Equals(r.Id, botId, StringComparison.Ordinal));
+            if (row == null)
+            {
+                return;
+            }
+
+            var changed = false;
+            if (!string.Equals(row.ApplicationId, applicationId, StringComparison.Ordinal))
+            {
+                row.ApplicationId = applicationId;
+                changed = true;
+            }
+            if (!string.Equals(row.BotUsername, username, StringComparison.Ordinal))
+            {
+                row.BotUsername = username;
+                changed = true;
+            }
+            if (!string.Equals(row.AvatarUrl, avatarUrl, StringComparison.Ordinal))
+            {
+                row.AvatarUrl = avatarUrl;
+                changed = true;
+            }
+
+            if (!changed)
+            {
+                return;
+            }
+
+            await _dataService.SaveDiscordBotAsync(row).ConfigureAwait(false);
+            _logger.LogInformation(
+                "🪪 Persisted auto-detected identity for Discord bot '{Name}' ({BotId}): {Username} / {ApplicationId}",
+                row.Name, botId, username ?? "(none)", applicationId ?? "(none)");
+            RaiseBotsChanged();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ Failed to persist the detected identity for Discord bot {BotId}", botId);
         }
     }
 
@@ -697,13 +1380,25 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             _logger.LogWarning(ex, "⚠️ Disconnect failed for Discord bot '{Name}'", bot.Config.Name);
         }
 
-        try
+        if (ReferenceEquals(bot.Service, _legacyService))
         {
-            bot.Service.Dispose();
+            // The adopted Home session is the long-lived DI singleton that the
+            // setup wizard and every legacy connect path reuse. DiscordService.
+            // Dispose permanently kills its connection lock, which would turn
+            // any later Home connect into an ObjectDisposedException — so only
+            // disconnect it and restore the wizard's default BotId tag.
+            bot.Service.BotId = "primary";
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogWarning(ex, "⚠️ Dispose failed for Discord bot '{Name}'", bot.Config.Name);
+            try
+            {
+                bot.Service.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Dispose failed for Discord bot '{Name}'", bot.Config.Name);
+            }
         }
 
         await UpdateRowStatusAsync(bot.Config.Id, StatusDisconnected).ConfigureAwait(false);
@@ -758,7 +1453,15 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
         row.Name,
         row.Token,
         row.Status,
-        row.SelectedChannelId);
+        row.SelectedChannelId,
+        row.ApplicationId,
+        row.BotUsername,
+        row.AvatarUrl,
+        row.RoleLinking,
+        row.RoleGiveaway)
+    {
+        AutoStart = row.AutoStart,
+    };
 
     /// <summary>
     /// Raises <see cref="BotsChanged"/> defensively: one throwing subscriber must
@@ -828,6 +1531,19 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
 
         foreach (var bot in bots)
         {
+            // Unhook identity persistence BEFORE disposing the service so a
+            // late gateway event cannot reach a disposed manager path.
+            UnhookIdentity(bot.Service);
+
+            if (ReferenceEquals(bot.Service, _legacyService))
+            {
+                // The DI container owns the legacy singleton and disposes it at
+                // shutdown itself; the manager must never Dispose it (mirrors
+                // the ShutdownBotAsync guard that keeps the wizard service
+                // reusable).
+                continue;
+            }
+
             try
             {
                 // DiscordService.Dispose tears the gateway client down synchronously.
@@ -837,6 +1553,15 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             {
                 _logger.LogWarning(ex, "⚠️ Dispose failed for Discord bot '{Name}'", bot.Config.Name);
             }
+        }
+
+        // The legacy singleton may still be subscribed if it was adopted and
+        // the manager is being torn down without a StopBot first ("-=" on a
+        // non-subscribed handler is a no-op).
+        if (_legacyService != null)
+        {
+            UnhookIdentity(_legacyService);
+            _legacyService.BotIdentityDetected -= OnLegacyServiceIdentityDetected;
         }
 
         // Note: _operationGate is intentionally NOT disposed — an in-flight

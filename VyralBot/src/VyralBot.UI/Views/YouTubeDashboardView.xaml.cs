@@ -58,6 +58,7 @@ public partial class YouTubeDashboardView : UserControl
         if (DataContext is YouTubeDashboardViewModel viewModel)
         {
             viewModel.WebView2InitializeRequested -= OnWebView2InitializeRequested;
+            viewModel.Cleanup();
         }
 
         // Dispose WebView2 when view is unloaded

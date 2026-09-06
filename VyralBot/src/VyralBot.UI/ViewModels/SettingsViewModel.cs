@@ -24,6 +24,7 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly WebServerSettingsViewModel _webServerSettingsViewModel;
     private readonly VariablesViewModel _variablesViewModel;
     private readonly PerformanceViewModel _performanceViewModel;
+    private readonly ViewerHubViewModel _viewerHubViewModel;
     private readonly PlatformStartupSettingsViewModel _platformStartupSettingsViewModel;
     private readonly DataManagementViewModel _dataManagementViewModel;
     private readonly Core.Services.Commands.ICommandService _commandService;
@@ -33,6 +34,7 @@ public partial class SettingsViewModel : ViewModelBase
     public WebServerSettingsViewModel WebServerSettingsViewModel => _webServerSettingsViewModel;
     public VariablesViewModel VariablesViewModel => _variablesViewModel;
     public PerformanceViewModel PerformanceViewModel => _performanceViewModel;
+    public ViewerHubViewModel ViewerHubViewModel => _viewerHubViewModel;
     public PlatformStartupSettingsViewModel PlatformStartupSettingsViewModel => _platformStartupSettingsViewModel;
     public DataManagementViewModel DataManagementViewModel => _dataManagementViewModel;
 
@@ -94,6 +96,13 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _switchProfilePin = string.Empty;
 
+    /// <summary>
+    /// Display name of the profile pending a switch (backing the switch dialog text —
+    /// bound in XAML, so it must be a public property, unlike _profileToSwitchTo).
+    /// </summary>
+    [ObservableProperty]
+    private string? _pendingSwitchProfileName;
+
     [ObservableProperty]
     private object? _selectedPlatformViewModel;
 
@@ -115,6 +124,167 @@ public partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _customLogoVariant = "native";
+
+    /// <summary>
+    /// Visual color picker state (System.Windows.Media.Color), kept in sync with
+    /// <see cref="_customPrimaryHex"/> in both directions. TwoWay-bound to the picker control;
+    /// when the PICKER changes this value it propagates into CustomPrimaryHex and triggers the
+    /// debounced live accent apply. External hex changes (hex box, swatches, built-in theme
+    /// syncs) flow back into the picker through here.
+    /// </summary>
+    [ObservableProperty]
+    private System.Windows.Media.Color _customPrimaryHexPickerColor = System.Windows.Media.Color.FromRgb(0x14, 0xB8, 0xA6);
+
+    private bool _pickerDrivingHex;
+    private bool _syncingHexToPicker;
+    private System.Windows.Threading.DispatcherTimer? _customAccentDebounce;
+
+    /// <summary>~120ms debounce so continuous picker drags don't storm app resources / settings I/O.</summary>
+    private const int CustomAccentDebounceMs = 120;
+
+    partial void OnCustomPrimaryHexChanged(string value)
+    {
+        // Mirror external hex changes (hex box, swatches, built-in theme syncs) into the visual picker.
+        // The sync is flagged so the picker handler does not echo back into CustomPrimaryHex
+        // (which would canonicalize the stored value and could queue a spurious live apply).
+        if (ColorShadeGenerator.TryParseHex(value, out var color) && color != CustomPrimaryHexPickerColor)
+        {
+            _syncingHexToPicker = true;
+            try
+            {
+                CustomPrimaryHexPickerColor = color;
+            }
+            finally
+            {
+                _syncingHexToPicker = false;
+            }
+        }
+
+        // Only picker-driven changes go through the live apply path: hex box edits keep the
+        // explicit "Apply Custom Theme" button, and switching a built-in theme (which syncs
+        // CustomPrimaryHex) must NOT re-apply a custom accent on top of it.
+        if (_pickerDrivingHex)
+            QueueCustomAccentApply();
+    }
+
+    partial void OnCustomPrimaryHexPickerColorChanged(System.Windows.Media.Color value)
+    {
+        if (_syncingHexToPicker) return; // VM-driven sync — never echo back
+
+        // The picker control is the source → propagate as the custom accent (debounced).
+        _pickerDrivingHex = true;
+        try
+        {
+            CustomPrimaryHex = ColorShadeGenerator.ToHex(value);
+        }
+        finally
+        {
+            _pickerDrivingHex = false;
+        }
+    }
+
+    /// <summary>Restarts the ~120ms debounce; the tick pushes the accent into ThemeManager live.</summary>
+    private void QueueCustomAccentApply()
+    {
+        if (!ColorShadeGenerator.TryParseHex(CustomPrimaryHex, out _))
+            return; // never push garbage — picker output is always valid, this is belt-and-braces
+
+        _customAccentDebounce ??= CreateCustomAccentDebounce();
+        _customAccentDebounce.Stop();
+        _customAccentDebounce.Start();
+    }
+
+    private System.Windows.Threading.DispatcherTimer CreateCustomAccentDebounce()
+    {
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(CustomAccentDebounceMs) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            if (!ColorShadeGenerator.TryParseHex(CustomPrimaryHex, out _)) return;
+
+            // Accent-only live update (no base dictionary swap) — smooth while dragging.
+            ThemeManager.Instance.UpdateCustomAccent(CustomPrimaryHex);
+            SelectedTheme = ThemeCatalog.CustomOption; // no-op after the first tick (early-returns for custom)
+            StatusMessage = "Custom accent applied";
+            _ = ClearStatusAfterDelayAsync();
+        };
+        return timer;
+    }
+
+    // ===== Brightness levels (-100 darker .. +100 lighter, 0 = native) =====
+
+    [ObservableProperty]
+    private int _darkShadeLevel;
+
+    [ObservableProperty]
+    private int _lightShadeLevel;
+
+    public string DarkShadeLevelText => DescribeShadeLevel(DarkShadeLevel);
+
+    public string LightShadeLevelText => DescribeShadeLevel(LightShadeLevel);
+
+    private static string DescribeShadeLevel(int value)
+        => value == 0 ? "Native" : $"{(value > 0 ? "+" : string.Empty)}{value} {(value > 0 ? "lighter" : "darker")}";
+
+    private int _pendingDarkShade;
+    private int _pendingLightShade;
+    private System.Windows.Threading.DispatcherTimer? _darkShadeDebounce;
+    private System.Windows.Threading.DispatcherTimer? _lightShadeDebounce;
+    private bool _suppressShadeApply;
+
+    partial void OnDarkShadeLevelChanged(int value)
+    {
+        OnPropertyChanged(nameof(DarkShadeLevelText));
+        QueueShadeApply(isLightBase: false, value);
+    }
+
+    partial void OnLightShadeLevelChanged(int value)
+    {
+        OnPropertyChanged(nameof(LightShadeLevelText));
+        QueueShadeApply(isLightBase: true, value);
+    }
+
+    /// <summary>Debounces rapid slider drags (~150ms) before touching app resources and settings.</summary>
+    private void QueueShadeApply(bool isLightBase, int value)
+    {
+        if (_suppressShadeApply) return; // init population must not re-apply or persist
+
+        if (isLightBase)
+        {
+            _pendingLightShade = value;
+            _lightShadeDebounce ??= CreateShadeDebounce(isLightBase: true);
+            _lightShadeDebounce.Stop();
+            _lightShadeDebounce.Start();
+        }
+        else
+        {
+            _pendingDarkShade = value;
+            _darkShadeDebounce ??= CreateShadeDebounce(isLightBase: false);
+            _darkShadeDebounce.Stop();
+            _darkShadeDebounce.Start();
+        }
+    }
+
+    private System.Windows.Threading.DispatcherTimer CreateShadeDebounce(bool isLightBase)
+    {
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            var themeManager = ThemeManager.Instance;
+            var value = isLightBase ? _pendingLightShade : _pendingDarkShade;
+            themeManager.ApplyShadeLevel(isLightBase, value);
+
+            // The slider edits the OTHER base while a mismatched theme is active —
+            // the value was persisted, but nothing changed on screen.
+            if (isLightBase != themeManager.IsLightBaseActive())
+            {
+                StatusMessage = $"Saved — applies when a {(isLightBase ? "light" : "dark")} theme is active";
+                _ = ClearStatusAfterDelayAsync();
+            }
+        };
+        return timer;
+    }
 
     public IReadOnlyList<string> LogoVariants => ThemeCatalog.ValidLogoVariants;
 
@@ -163,6 +333,7 @@ public partial class SettingsViewModel : ViewModelBase
         WebServerSettingsViewModel webServerSettingsViewModel,
         VariablesViewModel variablesViewModel,
         PerformanceViewModel performanceViewModel,
+        ViewerHubViewModel viewerHubViewModel,
         PlatformStartupSettingsViewModel platformStartupSettingsViewModel,
         DataManagementViewModel dataManagementViewModel,
         Core.Services.Commands.ICommandService commandService,
@@ -175,6 +346,7 @@ public partial class SettingsViewModel : ViewModelBase
         _webServerSettingsViewModel = webServerSettingsViewModel ?? throw new ArgumentNullException(nameof(webServerSettingsViewModel));
         _variablesViewModel = variablesViewModel ?? throw new ArgumentNullException(nameof(variablesViewModel));
         _performanceViewModel = performanceViewModel ?? throw new ArgumentNullException(nameof(performanceViewModel));
+        _viewerHubViewModel = viewerHubViewModel ?? throw new ArgumentNullException(nameof(viewerHubViewModel));
         _platformStartupSettingsViewModel = platformStartupSettingsViewModel ?? throw new ArgumentNullException(nameof(platformStartupSettingsViewModel));
         _dataManagementViewModel = dataManagementViewModel ?? throw new ArgumentNullException(nameof(dataManagementViewModel));
         _commandService = commandService ?? throw new ArgumentNullException(nameof(commandService));
@@ -191,6 +363,7 @@ public partial class SettingsViewModel : ViewModelBase
             await LoadSettingsAsync();
             await LoadPlatformConnectionStatusAsync();
             await _variablesViewModel.InitializeAsync();
+            await _viewerHubViewModel.InitializeAsync();
             await _platformStartupSettingsViewModel.InitializeAsync();
             await _dataManagementViewModel.InitializeAsync();
             await LoadCategorySettingsAsync();
@@ -203,6 +376,13 @@ public partial class SettingsViewModel : ViewModelBase
             CustomPrimaryHex = themeManager.Preferences.Custom.PrimaryHex;
             CustomLogoVariant = themeManager.Preferences.Custom.LogoVariant;
 
+            // Populate the brightness sliders from persisted preferences (guarded so
+            // population itself does not re-apply or re-persist).
+            _suppressShadeApply = true;
+            DarkShadeLevel = themeManager.GetShadeLevel(isLightBase: false);
+            LightShadeLevel = themeManager.GetShadeLevel(isLightBase: true);
+            _suppressShadeApply = false;
+
             // Note: WebServerSettingsViewModel is already initialized via DI
             // No need to reinitialize since we dispose/recreate SettingsViewModel on each navigation
 
@@ -211,7 +391,7 @@ public partial class SettingsViewModel : ViewModelBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error initializing settings");
-            StatusMessage = $"Error creating profile: {ex.Message}";
+            StatusMessage = $"Error initializing settings: {ex.Message}";
         }
     }
 
@@ -262,6 +442,7 @@ public partial class SettingsViewModel : ViewModelBase
         }
 
         _profileToSwitchTo = profile;
+        PendingSwitchProfileName = profile.DisplayName;
         SwitchProfilePin = string.Empty;
         ShowSwitchProfileDialog = true;
         StatusMessage = null;
@@ -273,6 +454,7 @@ public partial class SettingsViewModel : ViewModelBase
         _logger.LogInformation("User clicked: Cancel Switch Profile");
         ShowSwitchProfileDialog = false;
         _profileToSwitchTo = null;
+        PendingSwitchProfileName = null;
         SwitchProfilePin = string.Empty;
         StatusMessage = null;
     }
@@ -310,12 +492,18 @@ public partial class SettingsViewModel : ViewModelBase
             StatusMessage = "Profile switched successfully!";
             ShowSwitchProfileDialog = false;
             _profileToSwitchTo = null;
+            PendingSwitchProfileName = null;
             SwitchProfilePin = string.Empty;
-            
+
             // Reload settings with new profile
             await LoadProfilesAsync();
             await LoadSettingsAsync();
-            
+
+            // Reload the config-table-backed category settings for the new profile
+            // (reset the loaded flag first so repopulation doesn't auto-save back)
+            _categorySettingsLoaded = false;
+            await LoadCategorySettingsAsync();
+
             await Task.Delay(1500);
             StatusMessage = null;
         }
@@ -337,9 +525,10 @@ public partial class SettingsViewModel : ViewModelBase
         {
             var profilesList = await _profileService.GetProfilesAsync();
             Profiles = new ObservableCollection<Profile>(profilesList);
-            
+
             var current = await _profileService.GetCurrentProfileAsync();
-            CurrentProfile = Profiles.FirstOrDefault(p => p.Name == current.Name);
+            // GetCurrentProfileAsync returns null on first run / missing current_profile.txt
+            CurrentProfile = current is null ? null : Profiles.FirstOrDefault(p => p.Name == current.Name);
             
             _logger.LogInformation("Loaded {Count} profiles", Profiles.Count);
         }
@@ -696,6 +885,26 @@ public partial class SettingsViewModel : ViewModelBase
         ShowPlatformGrid = true;
     }
 
+    // ===== Coming-soon platform cards (Facebook Gaming / Rumble) =====
+    // Bound by SettingsView's platform grid; account linking already supports
+    // both platforms, so only the full integration settings pages are pending.
+
+    [RelayCommand]
+    private async Task SelectFacebookAsync()
+    {
+        _logger.LogInformation("User selected the Facebook Gaming (coming soon) platform card");
+        StatusMessage = "Facebook Gaming support is coming soon — account linking is already compatible.";
+        await ClearStatusAfterDelayAsync();
+    }
+
+    [RelayCommand]
+    private async Task SelectRumbleAsync()
+    {
+        _logger.LogInformation("User selected the Rumble (coming soon) platform card");
+        StatusMessage = "Rumble support is coming soon — account linking is already compatible.";
+        await ClearStatusAfterDelayAsync();
+    }
+
     // ======================================================================
     // Notifications / Commands / Timers / Automation / Security / Advanced
     // (config-table backed; auto-saved on change)
@@ -940,9 +1149,12 @@ public partial class SettingsViewModel : ViewModelBase
             WorkflowTimerIntervalSeconds = await GetIntAsync("Automation.TimerIntervalSeconds", 60);
             WorkflowHistoryRetentionDays = await GetIntAsync("Automation.ExecutionHistoryRetentionDays", 90);
 
-            // Security panel info
+            // Security panel info — GetCurrentProfileAsync can return null (first run /
+            // missing current_profile.txt); skip the pin check instead of throwing, a
+            // throw here would leave _categorySettingsLoaded false and kill the
+            // auto-save toggles for the whole session.
             var current = await _profileService.GetCurrentProfileAsync();
-            CurrentProfileHasPin = !string.IsNullOrEmpty(current.PinCode);
+            CurrentProfileHasPin = current is not null && !string.IsNullOrEmpty(current.PinCode);
 
             _categorySettingsLoaded = true;
         }
@@ -1085,6 +1297,25 @@ public partial class SettingsViewModel : ViewModelBase
             _logger.LogError(ex, "Error clearing {Path}", path);
             StatusMessage = $"Error clearing folder: {ex.Message}";
         }
+    }
+
+    // ===== Restart =====
+
+    [RelayCommand]
+    private void RestartApplication()
+    {
+        if (App.PendingRestart)
+        {
+            return; // restart already in flight — ignore extra clicks
+        }
+
+        _logger.LogInformation("User requested an application restart");
+        StatusMessage = "Shutting down and restarting Vyral…";
+        App.PendingRestart = true;
+
+        // Graceful shutdown FIRST (bots disconnect, host stops, mutex releases).
+        // App.OnExit spawns the new instance only AFTER cleanup finishes.
+        System.Windows.Application.Current.Shutdown();
     }
 
     // ===== Theme commands =====

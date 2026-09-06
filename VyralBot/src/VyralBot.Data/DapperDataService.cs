@@ -110,6 +110,10 @@ public class DapperDataService : IDataService
                     TiktokChatAutoStart = @TiktokChatAutoStart,
                     DiscordChatEnabled = @DiscordChatEnabled,
                     DiscordChatAutoStart = @DiscordChatAutoStart,
+                    FacebookChatEnabled = @FacebookChatEnabled,
+                    FacebookChatAutoStart = @FacebookChatAutoStart,
+                    RumbleChatEnabled = @RumbleChatEnabled,
+                    RumbleChatAutoStart = @RumbleChatAutoStart,
                     UpdatedAt = @UpdatedAt
                 WHERE Id = @Id", platform);
         }
@@ -125,6 +129,8 @@ public class DapperDataService : IDataService
                     YoutubeChatEnabled, YoutubeChatAutoStart,
                     TiktokChatEnabled, TiktokChatAutoStart,
                     DiscordChatEnabled, DiscordChatAutoStart,
+                    FacebookChatEnabled, FacebookChatAutoStart,
+                    RumbleChatEnabled, RumbleChatAutoStart,
                     CreatedAt, UpdatedAt
                 ) VALUES (
                     @Id, @Name, @Enabled, @AccessToken, @RefreshToken, @TokenExpiresAt,
@@ -134,6 +140,8 @@ public class DapperDataService : IDataService
                     @YoutubeChatEnabled, @YoutubeChatAutoStart,
                     @TiktokChatEnabled, @TiktokChatAutoStart,
                     @DiscordChatEnabled, @DiscordChatAutoStart,
+                    @FacebookChatEnabled, @FacebookChatAutoStart,
+                    @RumbleChatEnabled, @RumbleChatAutoStart,
                     @CreatedAt, @UpdatedAt
                 )", platform);
         }
@@ -172,6 +180,12 @@ public class DapperDataService : IDataService
                     Token = @Token,
                     Status = @Status,
                     SelectedChannelId = @SelectedChannelId,
+                    ApplicationId = @ApplicationId,
+                    BotUsername = @BotUsername,
+                    AvatarUrl = @AvatarUrl,
+                    RoleLinking = @RoleLinking,
+                    RoleGiveaway = @RoleGiveaway,
+                    AutoStart = @AutoStart,
                     UpdatedAt = @UpdatedAt
                 WHERE Id = @Id", bot);
         }
@@ -179,9 +193,15 @@ public class DapperDataService : IDataService
         {
             await conn.ExecuteAsync(@"
                 INSERT INTO DiscordBots (
-                    Id, Name, Token, Status, SelectedChannelId, CreatedAt, UpdatedAt
+                    Id, Name, Token, Status, SelectedChannelId,
+                    ApplicationId, BotUsername, AvatarUrl, RoleLinking, RoleGiveaway,
+                    AutoStart,
+                    CreatedAt, UpdatedAt
                 ) VALUES (
-                    @Id, @Name, @Token, @Status, @SelectedChannelId, @CreatedAt, @UpdatedAt
+                    @Id, @Name, @Token, @Status, @SelectedChannelId,
+                    @ApplicationId, @BotUsername, @AvatarUrl, @RoleLinking, @RoleGiveaway,
+                    @AutoStart,
+                    @CreatedAt, @UpdatedAt
                 )", bot);
         }
     }
@@ -224,9 +244,13 @@ public class DapperDataService : IDataService
     public async Task<IEnumerable<Entities.ChatMessage>> GetChatMessagesAsync(string platform, string channel, int limit = 200)
     {
         using var conn = CreateConnection();
-        return await conn.QueryAsync<Entities.ChatMessage>(
-            "SELECT * FROM ChatMessages WHERE Platform = @Platform AND Channel = @Channel ORDER BY Timestamp ASC LIMIT @Limit",
-            new { Platform = platform, Channel = channel, Limit = limit });
+        // Take the NEWEST rows (DESC) so history never degrades to weeks-old data
+        // once a channel exceeds the limit, then restore chronological order.
+        var messages = (await conn.QueryAsync<Entities.ChatMessage>(
+            "SELECT * FROM ChatMessages WHERE Platform = @Platform AND Channel = @Channel ORDER BY Timestamp DESC LIMIT @Limit",
+            new { Platform = platform, Channel = channel, Limit = limit })).ToList();
+        messages.Reverse();
+        return messages;
     }
 
     public async Task DeleteChatMessagesAsync(string platform, string channel)
@@ -320,7 +344,7 @@ public class DapperDataService : IDataService
             )", statistic);
     }
 
-    public async Task<IEnumerable<EventStatistic>> GetEventStatisticsAsync(string? platform = null, string? eventType = null, int limit = 100)
+    public async Task<IEnumerable<EventStatistic>> GetEventStatisticsAsync(string? platform = null, string? eventType = null, int limit = 100, DateTime? startDate = null, DateTime? endDate = null)
     {
         using var conn = CreateConnection();
 
@@ -333,10 +357,26 @@ public class DapperDataService : IDataService
             parameters.Add("Platform", platform);
         }
 
+        // Case-insensitive so legacy rows written with different casing still match
         if (!string.IsNullOrEmpty(eventType))
         {
-            conditions.Add("EventType = @EventType");
+            conditions.Add("UPPER(EventType) = UPPER(@EventType)");
             parameters.Add("EventType", eventType);
+        }
+
+        // Date filters applied in SQL (bound DateTime parameters store/compare in the
+        // same TEXT format as the rows written by SaveEventStatisticAsync) so LIMIT
+        // applies AFTER filtering instead of truncating the filtered window.
+        if (startDate.HasValue)
+        {
+            conditions.Add("Timestamp >= @StartDate");
+            parameters.Add("StartDate", startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            conditions.Add("Timestamp <= @EndDate");
+            parameters.Add("EndDate", endDate.Value);
         }
 
         parameters.Add("Limit", limit);
@@ -359,8 +399,14 @@ public class DapperDataService : IDataService
         }
 
         return await conn.QueryAsync<EventStatistic>(
-            "SELECT * FROM EventStatistics WHERE Username = @Username AND Platform = @Platform ORDER BY Timestamp DESC LIMIT 100",
+            "SELECT * FROM EventStatistics WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE ORDER BY Timestamp DESC LIMIT 100",
             new { Username = username, Platform = platform });
+    }
+
+    public async Task<int> DeleteEventStatisticsAsync()
+    {
+        using var conn = CreateConnection();
+        return await conn.ExecuteAsync("DELETE FROM EventStatistics");
     }
 
     #endregion
@@ -400,6 +446,37 @@ public class DapperDataService : IDataService
                     GiftSubBonusAmountPerSub = @GiftSubBonusAmountPerSub,
                     RaidBonusEnabled = @RaidBonusEnabled,
                     RaidBonusAmountPerViewer = @RaidBonusAmountPerViewer,
+                    UnifiedBalanceEnabled = @UnifiedBalanceEnabled,
+                    CheerBonusEnabled = @CheerBonusEnabled,
+                    CheerBonusAmountPerBit = @CheerBonusAmountPerBit,
+                    SubMultiplierEnabled = @SubMultiplierEnabled,
+                    SubMultiplierValue = @SubMultiplierValue,
+                    VipMultiplierEnabled = @VipMultiplierEnabled,
+                    VipMultiplierValue = @VipMultiplierValue,
+                    ModMultiplierEnabled = @ModMultiplierEnabled,
+                    ModMultiplierValue = @ModMultiplierValue,
+                    FirstChatBonusEnabled = @FirstChatBonusEnabled,
+                    FirstChatBonusAmount = @FirstChatBonusAmount,
+                    DailyBonusEnabled = @DailyBonusEnabled,
+                    DailyBonusAmount = @DailyBonusAmount,
+                    StreakBonusEnabled = @StreakBonusEnabled,
+                    StreakBonusDay1 = @StreakBonusDay1,
+                    StreakBonusDay5 = @StreakBonusDay5,
+                    StreakBonusDay10 = @StreakBonusDay10,
+                    HostBonusEnabled = @HostBonusEnabled,
+                    HostBonusAmount = @HostBonusAmount,
+                    TwitchEarnMultiplier = @TwitchEarnMultiplier,
+                    KickEarnMultiplier = @KickEarnMultiplier,
+                    YouTubeEarnMultiplier = @YouTubeEarnMultiplier,
+                    CurrencyDecayEnabled = @CurrencyDecayEnabled,
+                    CurrencyDecayPercent = @CurrencyDecayPercent,
+                    CurrencyDecayDays = @CurrencyDecayDays,
+                    BankEnabled = @BankEnabled,
+                    BankInterestRate = @BankInterestRate,
+                    BankMaxBalance = @BankMaxBalance,
+                    BankWithdrawalPenalty = @BankWithdrawalPenalty,
+                    BankWithdrawalCooldownMinutes = @BankWithdrawalCooldownMinutes,
+                    TransferTaxPercent = @TransferTaxPercent,
                     UpdatedAt = @UpdatedAt
                 WHERE Id = @Id", settings);
         }
@@ -412,12 +489,38 @@ public class DapperDataService : IDataService
                     ChatActivityEnabled, ChatActivityCooldown, ChatActivityAmount,
                     FollowBonusEnabled, FollowBonusAmount, SubBonusEnabled, SubBonusAmount,
                     GiftSubBonusEnabled, GiftSubBonusAmountPerSub, RaidBonusEnabled, RaidBonusAmountPerViewer,
+                    UnifiedBalanceEnabled,
+                    CheerBonusEnabled, CheerBonusAmountPerBit,
+                    SubMultiplierEnabled, SubMultiplierValue,
+                    VipMultiplierEnabled, VipMultiplierValue,
+                    ModMultiplierEnabled, ModMultiplierValue,
+                    FirstChatBonusEnabled, FirstChatBonusAmount,
+                    DailyBonusEnabled, DailyBonusAmount,
+                    StreakBonusEnabled, StreakBonusDay1, StreakBonusDay5, StreakBonusDay10,
+                    HostBonusEnabled, HostBonusAmount,
+                    TwitchEarnMultiplier, KickEarnMultiplier, YouTubeEarnMultiplier,
+                    CurrencyDecayEnabled, CurrencyDecayPercent, CurrencyDecayDays,
+                    BankEnabled, BankInterestRate, BankMaxBalance, BankWithdrawalPenalty, BankWithdrawalCooldownMinutes,
+                    TransferTaxPercent,
                     CreatedAt, UpdatedAt
                 ) VALUES (
                     @Id, @CurrencyName, @CurrencySymbol, @WatchTimeEnabled, @WatchTimeInterval, @WatchTimeAmount,
                     @ChatActivityEnabled, @ChatActivityCooldown, @ChatActivityAmount,
                     @FollowBonusEnabled, @FollowBonusAmount, @SubBonusEnabled, @SubBonusAmount,
                     @GiftSubBonusEnabled, @GiftSubBonusAmountPerSub, @RaidBonusEnabled, @RaidBonusAmountPerViewer,
+                    @UnifiedBalanceEnabled,
+                    @CheerBonusEnabled, @CheerBonusAmountPerBit,
+                    @SubMultiplierEnabled, @SubMultiplierValue,
+                    @VipMultiplierEnabled, @VipMultiplierValue,
+                    @ModMultiplierEnabled, @ModMultiplierValue,
+                    @FirstChatBonusEnabled, @FirstChatBonusAmount,
+                    @DailyBonusEnabled, @DailyBonusAmount,
+                    @StreakBonusEnabled, @StreakBonusDay1, @StreakBonusDay5, @StreakBonusDay10,
+                    @HostBonusEnabled, @HostBonusAmount,
+                    @TwitchEarnMultiplier, @KickEarnMultiplier, @YouTubeEarnMultiplier,
+                    @CurrencyDecayEnabled, @CurrencyDecayPercent, @CurrencyDecayDays,
+                    @BankEnabled, @BankInterestRate, @BankMaxBalance, @BankWithdrawalPenalty, @BankWithdrawalCooldownMinutes,
+                    @TransferTaxPercent,
                     @CreatedAt, @UpdatedAt
                 )", settings);
         }
@@ -427,7 +530,7 @@ public class DapperDataService : IDataService
     {
         using var conn = CreateConnection();
         return await conn.QueryFirstOrDefaultAsync<UserCurrency>(
-            "SELECT * FROM UserCurrency WHERE Username = @Username AND Platform = @Platform",
+            "SELECT * FROM UserCurrency WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE",
             new { Username = username, Platform = platform });
     }
 
@@ -461,7 +564,7 @@ public class DapperDataService : IDataService
         currency.UpdatedAt = DateTime.UtcNow;
 
         var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(1) FROM UserCurrency WHERE Username = @Username AND Platform = @Platform",
+            "SELECT COUNT(1) FROM UserCurrency WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE",
             currency);
 
         if (exists > 0)
@@ -474,7 +577,7 @@ public class DapperDataService : IDataService
                     LastWatchTimeUpdate = @LastWatchTimeUpdate,
                     LastChatActivityUpdate = @LastChatActivityUpdate,
                     UpdatedAt = @UpdatedAt
-                WHERE Username = @Username AND Platform = @Platform", currency);
+                WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE", currency);
         }
         else
         {
@@ -512,7 +615,7 @@ public class DapperDataService : IDataService
         if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(platform))
         {
             return await conn.QueryAsync<CurrencyTransaction>(
-                "SELECT * FROM CurrencyTransactions WHERE Username = @Username AND Platform = @Platform ORDER BY Timestamp DESC LIMIT @Limit",
+                "SELECT * FROM CurrencyTransactions WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE ORDER BY Timestamp DESC LIMIT @Limit",
                 new { Username = username, Platform = platform, Limit = limit });
         }
         else if (!string.IsNullOrEmpty(username))
@@ -577,6 +680,12 @@ public class DapperDataService : IDataService
                     CurrentRedemptions = @CurrentRedemptions,
                     Category = @Category,
                     Prompt = @Prompt,
+                    ActionSequenceId = @ActionSequenceId,
+                    AvailableFrom = @AvailableFrom,
+                    AvailableUntil = @AvailableUntil,
+                    RewardTier = @RewardTier,
+                    RequiresSubscription = @RequiresSubscription,
+                    RequiredLoyaltyTier = @RequiredLoyaltyTier,
                     UpdatedAt = @UpdatedAt
                 WHERE Id = @Id", reward);
         }
@@ -587,11 +696,17 @@ public class DapperDataService : IDataService
                 INSERT INTO CurrencyRewards (
                     Id, Name, Description, Cost, IsEnabled, RequiresApproval, Cooldown,
                     MaxRedemptionsPerUser, MaxRedemptionsTotal, CurrentRedemptions,
-                    Category, Prompt, CreatedAt, UpdatedAt
+                    Category, Prompt,
+                    ActionSequenceId, AvailableFrom, AvailableUntil, RewardTier,
+                    RequiresSubscription, RequiredLoyaltyTier,
+                    CreatedAt, UpdatedAt
                 ) VALUES (
                     @Id, @Name, @Description, @Cost, @IsEnabled, @RequiresApproval, @Cooldown,
                     @MaxRedemptionsPerUser, @MaxRedemptionsTotal, @CurrentRedemptions,
-                    @Category, @Prompt, @CreatedAt, @UpdatedAt
+                    @Category, @Prompt,
+                    @ActionSequenceId, @AvailableFrom, @AvailableUntil, @RewardTier,
+                    @RequiresSubscription, @RequiredLoyaltyTier,
+                    @CreatedAt, @UpdatedAt
                 )", reward);
         }
     }
@@ -681,7 +796,7 @@ public class DapperDataService : IDataService
     {
         using var conn = CreateConnection();
         return await conn.QueryFirstOrDefaultAsync<LinkedAccount>(
-            "SELECT * FROM LinkedAccounts WHERE Username = @Username AND Platform = @Platform",
+            "SELECT * FROM LinkedAccounts WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE",
             new { Username = username, Platform = platform });
     }
 
@@ -697,7 +812,7 @@ public class DapperDataService : IDataService
     {
         using var conn = CreateConnection();
         return await conn.QueryFirstOrDefaultAsync<string>(
-            "SELECT ViewerId FROM LinkedAccounts WHERE Username = @Username AND Platform = @Platform",
+            "SELECT ViewerId FROM LinkedAccounts WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE",
             new { Username = username, Platform = platform });
     }
 
@@ -736,13 +851,324 @@ public class DapperDataService : IDataService
 
     #endregion
 
+    #region Viewer Identity Operations (Link Codes, Platform Status, Preferences, Social Goals)
+
+    public async Task<LinkCode?> GetLinkCodeAsync(string code)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<LinkCode>(
+            "SELECT * FROM LinkCodes WHERE Code = @Code",
+            new { Code = code });
+    }
+
+    public async Task SaveLinkCodeAsync(LinkCode code)
+    {
+        using var conn = CreateConnection();
+
+        var exists = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM LinkCodes WHERE Id = @Id", code);
+
+        if (exists > 0)
+        {
+            await conn.ExecuteAsync(@"
+                UPDATE LinkCodes SET
+                    Code = @Code,
+                    ViewerId = @ViewerId,
+                    CreatedByUsername = @CreatedByUsername,
+                    CreatedByPlatform = @CreatedByPlatform,
+                    Purpose = @Purpose,
+                    TargetPlatform = @TargetPlatform,
+                    ExpiresAt = @ExpiresAt,
+                    RedeemedByUsername = @RedeemedByUsername,
+                    RedeemedByPlatform = @RedeemedByPlatform,
+                    RedeemedAt = @RedeemedAt
+                WHERE Id = @Id", code);
+        }
+        else
+        {
+            code.CreatedAt = DateTime.UtcNow;
+            await conn.ExecuteAsync(@"
+                INSERT INTO LinkCodes (Id, Code, ViewerId, CreatedByUsername, CreatedByPlatform, Purpose, TargetPlatform, CreatedAt, ExpiresAt,
+                    RedeemedByUsername, RedeemedByPlatform, RedeemedAt)
+                VALUES (@Id, @Code, @ViewerId, @CreatedByUsername, @CreatedByPlatform, @Purpose, @TargetPlatform, @CreatedAt, @ExpiresAt,
+                    @RedeemedByUsername, @RedeemedByPlatform, @RedeemedAt)", code);
+        }
+    }
+
+    public async Task InvalidateLinkCodesForViewerAsync(string viewerId)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync(
+            "UPDATE LinkCodes SET ExpiresAt = @Now WHERE ViewerId = @ViewerId AND RedeemedAt IS NULL",
+            new { Now = DateTime.UtcNow, ViewerId = viewerId });
+    }
+
+    public async Task<IEnumerable<LinkCode>> GetActiveLinkCodesAsync()
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<LinkCode>(
+            "SELECT * FROM LinkCodes WHERE RedeemedAt IS NULL AND ExpiresAt > @Now",
+            new { Now = DateTime.UtcNow });
+    }
+
+    public async Task<IEnumerable<LinkCode>> GetRecentLinkCodesAsync(int limit = 50)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<LinkCode>(
+            "SELECT * FROM LinkCodes ORDER BY CreatedAt DESC LIMIT @Limit",
+            new { Limit = limit });
+    }
+
+    public async Task SaveDiscordDmMessageAsync(DiscordDmMessage message)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync("INSERT OR REPLACE INTO DiscordDmMessages (Id, BotId, BotUsername, ChannelId, Username, Direction, Content, Timestamp) VALUES (@Id, @BotId, @BotUsername, @ChannelId, @Username, @Direction, @Content, @Timestamp)", message);
+    }
+
+    public async Task<IEnumerable<DiscordDmMessage>> GetDiscordDmHistoryAsync(string username)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<DiscordDmMessage>(
+            "SELECT * FROM DiscordDmMessages WHERE Username = @Username COLLATE NOCASE ORDER BY Timestamp",
+            new { Username = username });
+    }
+
+    public async Task<IEnumerable<(string Username, string? BotUsername, DateTime LastAt, int Total)>> GetDiscordDmConversationsAsync()
+    {
+        using var conn = CreateConnection();
+        var rows = await conn.QueryAsync<(string Username, string BotUsername, string LastAt, int Total)>(
+            "SELECT Username, MAX(BotUsername) AS BotUsername, MAX(Timestamp) AS LastAt, COUNT(1) AS Total FROM DiscordDmMessages GROUP BY Username COLLATE NOCASE ORDER BY MAX(Timestamp) DESC");
+        return rows.Select(r => (r.Username, (string?)r.BotUsername, DateTime.TryParse(r.LastAt, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out var t) ? t : DateTime.MinValue, r.Total));
+    }
+
+        public async Task ClearDiscordDmHistoryAsync(string? username)
+    {
+        using var conn = CreateConnection();
+        if (string.IsNullOrEmpty(username))
+        {
+            await conn.ExecuteAsync("DELETE FROM DiscordDmMessages");
+        }
+        else
+        {
+            await conn.ExecuteAsync("DELETE FROM DiscordDmMessages WHERE Username = @Username COLLATE NOCASE", new { Username = username });
+        }
+    }
+
+    public async Task DeleteLinkCodeAsync(string id)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync("DELETE FROM LinkCodes WHERE Id = @Id", new { Id = id });
+    }
+
+    public async Task<IEnumerable<LinkedAccount>> GetAllLinkedAccountsAsync()
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<LinkedAccount>("SELECT * FROM LinkedAccounts");
+    }
+
+    public async Task UpdateLinkedAccountViewerAsync(string accountId, string newViewerId)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync(
+            "UPDATE LinkedAccounts SET ViewerId = @ViewerId WHERE Id = @Id",
+            new { ViewerId = newViewerId, Id = accountId });
+    }
+
+    public async Task DeleteLinkedAccountsByViewerIdAsync(string viewerId)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync("DELETE FROM LinkedAccounts WHERE ViewerId = @ViewerId", new { ViewerId = viewerId });
+    }
+
+    public async Task<ViewerPlatformStatus?> GetViewerPlatformStatusAsync(string username, string platform)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<ViewerPlatformStatus>(
+            "SELECT * FROM ViewerPlatformStatus WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE",
+            new { Username = username, Platform = platform });
+    }
+
+    public async Task SaveViewerPlatformStatusAsync(ViewerPlatformStatus status)
+    {
+        using var conn = CreateConnection();
+        status.LastUpdatedAt = DateTime.UtcNow;
+
+        var exists = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM ViewerPlatformStatus WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE",
+            status);
+
+        if (exists > 0)
+        {
+            await conn.ExecuteAsync(@"
+                UPDATE ViewerPlatformStatus SET
+                    ViewerId = @ViewerId,
+                    IsSubscriber = @IsSubscriber,
+                    SubTier = @SubTier,
+                    SubscriberMonths = @SubscriberMonths,
+                    IsFollower = @IsFollower,
+                    LastUpdatedAt = @LastUpdatedAt
+                WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE", status);
+        }
+        else
+        {
+            await conn.ExecuteAsync(@"
+                INSERT INTO ViewerPlatformStatus (Id, Username, Platform, ViewerId, IsSubscriber, SubTier,
+                    SubscriberMonths, IsFollower, LastUpdatedAt)
+                VALUES (@Id, @Username, @Platform, @ViewerId, @IsSubscriber, @SubTier,
+                    @SubscriberMonths, @IsFollower, @LastUpdatedAt)", status);
+        }
+    }
+
+    public async Task<IEnumerable<ViewerPlatformStatus>> GetViewerStatusesByViewerIdAsync(string viewerId)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<ViewerPlatformStatus>(
+            "SELECT * FROM ViewerPlatformStatus WHERE ViewerId = @ViewerId",
+            new { ViewerId = viewerId });
+    }
+
+    public async Task<ViewerPreferences?> GetViewerPreferencesAsync(string viewerId)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<ViewerPreferences>(
+            "SELECT * FROM ViewerPreferences WHERE ViewerId = @ViewerId",
+            new { ViewerId = viewerId });
+    }
+
+    public async Task SaveViewerPreferencesAsync(ViewerPreferences preferences)
+    {
+        using var conn = CreateConnection();
+        preferences.UpdatedAt = DateTime.UtcNow;
+
+        var exists = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM ViewerPreferences WHERE ViewerId = @ViewerId",
+            preferences);
+
+        if (exists > 0)
+        {
+            await conn.ExecuteAsync(@"
+                UPDATE ViewerPreferences SET
+                    MultiPlatformBonusOptIn = @MultiPlatformBonusOptIn,
+                    UpdatedAt = @UpdatedAt
+                WHERE ViewerId = @ViewerId", preferences);
+        }
+        else
+        {
+            await conn.ExecuteAsync(@"
+                INSERT INTO ViewerPreferences (Id, ViewerId, MultiPlatformBonusOptIn, UpdatedAt)
+                VALUES (@Id, @ViewerId, @MultiPlatformBonusOptIn, @UpdatedAt)", preferences);
+        }
+    }
+
+    public async Task<IEnumerable<SocialGoal>> GetSocialGoalsAsync()
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<SocialGoal>(
+            "SELECT * FROM SocialGoals ORDER BY SortOrder ASC");
+    }
+
+    public async Task<SocialGoal?> GetSocialGoalAsync(Guid id)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<SocialGoal>(
+            "SELECT * FROM SocialGoals WHERE Id = @Id", new { Id = id.ToString() });
+    }
+
+    public async Task SaveSocialGoalAsync(SocialGoal goal)
+    {
+        using var conn = CreateConnection();
+        goal.UpdatedAt = DateTime.UtcNow;
+
+        var exists = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM SocialGoals WHERE Id = @Id", goal);
+
+        if (exists > 0)
+        {
+            await conn.ExecuteAsync(@"
+                UPDATE SocialGoals SET
+                    Name = @Name, Description = @Description, GoalType = @GoalType,
+                    TargetCount = @TargetCount, RequiredPlatforms = @RequiredPlatforms,
+                    RewardType = @RewardType, RewardValue = @RewardValue,
+                    IsEnabled = @IsEnabled, SortOrder = @SortOrder, UpdatedAt = @UpdatedAt
+                WHERE Id = @Id", goal);
+        }
+        else
+        {
+            goal.CreatedAt = DateTime.UtcNow;
+            await conn.ExecuteAsync(@"
+                INSERT INTO SocialGoals (Id, Name, Description, GoalType, TargetCount, RequiredPlatforms,
+                    RewardType, RewardValue, IsEnabled, SortOrder, CreatedAt, UpdatedAt)
+                VALUES (@Id, @Name, @Description, @GoalType, @TargetCount, @RequiredPlatforms,
+                    @RewardType, @RewardValue, @IsEnabled, @SortOrder, @CreatedAt, @UpdatedAt)", goal);
+        }
+    }
+
+    public async Task DeleteSocialGoalAsync(Guid id)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync("DELETE FROM SocialGoals WHERE Id = @Id", new { Id = id.ToString() });
+    }
+
+    public async Task<ViewerGoalCompletion?> GetViewerGoalCompletionAsync(Guid goalId, string viewerId)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<ViewerGoalCompletion>(
+            "SELECT * FROM ViewerGoalCompletions WHERE GoalId = @GoalId AND ViewerId = @ViewerId",
+            new { GoalId = goalId.ToString(), ViewerId = viewerId });
+    }
+
+    public async Task SaveViewerGoalCompletionAsync(ViewerGoalCompletion completion)
+    {
+        using var conn = CreateConnection();
+
+        var exists = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM ViewerGoalCompletions WHERE GoalId = @GoalId AND ViewerId = @ViewerId",
+            completion);
+
+        if (exists > 0)
+        {
+            await conn.ExecuteAsync(@"
+                UPDATE ViewerGoalCompletions SET
+                    Username = @Username,
+                    Platform = @Platform,
+                    CompletedAt = @CompletedAt,
+                    RewardApplied = @RewardApplied
+                WHERE GoalId = @GoalId AND ViewerId = @ViewerId", completion);
+        }
+        else
+        {
+            completion.CompletedAt = DateTime.UtcNow;
+            await conn.ExecuteAsync(@"
+                INSERT INTO ViewerGoalCompletions (Id, GoalId, ViewerId, Username, Platform, CompletedAt, RewardApplied)
+                VALUES (@Id, @GoalId, @ViewerId, @Username, @Platform, @CompletedAt, @RewardApplied)", completion);
+        }
+    }
+
+    public async Task<int> GetGoalCompletionCountAsync(Guid goalId)
+    {
+        using var conn = CreateConnection();
+        return await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM ViewerGoalCompletions WHERE GoalId = @GoalId",
+            new { GoalId = goalId.ToString() });
+    }
+
+    public async Task<IEnumerable<ViewerGoalCompletion>> GetViewerGoalCompletionsByViewerIdAsync(string viewerId)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<ViewerGoalCompletion>(
+            "SELECT * FROM ViewerGoalCompletions WHERE ViewerId = @ViewerId ORDER BY CompletedAt DESC",
+            new { ViewerId = viewerId });
+    }
+
+    #endregion
+
     #region Viewer Streak Operations
 
     public async Task<ViewerStreak?> GetViewerStreakAsync(string username, string platform)
     {
         using var conn = CreateConnection();
         return await conn.QueryFirstOrDefaultAsync<ViewerStreak>(
-            "SELECT * FROM ViewerStreaks WHERE Username = @Username AND Platform = @Platform",
+            "SELECT * FROM ViewerStreaks WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE",
             new { Username = username, Platform = platform });
     }
 
@@ -752,7 +1178,7 @@ public class DapperDataService : IDataService
         streak.UpdatedAt = DateTime.UtcNow;
 
         var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(1) FROM ViewerStreaks WHERE Username = @Username AND Platform = @Platform",
+            "SELECT COUNT(1) FROM ViewerStreaks WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE",
             streak);
 
         if (exists > 0)
@@ -765,7 +1191,7 @@ public class DapperDataService : IDataService
                     LastDailyClaimDate = @LastDailyClaimDate,
                     HasChattedThisStream = @HasChattedThisStream,
                     UpdatedAt = @UpdatedAt
-                WHERE Username = @Username AND Platform = @Platform", streak);
+                WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE", streak);
         }
         else
         {
@@ -882,16 +1308,16 @@ public class DapperDataService : IDataService
     {
         using var conn = CreateConnection();
         return await conn.QueryAsync<ViewerPerk>(
-            "SELECT * FROM ViewerPerks WHERE Username = @Username AND Platform = @Platform AND IsActive = 1 AND ExpiresAt > @Now",
-            new { Username = username, Platform = platform, Now = DateTime.UtcNow.ToString("o") });
+            "SELECT * FROM ViewerPerks WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE AND IsActive = 1 AND ExpiresAt > @Now",
+            new { Username = username, Platform = platform, Now = DateTime.UtcNow });
     }
 
     public async Task<IEnumerable<ViewerPerk>> GetViewerPerksByTypeAsync(string username, string platform, string perkType)
     {
         using var conn = CreateConnection();
         return await conn.QueryAsync<ViewerPerk>(
-            "SELECT * FROM ViewerPerks WHERE Username = @Username AND Platform = @Platform AND PerkType = @PerkType AND IsActive = 1 AND ExpiresAt > @Now",
-            new { Username = username, Platform = platform, PerkType = perkType, Now = DateTime.UtcNow.ToString("o") });
+            "SELECT * FROM ViewerPerks WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE AND PerkType = @PerkType AND IsActive = 1 AND ExpiresAt > @Now",
+            new { Username = username, Platform = platform, PerkType = perkType, Now = DateTime.UtcNow });
     }
 
     public async Task SaveViewerPerkAsync(ViewerPerk perk)
@@ -922,7 +1348,7 @@ public class DapperDataService : IDataService
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
             "UPDATE ViewerPerks SET IsActive = 0 WHERE IsActive = 1 AND ExpiresAt <= @Now",
-            new { Now = DateTime.UtcNow.ToString("o") });
+            new { Now = DateTime.UtcNow });
     }
 
     #endregion
@@ -986,7 +1412,7 @@ public class DapperDataService : IDataService
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
             "UPDATE CurrencyBoosts SET IsActive = 0 WHERE IsActive = 1 AND EndsAt <= @Now",
-            new { Now = DateTime.UtcNow.ToString("o") });
+            new { Now = DateTime.UtcNow });
     }
 
     #endregion
@@ -1072,7 +1498,7 @@ public class DapperDataService : IDataService
     {
         using var conn = CreateConnection();
         return await conn.QueryFirstOrDefaultAsync<UserBankAccount>(
-            "SELECT * FROM UserBankAccounts WHERE Username = @Username AND Platform = @Platform",
+            "SELECT * FROM UserBankAccounts WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE",
             new { Username = username, Platform = platform });
     }
 
@@ -1087,7 +1513,7 @@ public class DapperDataService : IDataService
     {
         using var conn = CreateConnection();
         var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(1) FROM UserBankAccounts WHERE Username = @Username AND Platform = @Platform",
+            "SELECT COUNT(1) FROM UserBankAccounts WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE",
             new { account.Username, account.Platform });
 
         if (exists > 0)
@@ -1098,7 +1524,7 @@ public class DapperDataService : IDataService
                     BankBalance = @BankBalance, TotalDeposited = @TotalDeposited,
                     TotalWithdrawn = @TotalWithdrawn, TotalInterestEarned = @TotalInterestEarned,
                     LastInterestPayout = @LastInterestPayout, UpdatedAt = @UpdatedAt
-                WHERE Username = @Username AND Platform = @Platform", account);
+                WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE", account);
         }
         else
         {
@@ -1121,7 +1547,10 @@ public class DapperDataService : IDataService
         using var conn = CreateConnection();
         return await conn.QueryAsync<UserCurrency>(
             "SELECT * FROM UserCurrency WHERE Balance > 0 AND UpdatedAt < @CutoffDate",
-            new { CutoffDate = cutoffDate.ToString("o") });
+            // Bind DateTime directly: UserCurrency.UpdatedAt is stored via bound
+            // parameters ("yyyy-MM-dd HH:mm:ss" TEXT); an "o"-format string ("T" +
+            // "Z") compares wrongly against it for same-day rows.
+            new { CutoffDate = cutoffDate });
     }
 
     #endregion
@@ -1224,7 +1653,7 @@ public class DapperDataService : IDataService
             SET UsageCount = UsageCount + 1,
                 LastUsedAt = @Now
             WHERE Id = @Id",
-            new { Id = id, Now = DateTime.UtcNow.ToString("o") });
+            new { Id = id, Now = DateTime.UtcNow });
     }
 
     public async Task<CommandCooldown?> GetCommandCooldownAsync(string commandId, string? username, string platform)
@@ -1243,7 +1672,7 @@ public class DapperDataService : IDataService
             sql += " AND Username = @Username";
 
         return await conn.QueryFirstOrDefaultAsync<CommandCooldown>(sql,
-            new { CommandId = commandId, Username = username, Platform = platform, Now = DateTime.UtcNow.ToString("o") });
+            new { CommandId = commandId, Username = username, Platform = platform, Now = DateTime.UtcNow });
     }
 
     public async Task SaveCommandCooldownAsync(CommandCooldown cooldown)
@@ -1262,7 +1691,7 @@ public class DapperDataService : IDataService
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
             "DELETE FROM CommandCooldowns WHERE ExpiresAt <= @Now",
-            new { Now = DateTime.UtcNow.ToString("o") });
+            new { Now = DateTime.UtcNow });
     }
 
     // Command Timers (scheduled command firing)
@@ -1403,7 +1832,7 @@ public class DapperDataService : IDataService
                 TriggerCount = TriggerCount + 1,
                 LastTriggeredAt = @Now
             WHERE Id = @Id",
-            new { Id = id, Now = DateTime.UtcNow.ToString("o") });
+            new { Id = id, Now = DateTime.UtcNow });
     }
 
     // Giveaways
@@ -1440,13 +1869,13 @@ public class DapperDataService : IDataService
             INSERT OR REPLACE INTO Giveaways (
                 Id, Name, Description, EntryKeyword, Status, CreatedAt, StartedAt, EndedAt,
                 ScheduledEndTime, MaxEntries, WinnerCount, SubscriberBonusEnabled,
-                SubscriberBonusEntries, MinWatchtimeMinutes, AllowedPlatforms,
+                SubscriberBonusEntries, MinWatchtimeMinutes, AllowedPlatforms, OddsBoostEnabled,
                 FollowersOnly, SubscribersOnly, Winners, TotalEntries,
                 UniqueParticipants, Metadata, UpdatedAt
             ) VALUES (
                 @Id, @Name, @Description, @EntryKeyword, @Status, @CreatedAt, @StartedAt, @EndedAt,
                 @ScheduledEndTime, @MaxEntries, @WinnerCount, @SubscriberBonusEnabled,
-                @SubscriberBonusEntries, @MinWatchtimeMinutes, @AllowedPlatforms,
+                @SubscriberBonusEntries, @MinWatchtimeMinutes, @AllowedPlatforms, @OddsBoostEnabled,
                 @FollowersOnly, @SubscribersOnly, @Winners, @TotalEntries,
                 @UniqueParticipants, @Metadata, @UpdatedAt
             )",
@@ -1467,6 +1896,7 @@ public class DapperDataService : IDataService
                 giveaway.SubscriberBonusEntries,
                 giveaway.MinWatchtimeMinutes,
                 giveaway.AllowedPlatforms,
+                OddsBoostEnabled = giveaway.OddsBoostEnabled ? 1 : 0,
                 FollowersOnly = giveaway.FollowersOnly ? 1 : 0,
                 SubscribersOnly = giveaway.SubscribersOnly ? 1 : 0,
                 giveaway.Winners,
@@ -1556,6 +1986,17 @@ public class DapperDataService : IDataService
         return await conn.QuerySingleAsync<int>(
             "SELECT COUNT(DISTINCT Username || Platform) FROM GiveawayEntries WHERE GiveawayId = @GiveawayId",
             new { GiveawayId = giveawayId.ToString() });
+    }
+
+    public async Task<IEnumerable<GiveawayEntry>> GetGiveawayEntriesForUserAsync(string username, string platform)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<GiveawayEntry>(@"
+            SELECT * FROM GiveawayEntries
+            WHERE Username = @Username
+              AND Platform = @Platform
+            ORDER BY EnteredAt DESC LIMIT 100",
+            new { Username = username, Platform = platform });
     }
 
     // Polls
@@ -1705,7 +2146,7 @@ public class DapperDataService : IDataService
     {
         using var conn = CreateConnection();
         return await conn.QueryFirstOrDefaultAsync<UserWatchtime>(
-            "SELECT * FROM UserWatchtime WHERE Username = @Username AND Platform = @Platform",
+            "SELECT * FROM UserWatchtime WHERE Username = @Username COLLATE NOCASE AND Platform = @Platform COLLATE NOCASE",
             new { Username = username, Platform = platform });
     }
 
@@ -1751,12 +2192,14 @@ public class DapperDataService : IDataService
                 watchtime.Username,
                 watchtime.Platform,
                 watchtime.TotalMinutes,
-                LastSeenAt = watchtime.LastSeenAt.ToString("o"),
-                FirstSeenAt = watchtime.FirstSeenAt.ToString("o"),
+                // Bind DateTime directly (same TEXT format the date comparisons in
+                // DeactivateInactiveViewersAsync use) instead of "o"-format strings.
+                watchtime.LastSeenAt,
+                watchtime.FirstSeenAt,
                 watchtime.StreamSessionMinutes,
                 watchtime.LastStreamId,
                 IsActive = watchtime.IsActive ? 1 : 0,
-                UpdatedAt = watchtime.UpdatedAt.ToString("o")
+                watchtime.UpdatedAt
             });
     }
 
@@ -1772,7 +2215,7 @@ public class DapperDataService : IDataService
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
             "UPDATE UserWatchtime SET StreamSessionMinutes = 0, UpdatedAt = @Now",
-            new { Now = DateTime.UtcNow.ToString("o") });
+            new { Now = DateTime.UtcNow });
     }
 
     public async Task DeactivateInactiveViewersAsync(DateTime inactiveSince)
@@ -1780,7 +2223,7 @@ public class DapperDataService : IDataService
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
             "UPDATE UserWatchtime SET IsActive = 0, UpdatedAt = @Now WHERE LastSeenAt < @InactiveSince",
-            new { InactiveSince = inactiveSince.ToString("o"), Now = DateTime.UtcNow.ToString("o") });
+            new { InactiveSince = inactiveSince, Now = DateTime.UtcNow });
     }
 
     #endregion
@@ -1882,7 +2325,7 @@ public class DapperDataService : IDataService
             UPDATE Variables
             SET Value = @Value, UpdatedAt = @Now, LastSyncedAt = @Now
             WHERE Name = @Name COLLATE NOCASE",
-            new { Name = name, Value = value, Now = DateTime.UtcNow.ToString("o") });
+            new { Name = name, Value = value, Now = DateTime.UtcNow });
     }
 
     #endregion
@@ -2296,6 +2739,11 @@ public class DapperDataService : IDataService
         ("Polls", "Polls"),
         ("DiscordBots", "Discord bots"),
         ("WebhookSubscriptions", "Webhook subscriptions"),
+        ("LinkCodes", "Link codes"),
+        ("ViewerPlatformStatus", "Viewer platform status"),
+        ("ViewerPreferences", "Viewer preferences"),
+        ("SocialGoals", "Social goals"),
+        ("ViewerGoalCompletions", "Goal completions"),
     };
 
     public async Task<IReadOnlyDictionary<string, int>> GetDataInventoryAsync()
@@ -2350,7 +2798,7 @@ public class DapperDataService : IDataService
         if (olderThan.HasValue)
         {
             sql += " AND StartedAt < @Cutoff";
-            args.Add("Cutoff", olderThan.Value.ToString("O"));
+            args.Add("Cutoff", olderThan.Value); // bound DateTime matches how SaveWorkflowExecutionAsync stores StartedAt
         }
 
         await conn.ExecuteAsync(sql, args);
@@ -2814,6 +3262,83 @@ public class DapperDataService : IDataService
             CREATE INDEX IF NOT EXISTS IX_LinkedAccounts_Username_Platform ON LinkedAccounts(Username, Platform);
         ");
 
+        // Create LinkCodes table for viewer account linking codes
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS LinkCodes (
+                Id TEXT PRIMARY KEY,
+                Code TEXT NOT NULL UNIQUE,
+                ViewerId TEXT NOT NULL,
+                CreatedByUsername TEXT NOT NULL,
+                CreatedByPlatform TEXT NOT NULL,
+                CreatedAt TEXT NOT NULL,
+                ExpiresAt TEXT NOT NULL,
+                RedeemedByUsername TEXT,
+                RedeemedByPlatform TEXT,
+                RedeemedAt TEXT
+            );
+            CREATE INDEX IF NOT EXISTS IX_LinkCodes_ViewerId ON LinkCodes(ViewerId);
+        ");
+
+        // Create ViewerPlatformStatus table for cached per-platform sub/follower state
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS ViewerPlatformStatus (
+                Id TEXT PRIMARY KEY,
+                Username TEXT NOT NULL,
+                Platform TEXT NOT NULL,
+                ViewerId TEXT,
+                IsSubscriber INTEGER NOT NULL DEFAULT 0,
+                SubTier INTEGER NOT NULL DEFAULT 0,
+                SubscriberMonths INTEGER NOT NULL DEFAULT 0,
+                IsFollower INTEGER NOT NULL DEFAULT 0,
+                LastUpdatedAt TEXT NOT NULL,
+                UNIQUE(Username, Platform)
+            );
+            CREATE INDEX IF NOT EXISTS IX_ViewerPlatformStatus_ViewerId ON ViewerPlatformStatus(ViewerId);
+        ");
+
+        // Create ViewerPreferences table for per-viewer opt-in settings
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS ViewerPreferences (
+                Id TEXT PRIMARY KEY,
+                ViewerId TEXT NOT NULL UNIQUE,
+                MultiPlatformBonusOptIn INTEGER NOT NULL DEFAULT 0,
+                UpdatedAt TEXT NOT NULL
+            );
+        ");
+
+        // Create SocialGoals table for broadcaster-defined social goals
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS SocialGoals (
+                Id TEXT PRIMARY KEY,
+                Name TEXT NOT NULL,
+                Description TEXT NOT NULL,
+                GoalType TEXT NOT NULL,
+                TargetCount INTEGER NOT NULL DEFAULT 1,
+                RequiredPlatforms TEXT NOT NULL DEFAULT 'All',
+                RewardType TEXT NOT NULL DEFAULT 'Currency',
+                RewardValue REAL NOT NULL DEFAULT 0,
+                IsEnabled INTEGER NOT NULL DEFAULT 1,
+                SortOrder INTEGER NOT NULL DEFAULT 0,
+                CreatedAt TEXT NOT NULL,
+                UpdatedAt TEXT NOT NULL
+            );
+        ");
+
+        // Create ViewerGoalCompletions table for goal completion tracking
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS ViewerGoalCompletions (
+                Id TEXT PRIMARY KEY,
+                GoalId TEXT NOT NULL,
+                ViewerId TEXT NOT NULL,
+                Username TEXT NOT NULL,
+                Platform TEXT NOT NULL,
+                CompletedAt TEXT NOT NULL,
+                RewardApplied INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(GoalId, ViewerId)
+            );
+            CREATE INDEX IF NOT EXISTS IX_ViewerGoalCompletions_GoalId ON ViewerGoalCompletions(GoalId);
+        ");
+
         // Create ViewerStreaks table for attendance tracking
         await conn.ExecuteAsync(@"
             CREATE TABLE IF NOT EXISTS ViewerStreaks (
@@ -3073,6 +3598,17 @@ public class DapperDataService : IDataService
             CREATE INDEX IF NOT EXISTS IX_Giveaways_CreatedAt ON Giveaways(CreatedAt DESC);
         ");
 
+        // Viewer identity feature: migrate existing tables (Platforms and Giveaways both exist by this point)
+        await AddColumnIfNotExistsAsync(conn, "Giveaways", "OddsBoostEnabled", "INTEGER NOT NULL DEFAULT 0");
+        await AddColumnIfNotExistsAsync(conn, "Platforms", "FacebookChatEnabled", "INTEGER NOT NULL DEFAULT 0");
+        await AddColumnIfNotExistsAsync(conn, "Platforms", "FacebookChatAutoStart", "INTEGER NOT NULL DEFAULT 0");
+        await AddColumnIfNotExistsAsync(conn, "Platforms", "RumbleChatEnabled", "INTEGER NOT NULL DEFAULT 0");
+        await AddColumnIfNotExistsAsync(conn, "Platforms", "RumbleChatAutoStart", "INTEGER NOT NULL DEFAULT 0");
+
+        // Delink feature: LinkCodes purpose + target platform (LinkCodes table created earlier in this method)
+        await AddColumnIfNotExistsAsync(conn, "LinkCodes", "Purpose", "TEXT NOT NULL DEFAULT 'Link'");
+        await AddColumnIfNotExistsAsync(conn, "LinkCodes", "TargetPlatform", "TEXT");
+
         // Create GiveawayEntries table for participant tracking
         await conn.ExecuteAsync(@"
             CREATE TABLE IF NOT EXISTS GiveawayEntries (
@@ -3234,11 +3770,29 @@ public class DapperDataService : IDataService
                 Token TEXT,
                 Status TEXT,
                 SelectedChannelId TEXT,
+                ApplicationId TEXT,
+                BotUsername TEXT,
+                AvatarUrl TEXT,
+                RoleLinking INTEGER NOT NULL DEFAULT 0,
+                RoleGiveaway INTEGER NOT NULL DEFAULT 0,
+                AutoStart INTEGER NOT NULL DEFAULT 0,
                 CreatedAt TEXT NOT NULL,
                 UpdatedAt TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS IX_DiscordBots_Name ON DiscordBots(Name);
         ");
+
+        // V3: auto-detected bot identity + single-assignment bot roles
+        // (upgrades DiscordBots tables created before these columns existed)
+        await AddColumnIfNotExistsAsync(conn, "DiscordBots", "ApplicationId", "TEXT");
+        await AddColumnIfNotExistsAsync(conn, "DiscordBots", "BotUsername", "TEXT");
+        await AddColumnIfNotExistsAsync(conn, "DiscordBots", "AvatarUrl", "TEXT");
+        await AddColumnIfNotExistsAsync(conn, "DiscordBots", "RoleLinking", "INTEGER NOT NULL DEFAULT 0");
+        await AddColumnIfNotExistsAsync(conn, "DiscordBots", "RoleGiveaway", "INTEGER NOT NULL DEFAULT 0");
+        // V4: per-bot "start at app launch" flag. Defaults to 0 (opt-in per extra
+        // bot); the PRIMARY bot is NOT seeded to 1 — when the Platform row's
+        // DiscordChatAutoStart is on, the startup path alone starts the primary bot.
+        await AddColumnIfNotExistsAsync(conn, "DiscordBots", "AutoStart", "INTEGER NOT NULL DEFAULT 0");
 
         // Command timers: scheduled firing of commands (Commands page → Timers tab)
         await conn.ExecuteAsync(@"
@@ -3927,11 +4481,27 @@ public class DapperDataService : IDataService
             _logger.LogInformation("Seeded {Count} built-in commands", builtInCommands.Length);
         }
 
+        // Discord DM history: unlimited persistence for the chat inbox.
+        conn.Execute(@"
+            CREATE TABLE IF NOT EXISTS DiscordDmMessages (
+                Id TEXT PRIMARY KEY,
+                BotId TEXT NOT NULL,
+                BotUsername TEXT,
+                ChannelId TEXT NOT NULL,
+                Username TEXT NOT NULL,
+                Direction TEXT NOT NULL,
+                Content TEXT NOT NULL,
+                Timestamp TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS IX_DiscordDmMessages_Username_Timestamp
+                ON DiscordDmMessages(Username, Timestamp);"
+);
+
         // Ensure all currency built-in commands exist (migration for existing databases)
         var currencyCommandNames = new[] {
             "!points", "!leaderboard", "!gamble", "!redeem", "!rewards",
             "!daily", "!rank", "!store", "!slots", "!duel", "!accept",
-            "!heist", "!roulette", "!link", "!give", "!take"
+            "!heist", "!roulette", "!give", "!take"
         };
         foreach (var cmdName in currencyCommandNames)
         {
@@ -3952,6 +4522,30 @@ public class DapperDataService : IDataService
                     });
                 _logger.LogInformation("Added missing built-in command: {CommandName}", cmdName);
             }
+        }
+
+        // Ensure the built-in !help command exists (migration for existing
+        // databases): CommandService replies with its static HelpText for this
+        // name, so the row only carries the enable/permission/cooldown settings
+        // and routes the name into the built-in switch — without a row the
+        // command lookup returns null and !help would never answer.
+        var helpExists = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM Commands WHERE Name = '!help' COLLATE NOCASE");
+        if (helpExists == 0)
+        {
+            await conn.ExecuteAsync(@"
+                INSERT INTO Commands (Id, Name, Response, Permission, GlobalCooldown, UserCooldown,
+                    IsEnabled, IsBuiltIn, EnabledOnKick, EnabledOnTwitch, UsageCount, CreatedAt, UpdatedAt)
+                VALUES (@Id, @Name, @Response, @Permission, 3, 5, 1, 1, 1, 1, 0, @Now, @Now)",
+                new
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = "!help",
+                    Response = "Command list (handled in code)",
+                    Permission = "Everyone",
+                    Now = DateTime.UtcNow.ToString("o")
+                });
+            _logger.LogInformation("Added missing built-in command: !help");
         }
 
         // Seed default variables if none exist

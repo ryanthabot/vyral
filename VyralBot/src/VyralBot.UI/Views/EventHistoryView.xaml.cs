@@ -18,4 +18,12 @@ public partial class EventHistoryView : UserControl
             }
         };
     }
+
+    private void OnFilterDateChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is EventHistoryViewModel viewModel)
+        {
+            viewModel.SearchCommand.Execute(null);
+        }
+    }
 }

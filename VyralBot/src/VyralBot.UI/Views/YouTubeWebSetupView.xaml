@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
-             Background="{StaticResource BackgroundDarkBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -19,8 +19,8 @@
 
         <!-- Step Navigation Header -->
         <Border Grid.Row="0"
-                Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource BorderLightBrush}"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderLightBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="32,24">
             <Border.Style>
@@ -38,7 +38,7 @@
                 <TextBlock Text="YouTube Setup Wizard"
                          FontSize="24"
                          FontWeight="Bold"
-                         Foreground="{StaticResource TextPrimaryBrush}"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
                          Margin="0,0,0,24"/>
 
                 <!-- Stepper -->
@@ -68,13 +68,13 @@
                                     HorizontalAlignment="Center">
                                 <Border.Style>
                                     <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="1">
-                                                <Setter Property="Background" Value="{StaticResource YouTubeBrush}"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource YouTubeBrush}"/>
+                                                <Setter Property="Background" Value="{DynamicResource YouTubeBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource YouTubeBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -82,7 +82,7 @@
                                 <TextBlock Text="1"
                                          FontSize="20"
                                          FontWeight="Bold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
                             </Border>
@@ -91,10 +91,10 @@
                                      HorizontalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="1">
-                                                <Setter Property="Foreground" Value="{StaticResource YouTubeBrush}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource YouTubeBrush}"/>
                                                 <Setter Property="FontWeight" Value="SemiBold"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -108,7 +108,7 @@
                     <Rectangle Grid.Column="1"
                              Width="40"
                              Height="2"
-                             Fill="{StaticResource BorderLightBrush}"
+                             Fill="{DynamicResource BorderLightBrush}"
                              VerticalAlignment="Center"
                              Margin="8,0"/>
 
@@ -127,13 +127,13 @@
                                     HorizontalAlignment="Center">
                                 <Border.Style>
                                     <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="2">
-                                                <Setter Property="Background" Value="{StaticResource YouTubeBrush}"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource YouTubeBrush}"/>
+                                                <Setter Property="Background" Value="{DynamicResource YouTubeBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource YouTubeBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -141,7 +141,7 @@
                                 <TextBlock Text="2"
                                          FontSize="20"
                                          FontWeight="Bold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
                             </Border>
@@ -150,10 +150,10 @@
                                      HorizontalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="2">
-                                                <Setter Property="Foreground" Value="{StaticResource YouTubeBrush}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource YouTubeBrush}"/>
                                                 <Setter Property="FontWeight" Value="SemiBold"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -167,7 +167,7 @@
                     <Rectangle Grid.Column="3"
                              Width="40"
                              Height="2"
-                             Fill="{StaticResource BorderLightBrush}"
+                             Fill="{DynamicResource BorderLightBrush}"
                              VerticalAlignment="Center"
                              Margin="8,0"/>
 
@@ -186,13 +186,13 @@
                                     HorizontalAlignment="Center">
                                 <Border.Style>
                                     <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="3">
-                                                <Setter Property="Background" Value="{StaticResource YouTubeBrush}"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource YouTubeBrush}"/>
+                                                <Setter Property="Background" Value="{DynamicResource YouTubeBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource YouTubeBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -200,7 +200,7 @@
                                 <TextBlock Text="3"
                                          FontSize="20"
                                          FontWeight="Bold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
                             </Border>
@@ -209,10 +209,10 @@
                                      HorizontalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="3">
-                                                <Setter Property="Foreground" Value="{StaticResource YouTubeBrush}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource YouTubeBrush}"/>
                                                 <Setter Property="FontWeight" Value="SemiBold"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -226,7 +226,7 @@
                     <Rectangle Grid.Column="5"
                              Width="40"
                              Height="2"
-                             Fill="{StaticResource BorderLightBrush}"
+                             Fill="{DynamicResource BorderLightBrush}"
                              VerticalAlignment="Center"
                              Margin="8,0"/>
 
@@ -245,13 +245,13 @@
                                     HorizontalAlignment="Center">
                                 <Border.Style>
                                     <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="4">
-                                                <Setter Property="Background" Value="{StaticResource YouTubeBrush}"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource YouTubeBrush}"/>
+                                                <Setter Property="Background" Value="{DynamicResource YouTubeBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource YouTubeBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -259,7 +259,7 @@
                                 <TextBlock Text="4"
                                          FontSize="20"
                                          FontWeight="Bold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
                             </Border>
@@ -268,10 +268,10 @@
                                      HorizontalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="4">
-                                                <Setter Property="Foreground" Value="{StaticResource YouTubeBrush}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource YouTubeBrush}"/>
                                                 <Setter Property="FontWeight" Value="SemiBold"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -287,7 +287,7 @@
         <!-- Content Area -->
         <Grid Grid.Row="1">
             <!-- Success Screen (Step 3) -->
-            <Border Background="{StaticResource BackgroundDarkBrush}">
+            <Border Background="{DynamicResource BackgroundDarkBrush}">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -302,24 +302,24 @@
                     <TextBlock Text="✓ Setup Complete!"
                              FontSize="32"
                              FontWeight="Bold"
-                             Foreground="{StaticResource SuccessGreenBrush}"
+                             Foreground="{DynamicResource SuccessGreenBrush}"
                              HorizontalAlignment="Center"
                              Margin="0,0,0,16"/>
 
                     <TextBlock Text="Your YouTube credentials have been saved securely."
                              FontSize="16"
-                             Foreground="{StaticResource TextSecondaryBrush}"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
                              HorizontalAlignment="Center"
                              Margin="0,0,0,32"/>
 
                     <materialDesign:Card Padding="24"
-                                        Background="{StaticResource CardBackgroundBrush}"
+                                        Background="{DynamicResource CardBackgroundBrush}"
                                         Margin="0,0,0,32">
                         <StackPanel>
                             <TextBlock Text="Saved Credentials"
                                      FontSize="18"
                                      FontWeight="SemiBold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,16"/>
 
                             <Grid>
@@ -335,24 +335,24 @@
                                 <TextBlock Grid.Row="0" Grid.Column="0"
                                          Text="Client ID:"
                                          FontSize="14"
-                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         Foreground="{DynamicResource TextSecondaryBrush}"
                                          Margin="0,0,16,8"/>
                                 <TextBlock Grid.Row="0" Grid.Column="1"
                                          Text="{Binding MaskedClientId}"
                                          FontSize="14"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          FontFamily="Consolas"
                                          Margin="0,0,0,8"/>
 
                                 <TextBlock Grid.Row="1" Grid.Column="0"
                                          Text="Client Secret:"
                                          FontSize="14"
-                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         Foreground="{DynamicResource TextSecondaryBrush}"
                                          Margin="0,0,16,0"/>
                                 <TextBlock Grid.Row="1" Grid.Column="1"
                                          Text="••••••••••••••••"
                                          FontSize="14"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          FontFamily="Consolas"/>
                             </Grid>
                         </StackPanel>
@@ -373,7 +373,7 @@
             </Border>
 
             <!-- Step Content (Steps 1-2) - Shows instructions or browser -->
-            <Grid Background="{StaticResource BackgroundDarkBrush}">
+            <Grid Background="{DynamicResource BackgroundDarkBrush}">
                 <Grid.Style>
                     <Style TargetType="Grid">
                         <Setter Property="Visibility" Value="Visible"/>
@@ -412,7 +412,7 @@
                 <!-- Main Content Area -->
                 <Grid Grid.Row="1">
                     <!-- WebView2 Browser (Steps 1 & 2) -->
-                    <Border Background="{StaticResource BackgroundDarkBrush}">
+                    <Border Background="{DynamicResource BackgroundDarkBrush}">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -449,28 +449,28 @@
                             <TextBlock Text="Step 1: Enable YouTube API"
                                      FontSize="28"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,24"/>
 
-                            <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                            <materialDesign:Card Padding="32" Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,24">
                                 <StackPanel>
                                     <TextBlock Text="Google Cloud Console Setup"
                                              FontSize="18"
                                              FontWeight="SemiBold"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,0,0,16"/>
 
-                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8">
+                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8">
                                         <Run Text="You need to enable the YouTube Data API in Google Cloud Console so VyralBot can interact with YouTube Live Chat."/>
                                     </TextBlock>
 
                                     <TextBlock Text="Follow these steps:"
                                              FontSize="14"
                                              FontWeight="SemiBold"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,8,0,8"/>
 
-                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16">
                                         <Run FontWeight="SemiBold" Text="1."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Foreground="#FF0000" Text="SIGN IN WITH YOUTUBE"/> <Run Text="below to open Google Cloud Console in the browser."/>
                                         <LineBreak/>
                                         <Run Text="   Sign in with the Google account linked to your YouTube channel."/>
@@ -518,28 +518,28 @@
                             <TextBlock Text="Step 2: Create OAuth Credentials"
                                      FontSize="28"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,24"/>
 
-                            <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                            <materialDesign:Card Padding="32" Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,24">
                                 <StackPanel>
                                     <TextBlock Text="Create OAuth Client Credentials"
                                              FontSize="18"
                                              FontWeight="SemiBold"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,0,0,16"/>
 
-                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8">
+                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8">
                                         <Run Text="You need to create OAuth credentials so VyralBot can securely authenticate with YouTube on your behalf."/>
                                     </TextBlock>
 
                                     <TextBlock Text="Follow these steps:"
                                              FontSize="14"
                                              FontWeight="SemiBold"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,8,0,8"/>
 
-                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16">
                                         <Run FontWeight="SemiBold" Text="1."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Foreground="#FF0000" Text="OPEN GOOGLE CLOUD CONSOLE"/> <Run Text="below to open the Credentials page in the browser."/>
                                         <LineBreak/><LineBreak/>
                                         <Run FontWeight="SemiBold" Text="2."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Text="'+ CREATE CREDENTIALS'"/> <Run Text="→"/> <Run FontWeight="SemiBold" Text="'OAuth client ID'"/> <Run Text="."/>
@@ -606,28 +606,28 @@
                             <TextBlock Text="Step 3: Authorize Account"
                                      FontSize="28"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,24"/>
 
-                            <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                            <materialDesign:Card Padding="32" Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,24">
                                 <StackPanel>
                                     <TextBlock Text="Authorize VyralBot with Your YouTube Account"
                                              FontSize="18"
                                              FontWeight="SemiBold"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,0,0,16"/>
 
-                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8">
+                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8">
                                         <Run Text="This step connects VyralBot to your YouTube account so it can read and send live chat messages."/>
                                     </TextBlock>
 
                                     <TextBlock Text="Follow these steps:"
                                              FontSize="14"
                                              FontWeight="SemiBold"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,8,0,8"/>
 
-                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8">
+                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8">
                                         <Run FontWeight="SemiBold" Text="1."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Text="ADD USER BEFORE AUTHORIZING"/> <Run Text="in the bottom-right. This opens Google's OAuth audience page where you must add your Google email as a test user (required while your app is in 'Testing' mode)."/>
                                         <LineBreak/><LineBreak/>
                                         <Run FontWeight="SemiBold" Text="2."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Foreground="#FF0000" Text="AUTHORIZE WITH YOUTUBE"/> <Run Text="in the bottom-right. This opens Google's sign-in page in the browser."/>
@@ -637,15 +637,15 @@
                                         <Run FontWeight="SemiBold" Text="4."/> <Run Text="The browser will close automatically after authorization. Your access and refresh tokens will be saved securely."/>
                                     </TextBlock>
 
-                                    <Border BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0" Margin="0,8,0,0">
-                                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic">
+                                    <Border BorderBrush="{DynamicResource BorderLightBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0" Margin="0,8,0,0">
+                                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" FontStyle="Italic">
                                             <Run Text="Troubleshooting: If the browser shows a '502 Bad Gateway' or 'This site can't be reached' error, use the OAuth URL box below to copy the URL and paste it into Chrome manually. After authorizing, copy the callback URL from your browser's address bar and paste it in the 'Manual Callback' box that appears."/>
                                         </TextBlock>
                                     </Border>
 
                                     <TextBlock Text="{Binding OAuthStatus}"
                                              FontSize="14"
-                                             Foreground="{StaticResource TextSecondaryBrush}"
+                                             Foreground="{DynamicResource TextSecondaryBrush}"
                                              TextWrapping="Wrap"
                                              HorizontalAlignment="Center"
                                              Margin="0,0,0,16"/>
@@ -705,11 +705,11 @@
                                                         <TextBlock Text="📋 Paste the callback URL from your browser:"
                                                                    FontSize="14"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="#333"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                                                    Margin="0,0,0,12"/>
                                                         <TextBlock Text="After authorizing in your browser, you'll be redirected to a page that says 'This site can't be reached'. Copy the FULL URL from the address bar and paste it below."
                                                                    FontSize="12"
-                                                                   Foreground="#666"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                                                    TextWrapping="Wrap"
                                                                    Margin="0,0,0,12"/>
                                                         <TextBox Text="{Binding CallbackUrlInput, UpdateSourceTrigger=PropertyChanged}"
@@ -747,41 +747,41 @@
                             <TextBlock Text="Step 4: Test Connection"
                                      FontSize="28"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,24"/>
 
-                            <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                            <materialDesign:Card Padding="32" Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,24">
                                 <StackPanel>
                                     <TextBlock Text="Verify Your Connection"
                                              FontSize="18"
                                              FontWeight="SemiBold"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,0,0,16"/>
 
-                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8">
+                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8">
                                         <Run Text="Almost done! Let's make sure everything is working by sending a test message to your YouTube live chat."/>
                                     </TextBlock>
 
                                     <TextBlock Text="Authorized Channel:"
                                              FontSize="13"
                                              FontWeight="SemiBold"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,12,0,4"/>
 
                                     <TextBox Text="{Binding ChannelName, Mode=OneWay}"
                                            materialDesign:HintAssist.Hint="Authorized channel"
                                            FontSize="14"
                                            IsReadOnly="True"
-                                           Background="{StaticResource BackgroundDarkBrush}"
+                                           Background="{DynamicResource BackgroundDarkBrush}"
                                            Margin="0,0,0,16"/>
 
                                     <TextBlock Text="How to test:"
                                              FontSize="14"
                                              FontWeight="SemiBold"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,0,0,8"/>
 
-                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16">
                                         <Run FontWeight="SemiBold" Text="1."/> <Run Text="Start a YouTube live stream (or have one already running)."/>
                                         <LineBreak/><LineBreak/>
                                         <Run FontWeight="SemiBold" Text="2."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Foreground="#FF0000" Text="SEND TEST MESSAGE"/> <Run Text="below. This will post 'VyralBot test message' to your live chat."/>
@@ -803,7 +803,7 @@
 
                                     <TextBlock Text="{Binding TestMessageStatus}"
                                              FontSize="14"
-                                             Foreground="{StaticResource TextSecondaryBrush}"
+                                             Foreground="{DynamicResource TextSecondaryBrush}"
                                              TextWrapping="Wrap"
                                              Margin="0,0,0,8"/>
                                 </StackPanel>
@@ -813,15 +813,15 @@
 
                 <!-- Bottom Action Bar -->
                 <Border Grid.Row="2"
-                        Background="{StaticResource CardBackgroundBrush}"
-                        BorderBrush="{StaticResource BorderLightBrush}"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderLightBrush}"
                         BorderThickness="0,1,0,0"
                         Padding="24,16">
                     <Grid>
                         <!-- Back Button (Steps 2, 3, and 4) -->
                         <Button Content="← BACK"
                                 Command="{Binding GoBackCommand}"
-                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
                                 Height="40"
                                 Padding="24,0"
                                 HorizontalAlignment="Left">
@@ -864,7 +864,7 @@
                                     Foreground="White">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
-                                        <Setter Property="Background" Value="{StaticResource YouTubeBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource YouTubeBrush}"/>
                                         <Setter Property="Visibility" Value="Visible"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding ShowCopySearch}" Value="True">
@@ -923,7 +923,7 @@
                                     Visibility="{Binding ShowOAuthConsentReload, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
-                                        <Setter Property="Background" Value="#FF8C00"/>
+                                        <Setter Property="Background" Value="{DynamicResource WarningBrush}"/>
                                     </Style>
                                 </Button.Style>
                             </Button>
@@ -965,7 +965,7 @@
                                   Foreground="White">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
-                                        <Setter Property="Background" Value="{StaticResource YouTubeBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource YouTubeBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding ClientIdSaved}" Value="True">
                                                 <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
@@ -982,7 +982,7 @@
                                   Foreground="White">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
-                                        <Setter Property="Background" Value="{StaticResource YouTubeBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource YouTubeBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding ClientSecretSaved}" Value="True">
                                                 <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
@@ -1002,7 +1002,7 @@
                                 HorizontalAlignment="Center">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
-                                    <Setter Property="Background" Value="{StaticResource YouTubeBrush}"/>
+                                    <Setter Property="Background" Value="{DynamicResource YouTubeBrush}"/>
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
                                         <MultiDataTrigger>
@@ -1169,7 +1169,7 @@
                         <!-- Step 4 Complete Setup Button (✓ IT WORKED!) -->
                         <Button Content="✓ IT WORKED!"
                                 Command="{Binding CompleteSetupCommand}"
-                                Background="{StaticResource SuccessGreenBrush}"
+                                Background="{DynamicResource SuccessGreenBrush}"
                                 Foreground="White"
                                 Height="40"
                                 Padding="32,0"
@@ -1209,17 +1209,17 @@
                                 Padding="32"
                                 VerticalAlignment="Center"
                                 HorizontalAlignment="Center"
-                                Background="{StaticResource CardBackgroundBrush}">
+                                Background="{DynamicResource CardBackgroundBrush}">
                 <StackPanel>
                     <TextBlock Text="{Binding ModalTitle}"
                              FontSize="20"
                              FontWeight="Bold"
-                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Foreground="{DynamicResource TextPrimaryBrush}"
                              Margin="0,0,0,16"/>
 
                     <TextBlock Text="{Binding ModalDescription}"
                              FontSize="14"
-                             Foreground="{StaticResource TextSecondaryBrush}"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
                              TextWrapping="Wrap"
                              Margin="0,0,0,24"/>
 
@@ -1229,7 +1229,7 @@
                            FontSize="14"
                            Padding="12"
                            Margin="0,0,0,24"
-                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            x:Name="ModalInputTextBox"/>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
@@ -1242,7 +1242,7 @@
                         <Button Content="SAVE"
                               Command="{Binding SaveModalCommand}"
                               Style="{StaticResource MaterialDesignRaisedButton}"
-                              Background="{StaticResource YouTubeBrush}"
+                              Background="{DynamicResource YouTubeBrush}"
                               Padding="16,8"/>
                     </StackPanel>
                 </StackPanel>

@@ -35,6 +35,19 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+
+        <!-- Live intake indicator chip: LIVE (green) vs TIMED (amber) -->
+        <Style x:Key="IntakeChip" TargetType="materialDesign:Chip">
+            <Setter Property="Margin" Value="4,0"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IntakeModeDisplay}" Value="LIVE">
+                    <Setter Property="Background" Value="{DynamicResource SuccessGreenBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IntakeModeDisplay}" Value="TIMED">
+                    <Setter Property="Background" Value="{DynamicResource WarningBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -185,7 +198,8 @@
                             </Button>
                             
                             <Button Content="❌ Cancel"
-                                   Command="{Binding CancelGiveawayCommand}">
+                                   Command="{Binding CancelGiveawayCommand}"
+                                   Margin="0,0,8,0">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -196,6 +210,30 @@
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding SelectedGiveaway.Status}" Value="Active">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+
+                            <!-- Delete: only for non-active giveaways (Active must be cancelled first) -->
+                            <Button Content="🗑 Delete"
+                                   Command="{Binding DeleteSelectedGiveawayCommand}"
+                                   ToolTip="Delete this giveaway and all its entries">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Setter Property="Background" Value="{DynamicResource ErrorRedBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource ErrorRedBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedGiveaway.Status}" Value="Pending">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding SelectedGiveaway.Status}" Value="Completed">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding SelectedGiveaway.Status}" Value="Cancelled">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -213,6 +251,17 @@
                                                HorizontalAlignment="Left"/>
                         </StackPanel>
                     </DockPanel>
+
+                    <!-- Live intake indicator -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <materialDesign:Chip Style="{StaticResource IntakeChip}"
+                                           Content="{Binding IntakeModeDisplay}"
+                                           ToolTip="Current entry intake mode"/>
+                        <materialDesign:Chip Style="{StaticResource IntakeChip}"
+                                           ToolTip="Entries currently accepted per minute">
+                            <TextBlock Text="{Binding EntriesPerMinuteDisplay, StringFormat='{}{0} entries/min'}"/>
+                        </materialDesign:Chip>
+                    </StackPanel>
 
                     <!-- Statistics Cards -->
                     <UniformGrid Columns="3" Margin="0,0,0,16">
@@ -422,6 +471,11 @@
                         
                         <CheckBox Content="Subscribers Only"
                                  IsChecked="{Binding NewGiveawaySubscribersOnly}"
+                                 Margin="0,0,0,8"/>
+
+                        <CheckBox Content="Enable follower/sub-tier odds boosts"
+                                 IsChecked="{Binding NewGiveawayOddsBoostEnabled}"
+                                 ToolTip="Subscribers and followers get weighted bonus entry chances"
                                  Margin="0,0,0,16"/>
 
                         <!-- Allowed Platforms -->

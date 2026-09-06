@@ -8,12 +8,12 @@
              mc:Ignorable="d" 
              d:DataContext="{d:DesignInstance Type=viewModels:EventTestingViewModel}"
              d:DesignHeight="900" d:DesignWidth="800"
-             Background="{StaticResource BackgroundDarkBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
     
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="20">
             <!-- Header -->
-            <materialDesign:Card Background="{StaticResource BackgroundMediumBrush}" 
+            <materialDesign:Card Background="{DynamicResource BackgroundMediumBrush}" 
                                 Margin="0,0,0,20" Padding="20">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
@@ -34,7 +34,7 @@
             </materialDesign:Card>
 
             <!-- Configuration -->
-            <materialDesign:Card Background="{StaticResource BackgroundMediumBrush}" 
+            <materialDesign:Card Background="{DynamicResource BackgroundMediumBrush}" 
                                 Margin="0,0,0,20" Padding="20">
                 <StackPanel>
                     <TextBlock Text="Test Configuration" 
@@ -54,7 +54,7 @@
             </materialDesign:Card>
 
             <!-- Kick Events -->
-            <materialDesign:Card Background="{StaticResource BackgroundMediumBrush}" 
+            <materialDesign:Card Background="{DynamicResource BackgroundMediumBrush}" 
                                 Margin="0,0,0,20" Padding="20">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
@@ -72,11 +72,7 @@
                         <Button Content="Follow Event"
                                Command="{Binding TriggerKickFollowCommand}"
                                Margin="0,0,8,8"
-                               Style="{StaticResource MaterialDesignRaisedButton}">
-                            <Button.CommandParameter>
-                                <materialDesign:PackIcon Kind="AccountPlus"/>
-                            </Button.CommandParameter>
-                        </Button>
+                               Style="{StaticResource MaterialDesignRaisedButton}"/>
                         
                         <Button Content="Subscribe Event"
                                Command="{Binding TriggerKickSubscribeCommand}"
@@ -107,7 +103,7 @@
             </materialDesign:Card>
 
             <!-- Twitch Events -->
-            <materialDesign:Card Background="{StaticResource BackgroundMediumBrush}" 
+            <materialDesign:Card Background="{DynamicResource BackgroundMediumBrush}" 
                                 Margin="0,0,0,20" Padding="20">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
@@ -156,7 +152,7 @@
             </materialDesign:Card>
 
             <!-- Output Log -->
-            <materialDesign:Card Background="{StaticResource BackgroundMediumBrush}" 
+            <materialDesign:Card Background="{DynamicResource BackgroundMediumBrush}" 
                                 Padding="20">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
@@ -170,10 +166,10 @@
                                Padding="8,4"/>
                     </StackPanel>
                     
-                    <Border BorderBrush="{StaticResource BorderLightBrush}"
+                    <Border BorderBrush="{DynamicResource BorderLightBrush}"
                            BorderThickness="1"
                            CornerRadius="4"
-                           Background="{StaticResource BackgroundDarkBrush}"
+                           Background="{DynamicResource BackgroundDarkBrush}"
                            Padding="12">
                         <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
                             <TextBlock Text="{Binding OutputLog}"

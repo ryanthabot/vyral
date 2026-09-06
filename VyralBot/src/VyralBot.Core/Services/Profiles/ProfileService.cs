@@ -377,7 +377,11 @@ public class ProfileService : IProfileService
         if (!Directory.Exists(profilePath))
             throw new InvalidOperationException($"Profile '{profileName}' does not exist");
 
-        var zipPath = Path.Combine(destinationPath, $"{profileName}_{DateTime.Now:yyyyMMdd_HHmmss}.zip");
+        // A ".zip" destination is a FILE path — write the archive directly there.
+        // Otherwise destinationPath is a directory: generate a timestamped name inside it.
+        var zipPath = destinationPath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+            ? destinationPath
+            : Path.Combine(destinationPath, $"{profileName}_{DateTime.Now:yyyyMMdd_HHmmss}.zip");
 
         ZipFile.CreateFromDirectory(profilePath, zipPath);
 

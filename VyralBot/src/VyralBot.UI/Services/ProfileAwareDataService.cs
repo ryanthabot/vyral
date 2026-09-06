@@ -127,8 +127,9 @@ public class ProfileAwareDataService : IDataService
 
     // Event statistics operations
     public Task SaveEventStatisticAsync(EventStatistic statistic) => GetCurrentService().SaveEventStatisticAsync(statistic);
-    public Task<IEnumerable<EventStatistic>> GetEventStatisticsAsync(string? platform = null, string? eventType = null, int limit = 100) => GetCurrentService().GetEventStatisticsAsync(platform, eventType, limit);
+    public Task<IEnumerable<EventStatistic>> GetEventStatisticsAsync(string? platform = null, string? eventType = null, int limit = 100, DateTime? startDate = null, DateTime? endDate = null) => GetCurrentService().GetEventStatisticsAsync(platform, eventType, limit, startDate, endDate);
     public Task<IEnumerable<EventStatistic>> GetEventStatisticsByUsernameAsync(string username, string? platform = null) => GetCurrentService().GetEventStatisticsByUsernameAsync(username, platform);
+    public Task<int> DeleteEventStatisticsAsync() => GetCurrentService().DeleteEventStatisticsAsync();
 
     // Currency operations
     public Task<CurrencySetting?> GetCurrencySettingsAsync() => GetCurrentService().GetCurrencySettingsAsync();
@@ -154,6 +155,40 @@ public class ProfileAwareDataService : IDataService
     public Task<string?> GetViewerIdAsync(string username, string platform) => GetCurrentService().GetViewerIdAsync(username, platform);
     public Task SaveLinkedAccountAsync(LinkedAccount account) => GetCurrentService().SaveLinkedAccountAsync(account);
     public Task DeleteLinkedAccountAsync(string id) => GetCurrentService().DeleteLinkedAccountAsync(id);
+
+    // Link code operations
+    public Task<LinkCode?> GetLinkCodeAsync(string code) => GetCurrentService().GetLinkCodeAsync(code);
+    public Task SaveLinkCodeAsync(LinkCode code) => GetCurrentService().SaveLinkCodeAsync(code);
+    public Task InvalidateLinkCodesForViewerAsync(string viewerId) => GetCurrentService().InvalidateLinkCodesForViewerAsync(viewerId);
+    public Task<IEnumerable<LinkCode>> GetActiveLinkCodesAsync() => GetCurrentService().GetActiveLinkCodesAsync();
+    public Task<IEnumerable<LinkCode>> GetRecentLinkCodesAsync(int limit = 50) => GetCurrentService().GetRecentLinkCodesAsync(limit);
+    public Task DeleteLinkCodeAsync(string id) => GetCurrentService().DeleteLinkCodeAsync(id);
+    public Task SaveDiscordDmMessageAsync(DiscordDmMessage message) => GetCurrentService().SaveDiscordDmMessageAsync(message);
+    public Task<IEnumerable<DiscordDmMessage>> GetDiscordDmHistoryAsync(string username) => GetCurrentService().GetDiscordDmHistoryAsync(username);
+    public Task<IEnumerable<(string Username, string? BotUsername, DateTime LastAt, int Total)>> GetDiscordDmConversationsAsync() => GetCurrentService().GetDiscordDmConversationsAsync();
+    public Task ClearDiscordDmHistoryAsync(string? username) => GetCurrentService().ClearDiscordDmHistoryAsync(username);
+    public Task<IEnumerable<LinkedAccount>> GetAllLinkedAccountsAsync() => GetCurrentService().GetAllLinkedAccountsAsync();
+    public Task UpdateLinkedAccountViewerAsync(string accountId, string newViewerId) => GetCurrentService().UpdateLinkedAccountViewerAsync(accountId, newViewerId);
+    public Task DeleteLinkedAccountsByViewerIdAsync(string viewerId) => GetCurrentService().DeleteLinkedAccountsByViewerIdAsync(viewerId);
+
+    // Viewer platform status operations
+    public Task<ViewerPlatformStatus?> GetViewerPlatformStatusAsync(string username, string platform) => GetCurrentService().GetViewerPlatformStatusAsync(username, platform);
+    public Task SaveViewerPlatformStatusAsync(ViewerPlatformStatus status) => GetCurrentService().SaveViewerPlatformStatusAsync(status);
+    public Task<IEnumerable<ViewerPlatformStatus>> GetViewerStatusesByViewerIdAsync(string viewerId) => GetCurrentService().GetViewerStatusesByViewerIdAsync(viewerId);
+
+    // Viewer preferences operations
+    public Task<ViewerPreferences?> GetViewerPreferencesAsync(string viewerId) => GetCurrentService().GetViewerPreferencesAsync(viewerId);
+    public Task SaveViewerPreferencesAsync(ViewerPreferences preferences) => GetCurrentService().SaveViewerPreferencesAsync(preferences);
+
+    // Social goal operations
+    public Task<IEnumerable<SocialGoal>> GetSocialGoalsAsync() => GetCurrentService().GetSocialGoalsAsync();
+    public Task<SocialGoal?> GetSocialGoalAsync(Guid id) => GetCurrentService().GetSocialGoalAsync(id);
+    public Task SaveSocialGoalAsync(SocialGoal goal) => GetCurrentService().SaveSocialGoalAsync(goal);
+    public Task DeleteSocialGoalAsync(Guid id) => GetCurrentService().DeleteSocialGoalAsync(id);
+    public Task<ViewerGoalCompletion?> GetViewerGoalCompletionAsync(Guid goalId, string viewerId) => GetCurrentService().GetViewerGoalCompletionAsync(goalId, viewerId);
+    public Task SaveViewerGoalCompletionAsync(ViewerGoalCompletion completion) => GetCurrentService().SaveViewerGoalCompletionAsync(completion);
+    public Task<int> GetGoalCompletionCountAsync(Guid goalId) => GetCurrentService().GetGoalCompletionCountAsync(goalId);
+    public Task<IEnumerable<ViewerGoalCompletion>> GetViewerGoalCompletionsByViewerIdAsync(string viewerId) => GetCurrentService().GetViewerGoalCompletionsByViewerIdAsync(viewerId);
 
     // Viewer streak operations
     public Task<ViewerStreak?> GetViewerStreakAsync(string username, string platform) => GetCurrentService().GetViewerStreakAsync(username, platform);
@@ -235,6 +270,7 @@ public class ProfileAwareDataService : IDataService
     public Task SaveGiveawayEntryAsync(GiveawayEntry entry) => GetCurrentService().SaveGiveawayEntryAsync(entry);
     public Task<int> GetGiveawayEntryCountAsync(Guid giveawayId) => GetCurrentService().GetGiveawayEntryCountAsync(giveawayId);
     public Task<int> GetGiveawayUniqueParticipantsAsync(Guid giveawayId) => GetCurrentService().GetGiveawayUniqueParticipantsAsync(giveawayId);
+    public Task<IEnumerable<GiveawayEntry>> GetGiveawayEntriesForUserAsync(string username, string platform) => GetCurrentService().GetGiveawayEntriesForUserAsync(username, platform);
 
     // Poll operations
     public Task<IEnumerable<Poll>> GetPollsAsync() => GetCurrentService().GetPollsAsync();

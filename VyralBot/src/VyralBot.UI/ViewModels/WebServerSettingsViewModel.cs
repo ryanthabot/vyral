@@ -137,12 +137,14 @@ public partial class WebServerSettingsViewModel : ViewModelBase
         }
     }
 
-    private Task CheckSetupStatusAsync()
+    private async Task CheckSetupStatusAsync()
     {
         try
         {
-            // Check if ngrok is installed and authenticated
-            var isNgrokInstalled = IsNgrokInstalled();
+            // Check if ngrok is installed and authenticated. The ngrok check spawns a
+            // process and waits up to 5s - run it off the UI thread to avoid freezing
+            // the settings page while it opens.
+            var isNgrokInstalled = await Task.Run(IsNgrokInstalled);
             var hasAuthToken = !string.IsNullOrEmpty(NgrokAuthToken);
 
             IsSetupComplete = isNgrokInstalled && hasAuthToken;
@@ -158,8 +160,6 @@ public partial class WebServerSettingsViewModel : ViewModelBase
             _logger.LogError(ex, "Error checking setup status");
             IsSetupComplete = false;
         }
-
-        return Task.CompletedTask;
     }
 
     private static bool IsNgrokInstalled()

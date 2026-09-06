@@ -41,18 +41,11 @@ public partial class YoutubeChatSettingsViewModel : ViewModelBase
 
             if (platform != null)
             {
+                // Just load the persisted values — no force-enable: the user's
+                // "chat disabled" choice must survive reconnects.
                 _isInitialized = false;
                 IsChatEnabled = platform.YoutubeChatEnabled;
                 AutoStartChat = platform.YoutubeChatAutoStart;
-
-                if (!platform.YoutubeChatEnabled && platform.Status == "Connected")
-                {
-                    IsChatEnabled = true;
-                    platform.YoutubeChatEnabled = true;
-                    platform.UpdatedAt = DateTime.UtcNow;
-                    await _dataService.SavePlatformAsync(platform);
-                }
-
                 _isInitialized = true;
             }
             else
@@ -67,10 +60,22 @@ public partial class YoutubeChatSettingsViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private Task SaveSettingsAsync()
+    private async Task SaveSettingsAsync()
     {
-        Status = "Saved";
-        return Task.CompletedTask;
+        try
+        {
+            // Persist the current values via the same paths the toggles use
+            // (PersistPlatformFlagAsync also publishes the routing-changed event).
+            await PersistPlatformFlagAsync("YouTube", IsChatEnabled);
+            await PersistAutoStartFlagAsync(AutoStartChat);
+
+            Status = "Saved";
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error saving YouTube chat settings");
+            Status = "Failed to save settings";
+        }
     }
 
     partial void OnIsChatEnabledChanged(bool value)

@@ -44,10 +44,20 @@ public partial class CommandsView : UserControl
     /// <summary>Toolbar button (Built-in and Custom tabs): edits the selected command in the visual editor.</summary>
     private async void OnCommandEditClick(object sender, RoutedEventArgs e)
     {
-        if (DataContext is CommandsViewModel { SelectedCommand: not null } viewModel)
+        if (DataContext is not CommandsViewModel viewModel)
         {
-            await OpenFlowEditorForCommandAsync(viewModel.SelectedCommand);
+            return;
         }
+
+        if (viewModel.SelectedCommand == null)
+        {
+            // Give feedback like the DELETE button does instead of silently
+            // doing nothing.
+            viewModel.StatusMessage = "Select a command first";
+            return;
+        }
+
+        await OpenFlowEditorForCommandAsync(viewModel.SelectedCommand);
     }
 
     /// <summary>Row double-click (Built-in and Custom grids): edits that command in the visual editor.</summary>

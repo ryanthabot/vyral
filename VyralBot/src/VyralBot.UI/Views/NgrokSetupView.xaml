@@ -4,7 +4,7 @@
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              xmlns:converters="clr-namespace:VyralBot.UI.Converters"
-             Background="{StaticResource BackgroundDarkBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
     
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -23,8 +23,8 @@
 
         <!-- Step Navigation Header -->
         <Border Grid.Row="0" 
-                Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource BorderLightBrush}"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderLightBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="32,24">
             <Border.Style>
@@ -42,7 +42,7 @@
                 <TextBlock Text="Ngrok Setup Wizard" 
                          FontSize="24"
                          FontWeight="Bold"
-                         Foreground="{StaticResource TextPrimaryBrush}"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
                          Margin="0,0,0,24"/>
                 
                 <!-- Stepper -->
@@ -69,13 +69,13 @@
                                     HorizontalAlignment="Center">
                                 <Border.Style>
                                     <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="1">
-                                                <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                                <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -83,7 +83,7 @@
                                 <TextBlock Text="1" 
                                          FontSize="20" 
                                          FontWeight="Bold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
                             </Border>
@@ -92,10 +92,10 @@
                                      HorizontalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="1">
-                                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
                                                 <Setter Property="FontWeight" Value="SemiBold"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -109,7 +109,7 @@
                     <Rectangle Grid.Column="1" 
                              Width="40" 
                              Height="2" 
-                             Fill="{StaticResource BorderLightBrush}"
+                             Fill="{DynamicResource BorderLightBrush}"
                              VerticalAlignment="Center"
                              Margin="8,0"/>
 
@@ -127,13 +127,13 @@
                                     HorizontalAlignment="Center">
                                 <Border.Style>
                                     <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="2">
-                                                <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                                <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -141,7 +141,7 @@
                                 <TextBlock Text="2" 
                                          FontSize="20" 
                                          FontWeight="Bold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
                             </Border>
@@ -150,10 +150,10 @@
                                      HorizontalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="2">
-                                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
                                                 <Setter Property="FontWeight" Value="SemiBold"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -167,7 +167,7 @@
                     <Rectangle Grid.Column="3" 
                              Width="40" 
                              Height="2" 
-                             Fill="{StaticResource BorderLightBrush}"
+                             Fill="{DynamicResource BorderLightBrush}"
                              VerticalAlignment="Center"
                              Margin="8,0"/>
 
@@ -185,13 +185,13 @@
                                     HorizontalAlignment="Center">
                                 <Border.Style>
                                     <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource CardHoverBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                                         <Setter Property="BorderThickness" Value="2"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="4">
-                                                <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                                <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -199,7 +199,7 @@
                                 <TextBlock Text="3" 
                                          FontSize="20" 
                                          FontWeight="Bold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"/>
                             </Border>
@@ -208,10 +208,10 @@
                                      HorizontalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding CurrentStep}" Value="4">
-                                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
                                                 <Setter Property="FontWeight" Value="SemiBold"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -227,7 +227,7 @@
         <!-- Content Area -->
         <Grid Grid.Row="1">
             <!-- Success Screen -->
-            <Border Background="{StaticResource BackgroundDarkBrush}">
+            <Border Background="{DynamicResource BackgroundDarkBrush}">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -242,24 +242,24 @@
                     <TextBlock Text="✓ Setup Complete!" 
                              FontSize="32"
                              FontWeight="Bold"
-                             Foreground="{StaticResource SuccessGreenBrush}"
+                             Foreground="{DynamicResource SuccessGreenBrush}"
                              HorizontalAlignment="Center"
                              Margin="0,0,0,16"/>
                     
                     <TextBlock Text="Ngrok has been configured successfully." 
                              FontSize="16"
-                             Foreground="{StaticResource TextSecondaryBrush}"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
                              HorizontalAlignment="Center"
                              Margin="0,0,0,32"/>
                     
                     <materialDesign:Card Padding="24" 
-                                        Background="{StaticResource CardBackgroundBrush}"
+                                        Background="{DynamicResource CardBackgroundBrush}"
                                         Margin="0,0,0,32">
                         <StackPanel>
                             <TextBlock Text="Configuration Summary" 
                                      FontSize="18"
                                      FontWeight="SemiBold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,16"/>
                             
                             <Grid>
@@ -275,24 +275,24 @@
                                 <TextBlock Grid.Row="0" Grid.Column="0"
                                          Text="Auth Token:" 
                                          FontSize="14"
-                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         Foreground="{DynamicResource TextSecondaryBrush}"
                                          Margin="0,0,16,8"/>
                                 <TextBlock Grid.Row="0" Grid.Column="1"
                                          Text="••••••••••••••••" 
                                          FontSize="14"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          FontFamily="Consolas"
                                          Margin="0,0,0,8"/>
                                 
                                 <TextBlock Grid.Row="1" Grid.Column="0"
                                          Text="Test URL:" 
                                          FontSize="14"
-                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         Foreground="{DynamicResource TextSecondaryBrush}"
                                          Margin="0,0,16,0"/>
                                 <TextBlock Grid.Row="1" Grid.Column="1"
                                          Text="{Binding PublicUrl}" 
                                          FontSize="14"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          FontFamily="Consolas"/>
                             </Grid>
                         </StackPanel>
@@ -313,7 +313,7 @@
             </Border>
             
             <!-- Step Content -->
-            <Grid Background="{StaticResource BackgroundDarkBrush}">
+            <Grid Background="{DynamicResource BackgroundDarkBrush}">
                 <Grid.Style>
                     <Style TargetType="Grid">
                         <Setter Property="Visibility" Value="Visible"/>
@@ -334,7 +334,7 @@
                 <!-- Main Content Area -->
                 <Grid Grid.Row="1">
                     <!-- WebView2 Browser (Step 2) -->
-                    <Border Background="{StaticResource BackgroundDarkBrush}">
+                    <Border Background="{DynamicResource BackgroundDarkBrush}">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -368,18 +368,18 @@
                         <TextBlock Text="Step 1: Install Ngrok" 
                                  FontSize="28"
                                  FontWeight="Bold"
-                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
                                  Margin="0,0,0,24"/>
                         
-                        <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                        <materialDesign:Card Padding="32" Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,24">
                             <StackPanel>
                                 <TextBlock Text="Download and Install" 
                                          FontSize="18"
                                          FontWeight="SemiBold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          Margin="0,0,0,16"/>
                                 
-                                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16">
                                     <Run Text="Ngrok creates a secure tunnel to your local machine, allowing external services to send webhooks to VyralBot."/>
                                     <LineBreak/><LineBreak/>
                                     <Run Text="You can install ngrok from the Microsoft Store or download it directly from ngrok.com."/>
@@ -397,7 +397,7 @@
                                     <Button Grid.Column="0" Content="DOWNLOAD FROM MICROSOFT STORE"
                                            Command="{Binding OpenStep1ExternalCommand}"
                                            Style="{StaticResource MaterialDesignRaisedButton}"
-                                           Background="{StaticResource PrimaryBrush}"
+                                           Background="{DynamicResource PrimaryBrush}"
                                            Foreground="White"
                                            Height="48" FontSize="14"/>
                                     
@@ -422,9 +422,9 @@
                                     </Border.Style>
                                     <StackPanel Orientation="Horizontal">
                                         <materialDesign:PackIcon Kind="CheckCircle" Width="20" Height="20" 
-                                                                Foreground="{StaticResource SuccessGreenBrush}" Margin="0,0,12,0"/>
+                                                                Foreground="{DynamicResource SuccessGreenBrush}" Margin="0,0,12,0"/>
                                         <TextBlock Text="{Binding StatusMessage}" 
-                                                  Foreground="{StaticResource SuccessGreenBrush}"
+                                                  Foreground="{DynamicResource SuccessGreenBrush}"
                                                   FontWeight="SemiBold"/>
                                     </StackPanel>
                                 </Border>
@@ -447,9 +447,9 @@
                                     </Border.Style>
                                     <StackPanel Orientation="Horizontal">
                                         <materialDesign:PackIcon Kind="AlertCircle" Width="20" Height="20" 
-                                                                Foreground="{StaticResource ErrorBrush}" Margin="0,0,12,0"/>
+                                                                Foreground="{DynamicResource ErrorBrush}" Margin="0,0,12,0"/>
                                         <TextBlock Text="{Binding StatusMessage}" 
-                                                  Foreground="{StaticResource ErrorBrush}"
+                                                  Foreground="{DynamicResource ErrorBrush}"
                                                   FontWeight="SemiBold"/>
                                     </StackPanel>
                                 </Border>
@@ -479,18 +479,18 @@
                         <TextBlock Text="Step 2: Get Authentication Token" 
                                  FontSize="28"
                                  FontWeight="Bold"
-                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
                                  Margin="0,0,0,24"/>
                         
-                        <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                        <materialDesign:Card Padding="32" Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,24">
                             <StackPanel>
                                 <TextBlock Text="Sign in to ngrok" 
                                          FontSize="18"
                                          FontWeight="SemiBold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          Margin="0,0,0,16"/>
                                 
-                                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16">
                                     <Run Text="1. Click the button below to sign in to ngrok (or create a free account)"/>
                                     <LineBreak/><LineBreak/>
                                     <Run Text="2. Copy your authentication token from the dashboard"/>
@@ -501,7 +501,7 @@
                                 <Button Content="OPEN NGROK DASHBOARD"
                                        Command="{Binding OpenStep2BrowserCommand}"
                                        Style="{StaticResource MaterialDesignRaisedButton}"
-                                       Background="{StaticResource PrimaryBrush}"
+                                       Background="{DynamicResource PrimaryBrush}"
                                        Foreground="White"
                                        Height="48"
                                        FontSize="14"
@@ -526,25 +526,25 @@
                         <TextBlock Text="Step 3: Test Connection" 
                                  FontSize="28"
                                  FontWeight="Bold"
-                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
                                  Margin="0,0,0,24"/>
                         
-                        <materialDesign:Card Padding="32" Background="{StaticResource CardBackgroundBrush}" Margin="0,0,0,24">
+                        <materialDesign:Card Padding="32" Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,24">
                             <StackPanel>
                                 <TextBlock Text="Verify Ngrok Setup" 
                                          FontSize="18"
                                          FontWeight="SemiBold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          Margin="0,0,0,16"/>
                                 
-                                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                                <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16">
                                     <Run Text="Click 'TEST CONNECTION' below to start the webhook server and ngrok tunnel. This will verify your setup is working correctly."/>
                                 </TextBlock>
                                 
                                 <Button Content="TEST CONNECTION"
                                        Command="{Binding TestConnectionCommand}"
                                        Style="{StaticResource MaterialDesignRaisedButton}"
-                                       Background="{StaticResource PrimaryBrush}"
+                                       Background="{DynamicResource PrimaryBrush}"
                                        Foreground="White"
                                        Height="48"
                                        FontSize="14"
@@ -559,7 +559,7 @@
                                 
                                 <TextBlock Text="{Binding StatusMessage}" 
                                           FontSize="14"
-                                          Foreground="{StaticResource TextSecondaryBrush}"
+                                          Foreground="{DynamicResource TextSecondaryBrush}"
                                           TextWrapping="Wrap"
                                           HorizontalAlignment="Center"
                                           Margin="0,0,0,16"/>
@@ -568,7 +568,7 @@
                                           FontFamily="Consolas"
                                           FontSize="14"
                                           HorizontalAlignment="Center"
-                                          Foreground="{StaticResource PrimaryBrush}"
+                                          Foreground="{DynamicResource PrimaryBrush}"
                                           Visibility="{Binding PublicUrl, Converter={StaticResource NullToVisibilityConverter}}"/>
                             </StackPanel>
                         </materialDesign:Card>
@@ -577,15 +577,15 @@
                 
                 <!-- Bottom Action Bar -->
                 <Border Grid.Row="2" 
-                        Background="{StaticResource CardBackgroundBrush}"
-                        BorderBrush="{StaticResource BorderLightBrush}"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderLightBrush}"
                         BorderThickness="0,1,0,0"
                         Padding="24,16">
                     <Grid>
                         <!-- Back Button (Steps 2 and 4) -->
                         <Button Content="← BACK"
                                 Command="{Binding GoBackCommand}"
-                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
                                 Height="40"
                                 Padding="24,0"
                                 HorizontalAlignment="Left">
@@ -614,7 +614,7 @@
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                                     <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Setter Property="Background" Value="{StaticResource VyralRedBrush}"/>
+                                    <Setter Property="Background" Value="{DynamicResource VyralRedBrush}"/>
                                     <Style.Triggers>
                                         <MultiDataTrigger>
                                             <MultiDataTrigger.Conditions>
@@ -722,7 +722,7 @@
                         <!-- Step 4 Complete Setup Button -->
                         <Button Content="✓ IT WORKED!" 
                                 Command="{Binding CompleteSetupCommand}"
-                                Background="{StaticResource SuccessGreenBrush}"
+                                Background="{DynamicResource SuccessGreenBrush}"
                                 Foreground="White"
                                 Height="40"
                                 Padding="32,0"
@@ -770,17 +770,17 @@
                                 Padding="32"
                                 VerticalAlignment="Center"
                                 HorizontalAlignment="Center"
-                                Background="{StaticResource CardBackgroundBrush}">
+                                Background="{DynamicResource CardBackgroundBrush}">
                 <StackPanel>
                     <TextBlock Text="{Binding ModalTitle}" 
                              FontSize="20"
                              FontWeight="Bold"
-                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Foreground="{DynamicResource TextPrimaryBrush}"
                              Margin="0,0,0,16"/>
                     
                     <TextBlock Text="{Binding ModalDescription}" 
                              FontSize="14"
-                             Foreground="{StaticResource TextSecondaryBrush}"
+                             Foreground="{DynamicResource TextSecondaryBrush}"
                              TextWrapping="Wrap"
                              Margin="0,0,0,24"/>
                     
@@ -790,7 +790,7 @@
                            FontSize="14"
                            Padding="12"
                            Margin="0,0,0,24"
-                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                           Foreground="{DynamicResource TextPrimaryBrush}"/>
                     
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="CANCEL"
@@ -802,7 +802,7 @@
                         <Button Content="SAVE"
                               Command="{Binding ConfirmModalSaveCommand}"
                               Style="{StaticResource MaterialDesignRaisedButton}"
-                              Background="{StaticResource PrimaryBrush}"
+                              Background="{DynamicResource PrimaryBrush}"
                               Foreground="White"
                               Padding="16,8"/>
                     </StackPanel>

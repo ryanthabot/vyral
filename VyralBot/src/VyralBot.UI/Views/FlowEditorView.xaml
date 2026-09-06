@@ -9,7 +9,7 @@
              xmlns:flow="clr-namespace:VyralBot.UI.Controls.FlowCanvas"
              mc:Ignorable="d"
              d:DesignHeight="720" d:DesignWidth="1280"
-             Background="{StaticResource BackgroundDarkBrush}"
+             Background="{DynamicResource BackgroundDarkBrush}"
              Focusable="True">
 
     <UserControl.Resources>
@@ -20,14 +20,14 @@
         <!-- ============================================================
              BotGhost-builder palette (dark #1A1A2E family)
              ============================================================ -->
-        <SolidColorBrush x:Key="FlowIndigoBrush" Color="#5865F2"/>
-        <SolidColorBrush x:Key="FlowIndigoFocusBrush" Color="#6366F1"/>
+        <SolidColorBrush x:Key="FlowIndigoBrush" Color="{DynamicResource PrimaryColor}"/>
+        <SolidColorBrush x:Key="FlowIndigoFocusBrush" Color="{DynamicResource PrimaryHover}"/>
         <SolidColorBrush x:Key="FlowPurpleBrush" Color="#A855F7"/>
         <SolidColorBrush x:Key="FlowPurpleDeepBrush" Color="#7C3AED"/>
         <SolidColorBrush x:Key="FlowVioletBrush" Color="#8B5CF6"/>
-        <SolidColorBrush x:Key="FlowGreenBrush" Color="#10B981"/>
-        <SolidColorBrush x:Key="FlowRedBrush" Color="#EF4444"/>
-        <SolidColorBrush x:Key="FlowBlueBrush" Color="#3B82F6"/>
+        <SolidColorBrush x:Key="FlowGreenBrush" Color="{DynamicResource SuccessColor}"/>
+        <SolidColorBrush x:Key="FlowRedBrush" Color="{DynamicResource ErrorColor}"/>
+        <SolidColorBrush x:Key="FlowBlueBrush" Color="{DynamicResource InfoColor}"/>
         <SolidColorBrush x:Key="FlowInputBgBrush" Color="{DynamicResource FlowCanvasNodeBackground}"/>
         <SolidColorBrush x:Key="FlowInputBorderBrush" Color="{DynamicResource FlowCanvasNodeBorder}"/>
         <SolidColorBrush x:Key="FlowPanelBrush" Color="{DynamicResource FlowCanvasChipBackground}"/>
@@ -98,7 +98,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="btnBorder"
                                 Background="{TemplateBinding Background}"
-                                BorderBrush="{StaticResource BorderColorBrush}"
+                                BorderBrush="{DynamicResource BorderColorBrush}"
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 Padding="{TemplateBinding Padding}">
@@ -106,8 +106,8 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="btnBorder" Property="BorderBrush" Value="{StaticResource BorderAccentBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                <Setter TargetName="btnBorder" Property="BorderBrush" Value="{DynamicResource BorderAccentBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="btnBorder" Property="Opacity" Value="0.7"/>
@@ -318,7 +318,7 @@
         <Style x:Key="FlowRailBlocksButton" TargetType="Button" BasedOn="{StaticResource FlowRailButtonBase}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding SelectedPanelIndex}" Value="0">
-                    <Setter Property="BorderBrush" Value="#E5E7EB"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                     <Setter Property="Opacity" Value="1"/>
                 </DataTrigger>
             </Style.Triggers>
@@ -326,7 +326,7 @@
         <Style x:Key="FlowRailVariablesButton" TargetType="Button" BasedOn="{StaticResource FlowRailButtonBase}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding SelectedPanelIndex}" Value="1">
-                    <Setter Property="BorderBrush" Value="#E5E7EB"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                     <Setter Property="Opacity" Value="1"/>
                 </DataTrigger>
             </Style.Triggers>
@@ -334,7 +334,7 @@
         <Style x:Key="FlowRailErrorsButton" TargetType="Button" BasedOn="{StaticResource FlowRailButtonBase}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding SelectedPanelIndex}" Value="2">
-                    <Setter Property="BorderBrush" Value="#E5E7EB"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                     <Setter Property="Opacity" Value="1"/>
                 </DataTrigger>
             </Style.Triggers>
@@ -342,7 +342,7 @@
         <Style x:Key="FlowRailCommandsButton" TargetType="Button" BasedOn="{StaticResource FlowRailButtonBase}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding SelectedPanelIndex}" Value="3">
-                    <Setter Property="BorderBrush" Value="#E5E7EB"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                     <Setter Property="Opacity" Value="1"/>
                 </DataTrigger>
             </Style.Triggers>
@@ -350,7 +350,7 @@
         <Style x:Key="FlowRailTimersButton" TargetType="Button" BasedOn="{StaticResource FlowRailButtonBase}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding SelectedPanelIndex}" Value="4">
-                    <Setter Property="BorderBrush" Value="#E5E7EB"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                     <Setter Property="Opacity" Value="1"/>
                 </DataTrigger>
             </Style.Triggers>
@@ -358,7 +358,7 @@
         <Style x:Key="FlowRailTemplatesButton" TargetType="Button" BasedOn="{StaticResource FlowRailButtonBase}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding SelectedPanelIndex}" Value="5">
-                    <Setter Property="BorderBrush" Value="#E5E7EB"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                     <Setter Property="Opacity" Value="1"/>
                 </DataTrigger>
             </Style.Triggers>
@@ -448,7 +448,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="rowBorder" Property="Background" Value="{StaticResource CardHoverBrush}"/>
+                                <Setter TargetName="rowBorder" Property="Background" Value="{DynamicResource CardHoverBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="rowBorder" Property="Opacity" Value="0.75"/>
@@ -469,7 +469,7 @@
                                 Width="22" Height="22"
                                 CornerRadius="3"
                                 Background="{TemplateBinding Background}"
-                                BorderBrush="{StaticResource BorderLightBrush}"
+                                BorderBrush="{DynamicResource BorderLightBrush}"
                                 BorderThickness="1"/>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -487,7 +487,7 @@
         <Style x:Key="FlowSectionLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
         </Style>
 
         <!-- Bold white BotGhost-style section header ("PARAMETERS", "ACTIONS"…). -->
@@ -499,7 +499,7 @@
 
         <Style x:Key="FlowFieldLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11.5"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
             <Setter Property="Margin" Value="0,10,0,4"/>
         </Style>
 
@@ -547,7 +547,7 @@
                         <Setter Property="Background" Value="Transparent"/>
                         <Style.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
+                                <Setter Property="Background" Value="{DynamicResource CardHoverBrush}"/>
                             </Trigger>
                         </Style.Triggers>
                     </Style>
@@ -563,7 +563,7 @@
                     <TextBlock Grid.Column="0"
                                Text="⠿"
                                FontSize="11"
-                               Foreground="{StaticResource TextMutedBrush}"
+                               Foreground="{DynamicResource TextMutedBrush}"
                                VerticalAlignment="Center"
                                Margin="0,0,7,2"/>
 
@@ -642,7 +642,7 @@
                         <TextBlock Text="{Binding ValueHint, StringFormat=e.g. {0}}"
                                    FontSize="10"
                                    FontStyle="Italic"
-                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Foreground="{DynamicResource TextMutedBrush}"
                                    TextTrimming="CharacterEllipsis"
                                    Margin="0,1,0,0"/>
                     </StackPanel>
@@ -694,7 +694,7 @@
                         <TextBlock Text="{Binding TypeKey, StringFormat=type: {0}}"
                                    FontSize="10"
                                    FontStyle="Italic"
-                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Foreground="{DynamicResource TextMutedBrush}"
                                    Margin="0,1,0,0"/>
                     </StackPanel>
                 </Grid>
@@ -711,7 +711,7 @@
              RED 2px underline (BotGhost pattern). -->
         <Style x:Key="PaletteTabButton" TargetType="ToggleButton">
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
@@ -729,12 +729,12 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="tabBorder" Property="Background" Value="{StaticResource CardHoverBrush}"/>
+                                <Setter TargetName="tabBorder" Property="Background" Value="{DynamicResource CardHoverBrush}"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="tabBorder" Property="Background" Value="#11111C"/>
+                                <Setter TargetName="tabBorder" Property="Background" Value="{DynamicResource BackgroundPrimaryBrush}"/>
                                 <Setter TargetName="tabBorder" Property="BorderBrush" Value="{StaticResource FlowRedBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -749,10 +749,10 @@
         <DataTemplate x:Key="ParamRowTemplate">
             <StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,10,0,4">
-                    <TextBlock Text="{Binding Label}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Text="{Binding Label}" FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}"/>
                     <TextBlock Text=" ❓"
                                FontSize="10"
-                               Foreground="{StaticResource TextMutedBrush}"
+                               Foreground="{DynamicResource TextMutedBrush}"
                                VerticalAlignment="Center"
                                ToolTip="{Binding Hint}"
                                Visibility="{Binding HasHint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
@@ -810,7 +810,7 @@
                         <Border Grid.Column="1" Width="30" Margin="6,0,0,0"
                                 CornerRadius="3"
                                 Background="{Binding ColorBrush}"
-                                BorderBrush="{StaticResource BorderLightBrush}"
+                                BorderBrush="{DynamicResource BorderLightBrush}"
                                 BorderThickness="1"/>
                     </Grid>
                     <ContentControl ContentTemplate="{StaticResource SwatchRowTemplate}" Focusable="False"/>
@@ -819,7 +819,7 @@
                 <!-- hint -->
                 <TextBlock Text="{Binding Hint}"
                            FontSize="10.5"
-                           Foreground="{StaticResource TextMutedBrush}"
+                           Foreground="{DynamicResource TextMutedBrush}"
                            TextWrapping="Wrap"
                            Margin="0,3,0,0"
                            Visibility="{Binding HasHint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
@@ -926,7 +926,7 @@
                                    Margin="0,3,0,0"/>
                         <TextBlock Text="{Binding TriggerSummary, StringFormat=Trigger: {0}}"
                                    FontSize="10"
-                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Foreground="{DynamicResource TextMutedBrush}"
                                    TextTrimming="CharacterEllipsis"
                                    Margin="0,4,0,0"/>
                     </StackPanel>
@@ -1121,7 +1121,7 @@
                         <Setter Property="Background" Value="{StaticResource FlowCardBrush}"/>
                         <Style.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{StaticResource CardHoverBrush}"/>
+                                <Setter Property="Background" Value="{DynamicResource CardHoverBrush}"/>
                             </Trigger>
                         </Style.Triggers>
                     </Style>
@@ -1135,7 +1135,7 @@
                     <TextBlock Grid.Column="0"
                                Text="⠿"
                                FontSize="11"
-                               Foreground="{StaticResource TextMutedBrush}"
+                               Foreground="{DynamicResource TextMutedBrush}"
                                VerticalAlignment="Center"
                                Margin="0,0,7,2"/>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -1178,7 +1178,7 @@
         <!-- ============================== HEADER / TOOLBAR ============================== -->
         <Border Grid.Row="0"
                 Background="{StaticResource FlowPanelBrush}"
-                BorderBrush="{StaticResource BorderSecondaryBrush}"
+                BorderBrush="{DynamicResource BorderSecondaryBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="14,8">
             <Grid>
@@ -1201,7 +1201,7 @@
                     <TextBlock Text="FLOW EDITOR"
                                FontSize="14"
                                FontWeight="Bold"
-                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                VerticalAlignment="Center"/>
                     <TextBlock Text="●"
                                FontSize="14"
@@ -1240,7 +1240,7 @@
                 <TextBlock Grid.Column="4"
                            Text="{Binding TriggerSummaryText}"
                            FontSize="11"
-                           Foreground="{StaticResource TextMutedBrush}"
+                           Foreground="{DynamicResource TextMutedBrush}"
                            VerticalAlignment="Center"
                            Margin="12,0,0,0"
                            TextTrimming="CharacterEllipsis"
@@ -1283,7 +1283,7 @@
                  reopens it. The panel swaps content per SelectedPanelIndex. -->
             <Border Grid.Column="0"
                     Background="{StaticResource FlowPanelBrush}"
-                    BorderBrush="{StaticResource BorderSecondaryBrush}"
+                    BorderBrush="{DynamicResource BorderSecondaryBrush}"
                     BorderThickness="0,0,1,0">
                 <Border.Style>
                     <Style TargetType="Border">
@@ -1305,7 +1305,7 @@
                     <!-- ============ ICON RAIL (56px, darkest strip) ============ -->
                     <Border Grid.Column="0"
                             Background="{StaticResource FlowRailBrush}"
-                            BorderBrush="{StaticResource BorderSecondaryBrush}"
+                            BorderBrush="{DynamicResource BorderSecondaryBrush}"
                             BorderThickness="0,0,1,0">
                         <StackPanel Margin="0,10,0,0">
                             <Button Command="{Binding SelectRailPanelCommand}" CommandParameter="0"
@@ -1361,7 +1361,7 @@
                                            Text="{Binding SelectedPanelTitle}"
                                            FontSize="13.5"
                                            FontWeight="Bold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                            VerticalAlignment="Center"/>
                                 <Button Grid.Column="1"
                                         Content="☰"
@@ -1393,7 +1393,7 @@
                         <!-- Color-coded intro copy -->
                         <TextBlock Grid.Row="0"
                                    FontSize="11.5"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"
                                    Margin="12,0,12,8"
                                    LineHeight="17">
@@ -1408,7 +1408,7 @@
 
                         <!-- Segmented tab bar: Options | Actions | Conditions -->
                         <Border Grid.Row="1"
-                                Background="{StaticResource CardHoverBrush}"
+                                Background="{DynamicResource CardHoverBrush}"
                                 CornerRadius="4"
                                 Margin="10,0,10,8"
                                 Padding="2">
@@ -1442,7 +1442,7 @@
                                            Margin="12,12,8,2"/>
                                 <TextBlock Text="Typed arguments the command accepts — usable as {variables}."
                                            FontSize="10.5"
-                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Foreground="{DynamicResource TextMutedBrush}"
                                            TextWrapping="Wrap"
                                            Margin="12,0,8,4"/>
                                 <ItemsControl ItemsSource="{Binding FilteredParameterDefinitions}"
@@ -1450,7 +1450,7 @@
                                 <TextBlock Text="No parameter types found"
                                            FontSize="11.5"
                                            FontStyle="Italic"
-                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Foreground="{DynamicResource TextMutedBrush}"
                                            Margin="12,8,8,0"
                                            Visibility="{Binding ParametersEmpty, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
@@ -1459,7 +1459,7 @@
                                            Margin="12,18,8,2"/>
                                 <TextBlock Text="Cooldowns, permissions and channel scoping constraints."
                                            FontSize="10.5"
-                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Foreground="{DynamicResource TextMutedBrush}"
                                            TextWrapping="Wrap"
                                            Margin="12,0,8,4"/>
                                 <ItemsControl ItemsSource="{Binding FilteredOptionDefinitions}"
@@ -1467,7 +1467,7 @@
                                 <TextBlock Text="No options found"
                                            FontSize="11.5"
                                            FontStyle="Italic"
-                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Foreground="{DynamicResource TextMutedBrush}"
                                            Margin="12,10,8,0"
                                            Visibility="{Binding OptionsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                             </StackPanel>
@@ -1482,7 +1482,7 @@
                                 <TextBlock Text="No blocks found"
                                            FontSize="11.5"
                                            FontStyle="Italic"
-                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Foreground="{DynamicResource TextMutedBrush}"
                                            Margin="12,10,8,0"
                                            Visibility="{Binding ActionsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                             </StackPanel>
@@ -1497,7 +1497,7 @@
                                 <TextBlock Text="No blocks found"
                                            FontSize="11.5"
                                            FontStyle="Italic"
-                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Foreground="{DynamicResource TextMutedBrush}"
                                            Margin="12,10,8,0"
                                            Visibility="{Binding ConditionsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                             </StackPanel>
@@ -1520,7 +1520,7 @@
                                     <StackPanel Margin="10,0,10,8">
                                         <TextBlock Text="View and manage variables used in your flow. Variables allow you to store and manipulate data throughout your command flow."
                                                    FontSize="11.5"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                                    TextWrapping="Wrap"
                                                    LineHeight="17"/>
                                         <TextBox Text="{Binding VariableSearch, UpdateSourceTrigger=PropertyChanged}"
@@ -1539,7 +1539,7 @@
                                         <TextBlock Text="No variables match your search."
                                                    FontSize="11.5"
                                                    FontStyle="Italic"
-                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                    Margin="2,10,0,0"
                                                    Visibility="{Binding VariablesEmpty, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     </StackPanel>
@@ -1562,7 +1562,7 @@
                                     <StackPanel Margin="10,0,10,8">
                                         <TextBlock Text="View error logs and debugging information for your flow."
                                                    FontSize="11.5"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                                    TextWrapping="Wrap"
                                                    LineHeight="17"/>
                                         <Button Content="⟳ REFRESH"
@@ -1578,7 +1578,7 @@
                                         <TextBlock Text="Loading error logs…"
                                                    FontSize="11.5"
                                                    FontStyle="Italic"
-                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                    Margin="2,10,0,0"
                                                    Visibility="{Binding IsLoadingErrorLogs, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                         <TextBlock Text="No errors — nice."
@@ -1626,7 +1626,7 @@
 
                                 <!-- Segmented tabs: Commands | Events -->
                                 <Border Grid.Row="0"
-                                        Background="{StaticResource CardHoverBrush}"
+                                        Background="{DynamicResource CardHoverBrush}"
                                         CornerRadius="4"
                                         Margin="10,0,10,8"
                                         Padding="2">
@@ -1663,7 +1663,7 @@
                                             <TextBlock Text="No commands yet — create one above."
                                                        FontSize="11.5"
                                                        FontStyle="Italic"
-                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        Margin="2,10,0,0"
                                                        Visibility="{Binding PanelCommandsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                         </StackPanel>
@@ -1676,7 +1676,7 @@
                                             <TextBlock Text="No event flows yet."
                                                        FontSize="11.5"
                                                        FontStyle="Italic"
-                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        Margin="2,10,0,0"
                                                        Visibility="{Binding PanelEventsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                         </StackPanel>
@@ -1700,7 +1700,7 @@
                                     <StackPanel Margin="10,0,10,8">
                                         <TextBlock Text="Create timed events that run your flow on a schedule or interval."
                                                    FontSize="11.5"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                                    TextWrapping="Wrap"
                                                    LineHeight="17"/>
                                         <Button Content="Add New Timed Event"
@@ -1717,7 +1717,7 @@
                                         <TextBlock Text="No timed events yet."
                                                    FontSize="11.5"
                                                    FontStyle="Italic"
-                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                    Margin="2,10,0,0"
                                                    Visibility="{Binding PanelTimersEmpty, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     </StackPanel>
@@ -1740,7 +1740,7 @@
                                     <StackPanel Margin="10,0,10,8">
                                         <TextBlock Text="Click and drag a saved block template onto your tree."
                                                    FontSize="11.5"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                                    TextWrapping="Wrap"
                                                    LineHeight="17"/>
                                         <TextBox Text="{Binding TemplateSearch, UpdateSourceTrigger=PropertyChanged}"
@@ -1760,7 +1760,7 @@
                                         <TextBlock Text="No saved templates yet — select a block on the canvas and save it."
                                                    FontSize="11.5"
                                                    FontStyle="Italic"
-                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                    TextWrapping="Wrap"
                                                    Margin="2,10,0,0"
                                                    Visibility="{Binding BlockTemplatesEmpty, Converter={StaticResource BooleanToVisibilityConverter}}"/>
@@ -1770,7 +1770,7 @@
 
                             <!-- Red "save your changes" bar (bottom of the panel; only when dirty) -->
                             <Border Grid.Row="2"
-                                    Background="#B91C1C"
+                                    Background="{DynamicResource ErrorHoverBrush}"
                                     Padding="10,8">
                                 <Border.Style>
                                     <Style TargetType="Border">
@@ -1833,7 +1833,7 @@
                                 HorizontalAlignment="Left"
                                 VerticalAlignment="Bottom"
                                 Margin="12,0,0,64"
-                                Effect="{StaticResource CardShadow}">
+                                Effect="{DynamicResource CardShadow}">
                         <Button Content="−"
                                 Command="{Binding ZoomOutCommand}"
                                 Style="{StaticResource FlowZoomButton}"
@@ -1863,8 +1863,8 @@
 
             <!-- RIGHT: settings panel -->
             <Border Grid.Column="2"
-                    Background="{StaticResource BackgroundSecondaryBrush}"
-                    BorderBrush="{StaticResource BorderSecondaryBrush}"
+                    Background="{DynamicResource BackgroundSecondaryBrush}"
+                    BorderBrush="{DynamicResource BorderSecondaryBrush}"
                     BorderThickness="1,0,0,0">
                 <Grid>
                 <!-- ============ MODE: BLOCK (selected-node settings) ============ -->
@@ -1892,8 +1892,8 @@
                         </Grid>
 
                         <!-- Block header: icon chip + bold title + grey description -->
-                        <Border Background="{StaticResource CardHoverBrush}"
-                                BorderBrush="{StaticResource BorderSecondaryBrush}"
+                        <Border Background="{DynamicResource CardHoverBrush}"
+                                BorderBrush="{DynamicResource BorderSecondaryBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8"
                                 Padding="10,8">
@@ -1939,7 +1939,7 @@
                         <!-- ============ MESSAGE BUILDER (embed) ============ -->
                         <StackPanel Margin="0,14,0,0"
                                     Visibility="{Binding HasEmbedParam, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <Border BorderBrush="{StaticResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                            <Border BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
                                 <StackPanel>
                                     <TextBlock FontSize="12.5" FontWeight="Bold" Foreground="White" Margin="0,0,0,2">
                                         <Run Text="Message Builder "/>
@@ -1966,7 +1966,7 @@
                                         <Border Grid.Column="1" Width="30" Margin="6,0,0,0"
                                                 CornerRadius="3"
                                                 Background="{Binding EmbedBuilder.PreviewBrush}"
-                                                BorderBrush="{StaticResource BorderLightBrush}"
+                                                BorderBrush="{DynamicResource BorderLightBrush}"
                                                 BorderThickness="1"/>
                                     </Grid>
                                     <ContentControl ContentTemplate="{StaticResource SwatchRowTemplate}"
@@ -2036,7 +2036,7 @@
                                         <StackPanel>
                                             <TextBlock Text="{Binding EmbedBuilder.AuthorName}"
                                                        FontSize="12" FontWeight="SemiBold"
-                                                       Foreground="#DBDEE1" TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap"
                                                        Visibility="{Binding EmbedBuilder.AuthorName, Converter={StaticResource StringToVisibilityConverter}}"/>
                                             <TextBlock Text="{Binding EmbedBuilder.Title}"
                                                        FontSize="14" FontWeight="Bold"
@@ -2045,7 +2045,7 @@
                                                        Visibility="{Binding EmbedBuilder.Title, Converter={StaticResource StringToVisibilityConverter}}"/>
                                             <TextBlock Text="{Binding EmbedBuilder.Description}"
                                                        FontSize="12.5"
-                                                       Foreground="#DCDDDE" TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap"
                                                        Margin="0,4,0,0"
                                                        Visibility="{Binding EmbedBuilder.Description, Converter={StaticResource StringToVisibilityConverter}}"/>
                                             <ItemsControl ItemsSource="{Binding EmbedBuilder.Fields}" Margin="0,6,0,0">
@@ -2058,19 +2058,19 @@
                                                     <DataTemplate>
                                                         <StackPanel Width="150" Margin="0,0,12,6">
                                                             <TextBlock Text="{Binding Name}" FontSize="11.5" FontWeight="Bold" Foreground="White" TextWrapping="Wrap"/>
-                                                            <TextBlock Text="{Binding Value}" FontSize="11.5" Foreground="#DCDDDE" TextWrapping="Wrap"/>
+                                                            <TextBlock Text="{Binding Value}" FontSize="11.5" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap"/>
                                                         </StackPanel>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
                                             <TextBlock Text="{Binding EmbedBuilder.Footer}"
                                                        FontSize="10.5"
-                                                       Foreground="#7C8287" TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"
                                                        Margin="0,6,0,0"
                                                        Visibility="{Binding EmbedBuilder.Footer, Converter={StaticResource StringToVisibilityConverter}}"/>
                                             <TextBlock Text="Nothing to preview yet — start with a title or description."
                                                        FontSize="11" FontStyle="Italic"
-                                                       Foreground="#7C8287" Margin="0,2,0,0">
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,2,0,0">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -2095,7 +2095,7 @@
                         <!-- ============ CONDITION BUILDER ============ -->
                         <StackPanel Margin="0,14,0,0"
                                     Visibility="{Binding HasRuleParam, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <Border BorderBrush="{StaticResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                            <Border BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
                                 <StackPanel DataContext="{Binding ConditionBuilder}">
                                     <TextBlock Text="CONDITION" Style="{StaticResource FlowSectionHeader}" Margin="0,0,0,2"/>
 
@@ -2112,7 +2112,7 @@
                                                  ToolTip="Guard expression — rule JSON may appear here after switching modes"/>
                                         <TextBlock Text="Plain expression, e.g. {coins} &gt; 100 — rule-builder output is stored here as JSON too."
                                                    FontSize="10.5"
-                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                    TextWrapping="Wrap"
                                                    Margin="0,4,0,0"/>
                                     </StackPanel>
@@ -2121,14 +2121,14 @@
                                     <StackPanel Visibility="{Binding IsBuilderMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                             <TextBlock Text="Match" FontSize="11.5"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
                                             <ComboBox ItemsSource="{Binding Combinators}"
                                                       SelectedItem="{Binding Combinator}"
                                                       MinWidth="80"/>
                                             <TextBlock Text="of the rules below"
                                                        FontSize="11.5"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                                        VerticalAlignment="Center"
                                                        Margin="8,0,0,0"/>
                                         </StackPanel>
@@ -2136,8 +2136,8 @@
                                         <ItemsControl ItemsSource="{Binding Rows}" Margin="0,8,0,0">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Border Background="{StaticResource CardHoverBrush}"
-                                                            BorderBrush="{StaticResource BorderSecondaryBrush}"
+                                                    <Border Background="{DynamicResource CardHoverBrush}"
+                                                            BorderBrush="{DynamicResource BorderSecondaryBrush}"
                                                             BorderThickness="1"
                                                             CornerRadius="4"
                                                             Padding="8"
@@ -2206,7 +2206,7 @@
                                                                          PreviewTextInput="OnNumericTextInput"
                                                                          materialDesign:HintAssist.Hint="0-23"/>
                                                                 <TextBlock Text="to" FontSize="11.5"
-                                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                                           Foreground="{DynamicResource TextSecondaryBrush}"
                                                                            VerticalAlignment="Center" Margin="6,0"/>
                                                                 <TextBox Text="{Binding EndHour, UpdateSourceTrigger=PropertyChanged}"
                                                                          Width="50" Padding="5,3" FontSize="11.5"
@@ -2217,7 +2217,7 @@
                                                             <!-- user is bot (no fields) -->
                                                             <TextBlock Text="Passes when the triggering user is a bot account."
                                                                        FontSize="10.5"
-                                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                                        TextWrapping="Wrap"
                                                                        Margin="0,6,0,0"
                                                                        Visibility="{Binding IsUserIsBot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
@@ -2247,20 +2247,20 @@
                         <!-- ============ COMPARISON RULES (comparison node) ============ -->
                         <StackPanel Margin="0,14,0,0"
                                     Visibility="{Binding HasComparisonsParam, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <Border BorderBrush="{StaticResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                            <Border BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
                                 <StackPanel>
                                     <TextBlock Text="COMPARISONS" Style="{StaticResource FlowSectionHeader}" Margin="0,0,0,2"/>
                                     <TextBlock Text="Rules run top to bottom — the first match takes its branch (each rule gets its own green card under the node). Nothing matches → Else."
                                                FontSize="10.5"
-                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                TextWrapping="Wrap"
                                                Margin="0,2,0,4"/>
 
                                     <ItemsControl ItemsSource="{Binding ComparisonBuilder.Rows}" Margin="0,4,0,0">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="{StaticResource CardHoverBrush}"
-                                                        BorderBrush="{StaticResource BorderSecondaryBrush}"
+                                                <Border Background="{DynamicResource CardHoverBrush}"
+                                                        BorderBrush="{DynamicResource BorderSecondaryBrush}"
                                                         BorderThickness="1"
                                                         CornerRadius="4"
                                                         Padding="8"
@@ -2317,12 +2317,12 @@
                         <!-- ============ BUTTONS & MENUS (message nodes) ============ -->
                         <StackPanel Margin="0,14,0,0"
                                     Visibility="{Binding HasComponentSection, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <Border BorderBrush="{StaticResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                            <Border BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
                                 <StackPanel>
                                     <TextBlock Text="BUTTONS &amp; MENUS" Style="{StaticResource FlowSectionHeader}" Margin="0,0,0,2"/>
                                     <TextBlock Text="Attach Discord components to this message. After SAVE every button / menu runs its own sub-flow — click the chip on the canvas node to edit it."
                                                FontSize="10.5"
-                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                TextWrapping="Wrap"
                                                Margin="0,2,0,4"/>
 
@@ -2330,8 +2330,8 @@
                                     <ItemsControl ItemsSource="{Binding ComponentButtons}" Margin="0,4,0,0">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="{StaticResource CardHoverBrush}"
-                                                        BorderBrush="{StaticResource BorderSecondaryBrush}"
+                                                <Border Background="{DynamicResource CardHoverBrush}"
+                                                        BorderBrush="{DynamicResource BorderSecondaryBrush}"
                                                         BorderThickness="1"
                                                         CornerRadius="4"
                                                         Padding="8"
@@ -2386,7 +2386,7 @@
                                     <TextBlock Text="No select menu yet — add one to offer up to 25 choices."
                                                FontSize="10.5"
                                                FontStyle="Italic"
-                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                Margin="0,4,0,0"
                                                Visibility="{Binding HasComponentMenu, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
 
@@ -2513,12 +2513,12 @@
 
                         <!-- ============ TRIGGER (moved from the retired popup) ============ -->
                         <StackPanel Margin="0,14,0,0">
-                            <Border BorderBrush="{StaticResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                            <Border BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
                                 <StackPanel>
                                     <TextBlock Text="TRIGGER" Style="{StaticResource FlowSectionHeader}"/>
                                     <TextBlock Text="What starts this flow"
                                                FontSize="11"
-                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                Margin="0,2,0,0"/>
 
                                     <TextBlock Text="Type" Style="{StaticResource FlowFieldLabel}"/>
@@ -2539,20 +2539,24 @@
                                     </StackPanel>
 
                                     <!-- button / select hint -->
-                                    <Border Background="{StaticResource CardHoverBrush}"
+                                    <Border Background="{DynamicResource CardHoverBrush}"
                                             CornerRadius="4" Padding="10,8" Margin="0,12,0,0"
                                             Visibility="{Binding IsTriggerButtonOrSelect, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="{Binding TriggerComponentHint}"
                                                    FontSize="11"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                                    TextWrapping="Wrap"/>
                                     </Border>
 
                                     <!-- event -->
                                     <StackPanel Visibility="{Binding IsTriggerEvent, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="Event type" Style="{StaticResource FlowFieldLabel}"/>
-                                        <TextBox Text="{Binding TriggerEventType, UpdateSourceTrigger=PropertyChanged}"
-                                                 materialDesign:HintAssist.Hint="Follow, Subscribe, Resub, GiftSub, Raid, Cheer, Host"/>
+                                        <!-- Editable so a legacy/aliased value still displays; the
+                                             dropdown only offers types WorkflowTriggerService dispatches. -->
+                                        <ComboBox IsEditable="True"
+                                                  ItemsSource="{Binding TriggerEventTypeOptions}"
+                                                  Text="{Binding TriggerEventType, UpdateSourceTrigger=PropertyChanged}"
+                                                  materialDesign:HintAssist.Hint="follow, subscribe, resub, giftsub, raid, cheer, host"/>
                                         <TextBlock Text="Platform" Style="{StaticResource FlowFieldLabel}"/>
                                         <ComboBox ItemsSource="{Binding PlatformOptions}"
                                                   SelectedItem="{Binding TriggerPlatform}"
@@ -2572,7 +2576,7 @@
                                     <!-- manual -->
                                     <TextBlock Text="Manual — runs only from the TEST RUN button or the Automation page."
                                                FontSize="11"
-                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                TextWrapping="Wrap"
                                                Margin="0,12,0,0"
                                                Visibility="{Binding IsTriggerManual, Converter={StaticResource BooleanToVisibilityConverter}}"/>
@@ -2587,12 +2591,12 @@
 
                         <!-- ============ COMMAND OPTIONS (moved from the retired popup) ============ -->
                         <StackPanel Margin="0,14,0,0">
-                            <Border BorderBrush="{StaticResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                            <Border BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
                                 <StackPanel>
                                     <TextBlock Text="COMMAND OPTIONS" Style="{StaticResource FlowSectionHeader}"/>
                                     <TextBlock Text="Cooldowns, permissions and channel scoping"
                                                FontSize="11"
-                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                Margin="0,2,0,0"/>
 
                                     <ItemsControl ItemsSource="{Binding OptionRows}">
@@ -2631,7 +2635,7 @@
                                     <TextBlock Text="No options yet — every run is unconstrained."
                                                FontSize="11"
                                                FontStyle="Italic"
-                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                Margin="0,10,0,0"
                                                Visibility="{Binding HasNoOptions, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
@@ -2646,12 +2650,12 @@
 
                         <!-- ============ COMMAND PARAMETERS (moved from the retired popup) ============ -->
                         <StackPanel Margin="0,14,0,0">
-                            <Border BorderBrush="{StaticResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                            <Border BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
                                 <StackPanel>
                                     <TextBlock Text="PARAMETERS" Style="{StaticResource FlowSectionHeader}"/>
                                     <TextBlock Text="Typed arguments the command accepts — Discord fills them in; use them as {variables}. New ones are added from the purple OPTIONS tab or by clicking a canvas parameter card."
                                                FontSize="11"
-                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                TextWrapping="Wrap"
                                                Margin="0,2,0,4"/>
 
@@ -2701,7 +2705,7 @@
                                                         <TextBlock Text="{Binding NormalizedName, StringFormat=name sent to Discord: {0}}"
                                                                    FontSize="10"
                                                                    FontStyle="Italic"
-                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                                    Margin="0,3,0,0"
                                                                    Visibility="{Binding HasNormalizedHint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                     </StackPanel>
@@ -2713,7 +2717,7 @@
                                     <TextBlock Text="No parameters yet — add them from the purple OPTIONS tab (COMMAND PARAMETERS)."
                                                FontSize="11"
                                                FontStyle="Italic"
-                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                Margin="0,10,0,0"
                                                Visibility="{Binding HasNoParameters, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                 </StackPanel>
@@ -2799,7 +2803,7 @@
                         <TextBlock Text="{Binding SelectedParameter.NormalizedName, StringFormat=name sent to Discord: {0}}"
                                    FontSize="10.5"
                                    FontStyle="Italic"
-                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Foreground="{DynamicResource TextMutedBrush}"
                                    Margin="0,4,0,0"
                                    Visibility="{Binding SelectedParameter.HasNormalizedHint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
@@ -2822,32 +2826,32 @@
                         <TextBlock Text="BLOCK SETTINGS" Style="{StaticResource FlowSectionHeader}" Margin="0,0,0,4"/>
                         <TextBlock Text="Select a node on the canvas to edit its settings."
                                    FontSize="12"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,12"/>
 
-                        <Border Background="{StaticResource CardHoverBrush}"
-                                BorderBrush="{StaticResource BorderSecondaryBrush}"
+                        <Border Background="{DynamicResource CardHoverBrush}"
+                                BorderBrush="{DynamicResource BorderSecondaryBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8"
                                 Padding="14,12">
                             <StackPanel>
                                 <TextBlock Text="HOW IT WORKS" Style="{StaticResource FlowSectionLabel}"/>
-                                <TextBlock FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                <TextBlock FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,8,0,0"
                                            Text="• Drag a block from the left palette onto the canvas (or double-click it)."/>
-                                <TextBlock FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                <TextBlock FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
                                            Text="• Click a purple Options entry to add an option or parameter — it opens Command Settings on the right."/>
-                                <TextBlock FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                <TextBlock FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
                                            Text="• Click the amber trigger card (or TRIGGER ▾) to edit the flow in Command Settings."/>
-                                <TextBlock FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                <TextBlock FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
                                            Text="• Click a parameter card above the canvas to edit that parameter on the right."/>
-                                <TextBlock FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                <TextBlock FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
                                            Text="• Drag from a colored port at the bottom of a node to another node to wire them."/>
-                                <TextBlock FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                <TextBlock FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
                                            Text="• Click a node to edit it here; double-click its title to rename it."/>
-                                <TextBlock FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
-                                           Text="• Delete removes a selected node or wire — Ctrl+D duplicates a node."/>
-                                <TextBlock FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                <TextBlock FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Text="• Delete removes a selected node (wires are locked — disconnect one via its ⊗ midpoint marker). Ctrl+D duplicates a node."/>
+                                <TextBlock FontSize="11.5" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
                                            Text="• Drag empty canvas to pan, mouse wheel to zoom, FIT frames everything."/>
                             </StackPanel>
                         </Border>
@@ -2855,7 +2859,7 @@
                         <TextBlock Text="VARIABLES" Style="{StaticResource FlowSectionLabel}" Margin="0,16,0,2"/>
                         <TextBlock Text="Drop these into any text field — they fill in at run time (Set Variable blocks add their own)."
                                    FontSize="11"
-                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Foreground="{DynamicResource TextMutedBrush}"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,8"/>
                         <ItemsControl ItemsSource="{Binding VariableCheatSheet}">
@@ -2866,8 +2870,8 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="{StaticResource CardHoverBrush}"
-                                            BorderBrush="{StaticResource BorderSecondaryBrush}"
+                                    <Border Background="{DynamicResource CardHoverBrush}"
+                                            BorderBrush="{DynamicResource BorderSecondaryBrush}"
                                             BorderThickness="1"
                                             CornerRadius="3"
                                             Padding="7,3"
@@ -2889,7 +2893,7 @@
         <!-- ============================== BOTTOM BAR ============================== -->
         <Border Grid.Row="2"
                 Background="{StaticResource FlowPanelBrush}"
-                BorderBrush="{StaticResource BorderSecondaryBrush}"
+                BorderBrush="{DynamicResource BorderSecondaryBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="14,8">
             <Grid>
@@ -2953,7 +2957,7 @@
                 <TextBlock Grid.Column="4"
                            Text="{Binding StatusText}"
                            FontSize="11.5"
-                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
                            VerticalAlignment="Center"
                            Margin="14,0,8,0"
                            TextTrimming="CharacterEllipsis"
@@ -2975,13 +2979,13 @@
                AllowsTransparency="True"
                PopupAnimation="Fade">
             <Border Background="{StaticResource FlowPanelBrush}"
-                    BorderBrush="{StaticResource BorderSecondaryBrush}"
+                    BorderBrush="{DynamicResource BorderSecondaryBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="16"
                     Width="430"
                     Margin="0,4,0,0"
-                    Effect="{StaticResource CardShadow}">
+                    Effect="{DynamicResource CardShadow}">
                 <StackPanel>
                     <Grid Margin="0,0,0,2">
                         <Grid.ColumnDefinitions>
@@ -2998,7 +3002,7 @@
                     </Grid>
                     <TextBlock Text="Cooldowns, permissions and channel scoping"
                                FontSize="11"
-                               Foreground="{StaticResource TextMutedBrush}"
+                               Foreground="{DynamicResource TextMutedBrush}"
                                Margin="0,2,0,0"/>
 
                     <ItemsControl ItemsSource="{Binding OptionRows}">
@@ -3030,7 +3034,7 @@
                     <TextBlock Text="No options yet — every run is unconstrained."
                                FontSize="11"
                                FontStyle="Italic"
-                               Foreground="{StaticResource TextMutedBrush}"
+                               Foreground="{DynamicResource TextMutedBrush}"
                                Margin="0,10,0,0"
                                Visibility="{Binding HasNoOptions, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
@@ -3056,13 +3060,13 @@
                AllowsTransparency="True"
                PopupAnimation="Fade">
             <Border Background="{StaticResource FlowPanelBrush}"
-                    BorderBrush="{StaticResource BorderSecondaryBrush}"
+                    BorderBrush="{DynamicResource BorderSecondaryBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="14"
                     Width="290"
                     Margin="0,4,0,0"
-                    Effect="{StaticResource CardShadow}">
+                    Effect="{DynamicResource CardShadow}">
                 <StackPanel>
                     <Grid Margin="0,0,0,2">
                         <Grid.ColumnDefinitions>
@@ -3082,7 +3086,7 @@
                              materialDesign:HintAssist.Hint="Variable name"/>
                     <TextBlock Text="Adds a Set Variable block with this name to your flow."
                                FontSize="10.5"
-                               Foreground="{StaticResource TextMutedBrush}"
+                               Foreground="{DynamicResource TextMutedBrush}"
                                TextWrapping="Wrap"
                                Margin="0,6,0,0"/>
                     <Button Content="DONE"
@@ -3106,13 +3110,13 @@
                AllowsTransparency="True"
                PopupAnimation="Fade">
             <Border Background="{StaticResource FlowPanelBrush}"
-                    BorderBrush="{StaticResource BorderSecondaryBrush}"
+                    BorderBrush="{DynamicResource BorderSecondaryBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="14"
                     Width="310"
                     Margin="0,4,0,0"
-                    Effect="{StaticResource CardShadow}">
+                    Effect="{DynamicResource CardShadow}">
                 <StackPanel>
                     <Grid Margin="0,0,0,2">
                         <Grid.ColumnDefinitions>
@@ -3129,7 +3133,7 @@
                     </Grid>
                     <TextBlock Text="Saves the selected block's type, label and settings as a reusable template."
                                FontSize="10.5"
-                               Foreground="{StaticResource TextMutedBrush}"
+                               Foreground="{DynamicResource TextMutedBrush}"
                                TextWrapping="Wrap"
                                Margin="0,6,0,0"/>
                     <TextBox Text="{Binding TemplateDraftName, UpdateSourceTrigger=PropertyChanged}"

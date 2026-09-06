@@ -5,7 +5,7 @@
              xmlns:converters="clr-namespace:VyralBot.UI.Converters"
              xmlns:vm="clr-namespace:VyralBot.UI.ViewModels"
              xmlns:localControls="clr-namespace:VyralBot.UI.Views.Controls"
-             Background="{StaticResource BackgroundDarkBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -86,7 +86,7 @@
 
         <!-- Plain danger button: red, for stop -->
         <Style x:Key="VyralPlainDangerButton" TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource ErrorRedBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource ErrorRedBrush}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="Height" Value="40"/>
             <Setter Property="FontSize" Value="13"/>
@@ -133,8 +133,8 @@
 
         <!-- Bot header -->
         <Border Grid.Row="0"
-                Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource BorderColorBrush}"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderColorBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="12,8"
                 Margin="0,0,0,8">
@@ -143,7 +143,7 @@
                     <Button Content="← BACK TO BOTS"
                             Command="{Binding DataContext.NavigateToDiscordBotsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                             Style="{StaticResource MaterialDesignFlatButton}"
-                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Foreground="{DynamicResource TextSecondaryBrush}"
                             VerticalAlignment="Center"
                             Margin="0,0,16,0"/>
                     <materialDesign:PackIcon Kind="Robot"
@@ -155,7 +155,7 @@
                     <TextBlock Text="{Binding BotName}"
                                FontSize="16"
                                FontWeight="SemiBold"
-                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
@@ -164,10 +164,10 @@
                     <Ellipse Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center">
                         <Ellipse.Style>
                             <Style TargetType="Ellipse">
-                                <Setter Property="Fill" Value="{StaticResource ErrorRedBrush}"/>
+                                <Setter Property="Fill" Value="{DynamicResource ErrorRedBrush}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsConnected}" Value="True">
-                                        <Setter Property="Fill" Value="{StaticResource SuccessGreenBrush}"/>
+                                        <Setter Property="Fill" Value="{DynamicResource SuccessGreenBrush}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -176,7 +176,7 @@
                     <TextBlock Text="{Binding Status}"
                                FontSize="13"
                                FontWeight="SemiBold"
-                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
@@ -193,7 +193,7 @@
 
             <!-- Left Column: Servers -->
             <materialDesign:Card Grid.Column="0"
-                                 Background="{StaticResource CardBackgroundBrush}"
+                                 Background="{DynamicResource CardBackgroundBrush}"
                                  VerticalAlignment="Stretch">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -203,8 +203,8 @@
 
                     <!-- Panel Header -->
                     <Border Grid.Row="0"
-                            Background="{StaticResource BackgroundDarkBrush}"
-                            BorderBrush="{StaticResource BorderColorBrush}"
+                            Background="{DynamicResource BackgroundDarkBrush}"
+                            BorderBrush="{DynamicResource BorderColorBrush}"
                             BorderThickness="0,0,0,1"
                             Padding="12,8">
                         <Grid>
@@ -218,7 +218,7 @@
                                 <TextBlock Text="Discord Servers"
                                            FontSize="14"
                                            FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                            VerticalAlignment="Center"/>
                             </StackPanel>
 
@@ -242,7 +242,7 @@
                             <ItemsControl ItemsSource="{Binding Guilds}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border BorderBrush="{StaticResource BorderColorBrush}"
+                                        <Border BorderBrush="{DynamicResource BorderColorBrush}"
                                                 BorderThickness="0,0,0,1"
                                                 Padding="16,12">
                                             <StackPanel>
@@ -250,13 +250,13 @@
                                                     <TextBlock Text="{Binding Name}"
                                                                FontSize="14"
                                                                FontWeight="SemiBold"
-                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                                HorizontalAlignment="Left"
                                                                VerticalAlignment="Center"
                                                                TextTrimming="CharacterEllipsis"/>
                                                     <TextBlock Text="{Binding MemberCountText}"
                                                                FontSize="12"
-                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
                                                                HorizontalAlignment="Right"
                                                                VerticalAlignment="Center"/>
                                                 </Grid>
@@ -294,7 +294,7 @@
                                                 <TextBlock Text="No text channels visible to the bot"
                                                            FontSize="11"
                                                            FontStyle="Italic"
-                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
                                                            Margin="0,4,0,0">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
@@ -330,18 +330,18 @@
                                 <materialDesign:PackIcon Kind="AccountPlus"
                                                          Width="48"
                                                          Height="48"
-                                                         Foreground="{StaticResource TextMutedBrush}"
+                                                         Foreground="{DynamicResource TextMutedBrush}"
                                                          HorizontalAlignment="Center"
                                                          Margin="0,0,0,12"/>
                                 <TextBlock Text="No servers yet"
                                            FontSize="16"
                                            FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                            HorizontalAlignment="Center"
                                            Margin="0,0,0,8"/>
                                 <TextBlock Text="Invite this bot to a server using its invite link, then refresh"
                                            FontSize="12"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
                                            TextWrapping="Wrap"
                                            TextAlignment="Center"
                                            HorizontalAlignment="Center"
@@ -365,7 +365,7 @@
                     <StackPanel>
 
                 <!-- Connection Status Card -->
-                <materialDesign:Card Background="{StaticResource CardBackgroundBrush}">
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -374,14 +374,14 @@
 
                         <!-- Panel Header -->
                         <Border Grid.Row="0"
-                                Background="{StaticResource BackgroundDarkBrush}"
-                                BorderBrush="{StaticResource BorderColorBrush}"
+                                Background="{DynamicResource BackgroundDarkBrush}"
+                                BorderBrush="{DynamicResource BorderColorBrush}"
                                 BorderThickness="0,0,0,1"
                                 Padding="12,8">
                             <TextBlock Text="Connection"
                                        FontSize="14"
                                        FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
                         </Border>
 
                         <StackPanel Grid.Row="1" Margin="16">
@@ -389,10 +389,10 @@
                                 <Ellipse Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center">
                                     <Ellipse.Style>
                                         <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="{StaticResource ErrorRedBrush}"/>
+                                            <Setter Property="Fill" Value="{DynamicResource ErrorRedBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsConnected}" Value="True">
-                                                    <Setter Property="Fill" Value="{StaticResource SuccessGreenBrush}"/>
+                                                    <Setter Property="Fill" Value="{DynamicResource SuccessGreenBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -401,14 +401,14 @@
                                 <TextBlock Text="{Binding Status}"
                                            FontSize="16"
                                            FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                            VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
 
                             <TextBlock Text="This is one of the Discord bot accounts Vyral runs — it listens for commands and posts messages in its servers."
                                        FontSize="12"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"
                                        Margin="0,8,0,16"/>
 
@@ -441,8 +441,8 @@
                     </Grid>
                 </materialDesign:Card>
 
-                <!-- Test Message Card -->
-                <materialDesign:Card Background="{StaticResource CardBackgroundBrush}"
+                <!-- Identity (auto-detected) Card -->
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
                                      Margin="0,12,0,0">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -452,14 +452,217 @@
 
                         <!-- Panel Header -->
                         <Border Grid.Row="0"
-                                Background="{StaticResource BackgroundDarkBrush}"
-                                BorderBrush="{StaticResource BorderColorBrush}"
+                                Background="{DynamicResource BackgroundDarkBrush}"
+                                BorderBrush="{DynamicResource BorderColorBrush}"
+                                BorderThickness="0,0,0,1"
+                                Padding="12,8">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <materialDesign:PackIcon Kind="AccountCircle"
+                                                         Width="18"
+                                                         Height="18"
+                                                         Foreground="{DynamicResource DiscordBrush}"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,8,0"/>
+                                <TextBlock Text="Identity (auto-detected)"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Grid.Row="1" Margin="16">
+                            <StackPanel Orientation="Horizontal">
+                                <!-- Avatar: small detected image, robot icon when never connected -->
+                                <Border Width="44"
+                                        Height="44"
+                                        CornerRadius="22"
+                                        Background="{DynamicResource BackgroundDarkBrush}"
+                                        BorderBrush="{DynamicResource BorderColorBrush}"
+                                        BorderThickness="1"
+                                        ClipToBounds="True"
+                                        VerticalAlignment="Center">
+                                    <Grid>
+                                        <Image Source="{Binding DetectedAvatarUrl}"
+                                               Width="42"
+                                               Height="42"
+                                               Stretch="UniformToFill"
+                                               Visibility="{Binding HasAvatar, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <materialDesign:PackIcon Kind="Robot"
+                                                                 Width="24"
+                                                                 Height="24"
+                                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                                 HorizontalAlignment="Center"
+                                                                 VerticalAlignment="Center"
+                                                                 Visibility="{Binding HasAvatar, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Read-only detected fields (nothing to type) -->
+                                <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Application ID:"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   Width="110"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding DetectedApplicationId}"
+                                                   FontSize="12"
+                                                   FontFamily="Consolas"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding DetectedApplicationId}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <TextBlock Text="Bot Username:"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   Width="110"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding DetectedBotUsername}"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding DetectedBotUsername}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <TextBlock Text="Detected automatically when this bot connects — nothing to type."
+                                       FontSize="11"
+                                       FontStyle="Italic"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,10,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </materialDesign:Card>
+
+                <!-- Bot roles Card: single-select per role, Primary bot handles the rest -->
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                     Margin="0,12,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Panel Header -->
+                        <Border Grid.Row="0"
+                                Background="{DynamicResource BackgroundDarkBrush}"
+                                BorderBrush="{DynamicResource BorderColorBrush}"
+                                BorderThickness="0,0,0,1"
+                                Padding="12,8">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <materialDesign:PackIcon Kind="AccountGroup"
+                                                         Width="18"
+                                                         Height="18"
+                                                         Foreground="{DynamicResource DiscordBrush}"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,8,0"/>
+                                <TextBlock Text="Bot roles"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Grid.Row="1" Margin="16">
+                            <CheckBox Content="Account linking bot (handles link DMs)"
+                                      IsChecked="{Binding IsLinkingBot, Mode=TwoWay}"
+                                      Command="{Binding ToggleLinkingRoleCommand}"
+                                      CommandParameter="{Binding RelativeSource={RelativeSource Self}, Path=IsChecked}"
+                                      Foreground="{DynamicResource TextPrimaryBrush}"
+                                      ToolTip="Only one bot answers link and delink DMs — checking this clears the role from any other bot."
+                                      Margin="0,0,0,8"/>
+
+                            <CheckBox Content="Giveaway announcements bot"
+                                      IsChecked="{Binding IsGiveawayBot, Mode=TwoWay}"
+                                      Command="{Binding ToggleGiveawayRoleCommand}"
+                                      CommandParameter="{Binding RelativeSource={RelativeSource Self}, Path=IsChecked}"
+                                      Foreground="{DynamicResource TextPrimaryBrush}"
+                                      ToolTip="Only one bot posts giveaway announcements — checking this clears the role from any other bot."
+                                      Margin="0,0,0,8"/>
+
+                            <TextBlock Text="Leave both unchecked to use your Primary bot for everything."
+                                       FontSize="11"
+                                       FontStyle="Italic"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Grid>
+                </materialDesign:Card>
+
+                <!-- Startup Card: per-bot "start at app launch" flag -->
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                     Margin="0,12,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Panel Header -->
+                        <Border Grid.Row="0"
+                                Background="{DynamicResource BackgroundDarkBrush}"
+                                BorderBrush="{DynamicResource BorderColorBrush}"
+                                BorderThickness="0,0,0,1"
+                                Padding="12,8">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <materialDesign:PackIcon Kind="Rocket"
+                                                         Width="18"
+                                                         Height="18"
+                                                         Foreground="{DynamicResource DiscordBrush}"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,8,0"/>
+                                <TextBlock Text="Startup"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Grid.Row="1" Margin="16">
+                            <CheckBox Content="Start this bot when the app launches"
+                                      IsChecked="{Binding AutoStart, Mode=TwoWay}"
+                                      Command="{Binding ToggleAutoStartCommand}"
+                                      CommandParameter="{Binding RelativeSource={RelativeSource Self}, Path=IsChecked}"
+                                      Foreground="{DynamicResource TextPrimaryBrush}"
+                                      ToolTip="When enabled, Vyral starts this bot automatically the next time the app launches."/>
+
+                            <TextBlock Text="Turn this off to keep the bot saved but stopped until you start it yourself."
+                                       FontSize="11"
+                                       FontStyle="Italic"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </materialDesign:Card>
+
+                <!-- Test Message Card -->
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                     Margin="0,12,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Panel Header -->
+                        <Border Grid.Row="0"
+                                Background="{DynamicResource BackgroundDarkBrush}"
+                                BorderBrush="{DynamicResource BorderColorBrush}"
                                 BorderThickness="0,0,0,1"
                                 Padding="12,8">
                             <TextBlock Text="Test Message"
                                        FontSize="14"
                                        FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
                         </Border>
 
                         <StackPanel Grid.Row="1" Margin="16">
@@ -471,20 +674,20 @@
 
                             <TextBlock Text="{Binding TestMessageStatus}"
                                        FontSize="12"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"
                                        Margin="0,0,0,12"/>
 
                             <TextBlock Text="The active channel is where this bot listens for commands and sends its messages — pick one next to a server in the list on the left."
                                        FontSize="11"
-                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
                     </Grid>
                 </materialDesign:Card>
 
                 <!-- Commands Card: built-in moderation commands + this bot's custom commands -->
-                <materialDesign:Card Background="{StaticResource CardBackgroundBrush}"
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
                                      Margin="0,12,0,0">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -494,8 +697,8 @@
 
                         <!-- Panel Header -->
                         <Border Grid.Row="0"
-                                Background="{StaticResource BackgroundDarkBrush}"
-                                BorderBrush="{StaticResource BorderColorBrush}"
+                                Background="{DynamicResource BackgroundDarkBrush}"
+                                BorderBrush="{DynamicResource BorderColorBrush}"
                                 BorderThickness="0,0,0,1"
                                 Padding="12,8">
                             <Grid>
@@ -509,14 +712,14 @@
                                     <TextBlock Text="Commands"
                                                FontSize="14"
                                                FontWeight="SemiBold"
-                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
 
                                 <Button Content="EDIT COMMANDS"
                                         Command="{Binding DataContext.NavigateToCommandsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                         Style="{StaticResource MaterialDesignFlatButton}"
-                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center"
                                         ToolTip="Manage commands in the Visual Builder"/>
@@ -537,7 +740,7 @@
                             <TextBlock Text="Built-in moderation commands"
                                        FontSize="12"
                                        FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
 
                             <ItemsControl ItemsSource="{Binding BuiltInModCommands}"
                                           Margin="0,8,0,0">
@@ -563,11 +766,11 @@
                                                 <TextBlock Text="{Binding Usage}"
                                                            FontFamily="Consolas"
                                                            FontSize="11"
-                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                                            TextWrapping="Wrap"/>
                                                 <TextBlock Text="{Binding Description}"
                                                            FontSize="11"
-                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
                                                            TextWrapping="Wrap"
                                                            Margin="0,1,0,0"/>
                                             </StackPanel>
@@ -588,18 +791,18 @@
                             <TextBlock Text="Usable in Discord with ! by moderators, or from the app chat with /."
                                        FontSize="11"
                                        FontStyle="Italic"
-                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
                                        TextWrapping="Wrap"/>
 
                             <!-- Section B: custom commands for this bot -->
                             <TextBlock Text="Custom commands for this bot"
                                        FontSize="12"
                                        FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        Margin="0,16,0,0"/>
                             <TextBlock Text="Commands pinned to this bot plus the ones marked 'all bots', which every bot runs."
                                        FontSize="11"
-                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
                                        TextWrapping="Wrap"
                                        Margin="0,4,0,0"/>
 
@@ -607,7 +810,7 @@
                                           Margin="0,8,0,0">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border BorderBrush="{StaticResource BorderColorBrush}"
+                                        <Border BorderBrush="{DynamicResource BorderColorBrush}"
                                                 BorderThickness="0,0,0,1"
                                                 Padding="0,0,0,8"
                                                 Margin="0,0,0,8">
@@ -623,8 +826,8 @@
                                                                    FontWeight="SemiBold"
                                                                    Foreground="{DynamicResource PrimaryHueMidBrush}"
                                                                    VerticalAlignment="Center"/>
-                                                        <Border Background="{StaticResource BackgroundDarkBrush}"
-                                                                BorderBrush="{StaticResource BorderColorBrush}"
+                                                        <Border Background="{DynamicResource BackgroundDarkBrush}"
+                                                                BorderBrush="{DynamicResource BorderColorBrush}"
                                                                 BorderThickness="1"
                                                                 CornerRadius="3"
                                                                 Padding="6,1"
@@ -632,7 +835,7 @@
                                                                 VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding Scope}"
                                                                        FontSize="10"
-                                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
                                                         </Border>
                                                         <TextBlock Text="{Binding IsEnabled, Converter={StaticResource BoolToStatusConverter}}"
                                                                    FontSize="10"
@@ -642,7 +845,7 @@
                                                     </StackPanel>
                                                     <TextBlock Text="{Binding ResponsePreview}"
                                                                FontSize="11"
-                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                                TextWrapping="Wrap"
                                                                Margin="0,3,0,0"/>
                                                 </StackPanel>
@@ -689,7 +892,7 @@
                                            <TextBlock Text="No custom commands for this bot yet — build one in the Visual Builder and scope it to this bot."
                                                        FontSize="11"
                                                        FontStyle="Italic"
-                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        TextWrapping="Wrap"/>
                             </StackPanel>
 
@@ -718,7 +921,7 @@
         <Border x:Name="FlowEditorOverlay"
                 Grid.Row="0"
                 Panel.ZIndex="100"
-                Background="{StaticResource BackgroundDarkBrush}"
+                Background="{DynamicResource BackgroundDarkBrush}"
                 Visibility="Collapsed">
             <ContentControl x:Name="FlowEditorHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
         </Border>

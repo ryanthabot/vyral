@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using VyralBot.Core.Services.Linking;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
 
@@ -13,6 +15,7 @@ public class CurrencyService : ICurrencyService
     private readonly IDataService _dataService;
     private readonly ICurrencyBoostService _boostService;
     private readonly ILoyaltyTierService _loyaltyTierService;
+    private readonly IMultiPlatformBonusService? _multiPlatformBonus;
     private readonly object _balanceLock = new();
     private CurrencySetting? _cachedSettings;
     private DateTime _settingsCacheTime = DateTime.MinValue;
@@ -22,12 +25,14 @@ public class CurrencyService : ICurrencyService
         ILogger<CurrencyService> logger,
         IDataService dataService,
         ICurrencyBoostService boostService,
-        ILoyaltyTierService loyaltyTierService)
+        ILoyaltyTierService loyaltyTierService,
+        IMultiPlatformBonusService? multiPlatformBonus = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _boostService = boostService ?? throw new ArgumentNullException(nameof(boostService));
         _loyaltyTierService = loyaltyTierService ?? throw new ArgumentNullException(nameof(loyaltyTierService));
+        _multiPlatformBonus = multiPlatformBonus;
     }
 
     public async Task<CurrencySetting?> GetSettingsAsync()
@@ -78,9 +83,159 @@ public class CurrencyService : ICurrencyService
         return await GetSettingsAsync() ?? new CurrencySetting { CurrencyName = "Points", CurrencySymbol = "⭐" };
     }
 
+    // ===== Unified balances =====
+    // When a viewer has linked accounts, all earning and spending is routed to
+    // ONE canonical account row so the balance is a single shared total that
+    // works from any linked platform. Gated by the Linking.UnifiedBalances
+    // config key (default on). Resolutions are cached briefly per account.
+    private sealed record UnifiedTarget(string Username, string Platform);
+
+    private static readonly TimeSpan UnifiedCacheTtl = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan UnifiedConfigCacheTtl = TimeSpan.FromSeconds(30);
+    private readonly ConcurrentDictionary<string, (UnifiedTarget? Target, DateTime At)> _unifiedCache = new();
+    private DateTime _unifiedConfigCheckedAtUtc = DateTime.MinValue;
+    private bool _unifiedConfigEnabled = true;
+
+    private async Task<bool> IsUnifiedBalancesEnabledAsync()
+    {
+        if (DateTime.UtcNow - _unifiedConfigCheckedAtUtc < UnifiedConfigCacheTtl)
+        {
+            return _unifiedConfigEnabled;
+        }
+
+        var raw = await _dataService.GetConfigValueAsync("Linking.UnifiedBalances");
+        _unifiedConfigEnabled = raw == null || !bool.TryParse(raw, out var parsed) || parsed;
+        _unifiedConfigCheckedAtUtc = DateTime.UtcNow;
+        return _unifiedConfigEnabled;
+    }
+
+    /// <summary>
+    /// Returns the canonical (username, platform) this account's balance lives
+    /// on when unified balances are on and the account belongs to a linked
+    /// viewer with 2+ accounts; otherwise null (operate as-is).
+    /// </summary>
+    private async Task<UnifiedTarget?> ResolveUnifiedTargetAsync(string username, string platform)
+    {
+        if (!await IsUnifiedBalancesEnabledAsync())
+        {
+            return null;
+        }
+
+        var cacheKey = username + ":" + platform;
+        if (_unifiedCache.TryGetValue(cacheKey, out var cached)
+            && DateTime.UtcNow - cached.At < UnifiedCacheTtl)
+        {
+            return cached.Target.Username == username && cached.Target.Platform == platform ? null : cached.Target;
+        }
+
+        UnifiedTarget? result = null;
+        try
+        {
+            var viewerId = await _dataService.GetViewerIdAsync(username, platform);
+            if (viewerId != null)
+            {
+                var accounts = (await _dataService.GetLinkedAccountsByViewerIdAsync(viewerId)).ToList();
+                if (accounts.Count >= 2)
+                {
+                    // Canonical account: prefer Discord (DMs reach the viewer
+                    // there), otherwise the earliest-linked account.
+                    var canonical = accounts.FirstOrDefault(a => a.Platform.Equals("Discord", StringComparison.OrdinalIgnoreCase))
+                                    ?? accounts.OrderBy(a => a.CreatedAt).First();
+                    if (!canonical.Username.Equals(username, StringComparison.OrdinalIgnoreCase)
+                        || !canonical.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase))
+                    {
+                        result = new UnifiedTarget(canonical.Username, canonical.Platform);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unified balance resolution failed for {Username}/{Platform}", username, platform);
+        }
+
+        _unifiedCache[cacheKey] = (new UnifiedTarget(result?.Username ?? username, result?.Platform ?? platform), DateTime.UtcNow);
+        return result;
+    }
+
+    /// <summary>Row read that follows unified-balance redirection.</summary>
+    private async Task<UserCurrency?> GetUserCurrencyRowResolvedAsync(string username, string platform)
+    {
+        var target = await ResolveUnifiedTargetAsync(username, platform);
+        return await _dataService.GetUserCurrencyAsync(target?.Username ?? username, target?.Platform ?? platform);
+    }
+
+    /// <summary>
+    /// Merges every linked account's balance into the canonical account and
+    /// zeroes the others, so the viewer has a single spendable total.
+    /// </summary>
+    public async Task ConsolidateViewerBalancesAsync(string viewerId)
+    {
+        if (!await IsUnifiedBalancesEnabledAsync())
+        {
+            return;
+        }
+
+        var accounts = (await _dataService.GetLinkedAccountsByViewerIdAsync(viewerId)).ToList();
+        if (accounts.Count < 2)
+        {
+            return;
+        }
+
+        var canonical = accounts.FirstOrDefault(a => a.Platform.Equals("Discord", StringComparison.OrdinalIgnoreCase))
+                        ?? accounts.OrderBy(a => a.CreatedAt).First();
+        var canonicalRow = await _dataService.GetUserCurrencyAsync(canonical.Username, canonical.Platform);
+
+        foreach (var account in accounts)
+        {
+            if (account.Username.Equals(canonical.Username, StringComparison.OrdinalIgnoreCase)
+                && account.Platform.Equals(canonical.Platform, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var row = await _dataService.GetUserCurrencyAsync(account.Username, account.Platform);
+            if (row == null)
+            {
+                continue;
+            }
+
+            canonicalRow ??= new UserCurrency
+            {
+                Username = canonical.Username,
+                Platform = canonical.Platform,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+
+            canonicalRow.Balance += row.Balance;
+            canonicalRow.TotalEarned += row.TotalEarned;
+            canonicalRow.TotalSpent += row.TotalSpent;
+
+            row.Balance = 0;
+            row.TotalEarned = 0;
+            row.TotalSpent = 0;
+            row.UpdatedAt = DateTime.UtcNow;
+            await _dataService.SaveUserCurrencyAsync(row);
+        }
+
+        if (canonicalRow != null)
+        {
+            canonicalRow.UpdatedAt = DateTime.UtcNow;
+            await _dataService.SaveUserCurrencyAsync(canonicalRow);
+            _logger.LogInformation("Unified balances for viewer {ViewerId}: total {Balance} on {Username}/{Platform}",
+                viewerId, canonicalRow.Balance, canonical.Username, canonical.Platform);
+        }
+
+        _unifiedCache.Clear();
+    }
+
     public async Task<int> GetBalanceAsync(string username, string platform)
     {
-        var userCurrency = await _dataService.GetUserCurrencyAsync(username, platform);
+        var target = await ResolveUnifiedTargetAsync(username, platform);
+        username = target?.Username ?? username;
+        platform = target?.Platform ?? platform;
+        var userCurrency = await GetUserCurrencyRowResolvedAsync(username, platform);
         return userCurrency?.Balance ?? 0;
     }
 
@@ -91,6 +246,12 @@ public class CurrencyService : ICurrencyService
 
     public async Task<bool> AddCurrencyAsync(string username, string platform, int amount, string reason, string transactionType = "Earn")
     {
+        var unified = await ResolveUnifiedTargetAsync(username, platform);
+        if (unified != null)
+        {
+            (username, platform) = (unified.Username, unified.Platform);
+        }
+
         if (amount <= 0)
         {
             _logger.LogWarning("Attempted to add non-positive amount: {Amount}", amount);
@@ -104,7 +265,7 @@ public class CurrencyService : ICurrencyService
                 // This lock ensures transaction safety
             }
 
-            var userCurrency = await _dataService.GetUserCurrencyAsync(username, platform);
+            var userCurrency = await GetUserCurrencyRowResolvedAsync(username, platform);
 
             if (userCurrency == null)
             {
@@ -150,6 +311,12 @@ public class CurrencyService : ICurrencyService
 
     public async Task<bool> RemoveCurrencyAsync(string username, string platform, int amount, string reason, string transactionType = "Spend")
     {
+        var unified = await ResolveUnifiedTargetAsync(username, platform);
+        if (unified != null)
+        {
+            (username, platform) = (unified.Username, unified.Platform);
+        }
+
         if (amount <= 0)
         {
             _logger.LogWarning("Attempted to remove non-positive amount: {Amount}", amount);
@@ -163,7 +330,7 @@ public class CurrencyService : ICurrencyService
                 // This lock ensures transaction safety
             }
 
-            var userCurrency = await _dataService.GetUserCurrencyAsync(username, platform);
+            var userCurrency = await GetUserCurrencyRowResolvedAsync(username, platform);
 
             if (userCurrency == null || userCurrency.Balance < amount)
             {
@@ -258,7 +425,7 @@ public class CurrencyService : ICurrencyService
             return;
         }
 
-        var userCurrency = await _dataService.GetUserCurrencyAsync(username, platform);
+        var userCurrency = await GetUserCurrencyRowResolvedAsync(username, platform);
 
         // Check cooldown
         if (userCurrency?.LastChatActivityUpdate != null)
@@ -277,11 +444,14 @@ public class CurrencyService : ICurrencyService
             await AddCurrencyAsync(username, platform, awardAmount, "Chat activity", "Earn");
         }
 
-        // Update cooldown timestamp
-        if (userCurrency != null)
+        // Update cooldown timestamp. Re-fetch first: a brand-new viewer's record was
+        // null above and is only created inside AddCurrencyAsync — without the re-fetch
+        // LastChatActivityUpdate would stay null and the next message would double-pay.
+        var currencyForCooldown = await GetUserCurrencyRowResolvedAsync(username, platform);
+        if (currencyForCooldown != null)
         {
-            userCurrency.LastChatActivityUpdate = DateTime.UtcNow;
-            await _dataService.SaveUserCurrencyAsync(userCurrency);
+            currencyForCooldown.LastChatActivityUpdate = DateTime.UtcNow;
+            await _dataService.SaveUserCurrencyAsync(currencyForCooldown);
         }
     }
 
@@ -294,7 +464,7 @@ public class CurrencyService : ICurrencyService
             return;
         }
 
-        var userCurrency = await _dataService.GetUserCurrencyAsync(username, platform);
+        var userCurrency = await GetUserCurrencyRowResolvedAsync(username, platform);
 
         // Check interval
         if (userCurrency?.LastWatchTimeUpdate != null)
@@ -313,11 +483,14 @@ public class CurrencyService : ICurrencyService
             await AddCurrencyAsync(username, platform, awardAmount, "Watch time", "Earn");
         }
 
-        // Update watch time timestamp
-        if (userCurrency != null)
+        // Update watch time timestamp. Re-fetch first: a brand-new viewer's record was
+        // null above and is only created inside AddCurrencyAsync — without the re-fetch
+        // LastWatchTimeUpdate would stay null and the next tick would double-pay.
+        var currencyForCooldown = await GetUserCurrencyRowResolvedAsync(username, platform);
+        if (currencyForCooldown != null)
         {
-            userCurrency.LastWatchTimeUpdate = DateTime.UtcNow;
-            await _dataService.SaveUserCurrencyAsync(userCurrency);
+            currencyForCooldown.LastWatchTimeUpdate = DateTime.UtcNow;
+            await _dataService.SaveUserCurrencyAsync(currencyForCooldown);
         }
     }
 
@@ -398,6 +571,12 @@ public class CurrencyService : ICurrencyService
             return (false, 0, 0, "Daily bonus is currently disabled.");
         }
 
+        var dailyUnified = await ResolveUnifiedTargetAsync(username, platform);
+        if (dailyUnified != null)
+        {
+            (username, platform) = (dailyUnified.Username, dailyUnified.Platform);
+        }
+
         var streak = await _dataService.GetViewerStreakAsync(username, platform);
         if (streak == null)
         {
@@ -457,7 +636,7 @@ public class CurrencyService : ICurrencyService
         if (!settings.FirstChatBonusEnabled) return;
 
         // Check if user already has a currency record (not first time)
-        var existing = await _dataService.GetUserCurrencyAsync(username, platform);
+        var existing = await GetUserCurrencyRowResolvedAsync(username, platform);
         if (existing != null) return;
 
         await AddCurrencyAsync(username, platform, settings.FirstChatBonusAmount,
@@ -530,8 +709,10 @@ public class CurrencyService : ICurrencyService
     /// <summary>
     /// Applies the full earn-multiplier stack to a base award amount:
     /// platform multiplier x active boost (highest wins) x loyalty-tier multiplier
-    /// x role multiplier (only where role flags are known; highest role wins).
-    /// The combined result is consistently floored to an integer.
+    /// x role multiplier (only where role flags are known; highest role wins)
+    /// x multi-platform link bonus (when available). A bonus failure is logged
+    /// and treated as 1.0 so earning never breaks. The combined result is
+    /// consistently floored to an integer.
     /// </summary>
     private async Task<int> ApplyEarnMultipliersAsync(int amount, string username, string platform,
         bool isSubscriber = false, bool isVip = false, bool isModerator = false)
@@ -551,7 +732,22 @@ public class CurrencyService : ICurrencyService
         // Loyalty tier earn multiplier, derived from lifetime earnings.
         var tierMultiplier = await _loyaltyTierService.GetTierMultiplierAsync(username, platform);
 
-        return (int)Math.Floor(amount * effectiveMultiplier * boostMultiplier * tierMultiplier);
+        double final = amount * effectiveMultiplier * boostMultiplier * tierMultiplier;
+
+        // Multi-platform link bonus (optional dependency; null when not wired by DI).
+        if (_multiPlatformBonus != null)
+        {
+            try
+            {
+                final *= await _multiPlatformBonus.GetMultiplierAsync(username, platform);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Multi-platform bonus failed");
+            }
+        }
+
+        return (int)Math.Floor(final);
     }
 
     private static double GetPlatformMultiplier(CurrencySetting settings, string platform)

@@ -8,7 +8,7 @@
              xmlns:converters="clr-namespace:VyralBot.UI.Converters"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="800"
-             Background="{StaticResource BackgroundDarkBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
     <UserControl.Resources>
         <converters:InvertBooleanConverter x:Key="InvertBooleanConverter"/>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -26,7 +26,7 @@
                 Height="40"
                 Padding="16,0"
                 FontWeight="SemiBold"
-                Foreground="{StaticResource TextSecondaryBrush}"
+                Foreground="{DynamicResource TextSecondaryBrush}"
                 Panel.ZIndex="999"/>
 
         <!-- Platform Selection (shown when no platform selected) -->
@@ -38,17 +38,17 @@
 
             <!-- Sticky Header -->
             <StackPanel Grid.Row="0"
-                        Background="{StaticResource BackgroundDarkBrush}"
+                        Background="{DynamicResource BackgroundDarkBrush}"
                         Margin="24,24,24,0">
                 <TextBlock Text="Platform Connections"
                          FontSize="28"
                          FontWeight="Bold"
                          Margin="0,0,0,8"
-                         Foreground="{StaticResource TextPrimaryBrush}"/>
+                         Foreground="{DynamicResource TextPrimaryBrush}"/>
 
                 <TextBlock Text="Select a platform to connect"
                          FontSize="14"
-                         Foreground="{StaticResource TextSecondaryBrush}"
+                         Foreground="{DynamicResource TextSecondaryBrush}"
                          Margin="0,0,0,24"/>
             </StackPanel>
 
@@ -69,13 +69,15 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="16"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="16"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <!-- Twitch Card -->
                     <materialDesign:Card Grid.Row="0" Grid.Column="0"
                                         Padding="32"
-                                        Background="{StaticResource CardBackgroundBrush}"
-                                        Effect="{StaticResource CardShadow}"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        Effect="{DynamicResource CardShadow}"
                                         Cursor="Hand">
                         <materialDesign:Card.InputBindings>
                             <MouseBinding Command="{Binding SelectTwitchCommand}" MouseAction="LeftClick"/>
@@ -89,28 +91,28 @@
                             <TextBlock Text="Twitch"
                                      FontSize="24"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      HorizontalAlignment="Center"
                                      Margin="0,0,0,8"/>
                             <TextBlock Text="Live streaming platform"
                                      FontSize="14"
-                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                      HorizontalAlignment="Center"
                                      Margin="0,0,0,16"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <Ellipse Width="8" Height="8" Margin="0,0,4,0">
                                     <Ellipse.Style>
                                         <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="{StaticResource ErrorRedBrush}"/>
+                                            <Setter Property="Fill" Value="{DynamicResource ErrorRedBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsTwitchConnected}" Value="True">
-                                                    <Setter Property="Fill" Value="{StaticResource SuccessGreenBrush}"/>
+                                                    <Setter Property="Fill" Value="{DynamicResource SuccessGreenBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Ellipse.Style>
                                 </Ellipse>
-                                <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
+                                <TextBlock FontSize="12" Foreground="{DynamicResource TextMutedBrush}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text" Value="Not Connected"/>
@@ -129,8 +131,8 @@
                     <!-- Kick Card -->
                     <materialDesign:Card Grid.Row="0" Grid.Column="2"
                                         Padding="32"
-                                        Background="{StaticResource CardBackgroundBrush}"
-                                        Effect="{StaticResource CardShadow}"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        Effect="{DynamicResource CardShadow}"
                                         Cursor="Hand">
                         <materialDesign:Card.InputBindings>
                             <MouseBinding Command="{Binding SelectKickCommand}" MouseAction="LeftClick"/>
@@ -144,28 +146,28 @@
                             <TextBlock Text="Kick"
                                      FontSize="24"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      HorizontalAlignment="Center"
                                      Margin="0,0,0,8"/>
                             <TextBlock Text="Live streaming platform"
                                      FontSize="14"
-                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                      HorizontalAlignment="Center"
                                      Margin="0,0,0,16"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <Ellipse Width="8" Height="8" Margin="0,0,4,0">
                                     <Ellipse.Style>
                                         <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="{StaticResource ErrorRedBrush}"/>
+                                            <Setter Property="Fill" Value="{DynamicResource ErrorRedBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsKickConnected}" Value="True">
-                                                    <Setter Property="Fill" Value="{StaticResource SuccessGreenBrush}"/>
+                                                    <Setter Property="Fill" Value="{DynamicResource SuccessGreenBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Ellipse.Style>
                                 </Ellipse>
-                                <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
+                                <TextBlock FontSize="12" Foreground="{DynamicResource TextMutedBrush}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text" Value="Not Connected"/>
@@ -184,8 +186,8 @@
                     <!-- YouTube Card -->
                     <materialDesign:Card Grid.Row="2" Grid.Column="0"
                                         Padding="32"
-                                        Background="{StaticResource CardBackgroundBrush}"
-                                        Effect="{StaticResource CardShadow}"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        Effect="{DynamicResource CardShadow}"
                                         Cursor="Hand">
                         <materialDesign:Card.InputBindings>
                             <MouseBinding Command="{Binding SelectYouTubeCommand}" MouseAction="LeftClick"/>
@@ -199,28 +201,28 @@
                             <TextBlock Text="YouTube"
                                      FontSize="24"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      HorizontalAlignment="Center"
                                      Margin="0,0,0,8"/>
                             <TextBlock Text="Live streaming platform"
                                      FontSize="14"
-                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                      HorizontalAlignment="Center"
                                      Margin="0,0,0,16"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <Ellipse Width="8" Height="8" Margin="0,0,4,0">
                                     <Ellipse.Style>
                                         <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="{StaticResource ErrorRedBrush}"/>
+                                            <Setter Property="Fill" Value="{DynamicResource ErrorRedBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsYouTubeConnected}" Value="True">
-                                                    <Setter Property="Fill" Value="{StaticResource SuccessGreenBrush}"/>
+                                                    <Setter Property="Fill" Value="{DynamicResource SuccessGreenBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Ellipse.Style>
                                 </Ellipse>
-                                <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
+                                <TextBlock FontSize="12" Foreground="{DynamicResource TextMutedBrush}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text" Value="Not Connected"/>
@@ -239,8 +241,8 @@
                     <!-- TikTok Card -->
                     <materialDesign:Card Grid.Row="2" Grid.Column="2"
                                         Padding="32"
-                                        Background="{StaticResource CardBackgroundBrush}"
-                                        Effect="{StaticResource CardShadow}"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        Effect="{DynamicResource CardShadow}"
                                         Cursor="Hand">
                         <materialDesign:Card.InputBindings>
                             <MouseBinding Command="{Binding SelectTikTokCommand}" MouseAction="LeftClick"/>
@@ -254,28 +256,28 @@
                             <TextBlock Text="TikTok"
                                      FontSize="24"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      HorizontalAlignment="Center"
                                      Margin="0,0,0,8"/>
                             <TextBlock Text="Live streaming platform"
                                      FontSize="14"
-                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                      HorizontalAlignment="Center"
                                      Margin="0,0,0,16"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <Ellipse Width="8" Height="8" Margin="0,0,4,0">
                                     <Ellipse.Style>
                                         <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="{StaticResource ErrorRedBrush}"/>
+                                            <Setter Property="Fill" Value="{DynamicResource ErrorRedBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsTikTokConnected}" Value="True">
-                                                    <Setter Property="Fill" Value="{StaticResource SuccessGreenBrush}"/>
+                                                    <Setter Property="Fill" Value="{DynamicResource SuccessGreenBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Ellipse.Style>
                                 </Ellipse>
-                                <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
+                                <TextBlock FontSize="12" Foreground="{DynamicResource TextMutedBrush}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text" Value="Not Connected"/>
@@ -294,8 +296,8 @@
                     <!-- Discord Card -->
                     <materialDesign:Card Grid.Row="4" Grid.Column="0"
                                         Padding="32"
-                                        Background="{StaticResource CardBackgroundBrush}"
-                                        Effect="{StaticResource CardShadow}"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        Effect="{DynamicResource CardShadow}"
                                         Cursor="Hand">
                         <materialDesign:Card.InputBindings>
                             <MouseBinding Command="{Binding SelectDiscordCommand}" MouseAction="LeftClick"/>
@@ -309,28 +311,28 @@
                             <TextBlock Text="Discord"
                                      FontSize="24"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      HorizontalAlignment="Center"
                                      Margin="0,0,0,8"/>
                             <TextBlock Text="Communication platform"
                                      FontSize="14"
-                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                      HorizontalAlignment="Center"
                                      Margin="0,0,0,16"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <Ellipse Width="8" Height="8" Margin="0,0,4,0">
                                     <Ellipse.Style>
                                         <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="{StaticResource ErrorRedBrush}"/>
+                                            <Setter Property="Fill" Value="{DynamicResource ErrorRedBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsDiscordConnected}" Value="True">
-                                                    <Setter Property="Fill" Value="{StaticResource SuccessGreenBrush}"/>
+                                                    <Setter Property="Fill" Value="{DynamicResource SuccessGreenBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Ellipse.Style>
                                 </Ellipse>
-                                <TextBlock FontSize="12" Foreground="{StaticResource TextMutedBrush}">
+                                <TextBlock FontSize="12" Foreground="{DynamicResource TextMutedBrush}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text" Value="Not Connected"/>
@@ -349,8 +351,8 @@
                     <!-- OBS Card -->
                     <materialDesign:Card Grid.Row="4" Grid.Column="2"
                                         Padding="32"
-                                        Background="{StaticResource CardBackgroundBrush}"
-                                        Effect="{StaticResource CardShadow}"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        Effect="{DynamicResource CardShadow}"
                                         Opacity="0.6">
                         <StackPanel HorizontalAlignment="Center">
                             <Image Source="/Resources/Images/obs-logo.png"
@@ -361,18 +363,130 @@
                             <TextBlock Text="OBS"
                                      FontSize="24"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      HorizontalAlignment="Center"
                                      Margin="0,0,0,8"/>
                             <TextBlock Text="Coming Soon"
                                      FontSize="14"
-                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                      HorizontalAlignment="Center"
                                      Margin="0,0,0,16"/>
                             <TextBlock Text="Not Available"
                                      FontSize="12"
-                                     Foreground="{StaticResource TextMutedBrush}"
+                                     Foreground="{DynamicResource TextMutedBrush}"
                                      HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </materialDesign:Card>
+
+                    <!-- Facebook Gaming Card (coming soon — informational only) -->
+                    <materialDesign:Card Grid.Row="6" Grid.Column="0"
+                                        Padding="32"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        Effect="{DynamicResource CardShadow}"
+                                        Cursor="Hand">
+                        <materialDesign:Card.InputBindings>
+                            <MouseBinding Command="{Binding SelectFacebookCommand}" MouseAction="LeftClick"/>
+                        </materialDesign:Card.InputBindings>
+                        <StackPanel HorizontalAlignment="Center">
+                            <materialDesign:PackIcon Kind="ViewDashboard"
+                                                     Width="64"
+                                                     Height="64"
+                                                     HorizontalAlignment="Center"
+                                                     Foreground="{DynamicResource TextPrimaryBrush}"
+                                                     Margin="0,0,0,16"/>
+                            <TextBlock Text="Facebook"
+                                     FontSize="24"
+                                     FontWeight="Bold"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,8"/>
+                            <TextBlock Text="Coming Soon"
+                                     FontSize="14"
+                                     Foreground="{DynamicResource TextSecondaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,16"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Ellipse Width="8" Height="8" Margin="0,0,4,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{DynamicResource ErrorRedBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsFacebookConnected}" Value="True">
+                                                    <Setter Property="Fill" Value="{DynamicResource SuccessGreenBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock FontSize="12" Foreground="{DynamicResource TextMutedBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Not Connected"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsFacebookConnected}" Value="True">
+                                                    <Setter Property="Text" Value="Connected"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                    </materialDesign:Card>
+
+                    <!-- Rumble Card (coming soon — informational only) -->
+                    <materialDesign:Card Grid.Row="6" Grid.Column="2"
+                                        Padding="32"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        Effect="{DynamicResource CardShadow}"
+                                        Cursor="Hand">
+                        <materialDesign:Card.InputBindings>
+                            <MouseBinding Command="{Binding SelectRumbleCommand}" MouseAction="LeftClick"/>
+                        </materialDesign:Card.InputBindings>
+                        <StackPanel HorizontalAlignment="Center">
+                            <materialDesign:PackIcon Kind="PlayCircleOutline"
+                                                     Width="64"
+                                                     Height="64"
+                                                     HorizontalAlignment="Center"
+                                                     Foreground="{DynamicResource TextPrimaryBrush}"
+                                                     Margin="0,0,0,16"/>
+                            <TextBlock Text="Rumble"
+                                     FontSize="24"
+                                     FontWeight="Bold"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,8"/>
+                            <TextBlock Text="Coming Soon"
+                                     FontSize="14"
+                                     Foreground="{DynamicResource TextSecondaryBrush}"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,16"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Ellipse Width="8" Height="8" Margin="0,0,4,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{DynamicResource ErrorRedBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRumbleConnected}" Value="True">
+                                                    <Setter Property="Fill" Value="{DynamicResource SuccessGreenBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock FontSize="12" Foreground="{DynamicResource TextMutedBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Not Connected"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRumbleConnected}" Value="True">
+                                                    <Setter Property="Text" Value="Connected"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
                         </StackPanel>
                     </materialDesign:Card>
                 </Grid>
@@ -431,14 +545,14 @@
                      FontSize="28"
                      FontWeight="Bold"
                      Margin="0,0,0,24"
-                     Foreground="{StaticResource TextPrimaryBrush}"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
                      Visibility="{Binding ShowTwitchConnection, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
             <!-- Connected Account Card -->
             <materialDesign:Card Margin="0,0,0,16"
                                 Padding="32"
-                                Background="{StaticResource CardBackgroundBrush}"
-                                Effect="{StaticResource CardShadow}"
+                                Background="{DynamicResource CardBackgroundBrush}"
+                                Effect="{DynamicResource CardShadow}"
                                 Visibility="{Binding ShowTwitchConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel>
                     <!-- Header with Status -->
@@ -457,28 +571,28 @@
                             <TextBlock Text="{Binding TwitchUsername, StringFormat='Connected as @{0}'}"
                                      FontSize="20"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,4"/>
                             <TextBlock Text="All systems operational"
                                      FontSize="14"
-                                     Foreground="{StaticResource SuccessGreenBrush}"/>
+                                     Foreground="{DynamicResource SuccessGreenBrush}"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                             <Ellipse Width="12"
                                    Height="12"
-                                   Fill="{StaticResource SuccessGreenBrush}"
+                                   Fill="{DynamicResource SuccessGreenBrush}"
                                    VerticalAlignment="Center"
                                    Margin="0,0,8,0"/>
                             <TextBlock Text="Connected"
                                      FontSize="14"
-                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                      VerticalAlignment="Center"/>
                         </StackPanel>
                     </Grid>
 
                     <!-- Credentials Info -->
-                    <Border Background="{StaticResource BackgroundDarkBrush}"
+                    <Border Background="{DynamicResource BackgroundDarkBrush}"
                             CornerRadius="8"
                             Padding="16"
                             Margin="0,0,0,16">
@@ -486,7 +600,7 @@
                             <TextBlock Text="Credentials"
                                      FontSize="16"
                                      FontWeight="SemiBold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,12"/>
 
                             <Grid>
@@ -503,21 +617,21 @@
                                 <TextBlock Grid.Row="0" Grid.Column="0"
                                          Text="Client ID:"
                                          FontSize="14"
-                                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                                         Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Grid.Row="0" Grid.Column="1"
                                          Text="****************************"
                                          FontSize="14"
-                                         Foreground="{StaticResource TextMutedBrush}"
+                                         Foreground="{DynamicResource TextMutedBrush}"
                                          FontFamily="Consolas"/>
 
                                 <TextBlock Grid.Row="2" Grid.Column="0"
                                          Text="Client Secret:"
                                          FontSize="14"
-                                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                                         Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Grid.Row="2" Grid.Column="1"
                                          Text="••••••••••••••••••••••••••••"
                                          FontSize="14"
-                                         Foreground="{StaticResource TextMutedBrush}"
+                                         Foreground="{DynamicResource TextMutedBrush}"
                                          FontFamily="Consolas"/>
                             </Grid>
                         </StackPanel>
@@ -527,7 +641,7 @@
                     <TextBlock Text="OAuth Permissions"
                              FontSize="16"
                              FontWeight="SemiBold"
-                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Foreground="{DynamicResource TextPrimaryBrush}"
                              Margin="0,0,0,12"/>
 
                     <Grid>
@@ -538,36 +652,36 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                            <TextBlock Text="✓ Chat read/write" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Moderation" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Channel management" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Polls &amp; predictions" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Subscriptions" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Followers" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Bits &amp; donations" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Clips &amp; videos" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Chat read/write" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Moderation" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Channel management" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Polls &amp; predictions" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Subscriptions" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Followers" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Bits &amp; donations" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Clips &amp; videos" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Margin="0,0,8,0">
-                            <TextBlock Text="✓ Channel rewards" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Raids" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Whispers" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Announcements" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Stream schedule" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Stream key" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Extensions" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Analytics" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Channel rewards" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Raids" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Whispers" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Announcements" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Stream schedule" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Stream key" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Extensions" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Analytics" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="2">
-                            <TextBlock Text="✓ AutoMod" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Blocked users/terms" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ VIPs &amp; moderators" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Shield mode" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Shoutouts" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Guest star" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Ads management" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Emotes &amp; chat color" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ AutoMod" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Blocked users/terms" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ VIPs &amp; moderators" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Shield mode" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Shoutouts" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Guest star" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Ads management" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Emotes &amp; chat color" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
                     </Grid>
 
@@ -591,7 +705,7 @@
                             <Button Content="RECONNECT"
                                   Command="{Binding ReconnectTwitchCommand}"
                                   Style="{StaticResource MaterialDesignRaisedButton}"
-                                  Background="{StaticResource VyralRedBrush}"
+                                  Background="{DynamicResource VyralRedBrush}"
                                   Margin="0,0,12,0"
                                   Height="40"
                                   Padding="24,0"
@@ -611,7 +725,7 @@
             <!-- Kick Connection Section (only visible when Kick is connected) -->
             <TextBlock FontSize="28"
                      FontWeight="Bold"
-                     Foreground="{StaticResource TextPrimaryBrush}"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
                      Visibility="{Binding ShowKickConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
@@ -630,8 +744,8 @@
             <!-- Connected Account Card -->
             <materialDesign:Card Margin="0,0,0,16"
                                 Padding="32"
-                                Background="{StaticResource CardBackgroundBrush}"
-                                Effect="{StaticResource CardShadow}"
+                                Background="{DynamicResource CardBackgroundBrush}"
+                                Effect="{DynamicResource CardShadow}"
                                 Visibility="{Binding ShowKickConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel>
                     <!-- Header with Status -->
@@ -650,28 +764,28 @@
                             <TextBlock Text="{Binding KickUsername, StringFormat='Connected as @{0}'}"
                                      FontSize="20"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,4"/>
                             <TextBlock Text="All systems operational"
                                      FontSize="14"
-                                     Foreground="{StaticResource SuccessGreenBrush}"/>
+                                     Foreground="{DynamicResource SuccessGreenBrush}"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                             <Ellipse Width="12"
                                    Height="12"
-                                   Fill="{StaticResource SuccessGreenBrush}"
+                                   Fill="{DynamicResource SuccessGreenBrush}"
                                    VerticalAlignment="Center"
                                    Margin="0,0,8,0"/>
                             <TextBlock Text="Connected"
                                      FontSize="14"
-                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                      VerticalAlignment="Center"/>
                         </StackPanel>
                     </Grid>
 
                     <!-- Credentials Info -->
-                    <Border Background="{StaticResource BackgroundDarkBrush}"
+                    <Border Background="{DynamicResource BackgroundDarkBrush}"
                             CornerRadius="8"
                             Padding="16"
                             Margin="0,0,0,16">
@@ -679,7 +793,7 @@
                             <TextBlock Text="Credentials"
                                      FontSize="16"
                                      FontWeight="SemiBold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,12"/>
 
                             <Grid>
@@ -696,21 +810,21 @@
                                 <TextBlock Grid.Row="0" Grid.Column="0"
                                          Text="Client ID:"
                                          FontSize="14"
-                                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                                         Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Grid.Row="0" Grid.Column="1"
                                          Text="****************************"
                                          FontSize="14"
-                                         Foreground="{StaticResource TextMutedBrush}"
+                                         Foreground="{DynamicResource TextMutedBrush}"
                                          FontFamily="Consolas"/>
 
                                 <TextBlock Grid.Row="2" Grid.Column="0"
                                          Text="Client Secret:"
                                          FontSize="14"
-                                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                                         Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Grid.Row="2" Grid.Column="1"
                                          Text="••••••••••••••••••••••••••••"
                                          FontSize="14"
-                                         Foreground="{StaticResource TextMutedBrush}"
+                                         Foreground="{DynamicResource TextMutedBrush}"
                                          FontFamily="Consolas"/>
                             </Grid>
                         </StackPanel>
@@ -720,7 +834,7 @@
                     <TextBlock Text="OAuth Permissions"
                              FontSize="16"
                              FontWeight="SemiBold"
-                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Foreground="{DynamicResource TextPrimaryBrush}"
                              Margin="0,0,0,12"/>
 
                     <Grid>
@@ -731,20 +845,20 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                            <TextBlock Text="✓ Read user info" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Read channel data" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Write to channel" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read user info" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read channel data" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Write to channel" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Margin="0,0,8,0">
-                            <TextBlock Text="✓ Write chat messages" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Read stream key" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Subscribe to events" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Write chat messages" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read stream key" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Subscribe to events" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="2">
-                            <TextBlock Text="✓ Moderation &amp; bans" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Read kicks" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Moderation &amp; bans" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read kicks" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
                     </Grid>
 
@@ -768,7 +882,7 @@
                             <Button Content="RECONNECT"
                                   Command="{Binding ReconnectKickCommand}"
                                   Style="{StaticResource MaterialDesignRaisedButton}"
-                                  Background="{StaticResource VyralRedBrush}"
+                                  Background="{DynamicResource VyralRedBrush}"
                                   Margin="0,0,12,0"
                                   Height="40"
                                   Padding="24,0"
@@ -788,7 +902,7 @@
             <!-- YouTube Connection Section (only visible when YouTube is connected) -->
             <TextBlock FontSize="28"
                      FontWeight="Bold"
-                     Foreground="{StaticResource TextPrimaryBrush}"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
                      Visibility="{Binding ShowYouTubeConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
@@ -800,8 +914,8 @@
 
             <materialDesign:Card Margin="0,0,0,16"
                                 Padding="32"
-                                Background="{StaticResource CardBackgroundBrush}"
-                                Effect="{StaticResource CardShadow}"
+                                Background="{DynamicResource CardBackgroundBrush}"
+                                Effect="{DynamicResource CardShadow}"
                                 Visibility="{Binding ShowYouTubeConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel>
                     <Grid Margin="0,0,0,24">
@@ -820,22 +934,22 @@
                             <TextBlock Text="{Binding YoutubeUsername, StringFormat='Connected as @{0}'}"
                                      FontSize="20"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,4"/>
                             <TextBlock Text="All systems operational"
                                      FontSize="14"
-                                     Foreground="{StaticResource SuccessGreenBrush}"/>
+                                     Foreground="{DynamicResource SuccessGreenBrush}"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse Width="12" Height="12" Fill="{StaticResource SuccessGreenBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="Connected" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                            <Ellipse Width="12" Height="12" Fill="{DynamicResource SuccessGreenBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Connected" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Grid>
 
-                    <Border Background="{StaticResource BackgroundDarkBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                    <Border Background="{DynamicResource BackgroundDarkBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,16">
                         <StackPanel>
-                            <TextBlock Text="Credentials" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                            <TextBlock Text="Credentials" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,12"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="120"/>
@@ -846,15 +960,15 @@
                                     <RowDefinition Height="8"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Client ID:" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="****************************" FontSize="14" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas"/>
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Client Secret:" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                <TextBlock Grid.Row="2" Grid.Column="1" Text="••••••••••••••••••••••••••••" FontSize="14" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas"/>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Client ID:" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="****************************" FontSize="14" Foreground="{DynamicResource TextMutedBrush}" FontFamily="Consolas"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Client Secret:" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="••••••••••••••••••••••••••••" FontSize="14" Foreground="{DynamicResource TextMutedBrush}" FontFamily="Consolas"/>
                             </Grid>
                         </StackPanel>
                     </Border>
 
-                    <TextBlock Text="OAuth Permissions" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                    <TextBlock Text="OAuth Permissions" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,12"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -862,18 +976,18 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                            <TextBlock Text="✓ Read user info" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Read channel data" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Manage live streams" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read user info" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read channel data" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Manage live streams" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="0,0,8,0">
-                            <TextBlock Text="✓ Read live chat" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Write chat messages" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Subscribe to events" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read live chat" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Write chat messages" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Subscribe to events" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
                         <StackPanel Grid.Column="2">
-                            <TextBlock Text="✓ Moderation" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Super Chat" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Moderation" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Super Chat" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
                     </Grid>
 
@@ -885,7 +999,7 @@
                         </Grid.ColumnDefinitions>
                         <Button Grid.Column="0" Content="← BACK" Command="{Binding BackToPlatformSelectionCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
                         <StackPanel Grid.Column="2" Orientation="Horizontal">
-                            <Button Content="RECONNECT" Command="{Binding ReconnectYouTubeCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{StaticResource VyralRedBrush}" Margin="0,0,12,0" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
+                            <Button Content="RECONNECT" Command="{Binding ReconnectYouTubeFromStoredCredentialsCommand}" CommandParameter="{Binding YouTubePlatformRow}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{DynamicResource VyralRedBrush}" Margin="0,0,12,0" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
                             <Button Content="DISCONNECT" Command="{Binding DisconnectYouTubeCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
                         </StackPanel>
                     </Grid>
@@ -895,7 +1009,7 @@
             <!-- TikTok Connection Section (only visible when TikTok is connected) -->
             <TextBlock FontSize="28"
                      FontWeight="Bold"
-                     Foreground="{StaticResource TextPrimaryBrush}"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
                      Visibility="{Binding ShowTikTokConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
@@ -907,8 +1021,8 @@
 
             <materialDesign:Card Margin="0,0,0,16"
                                 Padding="32"
-                                Background="{StaticResource CardBackgroundBrush}"
-                                Effect="{StaticResource CardShadow}"
+                                Background="{DynamicResource CardBackgroundBrush}"
+                                Effect="{DynamicResource CardShadow}"
                                 Visibility="{Binding ShowTikTokConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel>
                     <Grid Margin="0,0,0,24">
@@ -927,22 +1041,22 @@
                             <TextBlock Text="{Binding TiktokUsername, StringFormat='Connected as @{0}'}"
                                      FontSize="20"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,4"/>
                             <TextBlock Text="All systems operational"
                                      FontSize="14"
-                                     Foreground="{StaticResource SuccessGreenBrush}"/>
+                                     Foreground="{DynamicResource SuccessGreenBrush}"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse Width="12" Height="12" Fill="{StaticResource SuccessGreenBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="Connected" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                            <Ellipse Width="12" Height="12" Fill="{DynamicResource SuccessGreenBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Connected" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Grid>
 
-                    <Border Background="{StaticResource BackgroundDarkBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                    <Border Background="{DynamicResource BackgroundDarkBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,16">
                         <StackPanel>
-                            <TextBlock Text="Credentials" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                            <TextBlock Text="Credentials" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,12"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="120"/>
@@ -953,15 +1067,15 @@
                                     <RowDefinition Height="8"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Client ID:" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="****************************" FontSize="14" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas"/>
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Client Secret:" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                <TextBlock Grid.Row="2" Grid.Column="1" Text="••••••••••••••••••••••••••••" FontSize="14" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas"/>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Client ID:" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="****************************" FontSize="14" Foreground="{DynamicResource TextMutedBrush}" FontFamily="Consolas"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Client Secret:" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="••••••••••••••••••••••••••••" FontSize="14" Foreground="{DynamicResource TextMutedBrush}" FontFamily="Consolas"/>
                             </Grid>
                         </StackPanel>
                     </Border>
 
-                    <TextBlock Text="OAuth Permissions" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                    <TextBlock Text="OAuth Permissions" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,12"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -969,18 +1083,18 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                            <TextBlock Text="✓ Read user info" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Read live data" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Manage live streams" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read user info" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read live data" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Manage live streams" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="0,0,8,0">
-                            <TextBlock Text="✓ Read live chat" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Write chat messages" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Subscribe to events" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read live chat" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Write chat messages" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Subscribe to events" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
                         <StackPanel Grid.Column="2">
-                            <TextBlock Text="✓ Moderation" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Gifts &amp; donations" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Moderation" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Gifts &amp; donations" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
                     </Grid>
 
@@ -992,7 +1106,7 @@
                         </Grid.ColumnDefinitions>
                         <Button Grid.Column="0" Content="← BACK" Command="{Binding BackToPlatformSelectionCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
                         <StackPanel Grid.Column="2" Orientation="Horizontal">
-                            <Button Content="RECONNECT" Command="{Binding ReconnectTikTokCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{StaticResource VyralRedBrush}" Margin="0,0,12,0" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
+                            <Button Content="RECONNECT" Command="{Binding ReconnectTikTokCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{DynamicResource VyralRedBrush}" Margin="0,0,12,0" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
                             <Button Content="DISCONNECT" Command="{Binding DisconnectTikTokCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
                         </StackPanel>
                     </Grid>
@@ -1002,7 +1116,7 @@
             <!-- Discord Connection Section (only visible when Discord is connected) -->
             <TextBlock FontSize="28"
                      FontWeight="Bold"
-                     Foreground="{StaticResource TextPrimaryBrush}"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
                      Visibility="{Binding ShowDiscordConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
@@ -1014,8 +1128,8 @@
 
             <materialDesign:Card Margin="0,0,0,16"
                                 Padding="32"
-                                Background="{StaticResource CardBackgroundBrush}"
-                                Effect="{StaticResource CardShadow}"
+                                Background="{DynamicResource CardBackgroundBrush}"
+                                Effect="{DynamicResource CardShadow}"
                                 Visibility="{Binding ShowDiscordConnection, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel>
                     <Grid Margin="0,0,0,24">
@@ -1034,22 +1148,22 @@
                             <TextBlock Text="{Binding DiscordUsername, StringFormat='Connected as @{0}'}"
                                      FontSize="20"
                                      FontWeight="Bold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,4"/>
                             <TextBlock Text="All systems operational"
                                      FontSize="14"
-                                     Foreground="{StaticResource SuccessGreenBrush}"/>
+                                     Foreground="{DynamicResource SuccessGreenBrush}"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse Width="12" Height="12" Fill="{StaticResource SuccessGreenBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="Connected" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                            <Ellipse Width="12" Height="12" Fill="{DynamicResource SuccessGreenBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Connected" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Grid>
 
-                    <Border Background="{StaticResource BackgroundDarkBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                    <Border Background="{DynamicResource BackgroundDarkBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,16">
                         <StackPanel>
-                            <TextBlock Text="Credentials" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                            <TextBlock Text="Credentials" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,12"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="120"/>
@@ -1060,15 +1174,15 @@
                                     <RowDefinition Height="8"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Client ID:" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="****************************" FontSize="14" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas"/>
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Bot Token:" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                <TextBlock Grid.Row="2" Grid.Column="1" Text="••••••••••••••••••••••••••••" FontSize="14" Foreground="{StaticResource TextMutedBrush}" FontFamily="Consolas"/>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Client ID:" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="****************************" FontSize="14" Foreground="{DynamicResource TextMutedBrush}" FontFamily="Consolas"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Bot Token:" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="••••••••••••••••••••••••••••" FontSize="14" Foreground="{DynamicResource TextMutedBrush}" FontFamily="Consolas"/>
                             </Grid>
                         </StackPanel>
                     </Border>
 
-                    <TextBlock Text="Bot Permissions" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                    <TextBlock Text="Bot Permissions" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,12"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -1076,18 +1190,18 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                            <TextBlock Text="✓ Read messages" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Send messages" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Manage channels" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Read messages" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Send messages" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Manage channels" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="0,0,8,0">
-                            <TextBlock Text="✓ Manage roles" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Manage webhooks" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ View audit log" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Manage roles" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Manage webhooks" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ View audit log" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
                         <StackPanel Grid.Column="2">
-                            <TextBlock Text="✓ Moderation" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                            <TextBlock Text="✓ Voice channels" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Moderation" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock Text="✓ Voice channels" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                         </StackPanel>
                     </Grid>
 
@@ -1099,7 +1213,7 @@
                         </Grid.ColumnDefinitions>
                         <Button Grid.Column="0" Content="← BACK" Command="{Binding BackToPlatformSelectionCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
                         <StackPanel Grid.Column="2" Orientation="Horizontal">
-                            <Button Content="RECONNECT" Command="{Binding ReconnectDiscordCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{StaticResource VyralRedBrush}" Margin="0,0,12,0" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
+                            <Button Content="RECONNECT" Command="{Binding ReconnectDiscordCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{DynamicResource VyralRedBrush}" Margin="0,0,12,0" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
                             <Button Content="DISCONNECT" Command="{Binding DisconnectDiscordCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Height="40" Padding="24,0" VerticalContentAlignment="Center"/>
                         </StackPanel>
                     </Grid>

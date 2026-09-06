@@ -524,7 +524,9 @@ public partial class YouTubeWebSetupViewModel : ObservableObject
                 return;
             }
 
-            // Subscribe to navigation events to catch the callback
+            // Subscribe to navigation events to catch the callback.
+            // Unsubscribe first so repeated Authorize clicks don't stack handlers.
+            WebView2.CoreWebView2.NavigationStarting -= OnOAuthNavigationStarting;
             WebView2.CoreWebView2.NavigationStarting += OnOAuthNavigationStarting;
 
             ShowBrowser = true;

@@ -1,16 +1,19 @@
 # Discord
 
-> Connect Vyral to your Discord servers as one bot — or several at once: a four-step bot-token setup wizard for the primary bot, a **Discord Bots** page that manages any number of additional bots (per-bot start/stop, per-bot active channel, per-bot commands), and Discord messages flowing through the same unified chat feed and command pipeline as Twitch, Kick, and YouTube.
+> Connect Vyral to your Discord servers as one bot — or several at once: a four-step bot-token setup wizard whose bot is adopted straight into the **Discord Bots** list (Home → Connections, the Platforms page, and the Bots page are one world), a bots page with per-bot start/stop, per-bot active channels, per-bot commands, and per-bot launch toggles, per-bot **roles** that choose which bot answers account-linking DMs and posts giveaway announcements, an identity that is auto-detected from each bot's token on connect, and Discord messages flowing through the same unified chat feed and command pipeline as Twitch, Kick, and YouTube — with DMs living in the Chat Window's [DM inbox](../chat/chat-window.md#the-dm-inbox-discord-direct-messages).
 
 ## Overview
 
 Discord is Vyral's fourth fully integrated platform. Unlike Twitch, Kick, and YouTube — which connect through OAuth authorization in an embedded browser — Discord connects as a **bot account with a bot token**: you create an application in Discord's Developer Portal, copy its bot token, invite the bot to your server, and paste the token into Vyral. No OAuth dance, no redirect URI.
 
-Since 2026-08-16 Vyral supports **multiple Discord bots at once**. A `DiscordBotManager` owns one `DiscordService` instance per configured bot; every bot listens to every text channel (and direct messages) in every server it is a member of and feeds messages into the unified [Chat Window](../chat/chat-window.md), and — because Discord messages also publish the platform-agnostic `ChatMessageReceivedEvent` — the **entire command pipeline works on Discord**: custom commands, currency, giveaways, polls, and watchtime. Each bot **sends** through its own designated channel — the *active channel* you pick on that bot's dashboard — and replies route back to the bot that received the message.
+Since 2026-08-16 Vyral supports **multiple Discord bots at once**. A `DiscordBotManager` owns one `DiscordService` instance per configured bot; every bot listens to every text channel (and direct messages) in every server it is a member of. Channel messages feed the unified [Chat Window](../chat/chat-window.md); direct messages land in its [DM inbox](../chat/chat-window.md#the-dm-inbox-discord-direct-messages) instead — grouped per viewer and replyable from inside the app. And — because Discord messages also publish the platform-agnostic `ChatMessageReceivedEvent` — the **entire command pipeline works on Discord**: custom commands, currency, giveaways, polls, and watchtime. Each bot **sends** through its own designated channel — the *active channel* you pick on that bot's dashboard — and replies route back to the bot that received the message. Direct messages are heard by every bot, and a DM — including its link-flow replies — is always answered by the bot that received it; which bot handles the account-linking intake is set by the [linking role](#bot-roles).
 
 What Discord integration deliberately is not: it is chat-only. There are no Discord-native slash commands from the command system itself (the app's `!`-prefix commands work) — the one exception is the [visual command builder](#visual-command-builder-workflows) on the Automation page, whose Slash Command triggers register real `/` commands. Discord events beyond chat messages (member joins, boosts, and so on) are not surfaced. See [Status & Known Issues](#status--known-issues).
 
 ## User Guide
+
+When a Discord bot connects, the Chat window posts a gold System line telling you whether a chat channel is selected: with one, "Discord chat connected — listening to the selected channel"; without one, "Discord bot is connected, but no chat channel is selected — Discord messages won't appear here until you pick one on the Discord page." App-only — never broadcast to Discord.
+
 
 ### Before you start
 
@@ -36,7 +39,7 @@ The link requests **Administrator** permissions (the owner's choice — the bot 
 
 **Step 4 — Test & Finish.** The page shows the bot account Vyral is connected as. **Send Test Message** posts a confirmation to the active channel — if none is set yet it tells you to pick one on the Discord page after finishing, which is normal on a first connect. Click **Finish**. The wizard only saves when a token was entered *and* validated — you cannot finish into a fake connected state.
 
-After finishing, the Discord card on the Platforms page flips to a connection view (bot username, RECONNECT / DISCONNECT), and the **Discord** entry in the sidebar's Platforms group (always visible — it is the door to the [Discord Bots page](#multiple-bots), not a connected-only dashboard anymore) opens bot management.
+After finishing, the bot you connected is **adopted into the [Discord Bots list](#multiple-bots) automatically** — its card appears with the name and application ID detected from its token, exactly like a bot added on the page. There is one Discord world: connecting from **Home → Connections**, from the Platforms page wizard, or on the Bots page lands the same bot in all three places. The Discord card on the Platforms page flips to a connection view showing the **actually-connected bot** (bot username, RECONNECT / DISCONNECT), and the **Discord** entry in the sidebar's Platforms group (always visible — it is the door to the [Discord Bots page](#multiple-bots), not a connected-only dashboard anymore) opens bot management.
 
 ### Multiple bots
 
@@ -44,8 +47,8 @@ Click **Discord** in the sidebar (Platforms group; the window title reads "Vyral
 
 - **Quick Add** — the primary add path: type a **name** and paste the bot **token** (from that application's Developer Portal **Bot** tab — remember the MESSAGE CONTENT intent for every bot), then click **Add**. The bot appears as a card, stopped; click **START** on the card to connect it.
 - **Per-bot cards** — each bot gets one card with its name, status (Connected / Disconnected / Error), and buttons: **OPEN** (the bot's own dashboard — next section), **START**, **STOP**, **RENAME** (inline), and **REMOVE** (stops the bot if running and deletes it from the list).
-- **RUN FULL WIZARD** — the secondary add path: opens the full four-step wizard described above. Note the wizard configures the **primary setup bot** (its token goes to the legacy `Platform` row, not a per-bot row) — for additional bots, Quick Add is the per-bot path ([KI-36](../reference/known-issues.md)).
-- **Auto-start** — on every app launch, each bot that was connected when the app last ran is started again automatically (`StartAllSavedAsync` after profile load). Stopping a bot and exiting means it stays stopped; starting it and exiting means it comes back.
+- **RUN FULL WIZARD** — the secondary add path: opens the full four-step wizard described above. The bot it connects is **adopted into this list automatically** when the wizard finishes, its detected name and application ID showing on its card like any bot added here — there is no separate "old" wizard bot outside the list. The per-bot RECONNECT token caveat still applies ([KI-36](../reference/known-issues.md)).
+- **Auto-start (two layers)** — the **Discord auto-start** flag in **Settings → Platforms → Startup & Connection** starts your primary bot when the app launches, and every bot card here carries its own **"Start this bot when the app launches"** toggle so extra bots can come up too. A bot starts at launch only when its toggle is on; a bot you leave off stays stopped. Vyral itself can ride along at boot: the same settings section has **"Launch VyralBot when my PC starts"**, a per-user Windows Run-key entry that starts the app when you sign in to Windows. Duplicate-token protection still applies — no token ever opens two gateway sessions at once.
 - **Primary migration** — the first time the bots page loads an empty bot list, the legacy single-bot setup (the wizard's token on the `Platform` row) is migrated into a bot named **"Primary"**, keeping its token, status, and selected channel. Your old setup keeps working unchanged.
 
 Bot names must be unique within the profile; adding a duplicate name is refused. Every bot's token, status, and selected channel live in the per-profile `DiscordBots` table (see [Data & Settings](#data--settings)).
@@ -55,14 +58,41 @@ Bot names must be unique within the profile; adding a duplicate name is refused.
 Click **OPEN** on a bot card (title "Vyral - Discord Bot"). The page is that bot's own control room:
 
 - **Connection** — "Connected as {bot}" with status and **START** / **STOP** / **RECONNECT** buttons. RECONNECT drops and re-establishes the gateway session; it reads the token from the shared legacy `Platform` row, so it is only correct for the bot whose token that row holds (normally the migrated Primary or the wizard's setup bot) — for any other bot, use STOP + START, which reads the bot's own saved token ([KI-36](../reference/known-issues.md)).
+- **Identity** — the application ID, bot username, and avatar auto-detected from this bot's token on connect; never typed by hand (see [Auto-detected identity](#auto-detected-identity)).
+- **Roles** — this bot's two single-select role assignments: **Account linking bot** and **Giveaway announcements bot**. Taking a role here removes it from every other bot; see [Bot roles](#bot-roles).
 - **Servers** — one row for **every server that bot is in**: server name, approximate member count, and a drop-down of the text channels visible to the bot. Pick a channel and click **SET ACTIVE CHANNEL** — this is a *per-bot* choice, so two bots can talk in two different channels (or servers).
 - **Test Message** — the owner-ping test: in every server the bot is in, it reuses (or creates) the private `#vyral-test` channel visible only to the server owner and the bot, and posts a `@owner` confirmation there.
 
 The **active channel** is the single channel that bot sends in: manual replies routed to that bot and its test messages go there. A bot *listens* across every channel of every server it is in, but its replies always post to its own active channel — so point each bot at the channel where you want it to talk. The choice is saved per bot and survives restarts and reconnects.
 
+### Bot roles
+
+With more than one bot connected, you choose **which bot does which job**. Two roles exist, and each is held by at most one bot:
+
+- **Account linking bot** — the only bot that answers link and delink [DMs](../chat-features/account-linking.md#choosing-your-linking-bot): viewers DM `link` or a code to *this* bot, and the reply is sent by the bot that received the DM — always the same account the viewer messaged, including the wizard-connected bot. DMs to any other Vyral bot get no link reply.
+- **Giveaway announcements bot** — the Discord legs of [giveaway announcements](../stream-tools/giveaways.md) are posted by this bot.
+
+Roles are **single-select per role**: assigning a role to one bot removes it from every other bot. One bot can hold both roles, or neither. An **unset role falls back to the Primary bot**, so a single-bot setup needs zero configuration — link DMs and giveaway announcements just work out of the box.
+
+Where roles are assigned:
+
+- **The bot's page** (this dashboard, in the Discord section) — the Roles card sets both roles for that bot.
+- **Settings → Viewer Hub → Account Linking** — the **Account linking Discord bot** selector sets the same assignment; the two paths stay in sync.
+
+**Sharing a bot with another bot platform?** A bot token holds only **one active gateway session**, so if the same bot is also run by another bot platform (BotGhost, MEE6, …), only one of the two can be online at a time — Vyral already guards against opening a second session for a token that is being served ([duplicate-token guards](#the-bot-manager)). The bot can still be assigned a role either way: point the Account linking and Giveaway announcements roles at your Vyral bot so it focuses on linking and giveaways, and let the external service handle moderation — just not while both are trying to hold the same token's session.
+
+### Auto-detected identity
+
+You never type a bot's identity — only its token. When a bot connects, Vyral detects the token's **application ID**, **bot username**, and **avatar** straight from Discord and shows them on that bot's page, so what you see is always the account that is actually online. This is the same detection that powers the wizard's invite link (step 3): the application ID is read from the token itself, with no second Developer Portal visit.
+
+Consequences worth knowing:
+
+- **Renaming a bot in Vyral changes only its display name** in the bots list — the Discord account behind it comes from the token.
+- **A different token means a different identity**: replace a bot's token and the page reflects the new token's application, username, and avatar on the next connect.
+
 ### Discord chat in the unified window
 
-Messages from **every connected bot** appear together in the [Chat Window](../chat/chat-window.md) like any other platform: Discord logo, Discord blurple (`#5865F2`) username color, and up to two badges — a moderator badge for members with the Discord **Manage Messages** permission, a broadcaster badge for the server owner and members with the **Administrator** permission. Direct messages show the channel name "DirectMessage". The feed does not separate bots — a message from any bot is just a Discord message.
+Messages from **every connected bot** appear together in the [Chat Window](../chat/chat-window.md) like any other platform: Discord logo, Discord blurple (`#5865F2`) username color, and up to two badges — a moderator badge for members with the Discord **Manage Messages** permission, a broadcaster badge for the server owner and members with the **Administrator** permission. **Direct messages do not appear in this feed** — they are routed to the Chat Window's [DM inbox](../chat/chat-window.md#the-dm-inbox-discord-direct-messages), grouped per viewer, with an in-app reply box that sends through the bot that received the DM. The feed does not separate bots — a message from any bot is just a Discord message.
 
 Replying to a Discord message in the unified chat sends through **the bot that received it** (the message-id-to-bot mapping is remembered per message); manual sends and send-to-all use the **Primary** bot — the first connected bot, falling back to the wizard's setup bot (see [How It Works](#how-it-works-developer)).
 
@@ -93,7 +123,7 @@ Building the flows themselves (palette, wires, the full block library, variables
 
 ### Reconnecting and disconnecting
 
-- On the next app launch, every bot that was connected auto-starts from its saved token — both the wizard path (the legacy `Platform` row) and the bots page path (the `DiscordBots` rows). A bot whose token is already being served by the legacy setup bot is skipped, so no token ever runs two gateway sessions at once.
+- On the next app launch, auto-start runs in two layers: the **Startup & Connection** flag brings up the primary bot, and each bot's own **"Start this bot when the app launches"** toggle brings up the extras — every start reads that bot's saved token (the wizard path's legacy `Platform` row and the bots page path's `DiscordBots` rows alike). A bot whose token is already being served by the legacy setup bot is skipped, so no token ever runs two gateway sessions at once.
 - **RECONNECT** on the Platforms card re-opens the wizard at step 3 (invite & connect) using the stored token; **RECONNECT** on a per-bot dashboard re-establishes that bot's gateway session (reading the shared legacy token — see the caveat above).
 - **DISCONNECT** (Platforms card) stops the setup bot and clears the stored token, username, and application ID from the `Platform` row; the row stays in the database with `Status="Disconnected"`. **STOP** on a bot card or dashboard stops that bot and marks its `DiscordBots` row `Status="Disconnected"`; its token and channel are kept, so START brings it straight back.
 - Disconnecting a bot is graceful: the gateway event handlers are unhooked first, then the client is stopped and logged out, and the fully-stopped client is parked for later disposal — it is never disposed while live (this ordering fixed a hard crash; see [KI-35](../reference/known-issues.md), resolved 2026-08-16). Disconnect-all and profile switching stop every running bot (`StopAllAsync`).
@@ -126,7 +156,7 @@ All state (`IsConnected`, `BotUsername`, `SelectedChannelId`, `ConnectedGuilds`)
 - **CRUD** — `LoadBotsAsync` / `AddBotAsync` (name and token required, name unique) / `UpdateBotAsync` (null/empty token or channel keeps the stored value; a token change live-restarts a running bot; a channel change is applied to the running instance) / `RemoveBotAsync` (stop, then delete the row). Every mutation raises `BotsChanged` (defensively — one throwing subscriber cannot break the others; handlers must dispatcher-hop to the UI thread).
 - **Legacy migration** — `LoadBotsAsync` on an empty table migrates the legacy `Platform` row (token, username, channel, status) into a bot named **"Primary"**.
 - **Duplicate-token guards** — `StartBotAsync` refuses to start a second gateway session for a token another running bot already uses (two sessions would duplicate every incoming event), and `StartAllSavedAsync` additionally skips tokens the legacy setup bot (the DI-singleton service auto-connected from the `Platform` row) already serves.
-- **Lifecycle** — `StartAllSavedAsync` starts every bot whose saved status is Connected; `MainViewModel` calls it right after profile load (MainViewModel.cs:298), and `StopAllAsync` runs on disconnect-all and profile switches (MainViewModel.cs:675). `Connected` snapshots the connected services; `Primary` is the first connected one — the V1 target for sends that have no per-bot origin.
+- **Lifecycle** — `StartAllSavedAsync` starts every bot whose **"Start this bot when the app launches"** toggle is on; `MainViewModel` calls it right after profile load (MainViewModel.cs:298), and `StopAllAsync` runs on disconnect-all and profile switches (MainViewModel.cs:675). `Connected` snapshots the connected services; `Primary` is the first connected one — the V1 target for sends that have no per-bot origin.
 - **Legacy row note** — each managed `DiscordService` still persists the shared `Platform` row on connect/disconnect (last writer wins); the manager intentionally ignores that row in favor of the `DiscordBots` table as the source of truth for per-bot tokens/status/channels.
 
 ### Message intake and permission mapping
@@ -164,7 +194,7 @@ Discord gateway (WebSocket) ──► DiscordService.OnMessageReceivedAsync   (o
 - `TryGetApplicationIdFromToken` — a Discord bot token's first `.`-separated segment is the base64url-encoded application ID, so the invite link can be built without a second portal visit.
 - `BuildInviteUrlFromToken` — `https://discord.com/oauth2/authorize?client_id={id}&scope=bot&permissions=8` (Administrator = 8, per the owner's preference).
 
-`ConnectBotAsync` runs `ValidateTokenAsync` then `ConnectAsync`; `CompleteSetupAsync` refuses to finish unless `_tokenValidated` is true — the `Status="Connected"` row is only ever written from a real, validated connection. The wizard drives the **setup bot** (the DI-singleton `DiscordService` and its legacy `Platform` row); it does not create or edit `DiscordBots` rows — Quick Add on the bots page is the per-bot path (KI-36).
+`ConnectBotAsync` runs `ValidateTokenAsync` then `ConnectAsync`; `CompleteSetupAsync` refuses to finish unless `_tokenValidated` is true — the `Status="Connected"` row is only ever written from a real, validated connection. The wizard drives the **setup bot** (the DI-singleton `DiscordService` and its legacy `Platform` row); when the connection completes, the bot is **adopted into the `DiscordBots` table**, so the Bots page, the Platforms card, and Home's Connections entry all describe the same bot (earlier builds kept the wizard's bot outside the bots list — that split is gone; the per-bot RECONNECT token caveat remains, KI-36).
 
 ### The bots pages
 
@@ -172,9 +202,17 @@ Discord gateway (WebSocket) ──► DiscordService.OnMessageReceivedAsync   (o
 
 The previous single-bot dashboard ([DiscordDashboardViewModel.cs](../../src/VyralBot.UI/ViewModels/DiscordDashboardViewModel.cs)) is superseded by the per-bot dashboard — its navigation command is generated but bound nowhere, making it an orphaned surface (see [UI Reference](../reference/ui-reference.md) and KI-36).
 
+### Bot roles and auto-detected identity
+
+The per-bot roles and identity detection are behavior-level facts (the UI and pipeline surface them; see [Bot roles](#bot-roles) / [Auto-detected identity](#auto-detected-identity)):
+
+- **Roles** — each role (**Account linking bot**, **Giveaway announcements bot**) is a per-profile assignment with single-select semantics: at most one bot holds it, and assigning it to a bot clears it from any other. Resolution at answer time falls back to the **Primary** bot when the role is unset — the same `Primary` resolution the send path already uses (first connected bot, else the wizard setup bot). The link-DM intake only fires for DMs received by the role holder, and giveaway announcement Discord legs are sent by the announcements role holder.
+- **Identity detection** — a token uniquely determines its application: the wizard already decodes the application ID from the token's first segment (below), and on a live connection the gateway/REST identity of the authenticated application (application ID, bot username, avatar) is what fills the identity shown on the bot's page. Nothing identity-shaped is user-typed; the token is the only credential input, and the displayed identity always follows the token that is connected.
+- **Dual-hosting** — the one-session-per-token constraint is enforced by the manager's existing duplicate-token guards (`StartBotAsync` refuses a second session for a running token; `StartAllSavedAsync` skips tokens the legacy setup bot already serves). A token also held by an external platform (BotGhost etc.) simply cannot be online in both places at once — Vyral's guard keeps it from holding two of its own sessions on top of that.
+
 ### Shell and chat wiring
 
-- **Auto-connect**: `MainViewModel.CheckPlatformConnectionsAsync` reads the Discord row; `IsDiscordConnected` requires `Status == "Connected"` *and* a non-empty token, and `LoadAndConnectDiscordAsync` connects the setup bot from the stored token. Afterwards `StartAllSavedAsync` brings up the managed bots (MainViewModel.cs:298). `DisconnectAllPlatforms` includes Discord and stops every managed bot (MainViewModel.cs:675).
+- **Auto-connect**: `MainViewModel.CheckPlatformConnectionsAsync` reads the Discord row; `IsDiscordConnected` requires `Status == "Connected"` *and* a non-empty token, and `LoadAndConnectDiscordAsync` connects the setup bot from the stored token. Afterwards the managed bots start according to their launch toggles (`StartAllSavedAsync`, MainViewModel.cs:298), with the primary bot governed by the Settings → Platforms → Startup & Connection auto-start flag. `DisconnectAllPlatforms` includes Discord and stops every managed bot (MainViewModel.cs:675).
 - **Sidebar**: the Platforms-group Discord entry (`MainWindow.xaml:221-231`, logo `discord-logo.png`) is **always visible** and invokes `NavigateToDiscordBotsCommand`, which sets the window title to "Vyral - Discord Bots".
 - **Platforms page**: `PlatformsViewModel` treats Discord as a first-class platform — `SelectDiscordAsync`, `LoadDiscordPlatformAsync` (auto-connect + status refresh after the wizard completes), `ReconnectDiscordAsync` (wizard at step 3), and `DisconnectDiscord` (keeps the row, nulls the token and identity fields).
 - **Chat**: `ChatViewModel` subscribes to `DiscordChatMessageEvent` (ChatViewModel.cs:276). The handler (ChatViewModel.cs:2536) first records the originating bot — `RememberDiscordBotOrigin(evt.MessageId, evt.BotId)` into a bounded message-id→bot-id map (ChatViewModel.cs:648, oldest entries evicted) — then skips the bot's own account, applies `DiscordFilterEnabled`, persists the message through `DataChatMessageStore`, and appends a `ChatMessage` with blurple color and synthesized moderator/broadcaster badges. When the generic `ChatMessageReceivedEvent` arrives for a Discord message, `ResolveDiscordBotOrigin` (ChatViewModel.cs:685) looks the bot id up by message id and passes it both to `CommandService.ExecuteAsync` (per-bot command filtering) and to `SendDiscordReplyAsync`, which resolves the send target as: the originating bot's manager instance → the wizard setup bot for the `"primary"` tag → the first connected manager bot, else the setup bot (ChatViewModel.cs:592-624). Because the typed and generic events are published concurrently, the generic handler can rarely lose that race and falls back to Primary — a safe degradation (KI-38). Manual sends and send-to-all always use `DiscordSendTarget` (Primary, else the setup bot); `BuildContextVariables` supplies `bot-username` and `channel` for Discord sends.
@@ -186,8 +224,8 @@ The previous single-bot dashboard ([DiscordDashboardViewModel.cs](../../src/Vyra
 | [DiscordService.cs](../../src/VyralBot.Integrations/Discord/DiscordService.cs) | The gateway client: connect/validate/graceful disconnect (unhook → stop → logout → park), reconnect, guild snapshot, message intake with `BotId` tagging, dual event publish (899 lines) |
 | [IDiscordService.cs](../../src/VyralBot.Integrations/Discord/IDiscordService.cs) | Service contract: `BotId`, `IsConnected`, `BotUsername`, `SelectedChannelId`, `ConnectedGuilds`, validate/connect/disconnect/reconnect/set-channel/send |
 | [IDiscordBotManager.cs](../../src/VyralBot.Integrations/Discord/IDiscordBotManager.cs) | Multi-bot manager contract: per-bot CRUD/start/stop, `StartAllSavedAsync`, `Connected`, `Primary`, `BotsChanged` |
-| [DiscordBotManager.cs](../../src/VyralBot.Integrations/Discord/DiscordBotManager.cs) | Default manager: N `DiscordService` instances, legacy "Primary" migration, duplicate-token guards, status persistence (671 lines) |
-| [DiscordBotConfig.cs](../../src/VyralBot.Integrations/Discord/DiscordBotConfig.cs) | `record` mirroring a `DiscordBots` row (Id, Name, Token, Status, SelectedChannelId) |
+| [DiscordBotManager.cs](../../src/VyralBot.Integrations/Discord/DiscordBotManager.cs) | Default manager: N `DiscordService` instances, legacy "Primary" migration, duplicate-token guards, status persistence, identity & role persistence |
+| [DiscordBotConfig.cs](../../src/VyralBot.Integrations/Discord/DiscordBotConfig.cs) | `record` mirroring a `DiscordBots` row (Id, Name, Token, Status, SelectedChannelId, per-bot launch-on-app-start flag) |
 | [DiscordChatMessageEvent.cs](../../src/VyralBot.Integrations/Discord/Events/DiscordChatMessageEvent.cs) | Typed event: `GuildName`, `Channel`/`ChannelId`, flags, `MessageId`, `BotId` |
 | [DiscordGuildInfo.cs](../../src/VyralBot.Integrations/Discord/Models/DiscordGuildInfo.cs) | `DiscordGuildInfo` + `DiscordChannelInfo` snapshot records |
 | [VyralBot.Integrations.csproj](../../src/VyralBot.Integrations/VyralBot.Integrations.csproj) | References Discord.Net 3.20.1 |
@@ -298,7 +336,7 @@ Two stores side by side (both per-profile — see [Database Reference](../refere
 | `Status` | "Connected" / "Disconnected" / "Error" |
 | `DiscordChatEnabled` | Show/hide Discord messages in the unified feed (Chat Hub toggle + quick-settings popup, via `PlatformChatRoutingChangedEvent`) |
 
-**The `DiscordBots` table** — one row per managed bot (`Id`, `Name`, `Token`, `Status`, `SelectedChannelId`), written by the bot manager's CRUD and status updates; the "Primary" migration copies the legacy row's fields here on first load. Managed services still write the legacy `Platform` row on connect/disconnect (last writer wins) — harmless, and intentionally ignored by the manager.
+**The `DiscordBots` table** — one row per managed bot (`Id`, `Name`, `Token`, `Status`, `SelectedChannelId`, plus auto-detected `ApplicationId`/`BotUsername`/`AvatarUrl`, the per-bot **"Start this bot when the app launches"** flag, and the `RoleLinking`/`RoleGiveaway` flags), written by the bot manager's CRUD and status updates; the "Primary" migration copies the legacy row's fields here on first load, and a wizard/Home connect writes its row here via adoption. Managed services still write the legacy `Platform` row on connect/disconnect (last writer wins) — harmless, and intentionally ignored by the manager. The per-bot **role assignments** (Account linking bot / Giveaway announcements bot) persist per profile alongside the bot rows, with at most one holder per role; unset roles resolve to Primary at answer time (see [Bot roles](#bot-roles)). The auto-detected identity (application ID, username, avatar) is display state derived from each bot's connected token, not a second thing to configure.
 
 Custom commands carry an optional `Commands.BotId` — the `DiscordBots` row id a command is pinned to; null runs on every bot (see [Commands](../chat-features/commands.md)).
 
@@ -306,11 +344,11 @@ Chat history rows are written to the `ChatMessages` table with `Platform="Discor
 
 ## Status & Known Issues
 
-**Works**: the full bot-token wizard (portal → token → invite → validated connect), gateway connections with auto-reconnect for any number of bots, Quick Add / start / stop / rename / remove on the bots page, per-bot dashboards (status, servers list, per-bot active-channel picker, owner-ping test), startup auto-start of saved bots with duplicate-token protection, the legacy "Primary" migration, messages from every bot in the unified feed with badges and blurple, per-origin reply routing with Primary fallback, per-bot command scoping, manual sends and send-to-all via Primary, chat history persistence, and the show/hide feed toggle.
+**Works**: the full bot-token wizard (portal → token → invite → validated connect) with automatic adoption of the connected bot into the Bots list (one world across Home → Connections, the Platforms card, and the Bots page), gateway connections with auto-reconnect for any number of bots, Quick Add / start / stop / rename / remove on the bots page, per-bot dashboards (status, auto-detected identity, servers list, per-bot active-channel picker, owner-ping test), per-bot roles (Account linking bot / Giveaway announcements bot, single-select with Primary fallback, assignable from the bot's page or the Viewer Hub selector), two-layer startup auto-start (the Startup & Connection flag for the primary bot plus per-bot launch toggles) with duplicate-token protection, the legacy "Primary" migration, messages from every bot in the unified feed with badges and blurple, DMs in the Chat Window's inbox with in-app replies through the receiving bot, per-origin reply routing with Primary fallback, per-bot command scoping, manual sends and send-to-all via Primary, chat history persistence, and the show/hide feed toggle.
 
 Current limitations, tracked in the [known issues ledger](../reference/known-issues.md):
 
-- **The wizard still configures the setup bot only** — the four-step wizard writes the legacy `Platform` row; there is no per-bot wizard, and the per-bot RECONNECT button reads that shared token. Quick Add is the per-bot path (KI-36; also covers the orphaned legacy dashboard view).
+- **Per-bot RECONNECT reads the shared token** — the RECONNECT button on a bot's dashboard re-reads the legacy `Platform` row's token, so it is only token-correct for the bot that row describes (normally the wizard/Home-connected primary); for any other bot, use STOP + START (KI-36; also covers the orphaned legacy dashboard view).
 - **`!commands` does not bot-filter** — the built-in command list ignores bot scope, so it can advertise a command that another bot would answer (KI-37).
 - **Origin-race fallback** — very rarely, the generic command event beats the typed Discord event and the reply routes through Primary instead of the receiving bot (safe degradation, KI-38).
 - **Message Content intent is mandatory per bot** — if it is not enabled on an application's Bot tab, that bot receives no message content. This is a Discord policy, not an app bug; the wizard's step 2 calls it out (Quick Add does not — remember to enable it for every bot you add there) (KI-34).

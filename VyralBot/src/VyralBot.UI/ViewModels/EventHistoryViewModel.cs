@@ -42,6 +42,9 @@ public partial class EventHistoryViewModel : ViewModelBase
     private bool _isLoading;
 
     [ObservableProperty]
+    private string _statusMessage = string.Empty;
+
+    [ObservableProperty]
     private int _currentPage = 1;
 
     [ObservableProperty]
@@ -94,32 +97,30 @@ public partial class EventHistoryViewModel : ViewModelBase
             IsLoading = true;
             _logger.LogInformation("Loading events - Page: {Page}, PageSize: {PageSize}", CurrentPage, PageSize);
 
-            // Get all events with filters
-            var allEvents = await _dataService.GetEventStatisticsAsync();
+            // Push every filter the SQL supports down to the query (platform,
+            // event type, date range) and fetch a large window — previously the
+            // call defaulted to limit=100, permanently capping history at the
+            // newest 100 rows regardless of filters.
+            var platformFilter = !string.IsNullOrEmpty(SelectedPlatform) && SelectedPlatform != "All"
+                ? SelectedPlatform
+                : null;
+            var eventTypeFilter = !string.IsNullOrEmpty(SelectedEventType) && SelectedEventType != "All"
+                ? SelectedEventType
+                : null;
 
-            // Apply filters
+            var allEvents = await _dataService.GetEventStatisticsAsync(
+                platformFilter, eventTypeFilter, limit: 10000,
+                startDate: StartDate, endDate: EndDate.AddDays(1));
+
+            // Only the "contains" username filter cannot be expressed by the SQL
+            // signature, so it stays in-memory.
             var filtered = allEvents.AsEnumerable();
-
-            // Platform filter
-            if (!string.IsNullOrEmpty(SelectedPlatform) && SelectedPlatform != "All")
-            {
-                filtered = filtered.Where(e => e.Platform.Equals(SelectedPlatform, StringComparison.OrdinalIgnoreCase));
-            }
-
-            // Event type filter
-            if (!string.IsNullOrEmpty(SelectedEventType) && SelectedEventType != "All")
-            {
-                filtered = filtered.Where(e => e.EventType.Equals(SelectedEventType, StringComparison.OrdinalIgnoreCase));
-            }
 
             // Username filter
             if (!string.IsNullOrEmpty(UsernameFilter))
             {
                 filtered = filtered.Where(e => e.Username.Contains(UsernameFilter, StringComparison.OrdinalIgnoreCase));
             }
-
-            // Date range filter
-            filtered = filtered.Where(e => e.Timestamp >= StartDate && e.Timestamp <= EndDate.AddDays(1));
 
             // Calculate totals
             var filteredList = filtered.OrderByDescending(e => e.Timestamp).ToList();
@@ -168,6 +169,51 @@ public partial class EventHistoryViewModel : ViewModelBase
         UsernameFilter = string.Empty;
         CurrentPage = 1;
         await LoadEventsAsync();
+    }
+
+    [RelayCommand]
+    private async Task ClearHistoryAsync()
+    {
+        if (!Confirm("Delete ALL event history for this profile? Every stored event will be removed. This cannot be undone."))
+        {
+            return;
+        }
+
+        try
+        {
+            IsLoading = true;
+            _logger.LogInformation("Clearing all event history");
+
+            var deleted = await _dataService.DeleteEventStatisticsAsync();
+            StatusMessage = $"Cleared {deleted} events";
+
+            // Reset to the first page and reload so the grid reflects the empty table
+            CurrentPage = 1;
+            await LoadEventsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error clearing event history");
+            StatusMessage = $"Error clearing event history: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Modal OK/cancel confirmation (same pattern as CommandsViewModel and
+    /// SettingsViewModel's data-management confirmations). True only when the user confirmed.
+    /// </summary>
+    private static bool Confirm(string message)
+    {
+        var dialog = new Views.ConfirmDialog
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+        dialog.SetMessage(message);
+        return dialog.ShowDialog() == true;
     }
 
     [RelayCommand]

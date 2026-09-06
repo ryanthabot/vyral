@@ -1,0 +1,568 @@
+<UserControl x:Class="VyralBot.UI.Views.ViewerHubView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             Background="{DynamicResource BackgroundPrimaryBrush}">
+
+    <UserControl.Resources>
+        <Style x:Key="SectionCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource BackgroundTertiaryBrush}"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,12"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
+        </Style>
+
+        <Style x:Key="Cell" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+
+        <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource Cell}">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        </Style>
+
+        <Style x:Key="GridCell" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="8">
+
+            <!-- ===== Header ===== -->
+            <Grid Margin="0,0,0,16">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <materialDesign:PackIcon Kind="LinkVariant"
+                                             Width="24" Height="24"
+                                             VerticalAlignment="Center"
+                                             Margin="0,0,10,0"
+                                             Foreground="{DynamicResource PrimaryBrush}"/>
+                    <TextBlock Text="Viewer Hub"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                    <TextBlock Text="Linking, cross-platform bonuses, goals and linked viewers"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               Margin="16,0,0,0"
+                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                </StackPanel>
+
+                <TextBlock Text="{Binding StatusMessage}"
+                           FontSize="12"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Right"
+                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+            </Grid>
+
+            <!-- ===== Linking ===== -->
+            <Border Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <materialDesign:PackIcon Kind="LinkVariant"
+                                                 Width="20" Height="20"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="{DynamicResource PrimaryBrush}"/>
+                        <TextBlock Text="Linking"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <CheckBox IsChecked="{Binding LinkingEnabled}"
+                                  Content="Link codes enabled"
+                                  VerticalAlignment="Center"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <CheckBox IsChecked="{Binding UnifiedBalances}" Margin="0,0,0,8"
+                                  Content="Merge points into one shared total across linked platforms (earn and spend from one pool)"
+                                  VerticalAlignment="Center"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <TextBlock Text="Code expires after (minutes):"
+                                   Style="{StaticResource FieldLabel}"
+                                   Margin="24,0,6,0"/>
+                        <TextBox Text="{Binding CodeExpiryMinutes}"
+                                 Width="50"
+                                 VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <TextBlock Text="Platforms that accept !link codes:"
+                               Style="{StaticResource FieldLabel}"
+                               Margin="0,0,0,6"/>
+                    <WrapPanel Margin="0,0,0,12">
+                        <CheckBox Content="Twitch" IsChecked="{Binding TwitchLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"/>
+                        <CheckBox Content="Kick" IsChecked="{Binding KickLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"/>
+                        <CheckBox Content="YouTube" IsChecked="{Binding YouTubeLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"/>
+                        <CheckBox Content="Discord" IsChecked="{Binding DiscordLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"/>
+                        <CheckBox Content="TikTok" IsChecked="{Binding TikTokLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"/>
+                        <CheckBox Content="Facebook" IsChecked="{Binding FacebookLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"/>
+                        <CheckBox Content="Rumble" IsChecked="{Binding RumbleLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"/>
+                    </WrapPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <TextBlock Text="Account linking Discord bot:"
+                                   Style="{StaticResource FieldLabel}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"/>
+                        <ComboBox ItemsSource="{Binding LinkingBotOptions}"
+                                  SelectedItem="{Binding SelectedLinkingBot, Mode=TwoWay}"
+                                  DisplayMemberPath="DisplayName"
+                                  MinWidth="240"
+                                  VerticalAlignment="Center"
+                                  ToolTip="Only this bot will answer link and delink DMs."/>
+                    </StackPanel>
+
+                    <Grid Margin="0,0,0,6">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Pending link codes"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <TextBlock Text="{Binding PendingCodes.Count, StringFormat={}{0} active}"
+                                       FontSize="12"
+                                       VerticalAlignment="Center"
+                                       Margin="10,0,0,0"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                        <Button Command="{Binding RefreshPendingCodesCommand}"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalAlignment="Right">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Refresh"
+                                                         Width="16" Height="16"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,4,0"/>
+                                <TextBlock Text="Refresh" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <DataGrid ItemsSource="{Binding PendingCodes}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="False"
+                              MaxHeight="160"
+                              Background="Transparent"
+                              Foreground="{DynamicResource TextPrimaryBrush}"
+                              BorderBrush="{DynamicResource BorderColorBrush}"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{DynamicResource BorderColorBrush}"
+                              RowBackground="Transparent">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Code" Binding="{Binding Code}" Width="90" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource GridCell}">
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Created By" Binding="{Binding CreatedBy}" Width="150" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource GridCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Platform" Binding="{Binding Platform}" Width="110" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource GridCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Expires In" Binding="{Binding ExpiresIn}" Width="*" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource GridCell}">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Command="{Binding DeleteCommand}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                ToolTip="Delete this link code">
+                                            <StackPanel Orientation="Horizontal">
+                                                <materialDesign:PackIcon Kind="DeleteOutline"
+                                                                         Width="16" Height="16"
+                                                                         VerticalAlignment="Center"
+                                                                         Foreground="{DynamicResource ErrorRedBrush}"/>
+                                                <TextBlock Text="Delete" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Multi-Platform Bonus ===== -->
+            <Border Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <materialDesign:PackIcon Kind="Layers"
+                                                 Width="20" Height="20"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="{DynamicResource PrimaryBrush}"/>
+                        <TextBlock Text="Multi-Platform Bonus"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <RadioButton GroupName="MpMode"
+                                     Content="Off"
+                                     IsChecked="{Binding MpModeIsOff, Mode=TwoWay}"
+                                     MinWidth="80"
+                                     VerticalAlignment="Center"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <RadioButton GroupName="MpMode"
+                                     Content="Opt-in per viewer"
+                                     IsChecked="{Binding MpModeIsOptIn, Mode=TwoWay}"
+                                     MinWidth="140"
+                                     Margin="12,0,0,0"
+                                     VerticalAlignment="Center"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <RadioButton GroupName="MpMode"
+                                     Content="Automatic for all linked viewers"
+                                     IsChecked="{Binding MpModeIsAuto, Mode=TwoWay}"
+                                     MinWidth="220"
+                                     Margin="12,0,0,0"
+                                     VerticalAlignment="Center"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"/>
+                    </StackPanel>
+
+                    <WrapPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,20,4">
+                            <TextBlock Text="2 platforms ×" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding Bonus2}" Width="50" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,20,4">
+                            <TextBlock Text="3 platforms ×" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding Bonus3}" Width="50" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,20,4">
+                            <TextBlock Text="4 platforms ×" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding Bonus4}" Width="50" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,20,4">
+                            <TextBlock Text="5+ platforms ×" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding Bonus5}" Width="50" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,20,4">
+                            <TextBlock Text="In chat on 2+ ×" Style="{StaticResource FieldLabel}"
+                                       ToolTip="Extra multiplier while the viewer is actively in chat on two or more of their linked platforms"/>
+                            <TextBox Text="{Binding ActiveWatchingBonus}" Width="50" Margin="6,0,0,0"/>
+                        </StackPanel>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Giveaway Odds ===== -->
+            <Border Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <materialDesign:PackIcon Kind="DiceMultiple"
+                                                 Width="20" Height="20"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="{DynamicResource PrimaryBrush}"/>
+                        <TextBlock Text="Giveaway Odds"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <TextBlock Text="bonus entries per draw"
+                                   FontSize="12"
+                                   VerticalAlignment="Center"
+                                   Margin="12,0,0,0"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    </StackPanel>
+
+                    <WrapPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,20,4">
+                            <TextBlock Text="Tier 1 subs:" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding Tier1Bonus}" Width="44" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,20,4">
+                            <TextBlock Text="Tier 2 subs:" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding Tier2Bonus}" Width="44" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,20,4">
+                            <TextBlock Text="Tier 3 subs:" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding Tier3Bonus}" Width="44" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,20,4">
+                            <TextBlock Text="Followers:" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding FollowerBonus}" Width="44" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,20,4">
+                            <TextBlock Text="Per linked platform:" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding PerPlatformBonus}" Width="44" Margin="6,0,0,0"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,20,4">
+                            <TextBlock Text="Linked bonus cap:" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding PlatformCap}" Width="44" Margin="6,0,0,0"/>
+                        </StackPanel>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Vyral Goals ===== -->
+            <Border Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,10">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Flag"
+                                                     Width="20" Height="20"
+                                                     VerticalAlignment="Center"
+                                                     Margin="0,0,8,0"
+                                                     Foreground="{DynamicResource PrimaryBrush}"/>
+                            <TextBlock Text="Vyral Goals"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <CheckBox Content="Goals enabled"
+                                      IsChecked="{Binding GoalsEnabled}"
+                                      VerticalAlignment="Center"
+                                      Margin="20,0,0,0"
+                                      Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Command="{Binding AddGoalCommand}"
+                                    Style="{StaticResource MaterialDesignFlatButton}">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Plus"
+                                                             Width="16" Height="16"
+                                                             VerticalAlignment="Center"
+                                                             Margin="0,0,4,0"/>
+                                    <TextBlock Text="Add Goal" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Command="{Binding RefreshGoalsCommand}"
+                                    Style="{StaticResource MaterialDesignFlatButton}">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Refresh"
+                                                             Width="16" Height="16"
+                                                             VerticalAlignment="Center"
+                                                             Margin="0,0,4,0"/>
+                                    <TextBlock Text="Refresh" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <DataGrid ItemsSource="{Binding Goals}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="False"
+                              MaxHeight="260"
+                              Background="Transparent"
+                              Foreground="{DynamicResource TextPrimaryBrush}"
+                              BorderBrush="{DynamicResource BorderColorBrush}"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{DynamicResource BorderColorBrush}"
+                              RowBackground="Transparent">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="130">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource GridCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Header="Type" Width="160">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding DataContext.GoalTypeOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  SelectedItem="{Binding GoalType, UpdateSourceTrigger=PropertyChanged}"
+                                                  Margin="4"
+                                                  VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Target" Binding="{Binding TargetCount}" Width="60">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource GridCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Platforms" Binding="{Binding RequiredPlatforms}" Width="100">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource GridCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Header="Reward" Width="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding DataContext.RewardTypeOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  SelectedItem="{Binding RewardType, UpdateSourceTrigger=PropertyChanged}"
+                                                  Margin="4"
+                                                  VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Value" Binding="{Binding RewardValue}" Width="70">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource GridCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Header="On" Width="46">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsEnabled, UpdateSourceTrigger=PropertyChanged}"
+                                                  HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Completed" Binding="{Binding CompletionCount}" Width="90" IsReadOnly="True">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource GridCell}">
+                                        <Setter Property="Foreground" Value="{DynamicResource SuccessGreenBrush}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Width="120">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Button Command="{Binding SaveCommand}"
+                                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                                    ToolTip="Save this goal">
+                                                <materialDesign:PackIcon Kind="ContentSave"
+                                                                         Width="16" Height="16"
+                                                                         Foreground="{DynamicResource SuccessGreenBrush}"/>
+                                            </Button>
+                                            <Button Command="{Binding DeleteCommand}"
+                                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                                    ToolTip="Delete this goal">
+                                                <materialDesign:PackIcon Kind="DeleteOutline"
+                                                                         Width="16" Height="16"
+                                                                         Foreground="{DynamicResource ErrorRedBrush}"/>
+                                            </Button>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Linked Viewers ===== -->
+            <Border Style="{StaticResource SectionCard}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,10">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="AccountGroup"
+                                                     Width="20" Height="20"
+                                                     VerticalAlignment="Center"
+                                                     Margin="0,0,8,0"
+                                                     Foreground="{DynamicResource PrimaryBrush}"/>
+                            <TextBlock Text="Linked Viewers"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBox Text="{Binding ViewerSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="200"
+                                     VerticalAlignment="Center"
+                                     Margin="0,0,8,0"
+                                     materialDesign:HintAssist.Hint="Search viewer, account or platform"/>
+                            <Button Command="{Binding RefreshViewersCommand}"
+                                    Style="{StaticResource MaterialDesignFlatButton}">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Refresh"
+                                                             Width="16" Height="16"
+                                                             VerticalAlignment="Center"
+                                                             Margin="0,0,4,0"/>
+                                    <TextBlock Text="Load Viewers" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="List loads on demand — press Load Viewers; the search box filters the loaded list. Unlink removes a single account; Unlink All removes every account under the viewer ID."
+                               FontSize="12"
+                               Margin="0,0,0,8"
+                               Foreground="{DynamicResource TextMutedBrush}"/>
+
+                    <DataGrid ItemsSource="{Binding LinkedViewers}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="True"
+                              MaxHeight="260"
+                              Background="Transparent"
+                              Foreground="{DynamicResource TextPrimaryBrush}"
+                              BorderBrush="{DynamicResource BorderColorBrush}"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{DynamicResource BorderColorBrush}"
+                              RowBackground="Transparent">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Viewer ID" Binding="{Binding ViewerId}" Width="*">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource GridCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Username" Binding="{Binding Username}" Width="140">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource GridCell}">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Platform" Binding="{Binding Platform}" Width="110">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource GridCell}"/>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Width="200">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Button Command="{Binding UnlinkCommand}"
+                                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                                    ToolTip="Remove this account from the link group (banned-user override)">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <materialDesign:PackIcon Kind="LinkOff"
+                                                                             Width="16" Height="16"
+                                                                             VerticalAlignment="Center"
+                                                                             Margin="0,0,4,0"
+                                                                             Foreground="{DynamicResource ErrorRedBrush}"/>
+                                                    <TextBlock Text="Unlink" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Command="{Binding UnlinkAllCommand}"
+                                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                                    ToolTip="Unlink every account under this viewer ID"
+                                                    Margin="8,0,0,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <materialDesign:PackIcon Kind="LinkOff"
+                                                                             Width="16" Height="16"
+                                                                             VerticalAlignment="Center"
+                                                                             Margin="0,0,4,0"
+                                                                             Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                    <TextBlock Text="All" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

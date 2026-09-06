@@ -1,5 +1,6 @@
 using VyralBot.Api.Middleware;
 using VyralBot.Api.Services;
+using VyralBot.Core.Services.EventBus;
 using VyralBot.Core.Services.WebServer;
 using VyralBot.Data;
 
@@ -15,6 +16,10 @@ var dbPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Ap
 var connectionString = $"Data Source={dbPath}";
 builder.Services.AddSingleton<IDataService>(sp => 
     new DapperDataService(connectionString, sp.GetRequiredService<ILogger<DapperDataService>>()));
+
+// Register in-memory event bus (required by WebhooksController; ctor takes a logger)
+builder.Services.AddSingleton<IEventBus>(sp =>
+    new EventBus(sp.GetRequiredService<ILogger<EventBus>>()));
 
 // Register custom services
 builder.Services.AddSingleton<WebServerDependencyTracker>();

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 using System.Text.Json;
 using VyralBot.Core.Services.Variables;
 using VyralBot.Data;
@@ -22,6 +23,20 @@ public class CommandService : ICommandService
         ["Kick"] = true,
         ["Discord"] = true,
     };
+
+    /// <summary>
+    /// Static help text for the built-in "!help" command. Kept compact —
+    /// Discord rejects messages over ~2000 characters. Never parsed for
+    /// variables (no {curly} tokens), so ParseVariables passes it through
+    /// untouched.
+    /// </summary>
+    private static readonly string HelpText = """
+        📋 Command list
+        🔗 Linking: !link (get a link code) • !link <code> (link this account) • !linked (link status) • !unlink <platform> • !delink <platform> / !delink <code> (two-step removal)
+        💰 Currency: !points • !daily • !rank • !leaderboard • !gamble • !slots • !duel / !accept • !heist • !roulette • !store • !rewards • !redeem • !give / !take (mods)
+        🎯 Goals: !goals • !mystatus • !mp on|off
+        🎉 Giveaways: !giveaway status • join with the entry keyword
+        """;
 
     public CommandService(
         IDataService dataService,
@@ -121,10 +136,33 @@ public class CommandService : ICommandService
             var commandName = "!" + parts[0].ToLower();
             var args = parts.Skip(1).ToArray();
 
+            // RESERVED BUILT-INS: the link family is owned by the currency/link
+            // handlers further down the pipeline. Seeded placeholder rows (with
+            // their "Currency command: ..." sample responses) must never shadow
+            // the real handlers, so these names always fall through here.
+            if (commandName is "!link" or "!linkcode" or "!linked" or "!unlink" or "!delink")
+            {
+                return null;
+            }
+
             // Get command from database
             var command = await _dataService.GetCommandByNameAsync(commandName);
             if (command == null)
                 return null;
+
+            // HEAL SEEDED PLACEHOLDERS: the data layer seeds "Currency command:
+            // <name>" sample rows (IsBuiltIn=1) for every currency command.
+            // Those placeholder responses used to shadow the real handlers in
+            // the ChatViewModel fallback chain (CurrencyCommandService,
+            // giveaway/poll services) — "!points" literally answered
+            // "Currency command: !points". Falling through here lets the real
+            // handlers run while healing existing databases; any OTHER response
+            // text (a genuinely customized command) keeps executing normally.
+            if (command.IsBuiltIn
+                && command.Response.StartsWith("Currency command:", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
 
             // Check if enabled
             if (!command.IsEnabled)
@@ -216,7 +254,11 @@ public class CommandService : ICommandService
         return command.Name.ToLower() switch
         {
             "!commands" => await ExecuteCommandsListAsync(context),
-            "!uptime" => ExecuteUptimeAsync(),
+            // !help replies with the static command list (see HelpText). The
+            // seeded "!help" row only carries the enable/permission/cooldown
+            // settings — the response text always comes from here.
+            "!help" => HelpText,
+            "!uptime" => await ExecuteUptimeAsync(),
             // !watchtime defers to WatchtimeCommandService via the ChatViewModel
             // fallback chain: returning null (without applying cooldowns) lets
             // ExecuteAsync fall through so the real implementation answers
@@ -273,10 +315,18 @@ public class CommandService : ICommandService
     {
         var commands = await _dataService.GetCommandsAsync(enabledOnly: true);
         
-        // Filter by platform
+        // Filter by platform — Kick/Twitch use their per-platform flags;
+        // Discord has no flag column, so the per-bot scope decides (mirrors
+        // the ExecuteAsync scope check): unscoped commands run for every bot,
+        // pinned commands are listed only for their own bot, and when the
+        // origin bot is unknown everything enabled is listed.
         var platformCommands = commands.Where(c =>
             (context.Platform.Equals("Kick", StringComparison.OrdinalIgnoreCase) && c.EnabledOnKick) ||
-            (context.Platform.Equals("Twitch", StringComparison.OrdinalIgnoreCase) && c.EnabledOnTwitch)
+            (context.Platform.Equals("Twitch", StringComparison.OrdinalIgnoreCase) && c.EnabledOnTwitch) ||
+            (context.Platform.Equals("Discord", StringComparison.OrdinalIgnoreCase) &&
+                (string.IsNullOrEmpty(c.BotId)
+                    || string.IsNullOrEmpty(context.DiscordBotId)
+                    || string.Equals(c.BotId, context.DiscordBotId, StringComparison.Ordinal)))
         );
 
         // Filter by permission
@@ -289,11 +339,22 @@ public class CommandService : ICommandService
         return $"Available commands: {commandList}";
     }
 
-    private string ExecuteUptimeAsync()
+    private async Task<string> ExecuteUptimeAsync()
     {
-        // TODO: Implement stream uptime tracking
-        // For now, return placeholder
-        return "Stream uptime tracking not yet implemented. Coming soon!";
+        // ChatViewModel writes "Stream.StartedAtUtc" (ISO 8601 UTC, cleared to
+        // an empty string when offline) whenever the Twitch stream status
+        // changes — read it live so the reply always reflects current state.
+        var startedAtRaw = await _dataService.GetConfigValueAsync("Stream.StartedAtUtc");
+        if (!string.IsNullOrWhiteSpace(startedAtRaw)
+            && DateTimeOffset.TryParse(startedAtRaw, CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var startedAt)
+            && startedAt < DateTimeOffset.UtcNow)
+        {
+            var uptime = DateTimeOffset.UtcNow - startedAt;
+            return $"Stream uptime: {(int)uptime.TotalHours}h {uptime.Minutes}m (since {startedAt:HH:mm} UTC)";
+        }
+
+        return "Stream is offline or uptime not tracked yet.";
     }
 
     public async Task<IEnumerable<Command>> GetAllCommandsAsync(bool? enabledOnly = null)
@@ -362,7 +423,14 @@ public class CommandService : ICommandService
 
     public bool HasPermission(CommandContext context, string permission)
     {
-        return permission.ToLower() switch
+        // NULL/blank permission rows mean "everyone" — without the guard the
+        // NRE below would be swallowed by the caller's catch and the command
+        // would silently stop working.
+        var level = string.IsNullOrWhiteSpace(permission)
+            ? "everyone"
+            : permission.Trim().ToLowerInvariant();
+
+        return level switch
         {
             "everyone" => true,
             "subscriber" or "sub" => context.IsSubscriber || context.IsVIP || context.IsModerator || context.IsBroadcaster,

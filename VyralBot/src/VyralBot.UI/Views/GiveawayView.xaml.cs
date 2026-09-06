@@ -1,5 +1,4 @@
 using System.Windows.Controls;
-using VyralBot.UI.ViewModels;
 
 namespace VyralBot.UI.Views;
 
@@ -13,11 +12,7 @@ public partial class GiveawayView : UserControl
         InitializeComponent();
     }
 
-    private async void UserControl_Loaded(object sender, System.Windows.RoutedEventArgs e)
-    {
-        if (DataContext is GiveawayViewModel viewModel)
-        {
-            await viewModel.InitializeAsync();
-        }
-    }
+    // NOTE: GiveawayViewModel.InitializeAsync is called by MainViewModel on
+    // navigation (the dead UserControl_Loaded handler that duplicated it was
+    // removed — no Loaded= is wired in GiveawayView.xaml).
 }

@@ -8,14 +8,10 @@ public partial class StatisticsView : UserControl
     public StatisticsView()
     {
         InitializeComponent();
-        
-        // DataContext is set by the DataTemplate binding to StatisticsViewModel
-        Loaded += async (s, e) =>
-        {
-            if (DataContext is StatisticsViewModel viewModel)
-            {
-                await viewModel.InitializeAsync();
-            }
-        };
+
+        // DataContext is set by the DataTemplate binding to StatisticsViewModel.
+        // NOTE: no Loaded-time InitializeAsync here — MainViewModel already calls
+        // StatisticsViewModel.InitializeAsync() during navigation; loading again
+        // here would double-run the (10k-row) statistics queries on every visit.
     }
 }

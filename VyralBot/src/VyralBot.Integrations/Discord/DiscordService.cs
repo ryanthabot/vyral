@@ -31,6 +31,19 @@ public class DiscordService : IDiscordService, IDisposable
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
     private readonly object _stateSync = new();
 
+    // Process-wide registry of LIVE gateway sessions, keyed by bot token
+    // (trimmed, ordinal). Discord invalidates a session the moment a SECOND
+    // gateway IDENTIFYs with the same token — the older session is killed with
+    // close 4003 "Not authenticated", which surfaced as "random" disconnects
+    // ~a minute after startup. At most one DiscordService may therefore hold a
+    // gateway per token, no matter who starts it (DiscordBotManager, setup
+    // wizard, Discord dashboard, ...): ConnectAsync refuses a second session
+    // for an already-live token. Registration happens right after a successful
+    // LoginAsync (BEFORE the gateway IDENTIFY in StartAsync) and is released
+    // on DisconnectAsync, failed connects and Dispose.
+    private static readonly ConcurrentDictionary<string, DiscordService> LiveTokenSessions =
+        new(StringComparer.Ordinal);
+
     private DiscordSocketClient? _client;
 
     // Client that was stopped + logged out by DisconnectAsync and is awaiting
@@ -42,7 +55,18 @@ public class DiscordService : IDiscordService, IDisposable
     private Platform? _platform;
     private string? _selectedChannelId;
     private string? _botUsername;
+    private string? _connectedToken;
     private bool _isConnected;
+
+    // Auto-detected identity (gateway READY, V3): retained after disconnect so
+    // the manager can re-read the last known values for persistence/backfill.
+    private string? _detectedBotUsername;
+    private string? _detectedApplicationId;
+    private string? _detectedAvatarUrl;
+
+    /// <summary>The client whose identity already raised <see cref="BotIdentityDetected"/> (duplicate-raise guard).</summary>
+    private DiscordSocketClient? _identityRaisedFor;
+
     private IReadOnlyList<DiscordGuildInfo> _connectedGuilds = Array.Empty<DiscordGuildInfo>();
     private bool _disposed;
 
@@ -114,6 +138,9 @@ public class DiscordService : IDiscordService, IDisposable
     /// <inheritdoc />
     public event EventHandler<DiscordComponentInteraction>? ComponentInteractionInvoked;
 
+    /// <inheritdoc />
+    public event Action<string>? BotIdentityDetected;
+
     /// <summary>
     /// Identity of this bot instance: the DiscordBotManager assigns each managed
     /// instance its DiscordBots row id right after construction; the setup
@@ -131,6 +158,36 @@ public class DiscordService : IDiscordService, IDisposable
     public string? BotUsername
     {
         get { lock (_stateSync) { return _botUsername; } }
+    }
+
+    /// <summary>
+    /// Token of the session this service is currently connected with, null
+    /// when disconnected. Exposed for the bot manager's Home-connection
+    /// adoption: it must know WHICH token the legacy DI-singleton serves
+    /// without trusting the Platform row (the wizard can rewrite that row's
+    /// AccessToken while an old session is still live).
+    /// </summary>
+    public string? ConnectedToken
+    {
+        get { lock (_stateSync) { return _connectedToken; } }
+    }
+
+    /// <inheritdoc />
+    public string? DetectedBotUsername
+    {
+        get { lock (_stateSync) { return _detectedBotUsername; } }
+    }
+
+    /// <inheritdoc />
+    public string? DetectedApplicationId
+    {
+        get { lock (_stateSync) { return _detectedApplicationId; } }
+    }
+
+    /// <inheritdoc />
+    public string? DetectedAvatarUrl
+    {
+        get { lock (_stateSync) { return _detectedAvatarUrl; } }
     }
 
     public string? SelectedChannelId
@@ -222,6 +279,45 @@ public class DiscordService : IDiscordService, IDisposable
     }
 
     /// <inheritdoc />
+    /// <summary>
+    /// True when <paramref name="owner"/> still holds (or is re-establishing) a
+    /// gateway session: either the service-level connected flag is up, or the
+    /// underlying client is connected/connecting. The client check covers the
+    /// brief window of a Discord.Net auto-reconnect, where <see cref="IsConnected"/>
+    /// is already false again but the session comes right back — during that
+    /// window a second connect with the same token must still be refused.
+    /// </summary>
+    private static bool OwnsLiveGateway(DiscordService owner)
+    {
+        if (owner.IsConnected)
+        {
+            return true;
+        }
+
+        var client = owner._client;
+        return client != null
+               && (client.ConnectionState == ConnectionState.Connected
+                   || client.ConnectionState == ConnectionState.Connecting);
+    }
+
+    /// <summary>
+    /// Releases this instance's live-session registration for a token. No-op
+    /// unless THIS instance owns the entry (never removes a slot held by a
+    /// live session elsewhere).
+    /// </summary>
+    private void ReleaseLiveTokenSession(string? tokenKey)
+    {
+        if (string.IsNullOrEmpty(tokenKey))
+        {
+            return;
+        }
+
+        if (LiveTokenSessions.TryGetValue(tokenKey, out var owner) && ReferenceEquals(owner, this))
+        {
+            LiveTokenSessions.TryRemove(tokenKey, out _);
+        }
+    }
+
     public async Task<bool> ConnectAsync(string botToken)
     {
         if (string.IsNullOrWhiteSpace(botToken))
@@ -229,6 +325,8 @@ public class DiscordService : IDiscordService, IDisposable
             _logger.LogError("❌ Cannot connect to Discord: bot token is empty");
             return false;
         }
+
+        string? tokenKey = null;
 
         await _connectionLock.WaitAsync().ConfigureAwait(false);
         try
@@ -247,6 +345,24 @@ public class DiscordService : IDiscordService, IDisposable
             {
                 _logger.LogInformation("ℹ️ Discord client is already connected as {Username}", BotUsername);
                 return true;
+            }
+
+            // Single-session-per-token guard: when ANOTHER service instance
+            // already holds a live gateway for this token, refuse to open a
+            // second one. Discord kills the OLDER session with close 4003
+            // ("Not authenticated") the instant the second IDENTIFY lands, so
+            // the racing session used to look like a random disconnect. The
+            // DiscordBotManager's adoption machinery routes UI/Home connects
+            // through the live session instead of duplicating it.
+            tokenKey = botToken.Trim();
+            if (LiveTokenSessions.TryGetValue(tokenKey, out var liveOwner)
+                && !ReferenceEquals(liveOwner, this)
+                && OwnsLiveGateway(liveOwner))
+            {
+                _logger.LogWarning(
+                    "🚫 Refusing to open a second Discord gateway: this bot token is already live on another session (bot '{Username}'). Stop that bot first or reconnect it through the bot manager.",
+                    liveOwner.BotUsername ?? "(unknown)");
+                return false;
             }
 
             _logger.LogInformation("🚀 Connecting to Discord...");
@@ -284,6 +400,11 @@ public class DiscordService : IDiscordService, IDisposable
             {
                 await client.LoginAsync(TokenType.Bot, botToken).ConfigureAwait(false);
 
+                // Claim the token's gateway slot BEFORE the IDENTIFY (StartAsync)
+                // so a concurrent second connect with the same token cannot slip
+                // past the single-session guard above.
+                LiveTokenSessions[tokenKey] = this;
+
                 // CurrentUser is available right after login; capture it before the
                 // gateway connect so early connection events carry the username
                 lock (_stateSync)
@@ -315,6 +436,11 @@ public class DiscordService : IDiscordService, IDisposable
                     {
                         _botUsername = username;
                     }
+
+                    // Remember which token the live session was authenticated
+                    // with (see ConnectedToken) — the manager's adoption logic
+                    // compares it against the Platform row's current token.
+                    _connectedToken = botToken;
                 }
             }
             finally
@@ -335,6 +461,11 @@ public class DiscordService : IDiscordService, IDisposable
             _platform.LastError = null;
             await _dataService.SavePlatformAsync(_platform).ConfigureAwait(false);
 
+            // V3: capture the gateway-verified identity (username / application
+            // id / avatar) and notify the bot manager so it persists it on the
+            // bot's DiscordBots row. Best-effort — never fails the connect.
+            CaptureBotIdentity(client);
+
             _logger.LogInformation("✅ Connected to Discord as {Username} ({GuildCount} guild(s))",
                 BotUsername, ConnectedGuilds.Count);
 
@@ -342,6 +473,10 @@ public class DiscordService : IDiscordService, IDisposable
         }
         catch (Exception ex)
         {
+            // The token slot may already be claimed (the failure can happen
+            // after LoginAsync) — release it so the token can be retried.
+            ReleaseLiveTokenSession(tokenKey);
+
             _logger.LogError(ex, "❌ Failed to connect to Discord");
 
             // Tear down the partially connected client — unhook its handlers
@@ -379,6 +514,74 @@ public class DiscordService : IDiscordService, IDisposable
         }
     }
 
+    /// <summary>
+    /// Captures the gateway-verified identity (username, application/user
+    /// snowflake id, PNG avatar URL) into the <c>Detected*</c> properties and
+    /// raises <see cref="BotIdentityDetected"/> with this instance's
+    /// <see cref="BotId"/>. Called from the connect path right after READY was
+    /// observed (CurrentUser is only fully populated then). Raised once per
+    /// connection: duplicate raises for the same client are suppressed.
+    /// Subscriber exceptions and capture failures are swallowed — identity
+    /// detection must never fail (or slow down) the connect.
+    /// </summary>
+    private void CaptureBotIdentity(DiscordSocketClient client)
+    {
+        try
+        {
+            var user = client.CurrentUser;
+            if (user == null)
+            {
+                return;
+            }
+
+            string? username;
+            string? applicationId;
+            lock (_stateSync)
+            {
+                _detectedBotUsername = user.Username;
+                _detectedApplicationId = user.Id.ToString();
+                _detectedAvatarUrl = user.GetAvatarUrl(ImageFormat.Png, 128)?.ToString();
+                username = _detectedBotUsername;
+                applicationId = _detectedApplicationId;
+            }
+
+            if (string.IsNullOrEmpty(username) && string.IsNullOrEmpty(applicationId))
+            {
+                return;
+            }
+
+            // Once per connection: guard duplicate raises (READY can be
+            // delivered more than once per session in reconnect scenarios).
+            if (ReferenceEquals(_identityRaisedFor, client))
+            {
+                return;
+            }
+            _identityRaisedFor = client;
+
+            var handlers = BotIdentityDetected;
+            if (handlers == null)
+            {
+                return;
+            }
+
+            foreach (Action<string> handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler(BotId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "⚠️ BotIdentityDetected subscriber threw an exception");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ Failed to capture the Discord bot identity");
+        }
+    }
+
     /// <inheritdoc />
     public async Task DisconnectAsync()
     {
@@ -386,6 +589,10 @@ public class DiscordService : IDiscordService, IDisposable
         try
         {
             _logger.LogInformation("🔌 Disconnecting from Discord...");
+
+            // Capture before the state teardown clears it: the token slot in
+            // the process-wide live-session registry must be released too.
+            var ownedToken = ConnectedToken;
 
             var client = _client;
             _client = null;
@@ -428,6 +635,7 @@ public class DiscordService : IDiscordService, IDisposable
             {
                 _isConnected = false;
                 _botUsername = null;
+                _connectedToken = null;
                 _selectedChannelId = null;
                 _connectedGuilds = Array.Empty<DiscordGuildInfo>();
 
@@ -436,6 +644,10 @@ public class DiscordService : IDiscordService, IDisposable
                 _workflowOrigin = null;
                 _workflowSlashSyncedGuilds.Clear();
             }
+
+            // Free the token's gateway slot so a later connect (this service or
+            // a manager-owned one) can claim it.
+            ReleaseLiveTokenSession(ownedToken?.Trim());
 
             try
             {
@@ -1456,7 +1668,13 @@ public class DiscordService : IDiscordService, IDisposable
                 return Task.CompletedTask;
             }
 
-            var channelName = message.Channel?.Name;
+            // DM channels have no name of their own: Discord.Net reports
+            // IChannel.Name as "@recipient" for a SocketDMChannel, which would
+            // label every DM with the recipient's handle. Detect the DM channel
+            // FIRST and use a stable "DirectMessage" name instead.
+            var channelName = message.Channel is IDMChannel
+                ? "DirectMessage"
+                : message.Channel?.Name;
             if (string.IsNullOrEmpty(channelName))
             {
                 channelName = "DirectMessage";
@@ -1479,6 +1697,23 @@ public class DiscordService : IDiscordService, IDisposable
             var username = message.Author?.Username ?? "Unknown";
             var content = message.Content ?? string.Empty;
             var messageId = $"discord:{message.Id}";
+
+            // Receipt evidence: log DMs BEFORE publishing so a lost publish
+            // downstream can be told apart from a DM that never reached the
+            // gateway pipeline at all.
+            if (message.Channel is IDMChannel receivedDm)
+            {
+                // Remember the LIVE channel object: Discord.Net's GetChannel
+                // lookup frequently misses DM channels (they are not part of
+                // the guild cache and READY only stocks pre-existing DMs), so
+                // replies must go through the channel instance the message
+                // actually arrived on.
+                _knownDmChannels[receivedDm.Id] = (receivedDm, message.Author?.Id ?? 0);
+
+                var dmPreview = content.Length > 80 ? content[..80] : content;
+                _logger.LogInformation("✅ Discord DM received from {Username} (bot {BotId}, channel {ChannelId}): \"{Content}\"",
+                    username, BotId, channelId, dmPreview);
+            }
 
             // Discord-specific event for the chat UI
             var discordEvent = new DiscordChatMessageEvent
@@ -2558,6 +2793,122 @@ public class DiscordService : IDiscordService, IDisposable
         }
 
         return null;
+    }
+
+    /// <inheritdoc />
+    /// <summary>
+    /// DM channels this bot has actually received a message on, keyed by
+    /// channel snowflake. Discord.Net's GetChannel lookup misses DM channels,
+    /// so replies reuse the live channel instance captured on receipt.
+    /// </summary>
+    private readonly ConcurrentDictionary<ulong, (IMessageChannel Channel, ulong RecipientUserId)> _knownDmChannels = new();
+
+    public async Task<bool> SendDmToChannelAsync(string channelId, string content, string? embedJson = null)
+    {
+        var client = GetConnectedClient();
+        if (client == null)
+        {
+            _logger.LogWarning("❌ Cannot send a DM by channel id: bot {BotId} is not connected", BotId);
+            return false;
+        }
+
+        var channelSnowflake = ParseSnowflakeOrNull(channelId);
+        if (channelSnowflake is not > 0)
+        {
+            _logger.LogWarning("❌ Cannot send a DM by channel id: '{ChannelId}' is not a valid snowflake", channelId);
+            return false;
+        }
+
+        // Discord.Net's DM cache is unreliable for lookup by id, so prefer the
+        // live channel object remembered when this bot last RECEIVED a DM on
+        // this channel, then the gateway cache, then create a fresh DM channel
+        // from the remembered recipient user id.
+        if (_knownDmChannels.TryGetValue(channelSnowflake.Value, out var known)
+            && await SendViaChannelAsync(known.Channel, channelId, content, embedJson).ConfigureAwait(false))
+        {
+            return true;
+        }
+
+        IMessageChannel? channel = client.GetChannel(channelSnowflake.Value) as IMessageChannel;
+        if (channel == null)
+        {
+            var recipientId = _knownDmChannels.TryGetValue(channelSnowflake.Value, out var remembered)
+                ? remembered.RecipientUserId
+                : 0;
+            if (recipientId > 0)
+            {
+                try
+                {
+                    global::Discord.IUser? user = client.GetUser(recipientId);
+                    if (user == null)
+                    {
+                        user = await client.Rest.GetUserAsync(recipientId).ConfigureAwait(false);
+                    }
+                    if (user is global::Discord.Rest.RestUser restUser)
+                    {
+                        var created = await restUser.CreateDMChannelAsync().ConfigureAwait(false);
+                        if (created is IMessageChannel createdChannel)
+                        {
+                            _knownDmChannels[channelSnowflake.Value] = (createdChannel, recipientId);
+                            channel = createdChannel;
+                            _logger.LogInformation("ℹ️ DM channel {ChannelId} recreated for user {UserId} on bot {BotId}",
+                                channelId, recipientId, BotId);
+                        }
+                    }
+                    else if (user is global::Discord.WebSocket.SocketUser socketUser)
+                    {
+                        var created = await socketUser.CreateDMChannelAsync().ConfigureAwait(false);
+                        if (created is IMessageChannel createdChannel)
+                        {
+                            _knownDmChannels[channelSnowflake.Value] = (createdChannel, recipientId);
+                            channel = createdChannel;
+                            _logger.LogInformation("ℹ️ DM channel {ChannelId} recreated for user {UserId} on bot {BotId}",
+                                channelId, recipientId, BotId);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "❌ Could not recreate the DM channel {ChannelId} for bot {BotId}",
+                        channelId, BotId);
+                }
+            }
+        }
+
+        if (channel == null)
+        {
+            _logger.LogWarning("❌ Cannot send a DM by channel id: channel {ChannelId} was not found (or is not a message channel) for bot {BotId}",
+                channelSnowflake.Value, BotId);
+            return false;
+        }
+
+        return await SendViaChannelAsync(channel, channelId, content, embedJson).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Sends through a resolved DM channel, validating content/embed and
+    /// translating failures into the boolean contract used by DM routing.
+    /// </summary>
+    private async Task<bool> SendViaChannelAsync(IMessageChannel channel, string channelId, string? content, string? embedJson)
+    {
+        var embed = TryBuildEmbedFromJson(embedJson);
+        if (string.IsNullOrWhiteSpace(content) && embed == null)
+        {
+            _logger.LogWarning("❌ Cannot send a DM by channel id: content and embed are both empty");
+            return false;
+        }
+
+        try
+        {
+            await channel.SendMessageAsync(content ?? string.Empty, embed: embed).ConfigureAwait(false);
+            _logger.LogInformation("✅ Sent a DM to Discord channel {ChannelId}", channelId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "❌ Failed to send a DM to Discord channel {ChannelId}", channelId);
+            return false;
+        }
     }
 
     /// <inheritdoc />
@@ -4174,6 +4525,12 @@ public class DiscordService : IDiscordService, IDisposable
             {
                 TryDisposeClientAsync(stoppedClient).GetAwaiter().GetResult();
             }
+
+            // Release the token's gateway slot AFTER the client teardown so a
+            // concurrent connect cannot claim the token while this session is
+            // still draining. Not releasing here would block the token forever
+            // (Dispose nulls the client but nothing else clears the registry).
+            ReleaseLiveTokenSession(ConnectedToken?.Trim());
 
             _logger.LogInformation("🧹 DiscordService disposed");
         }

@@ -20,13 +20,27 @@
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <ApplicationIcon>Resources\vyral.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <ApplicationIcon>Resources\vyral.ico</ApplicationIcon>
+  </PropertyGroup>
+
   <ItemGroup>
     <Resource Include="Resources\Images\*.png" />
+    <Resource Include="Resources\vyral.ico" />
   </ItemGroup>
 
   <!-- Copy BrowserSource folder to output directory -->
   <ItemGroup>
     <None Include="..\..\BrowserSource\**\*.*" LinkBase="BrowserSource">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <!-- Also copy the OBS browser-source page into wwwroot so the embedded Kestrel
+         server serves it at /audio.html (UseStaticFiles roots at wwwroot). -->
+    <None Include="..\..\BrowserSource\audio.html" Link="wwwroot\audio.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

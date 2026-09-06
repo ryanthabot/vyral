@@ -20,6 +20,14 @@ public partial class SoundsViewModel : ViewModelBase
     private readonly ISoundService _soundService;
     private readonly IDataService _dataService;
 
+    // Master volume (0..1) from the persisted AudioSettings blob; previews multiply
+    // by it so they match live playback loudness (live: master * per-event volume).
+    private double _masterVolume = 1.0;
+
+    // Debounces the per-event volume slider: cancel the previous pending persist and
+    // write only the latest value after the drag settles.
+    private CancellationTokenSource? _volumePersistCts;
+
     [ObservableProperty]
     private ObservableCollection<string> _soundFiles = new();
 
@@ -53,6 +61,7 @@ public partial class SoundsViewModel : ViewModelBase
         IsLoading = true;
         try
         {
+            await LoadMasterVolumeAsync();
             await LoadSoundFilesAsync();
             await LoadEventMappingsAsync();
             _logger.LogInformation("SoundsViewModel initialized successfully");
@@ -65,6 +74,31 @@ public partial class SoundsViewModel : ViewModelBase
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Loads the master volume from the persisted AudioSettings blob (same key SoundService
+    /// reads) so Test/Play previews can apply it exactly like the live playback path.
+    /// </summary>
+    private async Task LoadMasterVolumeAsync()
+    {
+        try
+        {
+            var settingsJson = await _dataService.GetConfigValueAsync("AudioSettings");
+            if (!string.IsNullOrEmpty(settingsJson))
+            {
+                var settings = System.Text.Json.JsonSerializer.Deserialize<AudioSettings>(settingsJson);
+                if (settings != null)
+                {
+                    _masterVolume = System.Math.Clamp(settings.MasterVolume / 100.0, 0.0, 1.0);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading master volume for previews - defaulting to 100%");
+            _masterVolume = 1.0;
         }
     }
 
@@ -228,7 +262,8 @@ public partial class SoundsViewModel : ViewModelBase
         try
         {
             _logger.LogInformation("Playing sound file: {FileName}", SelectedSoundFile);
-            await _soundService.PlaySoundFileAsync(SelectedSoundFile, volume: 1.0f);
+            // Apply master volume like the live path so previews are not louder
+            await _soundService.PlaySoundFileAsync(SelectedSoundFile, (float)_masterVolume);
         }
         catch (Exception ex)
         {
@@ -311,8 +346,9 @@ public partial class SoundsViewModel : ViewModelBase
         {
             _logger.LogInformation("Testing event sound: {Platform} {Event} - {Sound} @ {Volume}", 
                 mapping.Platform, mapping.EventType, mapping.SoundFile, mapping.Volume);
-            
-            await _soundService.PlaySoundFileAsync(mapping.SoundFile, (float)mapping.Volume);
+
+            // Multiply by master volume like the live path (SoundService: master * per-event)
+            await _soundService.PlaySoundFileAsync(mapping.SoundFile, (float)(mapping.Volume * _masterVolume));
         }
         catch (Exception ex)
         {
@@ -322,12 +358,29 @@ public partial class SoundsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Update event volume when slider changes.
+    /// Update event volume when slider changes. The slider fires this on every drag tick,
+    /// so the persist is debounced: only the latest value is written, after a 400ms pause.
     /// </summary>
     [RelayCommand]
     private async Task UpdateEventVolumeAsync(EventSoundMapping? mapping)
     {
         if (mapping == null) return;
+
+        // Cancel the previous pending persist (if any) and arm a new one
+        _volumePersistCts?.Cancel();
+        _volumePersistCts?.Dispose();
+        _volumePersistCts = new CancellationTokenSource();
+        var cts = _volumePersistCts;
+
+        try
+        {
+            await Task.Delay(400, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer slider value - nothing to persist
+            return;
+        }
 
         try
         {

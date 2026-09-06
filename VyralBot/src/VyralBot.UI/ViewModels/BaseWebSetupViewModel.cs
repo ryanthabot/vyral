@@ -24,6 +24,12 @@ public abstract partial class BaseWebSetupViewModel : ViewModelBase
     [ObservableProperty]
     private int _currentStep = 1;
 
+    partial void OnCurrentStepChanged(int value)
+        => OnPropertyChanged(nameof(IsBackButtonVisible));
+
+    /// <summary>True when the wizard can go back (step 2+); visibility binding for BACK buttons.</summary>
+    public bool IsBackButtonVisible => CurrentStep > 1;
+
     [ObservableProperty]
     private bool _showSuccessScreen = false;
 

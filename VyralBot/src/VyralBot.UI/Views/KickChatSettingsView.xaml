@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              Background="Transparent">
-    <Border Background="{StaticResource CardBackgroundBrush}" Padding="12" CornerRadius="6" MaxWidth="400">
+    <Border Background="{DynamicResource CardBackgroundBrush}" Padding="12" CornerRadius="6" MaxWidth="400">
         <Border.Effect>
             <DropShadowEffect Color="#000000" BlurRadius="8" ShadowDepth="2" Opacity="0.18"/>
         </Border.Effect>
@@ -43,7 +43,7 @@
                                 materialDesign:HintAssist.Hint="Message template"
                                 IsEnabled="{Binding FollowAutoReplyEnabled}"/>
                         <TextBlock Text="Variables: {username}, {count}" FontSize="10" 
-                                Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                     </StackPanel>
                 </Expander>
 
@@ -75,7 +75,7 @@
                                 materialDesign:HintAssist.Hint="Message template"
                                 IsEnabled="{Binding SubscribeAutoReplyEnabled}"/>
                         <TextBlock Text="Variables: {username}, {months}" FontSize="10" 
-                                Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                     </StackPanel>
                 </Expander>
 
@@ -107,7 +107,7 @@
                                 materialDesign:HintAssist.Hint="Message template"
                                 IsEnabled="{Binding GiftSubAutoReplyEnabled}"/>
                         <TextBlock Text="Variables: {gifter}, {count}" FontSize="10" 
-                                Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                     </StackPanel>
                 </Expander>
 
@@ -139,7 +139,7 @@
                                 materialDesign:HintAssist.Hint="Message template"
                                 IsEnabled="{Binding HostAutoReplyEnabled}"/>
                         <TextBlock Text="Variables: {hoster}, {viewers}" FontSize="10" 
-                                Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                     </StackPanel>
                 </Expander>
 
@@ -171,7 +171,7 @@
                                 materialDesign:HintAssist.Hint="Message template"
                                 IsEnabled="{Binding KicksGiftedAutoReplyEnabled}"/>
                         <TextBlock Text="Variables: {sender}, {amount}" FontSize="10" 
-                                Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                     </StackPanel>
                 </Expander>
 
@@ -203,7 +203,7 @@
                                 materialDesign:HintAssist.Hint="Message template"
                                 IsEnabled="{Binding RewardAutoReplyEnabled}"/>
                         <TextBlock Text="Variables: {username}, {reward}" FontSize="10" 
-                                Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                     </StackPanel>
                 </Expander>
 
@@ -220,7 +220,7 @@
                                         Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
                         </Grid>
                         <TextBlock Text="Stream start/end notifications" FontSize="10" 
-                                Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                     </StackPanel>
                 </Expander>
 

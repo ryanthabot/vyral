@@ -117,6 +117,10 @@ public partial class VariablePicker : UserControl
     {
         if (_viewModel != null)
         {
+            // The ViewModel is a DI singleton shared by every picker instance.
+            // Re-point it at THIS picker's target before opening, otherwise with
+            // multiple pickers alive the last-loaded one would receive the insert.
+            _viewModel.CurrentTargetTextBox = TargetTextBox;
             await _viewModel.LoadVariablesAsync(Platform);
             VariablePopup.IsOpen = true;
         }

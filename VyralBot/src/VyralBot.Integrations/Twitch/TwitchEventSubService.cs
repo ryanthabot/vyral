@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using TwitchLib.EventSub.Websockets;
 using TwitchLib.EventSub.Websockets.Core.EventArgs;
 using TwitchLib.EventSub.Websockets.Core.EventArgs.Channel;
+using TwitchLib.EventSub.Websockets.Core.EventArgs.Stream;
 using TwitchLib.EventSub.Websockets.Core.Models;
 using TwitchLib.Api;
 using TwitchLib.Api.Core.Enums;
@@ -50,6 +51,8 @@ public class TwitchEventSubService : ITwitchEventSubService
         _eventSubClient.ChannelSubscriptionGift += async (sender, args) => await OnChannelSubscriptionGift(sender, args);
         _eventSubClient.ChannelRaid += async (sender, args) => await OnChannelRaid(sender, args);
         _eventSubClient.ChannelCheer += async (sender, args) => await OnChannelCheer(sender, args);
+        _eventSubClient.StreamOnline += async (sender, args) => await OnStreamOnline(sender, args);
+        _eventSubClient.StreamOffline += async (sender, args) => await OnStreamOffline(sender, args);
     }
 
     public async Task ConnectAsync(string clientId, string accessToken, string userId)
@@ -153,11 +156,27 @@ public class TwitchEventSubService : ITwitchEventSubService
 
             // Subscribe to Cheer events
             await _twitchApi.Helix.EventSub.CreateEventSubSubscriptionAsync(
-                "channel.cheer", "1", 
+                "channel.cheer", "1",
                 new Dictionary<string, string> { { "broadcaster_user_id", _userId! } },
-                EventSubTransportMethod.Websocket, 
+                EventSubTransportMethod.Websocket,
                 _eventSubClient.SessionId);
             _logger.LogInformation("✅ Subscribed to channel.cheer");
+
+            // Subscribe to Stream Online events (channel went live)
+            await _twitchApi.Helix.EventSub.CreateEventSubSubscriptionAsync(
+                "stream.online", "1",
+                new Dictionary<string, string> { { "broadcaster_user_id", _userId! } },
+                EventSubTransportMethod.Websocket,
+                _eventSubClient.SessionId);
+            _logger.LogInformation("✅ Subscribed to stream.online");
+
+            // Subscribe to Stream Offline events (channel went offline)
+            await _twitchApi.Helix.EventSub.CreateEventSubSubscriptionAsync(
+                "stream.offline", "1",
+                new Dictionary<string, string> { { "broadcaster_user_id", _userId! } },
+                EventSubTransportMethod.Websocket,
+                _eventSubClient.SessionId);
+            _logger.LogInformation("✅ Subscribed to stream.offline");
 
             _logger.LogInformation("🎉 Successfully subscribed to all Twitch EventSub topics");
         }
@@ -325,6 +344,32 @@ public class TwitchEventSubService : ITwitchEventSubService
         };
 
         _logger.LogInformation("Twitch Cheer: {Username} cheered {Bits} bits", evt.Username, evt.Bits);
+        return _eventBus.PublishAsync(evt);
+    }
+
+    private async Task OnStreamOnline(object? sender, StreamOnlineArgs e)
+    {
+        var evt = new TwitchStreamStatusEvent
+        {
+            Source = "Twitch",
+            IsLive = true,
+            StartedAtUtc = e.Notification.Payload.Event.StartedAt.UtcDateTime
+        };
+
+        _logger.LogInformation("Twitch Stream Online (started at {StartedAt})", evt.StartedAtUtc);
+        await _eventBus.PublishAsync(evt);
+    }
+
+    private Task OnStreamOffline(object? sender, StreamOfflineArgs e)
+    {
+        var evt = new TwitchStreamStatusEvent
+        {
+            Source = "Twitch",
+            IsLive = false,
+            StartedAtUtc = null
+        };
+
+        _logger.LogInformation("Twitch Stream Offline");
         return _eventBus.PublishAsync(evt);
     }
 

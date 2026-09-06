@@ -9,7 +9,7 @@
              xmlns:vm="clr-namespace:VyralBot.UI.ViewModels"
              mc:Ignorable="d"
              d:DesignHeight="750" d:DesignWidth="1100"
-             Background="{StaticResource BackgroundDarkBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -89,7 +89,7 @@
 
             <!-- Plain danger button: red, for destructive actions -->
             <Style x:Key="VyralPlainDangerButton" TargetType="Button">
-                <Setter Property="Background" Value="{StaticResource ErrorRedBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource ErrorRedBrush}"/>
                 <Setter Property="Foreground" Value="White"/>
                 <Setter Property="Height" Value="40"/>
                 <Setter Property="FontSize" Value="13"/>
@@ -211,7 +211,7 @@
                                          Width="70"
                                          Padding="6"/>
                                 <TextBlock Text="seconds"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
                                            FontSize="12"
                                            VerticalAlignment="Center"
                                            Margin="8,0,0,0"/>
@@ -226,7 +226,7 @@
                                          FontFamily="Consolas"
                                          materialDesign:HintAssist.Hint="name"/>
                                 <TextBlock Text="="
-                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
                                            VerticalAlignment="Center"
                                            Margin="6,0"/>
                                 <TextBox Text="{Binding VarValue, UpdateSourceTrigger=PropertyChanged}"
@@ -248,7 +248,7 @@
                                          Margin="8,0,0,0"
                                          materialDesign:HintAssist.Hint="max"/>
                                 <TextBlock Text="store into"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
                                            FontSize="12"
                                            VerticalAlignment="Center"
                                            Margin="8,0"/>
@@ -267,7 +267,7 @@
                                          Padding="6"
                                          materialDesign:HintAssist.Hint="amount"/>
                                 <TextBlock Text="for user (blank = whoever triggered it)"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
                                            FontSize="12"
                                            VerticalAlignment="Center"
                                            Margin="8,0"/>
@@ -368,7 +368,7 @@
                                              Width="80"
                                              Padding="6"/>
                                     <TextBlock Text="seconds (delay before the next step runs)"
-                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="12"
                                                VerticalAlignment="Center"
                                                Margin="8,0,0,0"/>
@@ -388,7 +388,7 @@
                                              FontFamily="Consolas"
                                              materialDesign:HintAssist.Hint="{}{coins} &gt; 100"/>
                                     <TextBlock Text="expression — TRUE steps run when it holds, FALSE steps when it doesn't"
-                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="12"
                                                VerticalAlignment="Center"
                                                Margin="8,0,0,0"
@@ -404,7 +404,7 @@
                                              FontFamily="Consolas"
                                              materialDesign:HintAssist.Hint="name"/>
                                     <TextBlock Text="="
-                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                VerticalAlignment="Center"
                                                Margin="6,0"/>
                                     <TextBox Text="{Binding VarValue, UpdateSourceTrigger=PropertyChanged}"
@@ -426,7 +426,7 @@
                                              Margin="8,0,0,0"
                                              materialDesign:HintAssist.Hint="max"/>
                                     <TextBlock Text="store into"
-                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="12"
                                                VerticalAlignment="Center"
                                                Margin="8,0"/>
@@ -445,7 +445,7 @@
                                              Padding="6"
                                              materialDesign:HintAssist.Hint="amount"/>
                                     <TextBlock Text="for user (blank = whoever triggered it)"
-                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                FontSize="12"
                                                VerticalAlignment="Center"
                                                Margin="8,0"/>
@@ -494,7 +494,7 @@
                                         <TextBlock Grid.Column="1"
                                                    Text="runs when the condition holds"
                                                    FontSize="11"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                                    VerticalAlignment="Center"
                                                    TextTrimming="CharacterEllipsis"/>
                                         <Button Grid.Column="2"
@@ -511,7 +511,7 @@
                                     <TextBlock Text="Nothing here yet — the TRUE side is a no-op."
                                                FontSize="11"
                                                FontStyle="Italic"
-                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                Margin="2,2,0,0"
                                                Visibility="{Binding HasTrueSteps, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
                                 </StackPanel>
@@ -540,7 +540,7 @@
                                         <TextBlock Grid.Column="1"
                                                    Text="runs when it doesn't"
                                                    FontSize="11"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                                    VerticalAlignment="Center"
                                                    TextTrimming="CharacterEllipsis"/>
                                         <Button Grid.Column="2"
@@ -557,7 +557,7 @@
                                     <TextBlock Text="Nothing here yet — the FALSE side is a no-op."
                                                FontSize="11"
                                                FontStyle="Italic"
-                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                Margin="2,2,0,0"
                                                Visibility="{Binding HasFalseSteps, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
                                 </StackPanel>
@@ -600,12 +600,12 @@
                     <TextBlock Text="Automation"
                                FontSize="28"
                                FontWeight="Bold"
-                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock Text="Chain steps into flows Vyral runs for you — start from a command, a timer, a stream event, or a manual RUN."
                            FontSize="14"
-                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
                            Margin="0,6,0,0"/>
             </StackPanel>
 
@@ -633,7 +633,7 @@
                 <!-- Status strip -->
                 <TextBlock Text="{Binding StatusMessage}"
                            FontSize="12"
-                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
                            Margin="0,0,0,10"
                            Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
 
@@ -642,8 +642,8 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <materialDesign:Card Padding="20,16"
-                                                 Background="{StaticResource CardBackgroundBrush}"
-                                                 Effect="{StaticResource CardShadow}"
+                                                 Background="{DynamicResource CardBackgroundBrush}"
+                                                 Effect="{DynamicResource CardShadow}"
                                                  Margin="0,0,0,12">
                                 <StackPanel>
                                     <Grid>
@@ -656,11 +656,11 @@
                                             <TextBlock Text="{Binding Name}"
                                                        FontSize="18"
                                                        FontWeight="SemiBold"
-                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                                        TextTrimming="CharacterEllipsis"/>
                                             <TextBlock Text="{Binding Description}"
                                                        FontSize="12"
-                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
                                                        Margin="0,4,0,0"
                                                        TextWrapping="Wrap"
                                                        Visibility="{Binding Description, Converter={StaticResource StringToVisibilityConverter}}"/>
@@ -671,7 +671,7 @@
                                                       IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       Command="{Binding DataContext.ToggleWorkflowEnabledCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                       CommandParameter="{Binding}"
-                                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                                      Foreground="{DynamicResource TextPrimaryBrush}"
                                                       VerticalAlignment="Center"
                                                       Margin="0,0,16,0"
                                                       ToolTip="Disabled workflows never fire — flip this to arm them"/>
@@ -739,7 +739,7 @@
                 </ItemsControl>
 
                 <!-- Empty state -->
-                <Border Background="{StaticResource CardBackgroundBrush}"
+                <Border Background="{DynamicResource CardBackgroundBrush}"
                         BorderBrush="{DynamicResource BorderColorBrush}"
                         BorderThickness="1"
                         CornerRadius="6"
@@ -751,11 +751,11 @@
                         <TextBlock Text="No workflows yet"
                                    FontSize="18"
                                    FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                    HorizontalAlignment="Center"/>
                         <TextBlock Text="Hit NEW WORKFLOW, pick a trigger, stack a few steps — Vyral takes it from there."
                                    FontSize="13"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    Margin="0,8,0,0"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
@@ -765,15 +765,15 @@
                      BUILDER: selected / new workflow
                      ============================================================ -->
                 <materialDesign:Card Padding="20"
-                                     Background="{StaticResource CardBackgroundBrush}"
-                                     Effect="{StaticResource CardShadow}"
+                                     Background="{DynamicResource CardBackgroundBrush}"
+                                     Effect="{DynamicResource CardShadow}"
                                      Margin="0,8,0,0"
                                      Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisibilityConverter}}">
                     <StackPanel>
                         <TextBlock Text="{Binding EditHeader}"
                                    FontSize="16"
                                    FontWeight="Bold"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                    Margin="0,0,0,14"/>
 
                         <!-- Basics -->
@@ -787,14 +787,14 @@
                             </Grid.ColumnDefinitions>
 
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Name" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                <TextBlock Text="Name" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding WorkflowName, UpdateSourceTrigger=PropertyChanged}"
                                          Padding="8"
                                          materialDesign:HintAssist.Hint="New follower shoutout"/>
                             </StackPanel>
 
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="Description (optional)" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                <TextBlock Text="Description (optional)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding WorkflowDescription, UpdateSourceTrigger=PropertyChanged}"
                                          Padding="8"
                                          materialDesign:HintAssist.Hint="What this flow does in one line"/>
@@ -803,7 +803,7 @@
                             <StackPanel Grid.Column="4" VerticalAlignment="Bottom" Margin="16,0,0,0">
                                 <CheckBox Content="Enabled"
                                           IsChecked="{Binding WorkflowEnabled}"
-                                          Foreground="{StaticResource TextPrimaryBrush}"/>
+                                          Foreground="{DynamicResource TextPrimaryBrush}"/>
                             </StackPanel>
                         </Grid>
 
@@ -825,12 +825,12 @@
                                     <TextBlock Text="TRIGGER"
                                                FontSize="13"
                                                FontWeight="Bold"
-                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                VerticalAlignment="Center"
                                                Margin="0,0,12,0"/>
                                     <TextBlock Text="what starts this workflow"
                                                FontSize="12"
-                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
 
@@ -842,7 +842,7 @@
 
                                     <!-- Trigger type -->
                                     <StackPanel Grid.Row="0" Orientation="Horizontal">
-                                        <TextBlock Text="Type" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                        <TextBlock Text="Type" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                         <ComboBox ItemsSource="{Binding TriggerTypeOptions}"
                                                   SelectedItem="{Binding SelectedTriggerType}"
                                                   MinWidth="160"
@@ -860,7 +860,7 @@
                                                      FontFamily="Consolas"
                                                      materialDesign:HintAssist.Hint="!hello"/>
                                             <TextBlock Text="fires when someone types this in chat"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                                        FontSize="12"
                                                        VerticalAlignment="Center"
                                                        Margin="10,0,0,0"/>
@@ -869,12 +869,12 @@
                                         <!-- Timer -->
                                         <StackPanel Orientation="Horizontal"
                                                     Visibility="{Binding IsTriggerTimer, Converter={StaticResource BoolToVisibilityConverter}}">
-                                            <TextBlock Text="Every" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <TextBlock Text="Every" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                             <TextBox Text="{Binding TriggerIntervalMinutes, UpdateSourceTrigger=PropertyChanged}"
                                                      Width="90"
                                                      Padding="8"/>
                                             <TextBlock Text="minutes — the workflow fires on repeat while Vyral runs"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                                        FontSize="12"
                                                        VerticalAlignment="Center"
                                                        Margin="10,0,0,0"/>
@@ -883,18 +883,18 @@
                                         <!-- Event -->
                                         <StackPanel Orientation="Horizontal"
                                                     Visibility="{Binding IsTriggerEvent, Converter={StaticResource BoolToVisibilityConverter}}">
-                                            <TextBlock Text="Event" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <TextBlock Text="Event" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                             <ComboBox ItemsSource="{Binding EventTypeOptions}"
                                                       SelectedItem="{Binding SelectedEventType}"
                                                       MinWidth="140"
                                                       Padding="8"/>
-                                            <TextBlock Text="on" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="16,0,10,0"/>
+                                            <TextBlock Text="on" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="16,0,10,0"/>
                                             <ComboBox ItemsSource="{Binding PlatformOptions}"
                                                       SelectedItem="{Binding SelectedTriggerPlatform}"
                                                       MinWidth="110"
                                                       Padding="8"/>
                                             <TextBlock Text="platform"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                                        FontSize="12"
                                                        VerticalAlignment="Center"
                                                        Margin="10,0,0,0"/>
@@ -902,7 +902,7 @@
 
                                         <!-- Manual -->
                                         <TextBlock Text="Manual — runs only when you hit RUN on this page. Great for testing a flow before you wire a real trigger."
-                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                                    FontSize="12"
                                                    VerticalAlignment="Center"
                                                    TextWrapping="Wrap"
@@ -930,12 +930,12 @@
                                     <TextBlock Text="STEPS"
                                                FontSize="13"
                                                FontWeight="Bold"
-                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                VerticalAlignment="Center"
                                                Margin="0,0,12,0"/>
                                     <TextBlock Text="what happens, in order — If steps split the road into TRUE / FALSE"
                                                FontSize="12"
-                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
 
@@ -951,7 +951,7 @@
                                     </Border>
                                     <TextBlock Text="the trigger fires here, then steps run top to bottom"
                                                FontSize="11"
-                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
                                                VerticalAlignment="Center"
                                                Margin="10,0,0,0"/>
                                 </StackPanel>
@@ -962,7 +962,7 @@
                                 <TextBlock Text="No steps yet — a workflow with no steps finishes instantly without doing anything."
                                            FontSize="12"
                                            FontStyle="Italic"
-                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Foreground="{DynamicResource TextMutedBrush}"
                                            Margin="2,4,0,8"
                                            Visibility="{Binding HasSteps, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
 
@@ -983,12 +983,12 @@
                                         <TextBlock Text="PATH PREVIEW"
                                                    FontSize="11"
                                                    FontWeight="Bold"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                                    Margin="0,0,0,6"/>
                                         <TextBlock Text="{Binding PathPreview}"
                                                    FontFamily="Consolas"
                                                    FontSize="12"
-                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>
                                 </Border>
@@ -1019,8 +1019,8 @@
                      HISTORY: recent executions of the selected workflow
                      ============================================================ -->
                 <materialDesign:Card Padding="20"
-                                     Background="{StaticResource CardBackgroundBrush}"
-                                     Effect="{StaticResource CardShadow}"
+                                     Background="{DynamicResource CardBackgroundBrush}"
+                                     Effect="{DynamicResource CardShadow}"
                                      Margin="0,12,0,0"
                                      Visibility="{Binding IsHistoryVisible, Converter={StaticResource BoolToVisibilityConverter}}">
                     <StackPanel>
@@ -1041,7 +1041,7 @@
                                 <TextBlock Text="{Binding HistoryTitle}"
                                            FontSize="14"
                                            FontWeight="Bold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                            VerticalAlignment="Center"/>
                             </StackPanel>
 
@@ -1062,7 +1062,7 @@
                                   AutoGenerateColumns="False"
                                   CanUserAddRows="False"
                                   Background="Transparent"
-                                  Foreground="{StaticResource TextPrimaryBrush}"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"
                                   BorderBrush="{DynamicResource BorderColorBrush}"
                                   GridLinesVisibility="Horizontal"
                                   HorizontalGridLinesBrush="{DynamicResource BorderColorBrush}"
@@ -1074,7 +1074,7 @@
                                 <DataGridTextColumn Header="When" Binding="{Binding ExecutedAtText}" Width="140">
                                     <DataGridTextColumn.ElementStyle>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
                                             <Setter Property="Padding" Value="5"/>
                                         </Style>
                                     </DataGridTextColumn.ElementStyle>
@@ -1086,7 +1086,7 @@
                                             <TextBlock Text="{Binding StatusText}" Padding="5">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                                         <Setter Property="FontWeight" Value="SemiBold"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsSuccess}" Value="True">
@@ -1106,7 +1106,7 @@
                                 <DataGridTextColumn Header="Duration" Binding="{Binding DurationText}" Width="80">
                                     <DataGridTextColumn.ElementStyle>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                             <Setter Property="Padding" Value="5"/>
                                         </Style>
                                     </DataGridTextColumn.ElementStyle>
@@ -1115,7 +1115,7 @@
                                 <DataGridTextColumn Header="Path" Binding="{Binding PathText}" Width="*">
                                     <DataGridTextColumn.ElementStyle>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                             <Setter Property="FontFamily" Value="Consolas"/>
                                             <Setter Property="Padding" Value="5"/>
                                             <Setter Property="TextWrapping" Value="Wrap"/>
@@ -1138,7 +1138,7 @@
                         <TextBlock Text="No executions recorded yet — RUN the workflow once and its history lands here."
                                    FontSize="12"
                                    FontStyle="Italic"
-                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Foreground="{DynamicResource TextMutedBrush}"
                                    Margin="2"
                                    Visibility="{Binding HasExecutions, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
                     </StackPanel>
@@ -1155,7 +1155,7 @@
         <Border x:Name="FlowEditorOverlay"
                 Grid.Row="0"
                 Panel.ZIndex="100"
-                Background="{StaticResource BackgroundDarkBrush}"
+                Background="{DynamicResource BackgroundDarkBrush}"
                 Visibility="Collapsed">
             <ContentControl x:Name="FlowEditorHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
         </Border>

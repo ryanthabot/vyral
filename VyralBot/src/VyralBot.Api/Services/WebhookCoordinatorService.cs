@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using VyralBot.Core.Services.EventBus.Events;
 using VyralBot.Core.Services.WebServer;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
@@ -22,7 +23,7 @@ public class WebhookCoordinatorService : IDisposable
     private bool _isInitialized;
     private WebServerSettings? _settings;
 
-    public bool IsRunning => _webServerService.IsRunning && _ngrokService.IsConnected;
+    public bool IsRunning => _webServerService.IsRunning;
     public string? PublicUrl => _ngrokService.PublicUrl;
     public int Port => _webServerService.Port;
 
@@ -126,10 +127,22 @@ public class WebhookCoordinatorService : IDisposable
 
             if (!ngrokStarted)
             {
-                var error = "Ngrok is not installed. Please download it from https://ngrok.com/download and add it to your PATH.";
-                ErrorOccurred?.Invoke(this, error);
-                await _webServerService.StopAsync();
-                return false;
+                // Ngrok failing must not kill the local server: the audio websocket and
+                // locally-addressed webhooks still work. Log and continue running locally.
+                _logger.LogWarning(
+                    "Ngrok tunnel failed to start - continuing with the local web server only on http://localhost:{Port}",
+                    _settings.Port);
+                ErrorOccurred?.Invoke(this,
+                    "Ngrok tunnel failed to start - public webhook delivery is unavailable. " +
+                    $"The local web server is still running on http://localhost:{_settings.Port}.");
+
+                _settings = await _dataService.GetWebServerSettingsAsync();
+                _settings.CurrentTunnelUrl = null;
+                _settings.LastStarted = DateTime.UtcNow;
+                await _dataService.SaveWebServerSettingsAsync(_settings);
+
+                StatusChanged?.Invoke(this, $"Running locally on port {_settings.Port} (ngrok unavailable)");
+                return true;
             }
 
             // Update settings with current tunnel URL (reload first to avoid overwriting other changes)
@@ -250,21 +263,19 @@ public class WebhookCoordinatorService : IDisposable
             }
 
             // Subscribe to events using KickLib
-            // NOTE: KickLib Pusher WebSocket takes priority - only subscribe to events NOT handled by Pusher
+            // ChannelFollowed is webhook-preferred: Kick's Pusher feed only reports
+            // follower COUNT changes (no username), while webhooks carry the follower's
+            // real username. While these subscriptions are live the Pusher-side
+            // count-only follow event is suppressed (see KickEventRouting).
+            // Subscriptions/gifts/kicks/status stay on Pusher, which already carries
+            // full usernames — subscribing them here too would double-fire alerts.
             var webhookUrl = $"{_ngrokService.PublicUrl}/webhooks/kick";
             var eventTypes = new List<KickLib.Models.v1.EventSubscriptions.EventType>
             {
-                // Events handled by Pusher (REMOVED to prevent duplicates):
-                // - ChannelFollowed (Pusher: OnFollowersUpdated)
-                // - ChannelSubscriptionNew (Pusher: OnSubscription)
-                // - ChannelSubscriptionRenewal (Pusher: OnSubscription)
-                // - ChannelSubscriptionGifts (Pusher: OnGiftedSubscription)
-                // - LivestreamStatusUpdated (Pusher: OnStreamStatusChanged)
-                // - KicksGifted (Pusher: OnKicksGifted)
-                
-                // Events NOT handled by Pusher (webhook-only):
-                KickLib.Models.v1.EventSubscriptions.EventType.LivestreamMetadataUpdated,
+                KickLib.Models.v1.EventSubscriptions.EventType.ChannelFollowed,
                 KickLib.Models.v1.EventSubscriptions.EventType.ModerationUserBanned
+                // LivestreamMetadataUpdated intentionally not subscribed: the controller
+                // has no consumer for metadata-only updates.
             };
 
             _logger.LogInformation("📡 Webhook endpoint: {WebhookUrl}", webhookUrl);
@@ -274,8 +285,14 @@ public class WebhookCoordinatorService : IDisposable
             if (subscriptions.Count == 0)
             {
                 _logger.LogError("Failed to subscribe to any Kick webhook events");
+                KickEventRouting.WebhookFollowsActive = false;
                 return false;
             }
+
+            // Pusher-side follow events must stand down only when the webhook path
+            // for follows is actually confirmed; otherwise keep them as the fallback.
+            KickEventRouting.WebhookFollowsActive =
+                subscriptions.Any(s => s.EventType == KickLib.Models.v1.EventSubscriptions.EventType.ChannelFollowed);
 
             // Save subscriptions to database
             foreach (var (eventType, subscriptionId) in subscriptions)
@@ -304,6 +321,7 @@ public class WebhookCoordinatorService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error enabling Kick webhooks");
+            KickEventRouting.WebhookFollowsActive = false;
             return false;
         }
     }
@@ -313,6 +331,7 @@ public class WebhookCoordinatorService : IDisposable
         try
         {
             _logger.LogInformation("🔕 Disabling Kick webhooks...");
+            KickEventRouting.WebhookFollowsActive = false;
 
             // Get active subscriptions
             var subscriptions = await _dataService.GetWebhookSubscriptionsAsync("Kick");

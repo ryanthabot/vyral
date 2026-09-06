@@ -139,6 +139,12 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
                 _isInitialized = true;
             }
 
+            // Load the auto-replies master toggle from config (default true)
+            _isInitialized = false;
+            var storedAutoReplies = await _dataService.GetConfigValueAsync(AutoRepliesEnabledKey);
+            AutoRepliesEnabled = !bool.TryParse(storedAutoReplies, out var autoRepliesEnabled) || autoRepliesEnabled;
+            _isInitialized = true;
+
             // Load Follow settings
             var followSettings = await _eventSettingsService.GetSettingAsync("Twitch", "Follow");
             if (followSettings != null)
@@ -218,6 +224,39 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
         }
     }
 
+    partial void OnAutoRepliesEnabledChanged(bool value)
+    {
+        if (_isInitialized)
+        {
+            _ = PersistAutoRepliesEnabledAsync(value);
+        }
+    }
+
+    /// <summary>Config key backing the auto-replies master toggle (read by ChatViewModel's Twitch event handlers).</summary>
+    private const string AutoRepliesEnabledKey = "Chat.Twitch.AutoRepliesEnabled";
+
+    /// <summary>
+    /// Persists the auto-replies master toggle to config and publishes the
+    /// routing-changed event so ChatViewModel re-reads the toggle immediately.
+    /// The event carries the current chat-routing flag (NOT the toggle value)
+    /// so the chat filter is untouched.
+    /// </summary>
+    private async Task PersistAutoRepliesEnabledAsync(bool value)
+    {
+        try
+        {
+            await _dataService.SetConfigValueAsync(AutoRepliesEnabledKey, value.ToString());
+
+            var platform = await _dataService.GetPlatformByNameAsync("Twitch");
+            var evt = new PlatformChatRoutingChangedEvent { Source = "UI", Platform = "Twitch", Enabled = platform?.TwitchChatEnabled ?? true };
+            await _eventBus.PublishAsync(evt);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error persisting Twitch auto-replies master toggle");
+        }
+    }
+
     /// <summary>
     /// Persists the TwitchChatAutoStart flag consumed at app launch (Settings → Platforms
     /// and MainViewModel's startup auto-connect).
@@ -265,6 +304,32 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Mirrors a saved ChatEventSetting's sound fields into the EventSound_/EventVolume_
+    /// config keys SoundService reads for real playback: the file name (empty string
+    /// disables) and an invariant 0..1 volume string. Rows without a sound file are
+    /// skipped so mappings made on the Sounds page are never cleared from here.
+    /// </summary>
+    private async Task PersistEventSoundConfigAsync(string playbackEventType, VyralBot.Data.Entities.ChatEventSetting setting)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(setting.SoundFile))
+            {
+                return;
+            }
+
+            await _dataService.SetConfigValueAsync($"EventSound_Twitch_{playbackEventType}", setting.SoundEnabled ? setting.SoundFile : string.Empty);
+            await _dataService.SetConfigValueAsync(
+                $"EventVolume_Twitch_{playbackEventType}",
+                (Math.Clamp(setting.SoundVolume, 0, 100) / 100.0).ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist the event sound config for Twitch/{EventType}", playbackEventType);
+        }
+    }
+
     [RelayCommand]
     private async Task SaveSettingsAsync()
     {
@@ -278,6 +343,7 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
             followSetting.AutoReplyEnabled = FollowAutoReplyEnabled;
             followSetting.AutoReplyMessage = FollowAutoReplyMessage;
             await _eventSettingsService.SaveSettingAsync(followSetting);
+            await PersistEventSoundConfigAsync("follow", followSetting);
 
             // Save Subscribe settings
             var subscribeSetting = await _eventSettingsService.GetSettingAsync("Twitch", "Subscribe") ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "Twitch", EventType = "Subscribe" };
@@ -285,6 +351,7 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
             subscribeSetting.AutoReplyEnabled = SubscribeAutoReplyEnabled;
             subscribeSetting.AutoReplyMessage = SubscribeAutoReplyMessage;
             await _eventSettingsService.SaveSettingAsync(subscribeSetting);
+            await PersistEventSoundConfigAsync("subscribe", subscribeSetting);
 
             // Save Resub settings
             var resubSetting = await _eventSettingsService.GetSettingAsync("Twitch", "Resub") ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "Twitch", EventType = "Resub" };
@@ -292,6 +359,7 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
             resubSetting.AutoReplyEnabled = ResubAutoReplyEnabled;
             resubSetting.AutoReplyMessage = ResubAutoReplyMessage;
             await _eventSettingsService.SaveSettingAsync(resubSetting);
+            await PersistEventSoundConfigAsync("resub", resubSetting);
 
             // Save Gift Sub settings
             var giftSubSetting = await _eventSettingsService.GetSettingAsync("Twitch", "GiftSub") ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "Twitch", EventType = "GiftSub" };
@@ -299,6 +367,7 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
             giftSubSetting.AutoReplyEnabled = GiftSubAutoReplyEnabled;
             giftSubSetting.AutoReplyMessage = GiftSubAutoReplyMessage;
             await _eventSettingsService.SaveSettingAsync(giftSubSetting);
+            await PersistEventSoundConfigAsync("giftsub", giftSubSetting);
 
             // Save Raid settings
             var raidSetting = await _eventSettingsService.GetSettingAsync("Twitch", "Raid") ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "Twitch", EventType = "Raid" };
@@ -306,6 +375,7 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
             raidSetting.AutoReplyEnabled = RaidAutoReplyEnabled;
             raidSetting.AutoReplyMessage = RaidAutoReplyMessage;
             await _eventSettingsService.SaveSettingAsync(raidSetting);
+            await PersistEventSoundConfigAsync("raid", raidSetting);
 
             // Save Cheer settings
             var cheerSetting = await _eventSettingsService.GetSettingAsync("Twitch", "Cheer") ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "Twitch", EventType = "Cheer" };
@@ -313,6 +383,7 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
             cheerSetting.AutoReplyEnabled = CheerAutoReplyEnabled;
             cheerSetting.AutoReplyMessage = CheerAutoReplyMessage;
             await _eventSettingsService.SaveSettingAsync(cheerSetting);
+            await PersistEventSoundConfigAsync("cheer", cheerSetting);
 
             _logger.LogInformation("Twitch chat event settings saved successfully");
             Status = "Settings saved!";

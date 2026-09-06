@@ -15,7 +15,8 @@ namespace VyralBot.UI.Services;
 ///
 ///  • Twitch  → <see cref="ITwitchService.SendMessageAsync"/> (single connected channel)
 ///  • Kick    → <see cref="IKickService.SendMessageAsync"/> (single connected channel)
-///  • Discord → the bot that originated the trigger (<c>ctx.BotId</c>) via
+///  • Discord → the bot flagged with the Giveaway role when connected, else
+///              the bot that originated the trigger (<c>ctx.BotId</c>) via
 ///              <see cref="IDiscordBotManager.Get"/>, falling back to
 ///              <see cref="IDiscordBotManager.Primary"/> and then the setup
 ///              wizard's singleton <see cref="IDiscordService"/> — the same
@@ -109,7 +110,12 @@ public class WorkflowMessageSender
 
                 case "discord":
                 {
-                    var target = ResolveDiscordTarget(context.BotId);
+                    // Prefer the bot flagged with the Giveaway role so giveaway
+                    // announcements originate from the dedicated giveaway bot;
+                    // fall back to the origin-aware resolution below when no bot
+                    // carries the role or that bot is not connected.
+                    var giveawayBot = await ResolveGiveawayRoleTargetAsync();
+                    var target = giveawayBot ?? ResolveDiscordTarget(context.BotId);
                     if (target == null || !target.IsConnected)
                     {
                         _metrics?.Increment("Sends:" + normalizedPlatform, "failed");
@@ -145,6 +151,24 @@ public class WorkflowMessageSender
                 platform, context.WorkflowId, context.ExecutionId);
             return false;
         }
+    }
+
+    /// <summary>
+    /// The live service of the bot flagged with the "Giveaway" role
+    /// (<see cref="DiscordBotRoles.Giveaway"/>), or null when no bot carries the
+    /// role or that bot is not running — callers then fall back to
+    /// <see cref="ResolveDiscordTarget"/>.
+    /// </summary>
+    private async Task<IDiscordService?> ResolveGiveawayRoleTargetAsync()
+    {
+        var botId = await _discordBotManager.ResolveBotIdForRoleAsync(DiscordBotRoles.Giveaway);
+        if (string.IsNullOrWhiteSpace(botId))
+        {
+            return null;
+        }
+
+        var byRole = _discordBotManager.Get(botId);
+        return byRole != null && byRole.IsConnected ? byRole : null;
     }
 
     /// <summary>

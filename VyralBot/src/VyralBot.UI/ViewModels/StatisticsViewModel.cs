@@ -45,7 +45,21 @@ public partial class StatisticsViewModel : ViewModelBase
     private int _totalEvents;
 
     [ObservableProperty]
-    private ObservableCollection<string> _availableEventTypes = new() { "All", "follow", "subscribe", "giftsub", "raid", "cheer", "host" };
+    private ObservableCollection<string> _availableEventTypes = new()
+    {
+        "All",
+        // Exact pipeline event-type names (writers store Title Case); shown as-is
+        // so the SQL UPPER(EventType) = UPPER(@EventType) match is 1:1.
+        "Follow",
+        "Subscribe",
+        "Resub",
+        "GiftSub",
+        "Raid",
+        "Cheer",
+        "Host",
+        "KicksGifted",
+        "RewardRedeemed"
+    };
 
     [ObservableProperty]
     private ObservableCollection<string?> _availablePlatforms = new() { null, "Kick", "Twitch" };
@@ -57,8 +71,10 @@ public partial class StatisticsViewModel : ViewModelBase
         _logger = logger;
         _statisticsService = statisticsService;
         
-        // Default to last 30 days
-        EndDate = DateTime.Today;
+        // Default to last 30 days. EndDate must be midnight of TOMORROW (exclusive
+        // upper bound in the SQL <= comparison) or everything after midnight today
+        // would be excluded from the default range.
+        EndDate = DateTime.Today.AddDays(1);
         StartDate = DateTime.Today.AddDays(-30);
     }
 
@@ -155,7 +171,7 @@ public partial class StatisticsViewModel : ViewModelBase
             return;
         }
 
-        var contributors = await _statisticsService.GetTopContributorsAsync(SelectedEventType, SelectedPlatform, limit: 20);
+        var contributors = await _statisticsService.GetTopContributorsAsync(SelectedEventType, SelectedPlatform, limit: 20, startDate: StartDate, endDate: EndDate);
         TopContributors.Clear();
         foreach (var contributor in contributors)
         {
@@ -198,7 +214,7 @@ public partial class StatisticsViewModel : ViewModelBase
             if (saveDialog.ShowDialog() == true)
             {
                 IsLoading = true;
-                var csv = await _statisticsService.ExportToCsvAsync(StartDate, EndDate);
+                var csv = await _statisticsService.ExportToCsvAsync(StartDate, EndDate, SelectedPlatform);
                 await File.WriteAllTextAsync(saveDialog.FileName, csv);
 
                 MessageBox.Show($"Statistics exported successfully to:\n{saveDialog.FileName}", 

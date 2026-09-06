@@ -7,6 +7,7 @@ using VyralBot.Data.Entities;
 using VyralBot.Core.Services.Profiles;
 using VyralBot.Core.Models;
 using VyralBot.Core.Services.EventBus;
+using VyralBot.Core.Services.EventBus.Events;
 using VyralBot.Integrations.Twitch;
 using VyralBot.Integrations.Kick;
 using VyralBot.Integrations.YouTube;
@@ -31,6 +32,9 @@ public partial class MainViewModel : ViewModelBase
     private readonly IDiscordBotManager _discordBotManager;
     private readonly PlatformConnectionService _platformConnectionService;
     private readonly ILogger<MainViewModel> _logger;
+    private readonly IEventBus _eventBus;
+    private Guid? _navigateToPageSubscriptionId;
+    private Guid? _platformConnectionSubscriptionId;
     private IServiceScope? _platformsScope;
     private PlatformsViewModel? _platformsViewModel;
     private IServiceScope? _chatScope;
@@ -83,6 +87,12 @@ public partial class MainViewModel : ViewModelBase
     private DocumentationViewModel? _documentationViewModel;
     private IServiceScope? _automationScope;
     private AutomationViewModel? _automationViewModel;
+
+    // One-shot guard for Discord bot auto-start: CheckPlatformConnectionsAsync
+    // also runs on every PlatformConnectionChangedEvent refresh, but the bots
+    // should only be auto-started once per profile load (reset in
+    // OnProfileLoadedAsync so a profile switch re-runs it).
+    private bool _discordBotsAutoStartDone;
 
     [ObservableProperty]
     private ViewModelBase? _currentViewModel;
@@ -172,9 +182,18 @@ public partial class MainViewModel : ViewModelBase
         _discordBotManager = discordBotManager;
         _platformConnectionService = platformConnectionService;
         _logger = logger;
+        _eventBus = eventBus;
         CurrentViewModel = dashboardViewModel;
 
         _logger.LogInformation("MainViewModel initialized");
+
+        // Subscribe to embedded-surface navigation requests (chat quick-actions, etc.)
+        // SubscribeAsync completes synchronously, so the id can be captured for Cleanup.
+        _navigateToPageSubscriptionId = eventBus.SubscribeAsync<NavigateToPageEvent>(OnNavigateToPageEventAsync).GetAwaiter().GetResult();
+
+        // Sidebar platform-connection flags must track connects/disconnects no matter
+        // which page is visible (previously they only refreshed when visiting Connections).
+        _platformConnectionSubscriptionId = eventBus.SubscribeAsync<PlatformConnectionChangedEvent>(OnPlatformConnectionChangedAsync).GetAwaiter().GetResult();
 
         // Subscribe to profile switched events
         eventBus.SubscribeAsync<ProfileSwitchedEvent>(async e =>
@@ -240,6 +259,77 @@ public partial class MainViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Routes a <see cref="NavigateToPageEvent"/> (published by embedded surfaces such as
+    /// the chat quick-actions popup) to the matching navigation command.
+    /// </summary>
+    private async Task OnNavigateToPageEventAsync(NavigateToPageEvent e)
+    {
+        _logger.LogInformation("Navigate to page event received: {PageKey}", e.PageKey);
+
+        // Handlers run on the EventBus thread pool — navigation touches observable
+        // state, so marshal to the UI thread (same pattern as ChatViewModel).
+        // Execute() from the UI thread mirrors a button click; the async command
+        // pipeline handles its own exceptions.
+        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            switch (e.PageKey)
+            {
+                case AppPages.Giveaways:
+                    NavigateToGiveawaysCommand.Execute(null);
+                    break;
+                case AppPages.Polls:
+                    NavigateToPollsCommand.Execute(null);
+                    break;
+                case AppPages.EventTesting:
+                    NavigateToEventTestingCommand.Execute(null);
+                    break;
+                case AppPages.Settings:
+                    NavigateToSettingsCommand.Execute(null);
+                    break;
+                default:
+                    _logger.LogDebug("Unknown page key '{PageKey}' in NavigateToPageEvent - ignoring", e.PageKey);
+                    break;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Refreshes the sidebar platform-connection flags whenever a platform
+    /// connects or disconnects (published by PlatformConnectionService and the
+    /// platform chat services).
+    /// </summary>
+    private async Task OnPlatformConnectionChangedAsync(PlatformConnectionChangedEvent e)
+    {
+        _logger.LogInformation("Platform connection changed: {Platform} -> {Connected}", e.Platform, e.Connected);
+
+        // Handlers run on the EventBus thread pool — marshal to the UI thread so
+        // the Is*Connected observable properties update safely.
+        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            _ = RefreshPlatformConnectionsAsync();
+        });
+    }
+
+    /// <summary>
+    /// Unsubscribes EventBus subscriptions. MainViewModel is a singleton with the
+    /// app lifetime, so this only matters for orderly shutdown/tests.
+    /// </summary>
+    public void Cleanup()
+    {
+        if (_navigateToPageSubscriptionId is { } navigateId)
+        {
+            _eventBus.Unsubscribe(navigateId);
+            _navigateToPageSubscriptionId = null;
+        }
+
+        if (_platformConnectionSubscriptionId is { } connectionId)
+        {
+            _eventBus.Unsubscribe(connectionId);
+            _platformConnectionSubscriptionId = null;
+        }
+    }
+
+    /// <summary>
     /// Called after a profile is loaded/selected to initialize profile data and connections
     /// </summary>
     public async Task OnProfileLoadedAsync()
@@ -298,26 +388,16 @@ public partial class MainViewModel : ViewModelBase
 
         // Check platform status from database and auto-connect
         // MUST happen AFTER ChatViewModel.InitializeAsync() so EventBus subscriptions are active
+        _discordBotsAutoStartDone = false; // profile (re)load re-arms Discord bot auto-start
         await CheckPlatformConnectionsAsync();
 
-        // Start every saved Discord bot (multi-bot support), unless the user
-        // turned bot auto-start off in Settings → Platforms
-        try
-        {
-            var botsAutoStart = await _serviceProvider.GetRequiredService<IDataService>().GetConfigValueAsync("Startup.DiscordBots.AutoConnect");
-            if (!bool.TryParse(botsAutoStart, out var autoStart) || autoStart)
-            {
-                await _discordBotManager.StartAllSavedAsync();
-            }
-            else
-            {
-                _logger.LogInformation("Discord bot auto-start disabled (Settings → Platforms)");
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error starting saved Discord bots");
-        }
+        // Discord bot auto-start (multi-bot) now lives in
+        // CheckPlatformConnectionsAsync → AutoStartDiscordBotsAsync: the
+        // Platform row's DiscordChatAutoStart flag starts the primary bot and
+        // each bot's own AutoStart flag opts extra bots in — all through the
+        // manager, guarded against double-starts. The previous blanket
+        // StartAllSavedAsync() here was removed so bots the user did NOT opt
+        // in are no longer force-started on every launch.
 
         // ========================================================================
         // AUTO-ENABLE FEATURES BASED ON LOADED SETTINGS
@@ -515,15 +595,16 @@ public partial class MainViewModel : ViewModelBase
                 }
             }
 
-            if (discordPlatform?.Status == "Connected" && discordPlatform.DiscordChatAutoStart)
-            {
-                var (success, message) = await _platformConnectionService.ConnectDiscordAsync();
-                IsDiscordConnected = _discordService.IsConnected;
-                if (!success)
-                {
-                    _logger.LogWarning("Discord auto-connect skipped: {Message}", message);
-                }
-            }
+            // Discord bots auto-start (multi-bot): the Platform row's
+            // DiscordChatAutoStart flag starts the primary bot and each bot's
+            // own AutoStart flag opts extra bots in — both go through
+            // IDiscordBotManager (the legacy ConnectDiscordAsync singleton is
+            // reserved for the setup wizard; connecting it AND the manager's
+            // bot with the same token made the two gateway sessions fight, so
+            // the bot never reliably came up at launch). Fire-and-forget so a
+            // slow gateway handshake cannot stall the boot chain (same reason
+            // the YouTube connect above is bounded); one-shot per profile load.
+            _ = AutoStartDiscordBotsAsync(discordPlatform);
         }
         catch (Exception ex)
         {
@@ -534,6 +615,144 @@ public partial class MainViewModel : ViewModelBase
             IsYouTubeConnected = false;
             IsDiscordConnected = false;
         }
+    }
+
+    /// <summary>
+    /// Auto-starts Discord bots at app launch. Runs once per profile load (the
+    /// <see cref="_discordBotsAutoStartDone"/> guard — this is fired from
+    /// <see cref="CheckPlatformConnectionsAsync"/>, which also runs on every
+    /// connection-changed refresh). Two independent triggers:
+    /// <list type="number">
+    /// <item>The Platform row's <c>DiscordChatAutoStart</c> flag (Settings →
+    /// Platforms "Discord" toggle): starts the saved bot whose token matches
+    /// the Platform row's AccessToken, falling back to the FIRST saved bot
+    /// (the migrated "Primary" row) when no row matches. The primary bot is
+    /// deliberately NOT given a seeded AutoStart flag — the Platform flag
+    /// alone starts it.</item>
+    /// <item>Each managed bot whose own <c>AutoStart</c> flag is true
+    /// (opt-in per extra bot; defaults to off).</item>
+    /// </list>
+    /// The Settings → Platforms "Discord bots" master toggle
+    /// (<c>Startup.DiscordBots.AutoConnect</c>, default on) disables both,
+    /// keeping the existing per-platform startup settings working. Never
+    /// double-starts: a bot with a live manager service is skipped, and every
+    /// start is individually wrapped in try/catch.
+    /// </summary>
+    private async Task AutoStartDiscordBotsAsync(Platform? discordPlatform)
+    {
+        if (_discordBotsAutoStartDone)
+        {
+            return;
+        }
+        _discordBotsAutoStartDone = true;
+
+        try
+        {
+            // Master toggle from Settings → Platforms ("auto-start Discord
+            // bots"). A missing key means enabled (installs predating it).
+            var botsAutoStartRaw = await _serviceProvider.GetRequiredService<IDataService>()
+                .GetConfigValueAsync("Startup.DiscordBots.AutoConnect");
+            if (bool.TryParse(botsAutoStartRaw, out var botsAutoStart) && !botsAutoStart)
+            {
+                _logger.LogInformation("Discord bot auto-start disabled (Settings → Platforms)");
+                return;
+            }
+
+            // LoadBotsAsync also performs the one-time legacy adoption: when
+            // the DiscordBots table is still empty, the Platform row's token
+            // becomes the "Primary" bot row, so the fallback below is reliable
+            // even for installs that never opened the bots page.
+            var bots = await _discordBotManager.LoadBotsAsync();
+            if (bots.Count == 0)
+            {
+                _logger.LogInformation("Discord bot auto-start: no saved bots, nothing to start");
+                return;
+            }
+
+            // Trigger 1: the Platform row's auto-start flag starts the primary
+            // bot through the manager (token match first, else the first bot).
+            if (discordPlatform?.DiscordChatAutoStart == true)
+            {
+                var platformToken = discordPlatform.AccessToken;
+                var match = bots.FirstOrDefault(b =>
+                    !string.IsNullOrEmpty(b.Token) &&
+                    string.Equals(b.Token, platformToken, StringComparison.Ordinal));
+                await StartDiscordBotAtLaunchAsync(match ?? bots[0]);
+            }
+
+            // Trigger 2: opt-in per-bot auto-start for extra bots.
+            foreach (var bot in bots.Where(b => b.AutoStart))
+            {
+                await StartDiscordBotAtLaunchAsync(bot);
+            }
+
+            // Reflect the multi-bot connection state in the sidebar (the setup
+            // wizard's singleton service usually stays disconnected).
+            var anyConnected = _discordBotManager.Connected.Count > 0 || _discordService.IsConnected;
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                IsDiscordConnected = anyConnected;
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error auto-starting Discord bots at startup");
+        }
+    }
+
+    /// <summary>Starts one saved bot at launch unless it is already running.</summary>
+    private async Task StartDiscordBotAtLaunchAsync(DiscordBotConfig bot)
+    {
+        try
+        {
+            // Manager's running-state guard: a live service means the bot is
+            // already up (e.g. started by adoption or an earlier trigger).
+            if (_discordBotManager.Get(bot.Id) != null)
+            {
+                _logger.LogDebug("Discord bot '{Name}' already running — skipping auto-start", bot.Name);
+                return;
+            }
+
+            if (await _discordBotManager.StartBotAsync(bot.Id))
+            {
+                _logger.LogInformation("Discord bot '{Name}' auto-started at app launch", bot.Name);
+            }
+            else
+            {
+                _logger.LogWarning("Discord bot '{Name}' auto-start failed (missing token or connect error)", bot.Name);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error auto-starting Discord bot '{Name}'", bot.Name);
+        }
+    }
+
+    /// <summary>
+    /// Early Discord bot auto-start hook for App startup: fires the SAME
+    /// guarded auto-start logic as <see cref="CheckPlatformConnectionsAsync"/>
+    /// (which only runs after the full settings/platform load chain) so bots
+    /// connect as early as possible. Fetches the Discord Platform row itself —
+    /// Trigger 1 (the row's DiscordChatAutoStart flag) needs it — and relies on
+    /// the one-shot <see cref="_discordBotsAutoStartDone"/> guard, which makes
+    /// the later CheckPlatformConnectionsAsync invocation a harmless no-op
+    /// (guard-reuse; no duplicated connection logic). The auto-start logic
+    /// already calls <c>LoadBotsAsync</c> before starting anything.
+    /// </summary>
+    public async Task StartDiscordBotsEarlyAsync()
+    {
+        Platform? discordPlatform = null;
+        try
+        {
+            discordPlatform = await _serviceProvider.GetRequiredService<IDataService>()
+                .GetPlatformByNameAsync("Discord");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Early Discord bot auto-start: could not read the Discord Platform row — continuing with per-bot flags only");
+        }
+
+        await AutoStartDiscordBotsAsync(discordPlatform);
     }
 
     /// <summary>
@@ -679,8 +898,10 @@ public partial class MainViewModel : ViewModelBase
     {
         await CheckPlatformConnectionsAsync();
 
-        // Reflect the live Discord connection state (service may have connected/disconnected since last check)
-        IsDiscordConnected = _discordService.IsConnected;
+        // Reflect the live Discord connection state (service may have connected/disconnected since last check).
+        // Multi-bot: any manager-run bot counts — the setup wizard's singleton
+        // service usually stays disconnected while the real bots run.
+        IsDiscordConnected = _discordBotManager.Connected.Count > 0 || _discordService.IsConnected;
 
         // Notify ChatViewModel to update its connected platforms list on UI thread
         if (_chatViewModel != null)
@@ -1259,6 +1480,10 @@ public partial class MainViewModel : ViewModelBase
             CurrentViewModel = null;
             await DisposeNonEssentialViewModelsAsync(excludeViewModel: _giveawayViewModel);
 
+            // GiveawayViewModel is a DI singleton, so its EventBus subscriptions
+            // and debounce timer outlive the scope — release them before the
+            // scope is recycled; InitializeAsync re-subscribes on next navigation.
+            _giveawayViewModel?.Cleanup();
             _giveawayScope?.Dispose();
             _giveawayScope = _serviceProvider.CreateScope();
             _giveawayViewModel = _giveawayScope.ServiceProvider.GetRequiredService<GiveawayViewModel>();
@@ -1415,6 +1640,7 @@ public partial class MainViewModel : ViewModelBase
         return Task.CompletedTask;
     }
 
+    [RelayCommand]
     private Task NavigateToDemoWizardAsync()
     {
         _logger.LogInformation("User clicked: Navigate to Demo Wizard");
@@ -2051,6 +2277,9 @@ public partial class MainViewModel : ViewModelBase
         // Dispose Giveaways (not frequently used)
         if (_giveawayViewModel != null && _giveawayViewModel != excludeViewModel)
         {
+            // Singleton VM: release its EventBus subscriptions and debounce
+            // timer explicitly, otherwise they live for the app's lifetime.
+            _giveawayViewModel.Cleanup();
             _giveawayScope?.Dispose();
             _giveawayScope = null;
             _giveawayViewModel = null;

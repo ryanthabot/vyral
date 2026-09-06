@@ -1,12 +1,12 @@
 # Chat Window
 
-> The unified chat page: one merged, scrolling feed of messages from Twitch, Kick, YouTube, and Discord, with per-platform badges, colors, timestamps, auto-scroll, on-demand history, and quick-settings popups.
+> The unified chat page: one merged, scrolling feed of messages from Twitch, Kick, YouTube, and Discord, with per-platform badges, colors, timestamps, auto-scroll, on-demand history, and quick-settings popups — plus a Discord DM inbox that groups direct messages into per-user conversations you can read and reply to from inside the app.
 
 ## Overview
 
 The Chat Window is Vyral's main chat surface. Instead of watching four separate browser tabs, you see every message from every connected platform in a single list. Each message shows the platform it came from (logo + username color), the badges its author has (broadcaster, moderator, VIP, subscriber, verified), and a timestamp. Event notifications such as follows and raids appear in the same feed as gold "System" messages.
 
-The window also has the tools around the feed: an auto-scroll engine with a "new messages" jump banner, buttons to load or delete stored chat history, per-platform quick-settings popups, and the message input bar for [sending messages](sending-messages.md).
+The window also has the tools around the feed: an auto-scroll engine with a "new messages" jump banner, buttons to load or delete stored chat history, per-platform quick-settings popups, the message input bar for [sending messages](sending-messages.md), and the Discord DM inbox (see [The DM inbox](#the-dm-inbox-discord-direct-messages)).
 
 ## User Guide
 
@@ -24,8 +24,20 @@ Each line in the list shows:
 - **Username** in the color the platform reported (streamers and mods often have custom colors).
 - **Message text**, wrapped.
 - **System/event messages** (follows, subs, raids, bans) render in gold with the username "System". See [Event Reactions](event-reactions.md).
+- **Platform chat-state messages** — each platform posts its chat status as a gold System line so you can verify everything is working (and see WHY when it isn't): *"Twitch/Kick chat connected — listening to #channel"*, *"YouTube connected — your channel isn't live right now…"*, *"YouTube live chat is active"*, *"Discord bot is connected, but no chat channel is selected — Discord messages won't appear here until you pick one on the Discord page"*, plus disconnect lines. These are app-only — nothing is ever broadcast to any platform. YouTube's full state list lives on [its platform page](../platforms/youtube.md).
 
 The list is capped at the **500 most recent messages**; older ones are trimmed automatically to keep memory usage flat. Long lists scroll smoothly because rows are virtualized and recycled.
+
+### The DM inbox (Discord direct messages)
+
+Discord direct messages no longer appear in the main feed — they live only in the **DM panel**, so channel talk and private messages never mix:
+
+- **Inbox list** — one row per viewer you have exchanged DMs with, showing the viewer's name, a short preview of the latest message, and an **unread badge** counting messages you have not opened yet.
+- **Threads** — click a conversation to open it as a thread; **← All conversations** takes you back to the inbox list.
+- **Reply box** — type at the bottom of an open thread to send a DM from inside the app. Replies go through **the bot that received the DM**, so the viewer always sees the answer from the same account they messaged.
+- **Layout** — toggle **DMs** to show the DM panel, or pick **Combined** for a side-by-side view with the chat feed on the left and the DM inbox on the right.
+
+The [account-linking DM flow](../chat-features/account-linking.md) flows through the same inbox — a viewer DMing `link` or a code is just another conversation, and the linking bot's answer lands as a DM too.
 
 ### Auto-scroll and the "new messages" banner
 
@@ -75,7 +87,7 @@ Being honest about the current build:
 - The page is [ChatView.xaml](../../src/VyralBot.UI/Views/ChatView.xaml) (558 lines) + [ChatView.xaml.cs](../../src/VyralBot.UI/Views/ChatView.xaml.cs), bound to the singleton [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) (2,880 lines).
 - `ChatViewModel` is registered as a **DI singleton** and is created during profile load *before* platform auto-connect, specifically so its EventBus subscriptions exist before any message can arrive ([MainViewModel.cs](../../src/VyralBot.UI/ViewModels/MainViewModel.cs) `OnProfileLoadedAsync`).
 - `InitializeAsync()` guards with `_isInitialized` and subscribes (via `IEventBus.SubscribeAsync<T>`) to roughly 20 event types (ChatViewModel.cs:207-270): the four per-platform chat message events (Twitch, Kick, YouTube, Discord), the generic `ChatMessageReceivedEvent`, routing/connection change events, 7 Kick event types, and 6 Twitch event types.
-- Incoming per-platform handlers (`OnTwitchChatMessageReceivedAsync` ChatViewModel.cs:503, `OnKickChatMessageReceivedAsync` :1611, `OnYouTubeChatMessageReceivedAsync` :1527, `OnDiscordChatMessageReceivedAsync` :2321) each: check the platform display-filter flag, check **echo suppression** (Discord's handler skips the bot's own account outright — the UI already adds outgoing bot messages locally), then append a `ChatMessage` to `Messages` and trim to 500. Discord messages are also persisted through the chat store here.
+- Incoming per-platform handlers (`OnTwitchChatMessageReceivedAsync` ChatViewModel.cs:503, `OnKickChatMessageReceivedAsync` :1611, `OnYouTubeChatMessageReceivedAsync` :1527, `OnDiscordChatMessageReceivedAsync` :2321) each: check the platform display-filter flag, check **echo suppression** (Discord's handler skips the bot's own account outright — the UI already adds outgoing bot messages locally), then append a `ChatMessage` to `Messages` and trim to 500. Discord messages are also persisted through the chat store here. Discord **direct messages** are diverted before rendering: instead of the main feed they are routed into the DM inbox (grouped per user, with unread badges), and a reply sent from a DM thread goes out through the same bot instance that received the DM.
 - **Echo suppression**: before the VM sends anything, it records the lowercased text in `_recentTwitchMessages` / `_recentKickMessages` / `_recentYoutubeMessages` / `_recentDiscordMessages`. Incoming messages whose text matches an entry newer than 10 seconds (15 seconds for YouTube, because of polling) **and that come from one of the bot's own sending accounts** are dropped, so the bot does not render its own outgoing messages twice. The account scoping was tightened on 2026-08-15 — a viewer typing identical text is no longer filtered. (This replaced an older bot-username filter that blocked *all* of the streamer's own messages, even ones typed on the platform website.)
 - **Display filters**: `TwitchFilterEnabled`, `KickFilterEnabled`, `YoutubeFilterEnabled`, `TiktokFilterEnabled`, `DiscordFilterEnabled` drop incoming messages per platform. They update live from `PlatformChatRoutingChangedEvent` (`OnPlatformRoutingChangedAsync`, ChatViewModel.cs:840). Kick's flag is bootstrapped from the Kick settings VM (ChatViewModel.cs:275-283) and Discord's from the `Platform` row's `DiscordChatEnabled` (:337); Twitch's toggle now persists `TwitchChatEnabled` and publishes the routing event like the others (fixed 2026-08-15).
 - **Auto-scroll engine** lives in the view's code-behind: it locates the inner `ScrollViewer` in the visual tree, uses `ScrollChanged` to detect whether the user is within 20 px of the bottom, and toggles `_vm.AutoScroll`. The `Messages.CollectionChanged` handler either scrolls to end or increments `_unreadCount` and shows the "N new messages" banner (ChatView.xaml.cs:109-185). Collection-changed subscription is attached/detached on Loaded/Unloaded/DataContextChanged to avoid double-subscribe.
@@ -224,7 +236,7 @@ The in-UI `ChatMessage` model (bottom of ChatViewModel.cs:2657) is a plain `INot
 
 ## Status & Known Issues
 
-- **Works**: merged live feed for Twitch/Kick/YouTube/Discord, badges, colors, timestamps, auto-scroll + unread banner, on-demand history (Kick/Twitch/YouTube), clear/delete history, quick-settings popups, event system messages, and — since 2026-08-15 — the full chat command pipeline (commands, currency, giveaways, polls, watchtime) driven by `ChatMessageReceivedEvent`, on Discord as well. See [Commands](../chat-features/commands.md) and the [known issues ledger](../reference/known-issues.md) (KI-1 resolved).
+- **Works**: merged live feed for Twitch/Kick/YouTube/Discord, badges, colors, timestamps, auto-scroll + unread banner, on-demand history (Kick/Twitch/YouTube), clear/delete history, quick-settings popups, the Discord DM inbox (per-user conversations with previews and unread badges, threads with a reply box that sends through the bot that received the DM), event system messages, and — since 2026-08-15 — the full chat command pipeline (commands, currency, giveaways, polls, watchtime) driven by `ChatMessageReceivedEvent`, on Discord as well. See [Commands](../chat-features/commands.md) and the [known issues ledger](../reference/known-issues.md) (KI-1 resolved).
 - **Discord history is not reloaded** — Discord messages persist to the `ChatMessages` table, but Load Chat History merges only Kick/Twitch/YouTube rows back into the feed. Tracked in the [known issues ledger](../reference/known-issues.md) (KI-34).
 - **Twitch messages can be filtered out**: the Twitch "Chat Enabled" toggle now persists `TwitchChatEnabled` and publishes the routing event (fixed 2026-08-15), so all five platform filters behave the same.
 - **All-Platforms popup buttons are placeholders**: Start Giveaway / Start Poll / Send Announcement / Trigger Event have no command bindings (ChatView.xaml:94-111).

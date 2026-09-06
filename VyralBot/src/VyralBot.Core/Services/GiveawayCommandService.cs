@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 
 namespace VyralBot.Core.Services;
@@ -8,6 +9,12 @@ namespace VyralBot.Core.Services;
 /// </summary>
 public class GiveawayCommandService
 {
+    private static readonly TimeSpan TimedConfirmationWindow = TimeSpan.FromSeconds(60);
+
+    // "username:platform" → last timed-mode confirmation time (static per brief).
+    private static readonly ConcurrentDictionary<string, DateTime> RecentTimedConfirmations =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private readonly ILogger<GiveawayCommandService> _logger;
     private readonly GiveawayService _giveawayService;
 
@@ -42,10 +49,17 @@ public class GiveawayCommandService
             if (activeGiveaway != null)
             {
                 var parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                var keyword = parts[0].ToLower();
+
+                // The chat message keeps its prefix ("!enter") while the
+                // stored keyword does not ("enter") — strip the leading '!'
+                // from BOTH sides before comparing, or the match can never
+                // succeed and viewers get no entry and no reply.
+                var keyword = parts[0].TrimStart('!').Trim();
+                var storedKeyword = activeGiveaway.EntryKeyword?.Trim().TrimStart('!');
 
                 // Check if this matches the giveaway's entry keyword
-                if (keyword.Equals(activeGiveaway.EntryKeyword, StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrWhiteSpace(storedKeyword)
+                    && keyword.Equals(storedKeyword, StringComparison.OrdinalIgnoreCase))
                 {
                     return await HandleEnterCommandAsync(username, platform, isSubscriber, isFollower, watchtimeMinutes);
                 }
@@ -144,9 +158,56 @@ public class GiveawayCommandService
             isFollower,
             watchtimeMinutes);
 
-        return success 
-            ? $"✅ @{username}, {message}" 
+        // Timed intake: throttle per-entry confirmations so a flood of entries
+        // doesn't flood chat — each viewer gets at most one confirmation per 60s.
+        if (success && _giveawayService.CurrentIntakeMode == GiveawayIntakeMode.Timed)
+        {
+            if (WasRecentlyConfirmed(username, platform))
+            {
+                return null;
+            }
+
+            RecentTimedConfirmations[$"{username}:{platform}"] = DateTime.UtcNow;
+        }
+
+        return success
+            ? $"✅ @{username}, {message}"
             : $"⚠️ @{username}, {message}";
+    }
+
+    /// <summary>
+    /// Returns whether this username+platform was confirmed within the timed-mode
+    /// confirmation window, pruning the expired entry if present.
+    /// </summary>
+    private static bool WasRecentlyConfirmed(string username, string platform)
+    {
+        var key = $"{username}:{platform}";
+
+        if (RecentTimedConfirmations.Count > 1000)
+        {
+            // Opportunistic prune so the map cannot grow unbounded.
+            var now = DateTime.UtcNow;
+            foreach (var pair in RecentTimedConfirmations)
+            {
+                if (now - pair.Value >= TimedConfirmationWindow)
+                {
+                    RecentTimedConfirmations.TryRemove(pair.Key, out _);
+                }
+            }
+        }
+
+        if (!RecentTimedConfirmations.TryGetValue(key, out var lastConfirmed))
+        {
+            return false;
+        }
+
+        if (DateTime.UtcNow - lastConfirmed < TimedConfirmationWindow)
+        {
+            return true;
+        }
+
+        RecentTimedConfirmations.TryRemove(key, out _);
+        return false;
     }
 
     private async Task<string> HandleWinnerCommandAsync()
@@ -214,7 +275,10 @@ public class GiveawayCommandService
             ? "1 winner" 
             : $"{activeGiveaway.WinnerCount} winners";
 
+        var entriesPerMinute = await _giveawayService.GetCurrentEntriesPerMinuteAsync();
+        var modeText = $" Mode: {_giveawayService.CurrentIntakeMode} ({entriesPerMinute} entries/min).";
+
         return $"🎁 {activeGiveaway.Name}: {totalEntries} entries{maxEntriesText}, {uniqueParticipants} participants. " +
-               $"Type {activeGiveaway.EntryKeyword} to enter! Drawing {winnersText}.";
+               $"Type {activeGiveaway.EntryKeyword} to enter! Drawing {winnersText}.{modeText}";
     }
 }

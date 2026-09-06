@@ -353,6 +353,9 @@ public abstract partial class BaseOAuthSetupViewModel : ViewModelBase
                 return;
             }
             
+            // Unsubscribe first — stacking a new handler on every Authorize click
+            // made the callback handler run once per previous attempt.
+            WebView2.CoreWebView2.NavigationStarting -= OnOAuthNavigationStarting;
             WebView2.CoreWebView2.NavigationStarting += OnOAuthNavigationStarting;
             
             ShowBrowser = true;
@@ -468,9 +471,9 @@ public abstract partial class BaseOAuthSetupViewModel : ViewModelBase
     [RelayCommand]
     private async Task CompleteSetupAsync()
     {
-        _logger.LogInformation("User confirmed setup is working, finishing setup");
+        _logger.LogInformation("User confirmed setup is working, showing the success screen");
         await OnCompleteSetupAsync();
-        FinishSetup();
+        ShowSuccessScreen = true;
     }
 
     protected virtual async Task OnCompleteSetupAsync()

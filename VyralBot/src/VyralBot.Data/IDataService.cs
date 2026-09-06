@@ -23,6 +23,30 @@ public class DiscordBot
     /// <summary>Per-bot snowflake channel used for outgoing messages.</summary>
     public string? SelectedChannelId { get; set; }
 
+    /// <summary>Discord application/user snowflake ID, auto-detected from the gateway at connect time.</summary>
+    public string? ApplicationId { get; set; }
+
+    /// <summary>Discord username, auto-detected from the gateway at connect time.</summary>
+    public string? BotUsername { get; set; }
+
+    /// <summary>Avatar URL (PNG, 128px), auto-detected from the gateway at connect time.</summary>
+    public string? AvatarUrl { get; set; }
+
+    /// <summary>This bot handles account-link DMs (single-assignment role — only one row holds it).</summary>
+    public bool RoleLinking { get; set; }
+
+    /// <summary>This bot sends giveaway announcements (single-assignment role — only one row holds it).</summary>
+    public bool RoleGiveaway { get; set; }
+
+    /// <summary>
+    /// Start this bot automatically at app launch. The PRIMARY bot does not need
+    /// this flag: when the Platform row's DiscordChatAutoStart is on, the startup
+    /// path alone starts the bot matching the Platform row token (or the first
+    /// saved bot). AutoStart is opt-in per extra bot; defaults to false and is
+    /// never seeded to true on migration.
+    /// </summary>
+    public bool AutoStart { get; set; } = false;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
@@ -176,8 +200,10 @@ public interface IDataService
 
     // Event Statistics
     Task SaveEventStatisticAsync(EventStatistic statistic);
-    Task<IEnumerable<EventStatistic>> GetEventStatisticsAsync(string? platform = null, string? eventType = null, int limit = 100);
+    Task<IEnumerable<EventStatistic>> GetEventStatisticsAsync(string? platform = null, string? eventType = null, int limit = 100, DateTime? startDate = null, DateTime? endDate = null);
     Task<IEnumerable<EventStatistic>> GetEventStatisticsByUsernameAsync(string username, string? platform = null);
+    /// <summary>Deletes every event statistic row (the live event history) and returns the number of rows removed.</summary>
+    Task<int> DeleteEventStatisticsAsync();
 
     // Currency System
     Task<CurrencySetting?> GetCurrencySettingsAsync();
@@ -207,6 +233,42 @@ public interface IDataService
     Task<string?> GetViewerIdAsync(string username, string platform);
     Task SaveLinkedAccountAsync(LinkedAccount account);
     Task DeleteLinkedAccountAsync(string id);
+
+    // Link Codes
+    Task<LinkCode?> GetLinkCodeAsync(string code);
+
+    // ===== Discord DM history (unlimited persistence for the chat inbox) =====
+    Task SaveDiscordDmMessageAsync(DiscordDmMessage message);
+    Task<IEnumerable<DiscordDmMessage>> GetDiscordDmHistoryAsync(string username);
+    Task<IEnumerable<(string Username, string? BotUsername, DateTime LastAt, int Total)>> GetDiscordDmConversationsAsync();
+    Task ClearDiscordDmHistoryAsync(string? username);
+    Task SaveLinkCodeAsync(LinkCode code);
+    Task InvalidateLinkCodesForViewerAsync(string viewerId);      // marks unredeemed codes expired
+    Task<IEnumerable<LinkCode>> GetActiveLinkCodesAsync();        // RedeemedAt IS NULL AND ExpiresAt > now
+    Task<IEnumerable<LinkCode>> GetRecentLinkCodesAsync(int limit = 50); // ORDER BY CreatedAt DESC
+    Task DeleteLinkCodeAsync(string id);
+    Task<IEnumerable<LinkedAccount>> GetAllLinkedAccountsAsync();
+    Task UpdateLinkedAccountViewerAsync(string accountId, string newViewerId);
+    Task DeleteLinkedAccountsByViewerIdAsync(string viewerId);
+
+    // Viewer Platform Status
+    Task<ViewerPlatformStatus?> GetViewerPlatformStatusAsync(string username, string platform);
+    Task SaveViewerPlatformStatusAsync(ViewerPlatformStatus status);
+    Task<IEnumerable<ViewerPlatformStatus>> GetViewerStatusesByViewerIdAsync(string viewerId);
+
+    // Viewer Preferences
+    Task<ViewerPreferences?> GetViewerPreferencesAsync(string viewerId);
+    Task SaveViewerPreferencesAsync(ViewerPreferences preferences);
+
+    // Social Goals
+    Task<IEnumerable<SocialGoal>> GetSocialGoalsAsync();          // ORDER BY SortOrder
+    Task<SocialGoal?> GetSocialGoalAsync(Guid id);
+    Task SaveSocialGoalAsync(SocialGoal goal);                    // exists-check upsert
+    Task DeleteSocialGoalAsync(Guid id);
+    Task<ViewerGoalCompletion?> GetViewerGoalCompletionAsync(Guid goalId, string viewerId);
+    Task SaveViewerGoalCompletionAsync(ViewerGoalCompletion completion);
+    Task<int> GetGoalCompletionCountAsync(Guid goalId);
+    Task<IEnumerable<ViewerGoalCompletion>> GetViewerGoalCompletionsByViewerIdAsync(string viewerId);
 
     // Viewer Streaks
     Task<ViewerStreak?> GetViewerStreakAsync(string username, string platform);
@@ -292,6 +354,7 @@ public interface IDataService
     Task SaveGiveawayEntryAsync(GiveawayEntry entry);
     Task<int> GetGiveawayEntryCountAsync(Guid giveawayId);
     Task<int> GetGiveawayUniqueParticipantsAsync(Guid giveawayId);
+    Task<IEnumerable<GiveawayEntry>> GetGiveawayEntriesForUserAsync(string username, string platform);
 
     // Polls
     Task<IEnumerable<Poll>> GetPollsAsync();

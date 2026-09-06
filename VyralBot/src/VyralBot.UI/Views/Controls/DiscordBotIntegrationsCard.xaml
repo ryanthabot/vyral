@@ -11,7 +11,7 @@
 
         <!-- Plain primary button: deterministic hit area, no adorner-layer ripple -->
         <Style x:Key="IntegrationsPrimaryButton" TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="Height" Value="36"/>
             <Setter Property="FontSize" Value="12"/>
@@ -46,7 +46,7 @@
         <!-- Plain outline button: transparent with a hairline border -->
         <Style x:Key="IntegrationsOutlineButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
             <Setter Property="Height" Value="36"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -57,7 +57,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="btnBorder"
                                 Background="{TemplateBinding Background}"
-                                BorderBrush="{StaticResource BorderColorBrush}"
+                                BorderBrush="{DynamicResource BorderColorBrush}"
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 Padding="{TemplateBinding Padding}">
@@ -66,7 +66,7 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="btnBorder" Property="Opacity" Value="0.8"/>
-                                <Setter TargetName="btnBorder" Property="BorderBrush" Value="{StaticResource TextSecondaryBrush}"/>
+                                <Setter TargetName="btnBorder" Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="btnBorder" Property="Opacity" Value="0.6"/>
@@ -82,7 +82,7 @@
 
         <!-- Plain danger button: red, for remove -->
         <Style x:Key="IntegrationsDangerButton" TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource ErrorRedBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource ErrorRedBrush}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="Height" Value="36"/>
             <Setter Property="FontSize" Value="12"/>
@@ -135,7 +135,7 @@
     <!-- Collapsed until Load(botId) flips IsLoaded (FallbackValue keeps it hidden
          while the view model is still null / not loaded). -->
     <materialDesign:Card x:Name="CardRoot"
-                         Background="{StaticResource CardBackgroundBrush}"
+                         Background="{DynamicResource CardBackgroundBrush}"
                          VerticalAlignment="Top"
                          Visibility="{Binding IsLoaded, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}">
         <Grid>
@@ -146,8 +146,8 @@
 
             <!-- Card header -->
             <Border Grid.Row="0"
-                    Background="{StaticResource BackgroundDarkBrush}"
-                    BorderBrush="{StaticResource BorderColorBrush}"
+                    Background="{DynamicResource BackgroundDarkBrush}"
+                    BorderBrush="{DynamicResource BorderColorBrush}"
                     BorderThickness="0,0,0,1"
                     Padding="12,8">
                 <StackPanel>
@@ -155,18 +155,18 @@
                         <materialDesign:PackIcon Kind="LinkVariant"
                                                  Width="18"
                                                  Height="18"
-                                                 Foreground="{StaticResource PrimaryBrush}"
+                                                 Foreground="{DynamicResource PrimaryBrush}"
                                                  VerticalAlignment="Center"
                                                  Margin="0,0,8,0"/>
                         <TextBlock Text="Integrations"
                                    FontSize="14"
                                    FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                    VerticalAlignment="Center"/>
                     </StackPanel>
                     <TextBlock Text="Register external bot services (BotGhost, MEE6, Dyno, Carl-bot...), open their dashboard to sign in, and list the commands they run — Vyral flags any command this bot would double-answer."
                                FontSize="11"
-                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
                                TextWrapping="Wrap"
                                Margin="0,4,0,0"/>
                 </StackPanel>
@@ -191,7 +191,7 @@
                         <TextBlock Text="{Binding FormHeaderText}"
                                    FontSize="13"
                                    FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                    Margin="0,0,0,8"/>
 
                         <ComboBox ItemsSource="{Binding AvailablePresets}"
@@ -233,7 +233,7 @@
                     <ItemsControl ItemsSource="{Binding Integrations}" Margin="0,12,0,0">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderBrush="{StaticResource BorderColorBrush}"
+                                <Border BorderBrush="{DynamicResource BorderColorBrush}"
                                         BorderThickness="0,0,0,1"
                                         Padding="0,10">
                                     <StackPanel>
@@ -244,11 +244,11 @@
                                                 <TextBlock Text="{Binding Name}"
                                                            FontSize="13"
                                                            FontWeight="SemiBold"
-                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                                            VerticalAlignment="Center"/>
                                                 <TextBlock Text="{Binding CommandCountText}"
                                                            FontSize="11"
-                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
                                                            VerticalAlignment="Center"
                                                            Margin="8,0,0,0"/>
                                             </StackPanel>
@@ -273,7 +273,7 @@
                                         </Grid>
                                         <TextBlock Text="{Binding CommandListText}"
                                                    FontSize="11"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                                    TextWrapping="Wrap"
                                                    Margin="0,4,0,0"/>
                                     </StackPanel>
@@ -285,14 +285,14 @@
                     <TextBlock Text="No integrations yet — click ADD INTEGRATION to register BotGhost, MEE6, Dyno, Carl-bot or any other service."
                                FontSize="11"
                                FontStyle="Italic"
-                               Foreground="{StaticResource TextMutedBrush}"
+                               Foreground="{DynamicResource TextMutedBrush}"
                                TextWrapping="Wrap"
                                Margin="0,8,0,0"
                                Visibility="{Binding ShowEmptyIntegrationsHint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
                     <!-- Auto-detect: pick a seen bot, run its help command, parse the reply -->
-<Border Background="{StaticResource CardBackgroundBrush}"
-        BorderBrush="{StaticResource BorderColorBrush}"
+<Border Background="{DynamicResource CardBackgroundBrush}"
+        BorderBrush="{DynamicResource BorderColorBrush}"
         BorderThickness="1"
         CornerRadius="4"
         Padding="12"
@@ -301,16 +301,17 @@
         <TextBlock Text="Auto-detect commands"
                    FontSize="14"
                    FontWeight="SemiBold"
-                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                   Foreground="{DynamicResource TextPrimaryBrush}"/>
         <TextBlock Text="Pick a bot detected in this bot&#8217;s servers, run its help command, and Vyral parses the commands from its reply."
                    FontSize="11"
-                   Foreground="{StaticResource TextSecondaryBrush}"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
                    TextWrapping="Wrap"
                    Margin="0,4,0,8"/>
 
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
@@ -334,11 +335,29 @@
                     Command="{Binding DetectCommandsCommand}"
                     Style="{StaticResource IntegrationsPrimaryButton}"
                     Margin="8,0,0,0"/>
+
+            <Button Grid.Column="3"
+                    Command="{Binding RefreshDetectedCommand}"
+                    Style="{StaticResource IntegrationsSmallOutlineButton}"
+                    IsEnabled="{Binding IsNotBusy}"
+                    VerticalAlignment="Center"
+                    Margin="8,0,0,0"
+                    ToolTip="Refresh the list of bots detected in this bot's servers">
+                <materialDesign:PackIcon Kind="Refresh" Width="16" Height="16"/>
+            </Button>
         </Grid>
+
+        <TextBlock Text="No bots detected yet — make sure your bot shares a server and try Refresh."
+                   FontSize="11"
+                   FontStyle="Italic"
+                   Foreground="{DynamicResource TextMutedBrush}"
+                   TextWrapping="Wrap"
+                   Margin="0,8,0,0"
+                   Visibility="{Binding HasDetectedBots, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
 
         <TextBlock Text="{Binding DetectStatus}"
                    FontSize="11"
-                   Foreground="{StaticResource TextSecondaryBrush}"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
                    TextWrapping="Wrap"
                    Margin="0,8,0,0"/>
     </StackPanel>
@@ -346,7 +365,7 @@
 
 <!-- Conflicts panel -->
                     <Border Background="#14F59E0B"
-                            BorderBrush="{StaticResource WarningBrush}"
+                            BorderBrush="{DynamicResource WarningBrush}"
                             BorderThickness="1"
                             CornerRadius="4"
                             Padding="10"
@@ -357,36 +376,36 @@
                                 <materialDesign:PackIcon Kind="AlertOutline"
                                                          Width="16"
                                                          Height="16"
-                                                         Foreground="{StaticResource WarningBrush}"
+                                                         Foreground="{DynamicResource WarningBrush}"
                                                          VerticalAlignment="Center"
                                                          Margin="0,0,8,0"/>
                                 <TextBlock Text="Command conflicts"
                                            FontSize="13"
                                            FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                            VerticalAlignment="Center"/>
                             </StackPanel>
                             <TextBlock Text="These commands are registered to an external service AND run by Vyral — disable the Vyral copy so only one bot answers."
                                        FontSize="11"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"
                                        Margin="0,0,0,8"/>
 
                             <ItemsControl ItemsSource="{Binding Conflicts}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border BorderBrush="{StaticResource BorderColorBrush}"
+                                        <Border BorderBrush="{DynamicResource BorderColorBrush}"
                                                 BorderThickness="0,0,0,1"
                                                 Padding="0,8">
                                             <StackPanel>
                                                 <TextBlock FontSize="12"
-                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                                            TextWrapping="Wrap">
                                                     <Run Text="Command "/><Run Text="{Binding CommandDisplay}" FontWeight="SemiBold"/><Run Text=" conflicts with "/><Run Text="{Binding ServiceName}" FontWeight="SemiBold"/>
                                                 </TextBlock>
                                                 <TextBlock Text="{Binding VyralTargetText}"
                                                            FontSize="11"
-                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           Foreground="{DynamicResource TextMutedBrush}"
                                                            Margin="0,2,0,0"/>
 
                                                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
@@ -405,7 +424,7 @@
                                                     <TextBlock Text="{Binding BuiltInStatusText}"
                                                                FontSize="11"
                                                                FontStyle="Italic"
-                                                               Foreground="{StaticResource WarningBrush}"
+                                                               Foreground="{DynamicResource WarningBrush}"
                                                                VerticalAlignment="Center"
                                                                TextWrapping="Wrap"
                                                                Visibility="{Binding IsBuiltIn, Converter={StaticResource BooleanToVisibilityConverter}}"/>
@@ -421,7 +440,7 @@
                     <TextBlock Text="No conflicts — none of the registered external commands overlap with this bot's commands."
                                FontSize="11"
                                FontStyle="Italic"
-                               Foreground="{StaticResource TextMutedBrush}"
+                               Foreground="{DynamicResource TextMutedBrush}"
                                TextWrapping="Wrap"
                                Margin="0,10,0,0"
                                Visibility="{Binding ShowNoConflictsHint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
@@ -429,7 +448,7 @@
                     <!-- Status / errors -->
                     <TextBlock Text="{Binding StatusText}"
                                FontSize="11"
-                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
                                TextWrapping="Wrap"
                                Margin="0,12,0,0"
                                Visibility="{Binding StatusText, Converter={StaticResource NullOrEmptyToVisibilityConverter}}"/>

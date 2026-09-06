@@ -41,18 +41,11 @@ public partial class TiktokChatSettingsViewModel : ViewModelBase
 
             if (platform != null)
             {
+                // Just load the persisted values — no force-enable: the user's
+                // "chat disabled" choice must survive reconnects.
                 _isInitialized = false;
                 IsChatEnabled = platform.TiktokChatEnabled;
                 AutoStartChat = platform.TiktokChatAutoStart;
-
-                if (!platform.TiktokChatEnabled && platform.Status == "Connected")
-                {
-                    IsChatEnabled = true;
-                    platform.TiktokChatEnabled = true;
-                    platform.UpdatedAt = DateTime.UtcNow;
-                    await _dataService.SavePlatformAsync(platform);
-                }
-
                 _isInitialized = true;
             }
             else
@@ -67,10 +60,22 @@ public partial class TiktokChatSettingsViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private Task SaveSettingsAsync()
+    private async Task SaveSettingsAsync()
     {
-        Status = "Saved";
-        return Task.CompletedTask;
+        try
+        {
+            // Persist the current values via the same paths the toggles use
+            // (PersistPlatformFlagAsync also publishes the routing-changed event).
+            await PersistPlatformFlagAsync("TikTok", IsChatEnabled);
+            await PersistAutoStartFlagAsync(AutoStartChat);
+
+            Status = "Saved";
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error saving TikTok chat settings");
+            Status = "Failed to save settings";
+        }
     }
 
     partial void OnIsChatEnabledChanged(bool value)
@@ -113,12 +118,18 @@ public partial class TiktokChatSettingsViewModel : ViewModelBase
         try
         {
             var platform = await _dataService.GetPlatformByNameAsync(platformName);
-            if (platform != null)
+            if (platform == null)
             {
-                platform.TiktokChatEnabled = enabled;
-                platform.UpdatedAt = DateTime.UtcNow;
-                await _dataService.SavePlatformAsync(platform);
+                // TikTok platform row missing (TikTok not set up): surface why the
+                // toggle silently does nothing instead of no-oping quietly.
+                _logger?.LogWarning("PersistPlatformFlagAsync skipped: the {Platform} platform row does not exist", platformName);
+                Status = "TikTok is not set up — connect it first";
+                return;
             }
+
+            platform.TiktokChatEnabled = enabled;
+            platform.UpdatedAt = DateTime.UtcNow;
+            await _dataService.SavePlatformAsync(platform);
 
             var evt = new PlatformChatRoutingChangedEvent { Source = "UI", Platform = platformName, Enabled = enabled };
             await _eventBus.PublishAsync(evt);

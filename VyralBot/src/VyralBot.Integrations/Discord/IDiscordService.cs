@@ -20,6 +20,36 @@ public interface IDiscordService
     /// <summary>Username of the logged-in bot account, null when disconnected.</summary>
     string? BotUsername { get; }
 
+    /// <summary>
+    /// Discord username auto-detected from the gateway at the last successful
+    /// connect (READY). Null until the first capture; retains the last known
+    /// value while disconnected.
+    /// </summary>
+    string? DetectedBotUsername { get; }
+
+    /// <summary>
+    /// Discord application/user snowflake ID auto-detected from the gateway at
+    /// the last successful connect. Null until the first capture.
+    /// </summary>
+    string? DetectedApplicationId { get; }
+
+    /// <summary>
+    /// Avatar URL (PNG, 128px) auto-detected from the gateway at the last
+    /// successful connect. Null when Discord reports no avatar or before the
+    /// first capture.
+    /// </summary>
+    string? DetectedAvatarUrl { get; }
+
+    /// <summary>
+    /// Raised once per connection when the gateway makes the bot's verified
+    /// identity available (READY observed during connect). The argument is this
+    /// instance's manager row id (<see cref="BotId"/>). Duplicate raises for
+    /// the same connection are suppressed, and subscriber exceptions are
+    /// swallowed by the raiser. The <see cref="DiscordBotManager"/> subscribes
+    /// to persist ApplicationId/BotUsername/AvatarUrl on the bot's row.
+    /// </summary>
+    event Action<string>? BotIdentityDetected;
+
     /// <summary>Snowflake ID of the channel selected for sending messages.</summary>
     string? SelectedChannelId { get; }
 
@@ -260,6 +290,18 @@ public interface IDiscordService
     /// Returns false when the user cannot be resolved or the send fails.
     /// </summary>
     Task<bool> SendDmAsync(string username, string content, string? embedJson, string? guildName = null);
+
+    /// <summary>
+    /// Sends a text and/or embed message straight to a channel by its snowflake
+    /// id — typically the DM channel snowflake carried by a received
+    /// DiscordChatMessageEvent, so replies land back in the same DM without the
+    /// bot having to resolve the user by name. Returns false when not
+    /// connected, the id is invalid/unresolvable or the send fails.
+    /// </summary>
+    /// <param name="channelId">Snowflake ID of the (DM or guild) channel to send into.</param>
+    /// <param name="content">Message text (may be empty when embedJson is provided).</param>
+    /// <param name="embedJson">Optional embed JSON (same tolerant schema as <see cref="SendToChannelAsync"/>).</param>
+    Task<bool> SendDmToChannelAsync(string channelId, string content, string? embedJson = null);
 
     /// <summary>
     /// Grants a role (name or snowflake id) to a user (name, display name or

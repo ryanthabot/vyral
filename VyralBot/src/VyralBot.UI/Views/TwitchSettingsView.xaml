@@ -30,8 +30,11 @@
             </StackPanel>
             
             <!-- Back Button -->
+            <!-- Note: this view is hosted in MainWindow (DataContext is TwitchSettingsViewModel),
+                     so the old ElementName=SettingsViewRoot binding crossed namescopes and silently
+                     failed. Navigate back to the Platforms grid via the window's MainViewModel. -->
             <Button Grid.Column="1"
-                    Command="{Binding DataContext.BackToPlatformGridCommand, ElementName=SettingsViewRoot}"
+                    Command="{Binding DataContext.NavigateToPlatformsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                     Style="{StaticResource MaterialDesignFlatButton}"
                     VerticalAlignment="Top"
                     Margin="16,0,0,0"

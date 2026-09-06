@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using VyralBot.Core.Models;
 using VyralBot.Core.Services.Chat;
 using VyralBot.Core.Services.EventBus;
@@ -46,6 +47,29 @@ public class YouTubeChatService : IYouTubeService, IDisposable
 
     /// <inheritdoc />
     public string? ReauthReason { get; private set; }
+
+    /// <inheritdoc />
+    public string LiveChatState { get; private set; } = "NotConnected";
+
+    /// <summary>Publishes a live-chat state transition to the EventBus (deduped per state).</summary>
+    private async Task SetLiveChatStateAsync(string state, string message)
+    {
+        if (string.Equals(LiveChatState, state, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        LiveChatState = state;
+        _logger.LogInformation("📺 YouTube live chat state: {State} — {Message}", state, message);
+        try
+        {
+            await _eventBus.PublishAsync(new Events.YouTubeLiveChatStateEvent { State = state, Message = message, Source = "YouTubeChatService" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to publish the YouTube live chat state change");
+        }
+    }
     public string? Channel => _currentChannel;
     public string? BotUsername => _botUsername;
 
@@ -79,6 +103,7 @@ public class YouTubeChatService : IYouTubeService, IDisposable
             channel, username);
         RequiresReauth = false;
         ReauthReason = null;
+        await SetLiveChatStateAsync("Connecting", "Connecting to YouTube live chat…");
 
         _botUsername = username;
         _currentChannel = channel;
@@ -116,10 +141,13 @@ public class YouTubeChatService : IYouTubeService, IDisposable
         {
             _logger.LogWarning("⚠️ No active YouTube live broadcast found. Will retry periodically.");
             // Still mark as connected — we'll poll for a live broadcast
+            await SetLiveChatStateAsync("WaitingForBroadcast",
+                "YouTube connected — your channel isn't live right now, so there's no live chat to read. Chat messages will appear once you go live.");
         }
         else
         {
             _logger.LogInformation("✅ Found active live chat: {LiveChatId}", _liveChatId);
+            await SetLiveChatStateAsync("Listening", "YouTube live chat is active — listening to your stream's chat.");
         }
 
         _isConnected = true;
@@ -165,6 +193,9 @@ public class YouTubeChatService : IYouTubeService, IDisposable
         _pollCts?.Dispose();
         _pollCts = null;
         _pollTask = null;
+
+        // Reset the live-chat state so the UI no longer reports "Listening"/"WaitingForBroadcast"
+        await SetLiveChatStateAsync("NotConnected", "Disconnected from YouTube live chat.");
 
         // Publish disconnection event
         await _eventBus.PublishAsync(new PlatformConnectionChangedEvent
@@ -229,11 +260,14 @@ public class YouTubeChatService : IYouTubeService, IDisposable
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
                 response.StatusCode == System.Net.HttpStatusCode.Forbidden)
             {
-                // Try refresh and retry once
+                // Try refresh and retry once — the request must be REBUILT because a
+                // sent HttpRequestMessage (with its consumed content) cannot be resent.
                 if (await RefreshTokenAsync())
                 {
-                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
-                    response = await _httpClient.SendAsync(request);
+                    using var retryRequest = new HttpRequestMessage(HttpMethod.Post, $"{YouTubeApiBase}/liveChat/messages?part=snippet");
+                    retryRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+                    retryRequest.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                    response = await _httpClient.SendAsync(retryRequest);
                     if (response.IsSuccessStatusCode)
                     {
                         _logger.LogInformation("✅ YouTube chat message sent after token refresh: {Message}", message);
@@ -247,6 +281,180 @@ public class YouTubeChatService : IYouTubeService, IDisposable
 
         _logger.LogInformation("✅ YouTube chat message sent: {Message}", message);
     }
+
+    #region Stream Info Update
+
+    /// <inheritdoc />
+    public async Task<YouTubeActionResponse> UpdateStreamInfoAsync(string? title, string? description)
+    {
+        if (!_isConnected)
+        {
+            return new YouTubeActionResponse(false, "YouTube is not connected — connect YouTube in Platforms first.");
+        }
+
+        if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(description))
+        {
+            return new YouTubeActionResponse(false, "Nothing to update — enter a title or description first.");
+        }
+
+        try
+        {
+            await EnsureTokenFreshAsync();
+
+            var broadcastId = await FindActiveBroadcastIdAsync();
+            if (string.IsNullOrEmpty(broadcastId))
+            {
+                return new YouTubeActionResponse(false,
+                    "No active YouTube broadcast found — you're not live right now, so there's nothing to update. Go live and try again.");
+            }
+
+            // Fetch the full broadcast resource (snippet + status), modify only the
+            // provided snippet fields, then PUT the whole resource back — YouTube
+            // requires the status part to be included unchanged.
+            var getUrl = $"{YouTubeApiBase}/liveBroadcasts?part=snippet,status&id={broadcastId}";
+            var (getStatusCode, getBody, getSuccess) = await SendYouTubeApiAsync(HttpMethod.Get, getUrl, jsonBody: null);
+            if (!getSuccess)
+            {
+                _logger.LogWarning("⚠️ Failed to load the YouTube broadcast resource (status={Status}): {Body}",
+                    getStatusCode, getBody);
+                return new YouTubeActionResponse(false,
+                    $"Could not load the YouTube broadcast ({(int)getStatusCode}). Try again in a moment.");
+            }
+
+            JsonNode? broadcastNode;
+            try
+            {
+                broadcastNode = JsonNode.Parse(getBody)?["items"]?[0];
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse the YouTube broadcast resource");
+                broadcastNode = null;
+            }
+
+            if (broadcastNode?["snippet"] == null)
+            {
+                return new YouTubeActionResponse(false,
+                    "The YouTube broadcast payload was missing its snippet — try again in a moment.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                broadcastNode["snippet"]!["title"] = title.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(description))
+            {
+                broadcastNode["snippet"]!["description"] = description.Trim();
+            }
+
+            var putUrl = $"{YouTubeApiBase}/liveBroadcasts?part=snippet,status";
+            var (putStatusCode, putBody, putSuccess) = await SendYouTubeApiAsync(
+                HttpMethod.Put, putUrl, broadcastNode.ToJsonString());
+
+            if (!putSuccess)
+            {
+                _logger.LogWarning("⚠️ YouTube broadcast update failed (status={Status}): {Body}",
+                    putStatusCode, putBody);
+
+                if (putStatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    return new YouTubeActionResponse(false,
+                        "YouTube rejected the update (403). Re-run the YouTube setup in Platforms to grant the updated permissions.");
+                }
+
+                return new YouTubeActionResponse(false, $"YouTube rejected the update ({(int)putStatusCode}).");
+            }
+
+            _logger.LogInformation("✅ Updated YouTube broadcast info for {BroadcastId}", broadcastId);
+
+            var changedTitle = !string.IsNullOrWhiteSpace(title);
+            var changedDescription = !string.IsNullOrWhiteSpace(description);
+            var message = changedTitle && changedDescription
+                ? "YouTube stream updated — title and description saved."
+                : changedTitle
+                    ? $"YouTube stream updated — title set to \"{title!.Trim()}\"."
+                    : "YouTube stream updated — description saved.";
+            return new YouTubeActionResponse(true, message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error updating YouTube stream info");
+            return new YouTubeActionResponse(false, $"Updating the YouTube stream failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// GET liveBroadcasts (active, mine) → the active broadcast id, or null when none.
+    /// </summary>
+    private async Task<string?> FindActiveBroadcastIdAsync()
+    {
+        var url = $"{YouTubeApiBase}/liveBroadcasts?part=id&broadcastStatus=active&mine=true";
+        var (statusCode, body, success) = await SendYouTubeApiAsync(HttpMethod.Get, url, jsonBody: null);
+        if (!success)
+        {
+            _logger.LogWarning("⚠️ Failed to look up the active YouTube broadcast (status={Status}): {Body}",
+                statusCode, body);
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("items", out var items) && items.GetArrayLength() > 0 &&
+                items[0].TryGetProperty("id", out var id))
+            {
+                var broadcastId = id.GetString();
+                if (!string.IsNullOrEmpty(broadcastId))
+                {
+                    _logger.LogInformation("🔴 Found active YouTube broadcast {BroadcastId}", broadcastId);
+                    return broadcastId;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse the YouTube liveBroadcasts lookup response");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Sends an authenticated YouTube Data API request, refreshing the token and
+    /// retrying once on 401 (the request is rebuilt because a sent
+    /// HttpRequestMessage cannot be resent). 403 is NOT retried — it usually
+    /// means a missing scope, and a refresh would wrongly flag RequiresReauth.
+    /// </summary>
+    private async Task<(System.Net.HttpStatusCode StatusCode, string Body, bool Success)> SendYouTubeApiAsync(
+        HttpMethod method, string url, string? jsonBody)
+    {
+        async Task<(System.Net.HttpStatusCode StatusCode, string Body)> SendOnceAsync()
+        {
+            using var request = new HttpRequestMessage(method, url);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+            if (jsonBody != null)
+            {
+                request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+            }
+
+            using var response = await _httpClient.SendAsync(request);
+            var body = await response.Content.ReadAsStringAsync();
+            return (response.StatusCode, body);
+        }
+
+        var (statusCode, body) = await SendOnceAsync();
+
+        if (statusCode == System.Net.HttpStatusCode.Unauthorized && await RefreshTokenAsync())
+        {
+            (statusCode, body) = await SendOnceAsync();
+        }
+
+        var success = (int)statusCode >= 200 && (int)statusCode < 300;
+        return (statusCode, body, success);
+    }
+
+    #endregion
 
     #region Polling
 
@@ -269,6 +477,7 @@ public class YouTubeChatService : IYouTubeService, IDisposable
                     {
                         _logger.LogInformation("🔴 Found active live broadcast! LiveChatId: {LiveChatId}", _liveChatId);
                         _nextPageToken = null; // Reset page token for new chat
+                        await SetLiveChatStateAsync("Listening", "You're live on YouTube — live chat is active.");
                     }
                     else
                     {
@@ -294,6 +503,7 @@ public class YouTubeChatService : IYouTubeService, IDisposable
                 _logger.LogWarning("⚠️ Live chat no longer available (stream may have ended). Waiting for next broadcast...");
                 _liveChatId = null;
                 _nextPageToken = null;
+                await SetLiveChatStateAsync("WaitingForBroadcast", "The YouTube stream ended — waiting for you to go live again.");
                 await Task.Delay(broadcastCheckInterval, ct);
             }
             catch (Exception ex)
@@ -321,28 +531,34 @@ public class YouTubeChatService : IYouTubeService, IDisposable
 
         if (!response.IsSuccessStatusCode)
         {
-            var errorBody = await response.Content.ReadAsStringAsync(ct);
-
-            // 401/403 → refresh token and retry
+            // 401/403 → refresh token and retry once within this poll iteration.
+            // The request must be REBUILT because a sent HttpRequestMessage cannot be resent.
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
                 response.StatusCode == System.Net.HttpStatusCode.Forbidden)
             {
                 _logger.LogWarning("🔄 YouTube API returned {Status}, refreshing token...", response.StatusCode);
                 if (await RefreshTokenAsync())
                 {
-                    // Retry once after refresh
-                    return;
+                    // Retry once after refresh with a fresh request message
+                    using var retryRequest = new HttpRequestMessage(HttpMethod.Get, url);
+                    retryRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+                    response = await _httpClient.SendAsync(retryRequest, ct);
                 }
             }
 
-            // 404 → stream ended
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            if (!response.IsSuccessStatusCode)
             {
-                throw new HttpRequestException($"Live chat not found", null, System.Net.HttpStatusCode.NotFound);
-            }
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
 
-            _logger.LogError("❌ YouTube chat poll failed: {Status} - {Error}", response.StatusCode, errorBody);
-            return;
+                // 404 → stream ended
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    throw new HttpRequestException($"Live chat not found", null, System.Net.HttpStatusCode.NotFound);
+                }
+
+                _logger.LogError("❌ YouTube chat poll failed: {Status} - {Error}", response.StatusCode, errorBody);
+                return;
+            }
         }
 
         var json = await response.Content.ReadAsStringAsync(ct);
@@ -386,17 +602,9 @@ public class YouTubeChatService : IYouTubeService, IDisposable
         if (!item.TryGetProperty("authorDetails", out var author))
             return;
 
-        // Only process text messages
         var messageType = snippet.TryGetProperty("type", out var typeProp) ? typeProp.GetString() : null;
-        if (messageType != "textMessageEvent")
+        if (string.IsNullOrEmpty(messageType))
             return;
-
-        var messageText = "";
-        if (snippet.TryGetProperty("textMessageDetails", out var textDetails) &&
-            textDetails.TryGetProperty("messageText", out var msgProp))
-        {
-            messageText = msgProp.GetString() ?? "";
-        }
 
         var displayName = author.TryGetProperty("displayName", out var dnProp) ? dnProp.GetString() ?? "" : "";
         var channelId = author.TryGetProperty("channelId", out var cidProp) ? cidProp.GetString() ?? "" : "";
@@ -408,6 +616,28 @@ public class YouTubeChatService : IYouTubeService, IDisposable
         var publishedAt = snippet.TryGetProperty("publishedAt", out var pubProp)
             ? DateTime.TryParse(pubProp.GetString(), out var dt) ? dt : (DateTime?)null
             : null;
+
+        // Text messages keep their raw text; special events (superchats, super
+        // stickers, new members, member milestones) are mapped to a synthetic
+        // display message so they are no longer silently dropped.
+        var messageText = messageType == "textMessageEvent"
+            ? (snippet.TryGetProperty("textMessageDetails", out var textDetails) &&
+               textDetails.TryGetProperty("messageText", out var msgProp)
+                ? msgProp.GetString() ?? ""
+                : "")
+            : BuildSpecialEventMessage(messageType, displayName, snippet);
+
+        // Membership events (new member / member milestone) also publish a
+        // structured event so the UI gets the member level without having to
+        // parse it out of the synthetic chat text. Published before the
+        // empty-message gate below so it fires exactly once per event.
+        if (messageType is "newSponsorEvent" or "memberMilestoneChatEvent")
+        {
+            PublishMembershipEvent(messageType, channelId, displayName, snippet);
+        }
+
+        if (string.IsNullOrEmpty(messageText))
+            return;
 
         var chatEvent = new YouTubeChatMessageEvent
         {
@@ -475,10 +705,120 @@ public class YouTubeChatService : IYouTubeService, IDisposable
         // Store in database
         if (_platform?.YoutubeChatEnabled ?? true)
         {
-            _chatMessageStore?.AddAsync("YouTube", _currentChannel ?? "Unknown", chatEvent);
+            try
+            {
+                if (_chatMessageStore != null)
+                {
+                    await _chatMessageStore.AddAsync("YouTube", _currentChannel ?? "Unknown", chatEvent);
+                }
+            }
+            catch (Exception storeEx)
+            {
+                _logger.LogWarning(storeEx, "Failed to store YouTube chat message from {Username}", displayName);
+            }
         }
 
         _logger.LogInformation("💬 YouTube chat: {Username}: {Message}", displayName, messageText);
+    }
+
+    /// <summary>
+    /// Publishes a structured <see cref="YouTubeMembershipEvent"/> for a new-member
+    /// ("newSponsorEvent") or member-milestone ("memberMilestoneChatEvent") live chat
+    /// event. Fire-and-forget on the thread pool with the same try/catch logging the
+    /// chat message publishes use, so a publish failure never breaks the poll loop.
+    /// </summary>
+    private void PublishMembershipEvent(string messageType, string channelId, string displayName, JsonElement snippet)
+    {
+        // newSponsorEvent → newSponsorDetails.memberLevelName;
+        // memberMilestoneChatEvent → memberMilestoneChatDetails.memberLevelName.
+        var level = messageType == "memberMilestoneChatEvent"
+            ? (snippet.TryGetProperty("memberMilestoneChatDetails", out var milestoneDetails) &&
+               milestoneDetails.TryGetProperty("memberLevelName", out var milestoneLevel)
+                ? milestoneLevel.GetString() ?? ""
+                : "")
+            : (snippet.TryGetProperty("newSponsorDetails", out var sponsorDetails) &&
+               sponsorDetails.TryGetProperty("memberLevelName", out var sponsorLevel)
+                ? sponsorLevel.GetString() ?? ""
+                : "");
+
+        var membershipEvent = new YouTubeMembershipEvent
+        {
+            Source = "YouTube",
+            Username = displayName,
+            UserId = channelId,
+            Level = level,
+            IsMilestone = messageType == "memberMilestoneChatEvent"
+        };
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _eventBus.PublishAsync(membershipEvent);
+                _logger.LogDebug("✅ Published YouTubeMembershipEvent for {Username} (milestone: {IsMilestone}, level: {Level})",
+                    displayName, membershipEvent.IsMilestone, membershipEvent.Level);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Failed to publish YouTubeMembershipEvent for {Username}", displayName);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Builds a synthetic chat message for YouTube special events (superchat,
+    /// super sticker, new member, member milestone) from the event snippet.
+    /// Returns an empty string when the payload can't be mapped.
+    /// </summary>
+    private static string BuildSpecialEventMessage(string messageType, string displayName, JsonElement snippet)
+    {
+        try
+        {
+            switch (messageType)
+            {
+                case "superChatEvent":
+                case "superStickerEvent":
+                    var details = messageType == "superChatEvent"
+                        ? snippet.TryGetProperty("superChatDetails", out var superChatDetails) ? superChatDetails : default
+                        : snippet.TryGetProperty("superStickerDetails", out var superStickerDetails) ? superStickerDetails : default;
+                    if (details.ValueKind == JsonValueKind.Undefined)
+                        return string.Empty;
+
+                    var amount = details.TryGetProperty("amountDisplayString", out var amountProp)
+                        ? amountProp.GetString() : null;
+                    var comment = details.TryGetProperty("userComment", out var commentProp)
+                        ? commentProp.GetString() : null;
+                    var kind = messageType == "superChatEvent" ? "superchatted" : "sent a Super Sticker";
+
+                    return string.IsNullOrEmpty(comment)
+                        ? $"💎 {displayName} {kind} {amount ?? "a gift"}!"
+                        : $"💎 {displayName} {kind} {amount ?? "a gift"}: {comment}";
+
+                case "newSponsorEvent":
+                    return $"🌟 {displayName} became a member!";
+
+                case "memberMilestoneChatEvent":
+                    var milestoneDetails = snippet.TryGetProperty("memberMilestoneChatDetails", out var mmd)
+                        ? mmd : default;
+                    var level = milestoneDetails.ValueKind != JsonValueKind.Undefined &&
+                                milestoneDetails.TryGetProperty("memberLevelName", out var levelProp)
+                        ? levelProp.GetString() : null;
+                    var milestoneComment = milestoneDetails.ValueKind != JsonValueKind.Undefined &&
+                                           milestoneDetails.TryGetProperty("memberComment", out var mcProp)
+                        ? mcProp.GetString() : null;
+                    var milestoneText = string.IsNullOrEmpty(level)
+                        ? $"🌟 {displayName} reached a membership milestone!"
+                        : $"🌟 {displayName} reached a membership milestone ({level})!";
+                    return string.IsNullOrEmpty(milestoneComment) ? milestoneText : $"{milestoneText}: {milestoneComment}";
+
+                default:
+                    return string.Empty;
+            }
+        }
+        catch (Exception)
+        {
+            return string.Empty;
+        }
     }
 
     #endregion
@@ -629,6 +969,8 @@ public class YouTubeChatService : IYouTubeService, IDisposable
                 ReauthReason = responseBody.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase)
                     ? "invalid_grant"
                     : response.StatusCode.ToString();
+                await SetLiveChatStateAsync("ReauthRequired",
+                    "YouTube needs re-authorization — run Home → Connections → YouTube to sign in again.");
                 return false;
             }
 

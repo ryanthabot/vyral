@@ -253,7 +253,8 @@ public partial class CurrencyViewModel : ViewModelBase
             reward.Cost = NewRewardCost;
             reward.RequiresApproval = NewRewardRequiresApproval;
             reward.Cooldown = NewRewardCooldown;
-            reward.IsEnabled = true;
+            // Preserve the entity's current IsEnabled — forcing true would silently
+            // re-enable rewards the user deliberately disabled.
 
             await _rewardsService.SaveRewardAsync(reward);
             await LoadRewardsAsync();
@@ -302,8 +303,12 @@ public partial class CurrencyViewModel : ViewModelBase
         {
             SelectedReward.IsEnabled = !SelectedReward.IsEnabled;
             await _rewardsService.SaveRewardAsync(SelectedReward);
+            // LoadRewardsAsync replaces every instance, which drops the DataGrid
+            // selection — capture the Id and re-select the matching row.
+            var rewardId = SelectedReward.Id;
             await LoadRewardsAsync();
-            StatusMessage = SelectedReward.IsEnabled ? "Reward enabled." : "Reward disabled.";
+            SelectedReward = Rewards.FirstOrDefault(r => r.Id == rewardId);
+            StatusMessage = SelectedReward?.IsEnabled == true ? "Reward enabled." : "Reward disabled.";
         }
         catch (Exception ex)
         {

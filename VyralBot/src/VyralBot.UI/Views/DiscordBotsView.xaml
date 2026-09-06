@@ -7,7 +7,7 @@
              xmlns:converters="clr-namespace:VyralBot.UI.Converters"
              mc:Ignorable="d"
              d:DesignHeight="700" d:DesignWidth="900"
-             Background="{StaticResource BackgroundDarkBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -88,7 +88,7 @@
 
         <!-- Plain danger button: red, for destructive actions -->
         <Style x:Key="VyralPlainDangerButton" TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource ErrorRedBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource ErrorRedBrush}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="Height" Value="40"/>
             <Setter Property="FontSize" Value="13"/>
@@ -145,12 +145,12 @@
                     <TextBlock Text="Discord Bots"
                                FontSize="28"
                                FontWeight="Bold"
-                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock Text="Every Discord bot Vyral runs, each with its own dashboard"
                            FontSize="14"
-                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
                            Margin="0,6,0,0"/>
             </StackPanel>
 
@@ -172,19 +172,19 @@
 
                 <!-- Quick Add card (primary add path) -->
                 <materialDesign:Card Padding="24"
-                                     Background="{StaticResource CardBackgroundBrush}"
-                                     Effect="{StaticResource CardShadow}"
+                                     Background="{DynamicResource CardBackgroundBrush}"
+                                     Effect="{DynamicResource CardShadow}"
                                      Margin="0,0,0,16"
                                      Visibility="{Binding IsAddPanelVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel>
                         <TextBlock Text="Quick Add"
                                    FontSize="16"
                                    FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                    Margin="0,0,0,4"/>
                         <TextBlock Text="Paste a bot token to add it right away — Vyral verifies the token by connecting the bot. The bot needs the MESSAGE CONTENT INTENT enabled in the Discord Developer Portal (Bot tab &gt; Privileged Gateway Intents), or it cannot read messages."
                                    FontSize="12"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    Margin="0,0,0,16"/>
 
                         <Grid>
@@ -228,7 +228,7 @@
 
                         <TextBlock Text="{Binding AddStatus}"
                                    FontSize="12"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"
                                    Margin="0,10,0,0"
                                    Visibility="{Binding AddStatus, Converter={StaticResource StringToVisibilityConverter}}"/>
@@ -240,8 +240,8 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <materialDesign:Card Padding="20,16"
-                                                 Background="{StaticResource CardBackgroundBrush}"
-                                                 Effect="{StaticResource CardShadow}"
+                                                 Background="{DynamicResource CardBackgroundBrush}"
+                                                 Effect="{DynamicResource CardShadow}"
                                                  Margin="0,0,0,12">
                                 <StackPanel>
                                     <!-- Title row: name (or inline rename) + live status -->
@@ -252,11 +252,23 @@
                                         </Grid.ColumnDefinitions>
 
                                         <StackPanel Grid.Column="0">
-                                            <TextBlock Text="{Binding Name}"
-                                                       FontSize="18"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{StaticResource TextPrimaryBrush}"
-                                                       Visibility="{Binding IsRenaming, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <!-- Rocket badge: this bot starts with the app -->
+                                                <materialDesign:PackIcon Kind="Rocket"
+                                                                         Width="16"
+                                                                         Height="16"
+                                                                         Foreground="{DynamicResource DiscordBrush}"
+                                                                         VerticalAlignment="Center"
+                                                                         Margin="0,0,6,0"
+                                                                         ToolTip="Starts with the app"
+                                                                         Visibility="{Binding AutoStart, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontSize="18"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           VerticalAlignment="Center"
+                                                           Visibility="{Binding IsRenaming, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
+                                            </StackPanel>
 
                                             <StackPanel Orientation="Horizontal"
                                                         Visibility="{Binding IsRenaming, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -287,10 +299,10 @@
                                             <Ellipse Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center">
                                                 <Ellipse.Style>
                                                     <Style TargetType="Ellipse">
-                                                        <Setter Property="Fill" Value="{StaticResource ErrorRedBrush}"/>
+                                                        <Setter Property="Fill" Value="{DynamicResource ErrorRedBrush}"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsConnected}" Value="True">
-                                                                <Setter Property="Fill" Value="{StaticResource SuccessGreenBrush}"/>
+                                                                <Setter Property="Fill" Value="{DynamicResource SuccessGreenBrush}"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -299,21 +311,27 @@
                                             <TextBlock Text="{Binding StatusText}"
                                                        FontSize="13"
                                                        FontWeight="SemiBold"
-                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                                        VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Grid>
 
+                                    <!-- Detected identity (auto-detected when this bot connects) -->
+                                    <TextBlock Text="{Binding IdentityText}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Margin="0,6,0,0"/>
+
                                     <!-- Meta: bot account + server count (live, when connected) -->
-                                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                         <TextBlock Text="{Binding BotUsername, StringFormat='Bot account: {0}'}"
                                                    FontSize="12"
-                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                    Margin="0,0,16,0"
                                                    Visibility="{Binding BotUsername, Converter={StaticResource StringToVisibilityConverter}}"/>
                                         <TextBlock Text="{Binding ServerCountText}"
                                                    FontSize="12"
-                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
                                                    Visibility="{Binding ServerCountText, Converter={StaticResource StringToVisibilityConverter}}"/>
                                     </StackPanel>
 
@@ -367,18 +385,18 @@
                     <materialDesign:PackIcon Kind="Robot"
                                              Width="48"
                                              Height="48"
-                                             Foreground="{StaticResource TextMutedBrush}"
+                                             Foreground="{DynamicResource TextMutedBrush}"
                                              HorizontalAlignment="Center"
                                              Margin="0,0,0,12"/>
                     <TextBlock Text="No Discord bots yet"
                                FontSize="16"
                                FontWeight="SemiBold"
-                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                HorizontalAlignment="Center"
                                Margin="0,0,0,8"/>
                     <TextBlock Text="Add your first bot above — paste its name and token, or run the full setup wizard."
                                FontSize="12"
-                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
                                TextWrapping="Wrap"
                                TextAlignment="Center"
                                HorizontalAlignment="Center"/>
@@ -387,7 +405,7 @@
                 <!-- Page status line -->
                 <TextBlock Text="{Binding StatusMessage}"
                            FontSize="12"
-                           Foreground="{StaticResource TextMutedBrush}"
+                           Foreground="{DynamicResource TextMutedBrush}"
                            Margin="0,8,0,0"/>
             </StackPanel>
         </ScrollViewer>

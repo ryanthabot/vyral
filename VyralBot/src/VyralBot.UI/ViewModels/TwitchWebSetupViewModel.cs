@@ -340,8 +340,13 @@ public partial class TwitchWebSetupViewModel : ObservableObject
                 return;
             }
 
-            // Subscribe to navigation events to catch the callback
+            // Subscribe to navigation events to catch the callback.
+            // Unsubscribe first so repeated Authorize clicks don't stack handlers.
+            WebView2.CoreWebView2.NavigationStarting -= OnOAuthNavigationStarting;
             WebView2.CoreWebView2.NavigationStarting += OnOAuthNavigationStarting;
+
+            // Surface the built authorization URL so the debug panel can show it
+            OAuthUrl = url;
 
             ShowBrowser = true;
             OAuthStatus = "✅ Authorizing... Please sign in to Twitch";

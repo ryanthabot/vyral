@@ -32,6 +32,10 @@ public partial class DiscordBotCardViewModel : ObservableObject
     [ObservableProperty]
     private string _botUsername = "";
 
+    /// <summary>True when this bot starts automatically at app launch (drives the card's rocket badge).</summary>
+    [ObservableProperty]
+    private bool _autoStart;
+
     [ObservableProperty]
     private string _serverCountText = "";
 
@@ -44,10 +48,28 @@ public partial class DiscordBotCardViewModel : ObservableObject
     [ObservableProperty]
     private string _renameText = "";
 
+    /// <summary>
+    /// Detected identity line for the card's muted secondary text:
+    /// "{BotUsername ?? "connecting…"} · ID {ApplicationId ?? "—"}". Sourced
+    /// from the persisted config row (populated when the bot connects), so it
+    /// degrades gracefully for a bot that has never connected.
+    /// </summary>
+    [ObservableProperty]
+    private string _identityText = "";
+
     public DiscordBotCardViewModel(DiscordBotConfig config)
     {
         Config = config;
         _name = config.Name;
+        _autoStart = config.AutoStart;
+        _identityText = BuildIdentityText(config);
+    }
+
+    private static string BuildIdentityText(DiscordBotConfig config)
+    {
+        var username = string.IsNullOrWhiteSpace(config.BotUsername) ? "connecting…" : config.BotUsername!;
+        var applicationId = string.IsNullOrWhiteSpace(config.ApplicationId) ? "—" : config.ApplicationId!;
+        return $"🤖 {username} · ID {applicationId}";
     }
 }
 
@@ -177,6 +199,32 @@ public partial class DiscordBotsViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// True when another configured bot whose gateway session is currently
+    /// running shares this card's token (StartBotAsync refuses those starts so
+    /// one token never opens two gateway sessions).
+    /// </summary>
+    private async Task<bool> IsTokenUsedByRunningBotAsync(DiscordBotCardViewModel card)
+    {
+        try
+        {
+            var token = card.Config.Token;
+            if (string.IsNullOrWhiteSpace(token))
+                return false;
+
+            var configs = await _botManager.LoadBotsAsync();
+            return configs.Any(other =>
+                other.Id != card.Id
+                && string.Equals(other.Token, token, StringComparison.Ordinal)
+                && _botManager.Get(other.Id)?.IsConnected == true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not check duplicate-token state for Discord bot {BotId}", card.Id);
+            return false;
+        }
+    }
+
     private void ApplyLiveState(DiscordBotCardViewModel card)
     {
         var service = _botManager.Get(card.Id);
@@ -213,9 +261,12 @@ public partial class DiscordBotsViewModel : ViewModelBase
         try
         {
             var started = await _botManager.StartBotAsync(card.Id);
-            StatusMessage = started
-                ? $"{card.Name} is up and running"
-                : $"Could not start {card.Name} — check the bot token and try again";
+            if (!started)
+            {
+                StatusMessage = await IsTokenUsedByRunningBotAsync(card)
+                    ? $"Could not start {card.Name} — its token is already in use by another bot"
+                    : $"Could not start {card.Name} — check the bot token and try again";
+            }
         }
         catch (Exception ex)
         {

@@ -17,7 +17,7 @@ public interface IStatisticsService
     /// <summary>
     /// Get top contributors for a specific event type (e.g., top gifters, top cheerers).
     /// </summary>
-    Task<List<UserStatistic>> GetTopContributorsAsync(string eventType, string? platform = null, int limit = 10);
+    Task<List<UserStatistic>> GetTopContributorsAsync(string eventType, string? platform = null, int limit = 10, DateTime? startDate = null, DateTime? endDate = null);
 
     /// <summary>
     /// Get all-time top contributors across all events.
@@ -27,7 +27,7 @@ public interface IStatisticsService
     /// <summary>
     /// Export statistics to CSV format.
     /// </summary>
-    Task<string> ExportToCsvAsync(DateTime? startDate = null, DateTime? endDate = null);
+    Task<string> ExportToCsvAsync(DateTime? startDate = null, DateTime? endDate = null, string? platform = null);
 
     /// <summary>
     /// Get statistics for a specific user.
@@ -53,13 +53,9 @@ public class StatisticsService : IStatisticsService
 
     public async Task<Dictionary<string, Dictionary<string, int>>> GetEventCountsByTypeAsync(DateTime? startDate = null, DateTime? endDate = null)
     {
-        var stats = await _dataService.GetEventStatisticsAsync(limit: 10000);
-        
-        if (startDate.HasValue)
-            stats = stats.Where(s => s.Timestamp >= startDate.Value);
-        
-        if (endDate.HasValue)
-            stats = stats.Where(s => s.Timestamp <= endDate.Value);
+        // Date filtering pushed into the SQL query (with bound DateTime parameters)
+        // so LIMIT applies after filtering instead of truncating the window.
+        var stats = await _dataService.GetEventStatisticsAsync(limit: 10000, startDate: startDate, endDate: endDate);
 
         var result = new Dictionary<string, Dictionary<string, int>>();
 
@@ -74,15 +70,17 @@ public class StatisticsService : IStatisticsService
             result[stat.Platform][stat.EventType]++;
         }
 
-        _logger.LogInformation("Retrieved event counts by type: {Platforms} platforms, {Total} total events", 
+        _logger.LogInformation("Retrieved event counts by type: {Platforms} platforms, {Total} total events",
             result.Keys.Count, stats.Count());
 
         return result;
     }
 
-    public async Task<List<UserStatistic>> GetTopContributorsAsync(string eventType, string? platform = null, int limit = 10)
+    public async Task<List<UserStatistic>> GetTopContributorsAsync(string eventType, string? platform = null, int limit = 10, DateTime? startDate = null, DateTime? endDate = null)
     {
-        var stats = await _dataService.GetEventStatisticsAsync(platform, eventType, limit: 10000);
+        // eventType/platform/dates are SQL-filtered; SQL is case-insensitive on
+        // EventType (UPPER comparison) so legacy rows with different casing match.
+        var stats = await _dataService.GetEventStatisticsAsync(platform, eventType, limit: 10000, startDate: startDate, endDate: endDate);
 
         var userStats = stats
             .GroupBy(s => new { s.Username, s.Platform })
@@ -127,15 +125,10 @@ public class StatisticsService : IStatisticsService
         return userStats;
     }
 
-    public async Task<string> ExportToCsvAsync(DateTime? startDate = null, DateTime? endDate = null)
+    public async Task<string> ExportToCsvAsync(DateTime? startDate = null, DateTime? endDate = null, string? platform = null)
     {
-        var stats = await _dataService.GetEventStatisticsAsync(limit: 100000);
-        
-        if (startDate.HasValue)
-            stats = stats.Where(s => s.Timestamp >= startDate.Value);
-        
-        if (endDate.HasValue)
-            stats = stats.Where(s => s.Timestamp <= endDate.Value);
+        // Platform and date filters are applied in SQL (limit applies post-filter).
+        var stats = await _dataService.GetEventStatisticsAsync(platform: platform, limit: 100000, startDate: startDate, endDate: endDate);
 
         var csv = new System.Text.StringBuilder();
         csv.AppendLine("Timestamp,Platform,EventType,Username,EventData,WasAutoReplied");
@@ -177,9 +170,7 @@ public class StatisticsService : IStatisticsService
 
     public async Task<Dictionary<DateTime, Dictionary<string, int>>> GetEventCountsByDateAsync(DateTime startDate, DateTime endDate)
     {
-        var stats = await _dataService.GetEventStatisticsAsync(limit: 100000);
-        
-        stats = stats.Where(s => s.Timestamp >= startDate && s.Timestamp <= endDate);
+        var stats = await _dataService.GetEventStatisticsAsync(limit: 100000, startDate: startDate, endDate: endDate);
 
         var result = new Dictionary<DateTime, Dictionary<string, int>>();
 

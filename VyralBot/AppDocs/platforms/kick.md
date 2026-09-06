@@ -12,6 +12,9 @@ The event pipeline was deliberately split to avoid duplicate events: whichever t
 
 ## User Guide
 
+When the Kick chat connects or drops, the Chat window posts a gold System line ("Kick chat connected — listening to your channel" / "Kick chat disconnected") so you can confirm the chat is live at a glance. App-only — never broadcast.
+
+
 ### Before you start
 
 - A Kick account (the bot speaks **as this account**).

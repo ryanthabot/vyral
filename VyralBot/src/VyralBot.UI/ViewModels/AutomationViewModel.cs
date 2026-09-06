@@ -526,14 +526,14 @@ public partial class AutomationViewModel : ViewModelBase
         var registered = registry?.GetAll() ?? Array.Empty<INode>();
         if (registered.Count > 0)
         {
+            // Offer ONLY the types WorkflowStepViewModel actually maps (per-type
+            // config fields + IsComplete). Any other registered node (send_embed,
+            // moderate, switch, http_request, ...) would create a step with no
+            // editor fields that always fails at runtime. Types present in saved
+            // workflows are still added dynamically on load (CreateStepViewModel).
             options.AddRange(registered
                 .Where(n => KnownNodeOrder.Contains(n.Type))
                 .OrderBy(n => Array.IndexOf(KnownNodeOrder, n.Type))
-                .Select(n => new NodeTypeOption(n.Title, n.Type, n.Category)));
-            options.AddRange(registered
-                .Where(n => !KnownNodeOrder.Contains(n.Type))
-                .OrderBy(n => n.Category)
-                .ThenBy(n => n.Title)
                 .Select(n => new NodeTypeOption(n.Title, n.Type, n.Category)));
         }
         else

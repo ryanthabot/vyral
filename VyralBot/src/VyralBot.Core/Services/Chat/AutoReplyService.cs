@@ -57,15 +57,11 @@ public class AutoReplyService : IAutoReplyService
     /// <param name="platform">Platform (Kick/Twitch)</param>
     /// <param name="eventType">Event type</param>
     /// <param name="context">Additional context for rule evaluation</param>
-    /// <returns>Reply message if conditions are met, null if rate limited or conditions not met</returns>
+    /// <returns>Reply message if a rule matches, null otherwise. Rate limiting is
+    /// the CALLER's responsibility (the send gate) — checking it here as well would
+    /// double-consume the limiter slot and always reject the lookup.</returns>
     public async Task<string?> GetAutoReplyAsync(string username, string platform, string eventType, Dictionary<string, object>? context = null)
     {
-        // Check rate limiting first
-        if (!ShouldSendReply(username, platform, eventType))
-        {
-            return null;
-        }
-
         // If no data service or rule evaluator, can't check conditional rules
         if (_dataService == null || _ruleEvaluator == null)
         {
@@ -94,8 +90,9 @@ public class AutoReplyService : IAutoReplyService
                     // Parse condition JSON
                     var condition = JsonSerializer.Deserialize<RuleCondition>(rule.ConditionJson);
                     
-                    // Evaluate condition
-                    if (condition != null && _ruleEvaluator.EvaluateCondition(condition, evalContext))
+                    // Evaluate condition (null/empty condition means "always match",
+                    // handled inside the evaluator)
+                    if (_ruleEvaluator.EvaluateCondition(condition, evalContext))
                     {
                         // Condition met - increment trigger count
                         await _dataService.IncrementRuleTriggerCountAsync(rule.Id);

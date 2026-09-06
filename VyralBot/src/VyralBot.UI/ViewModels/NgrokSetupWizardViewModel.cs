@@ -272,15 +272,17 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
         PublicUrl = "";
         TestMessageStatus = "Click 'TEST CONNECTION' to verify the connection";
         
-        _logger.LogInformation("Ngrok wizard state reset, disposing Settings and navigating back");
-        
-        // Dispose SettingsViewModel first, then navigate to force reload
+        _logger.LogInformation("Ngrok wizard state reset, disposing Settings");
+
+        // Dispose SettingsViewModel so it reloads with the completed ngrok setup.
+        // Deliberately do NOT navigate here: SetupCompleted (fired right after this)
+        // already makes MainViewModel navigate, and a second navigation here would
+        // race with it.
         var mainViewModel = _serviceProvider.GetService<MainViewModel>();
         if (mainViewModel != null)
         {
             mainViewModel.DisposeSettingsViewModel();
-            _logger.LogInformation("SettingsViewModel disposed, navigating to Settings");
-            _ = mainViewModel.NavigateToSettingsCommand.ExecuteAsync(null);
+            _logger.LogInformation("SettingsViewModel disposed - navigation handled by the SetupCompleted handler");
         }
     }
 
@@ -323,11 +325,15 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
             StatusMessage = "⏳ Starting web server...";
             TestMessageStatus = StatusMessage;
             
+            // Tunnel/web-server port comes from the persisted web-server settings (5000 fallback)
+            var settings = await _dataService.GetWebServerSettingsAsync();
+            var port = settings.Port > 0 ? settings.Port : 5000;
+
             // Start web server
-            var webServerStarted = await _webServerService.StartAsync(5000);
+            var webServerStarted = await _webServerService.StartAsync(port);
             if (!webServerStarted)
             {
-                StatusMessage = "✗ Failed to start web server - Port 5000 may be in use";
+                StatusMessage = $"✗ Failed to start web server - Port {port} may be in use";
                 TestMessageStatus = StatusMessage;
                 return;
             }
@@ -335,12 +341,10 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
             StatusMessage = "⏳ Starting ngrok tunnel...";
             TestMessageStatus = StatusMessage;
             await Task.Delay(500);
-
-            var settings = await _dataService.GetWebServerSettingsAsync();
             
             // Start ngrok tunnel using memory token
             var ngrokStarted = await _ngrokService.StartTunnelAsync(
-                5000,
+                port,
                 _savedNgrokAuth,
                 settings.NgrokRegion);
 

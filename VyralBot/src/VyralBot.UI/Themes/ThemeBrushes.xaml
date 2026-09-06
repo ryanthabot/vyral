@@ -53,6 +53,8 @@
     <SolidColorBrush x:Key="TextOnLightBrush" Color="{DynamicResource TextOnLight}"/>
 
     <!-- ===== Border Brushes ===== -->
+    <!-- Generic alias used by some views ({DynamicResource BorderBrush}); same value as BorderPrimaryBrush -->
+    <SolidColorBrush x:Key="BorderBrush" Color="{DynamicResource BorderPrimary}"/>
     <SolidColorBrush x:Key="BorderPrimaryBrush" Color="{DynamicResource BorderPrimary}"/>
     <SolidColorBrush x:Key="BorderSecondaryBrush" Color="{DynamicResource BorderSecondary}"/>
     <SolidColorBrush x:Key="BorderLightBrush" Color="{DynamicResource BorderLight}"/>

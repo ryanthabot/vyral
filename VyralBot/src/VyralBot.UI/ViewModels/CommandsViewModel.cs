@@ -155,7 +155,7 @@ public partial class CommandsViewModel : ViewModelBase
     /// <summary>Timer platform choices.</summary>
     public ObservableCollection<string> TimerPlatforms { get; } = new() { "Twitch", "Kick", "Discord" };
 
-    /// <summary>Every command name (built-in + custom) a timer can fire.</summary>
+    /// <summary>Every enabled command name (built-in + custom) a timer can fire.</summary>
     public ObservableCollection<string> TimerCommandNames { get; } = new();
 
     /// <summary>Discord send target for timers: "Primary bot" plus each configured bot.</summary>
@@ -236,10 +236,16 @@ public partial class CommandsViewModel : ViewModelBase
             ApplyBotScope();
             await RefreshFlowManagedIdsAsync();
 
-            // Timers can fire any command (built-in or custom) — refresh the
-            // picker list whenever the command set changes.
+            // Timers can fire any ENABLED command (built-in or custom) —
+            // refresh the picker list whenever the command set changes.
+            // Disabled commands (including flow-adopted rows, which the flow
+            // editor disables) can never fire, so keep them out of the list.
             TimerCommandNames.Clear();
-            foreach (var name in allCommands.Select(c => c.Name).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+            foreach (var name in allCommands
+                .Where(c => c.IsEnabled)
+                .Select(c => c.Name)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
             {
                 TimerCommandNames.Add(name);
             }
@@ -539,6 +545,12 @@ public partial class CommandsViewModel : ViewModelBase
                     return;
                 }
 
+                if (!Confirm($"Delete the flow that adopted \"{command.Name}\"? The built-in command itself stays and becomes live again."))
+                {
+                    StatusMessage = "Delete cancelled";
+                    return;
+                }
+
                 await DeleteAdoptingFlowAsync(owningFlowId, command.Name);
 
                 command.IsEnabled = true;
@@ -557,7 +569,25 @@ public partial class CommandsViewModel : ViewModelBase
                 return;
             }
 
-            await _commandService.DeleteCommandAsync(command.Id);
+            var confirmMessage = owningFlowId == null
+                ? $"Delete command \"{command.Name}\"? This cannot be undone."
+                : $"Delete command \"{command.Name}\" AND the flow that adopted it? This cannot be undone.";
+            if (!Confirm(confirmMessage))
+            {
+                StatusMessage = "Delete cancelled";
+                return;
+            }
+
+            // DeleteCommandAsync returns false when the row is already gone
+            // (e.g. a second Delete click on a stale selection).
+            var deleted = await _commandService.DeleteCommandAsync(command.Id);
+            if (!deleted)
+            {
+                StatusMessage = $"{command.Name} no longer exists";
+                _logger.LogWarning("Delete skipped: command {CommandName} no longer exists", command.Name);
+                return;
+            }
+
             if (owningFlowId != null)
             {
                 await DeleteAdoptingFlowAsync(owningFlowId, command.Name);
@@ -574,6 +604,10 @@ public partial class CommandsViewModel : ViewModelBase
                 Close();
             }
 
+            // Clear the stale selection so a second Delete click cannot
+            // target the removed row again.
+            SelectedCommand = null;
+
             await LoadCommandsAsync();
         }
         catch (Exception ex)
@@ -583,6 +617,20 @@ public partial class CommandsViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Modal OK/cancel confirmation (same pattern as SettingsViewModel's
+    /// data-management confirmations). True only when the user confirmed.
+    /// </summary>
+    private static bool Confirm(string message)
+    {
+        var dialog = new Views.ConfirmDialog
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+        dialog.SetMessage(message);
+        return dialog.ShowDialog() == true;
+    }
+
     [RelayCommand]
     private async Task ToggleEnabledAsync(Command? command)
     {
@@ -590,7 +638,9 @@ public partial class CommandsViewModel : ViewModelBase
 
         try
         {
-            command.IsEnabled = !command.IsEnabled;
+            // Note: CheckBox IsChecked binding already toggled the value —
+            // flipping it again here would undo the change before the save,
+            // so the persisted value would never move.
             command.UpdatedAt = DateTime.UtcNow;
             await _commandService.UpdateCommandAsync(command);
 

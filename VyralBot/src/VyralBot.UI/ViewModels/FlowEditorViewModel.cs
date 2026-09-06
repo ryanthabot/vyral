@@ -1965,6 +1965,16 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     public ObservableCollection<string> PlatformOptions { get; } = new(PalettePlatforms);
 
+    /// <summary>
+    /// Event types WorkflowTriggerService actually dispatches (Twitch + Kick
+    /// subscriptions use exactly these keys) — offered by the editable event-type
+    /// ComboBox. Free text still binds so legacy/aliased values keep loading.
+    /// </summary>
+    public ObservableCollection<string> TriggerEventTypeOptions { get; } = new()
+    {
+        "follow", "subscribe", "resub", "giftsub", "raid", "cheer", "host"
+    };
+
     public bool IsTriggerCommand => SelectedTriggerType?.Key == WorkflowTriggerTypes.Command;
     public bool IsTriggerSlash => SelectedTriggerType?.Key == WorkflowTriggerTypes.SlashCommand;
     public bool IsTriggerNeedsCommandName => IsTriggerCommand || IsTriggerSlash;
@@ -3980,6 +3990,19 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
 
         Nodes.Add(copy);
+        // Mirror RestoreSelection: land the canvas highlight on the COPY, not the
+        // source — otherwise the settings panel edits the copy while the source
+        // stays highlighted. Clearing the others first also covers the no-canvas
+        // fallback path (with a canvas attached, SyncSelectionFromNode keeps the
+        // visual chrome in sync as each flag flips).
+        foreach (var other in Nodes)
+        {
+            if (!ReferenceEquals(other, copy))
+            {
+                other.IsSelected = false;
+            }
+        }
+        copy.IsSelected = true;
         SelectedNode = copy; // opens the settings panel on the fresh copy
         MarkDirty();
         EnsureAttachmentCards(); // a duplicated loop/comparison/condition needs its own cards (no canvas event fires here)

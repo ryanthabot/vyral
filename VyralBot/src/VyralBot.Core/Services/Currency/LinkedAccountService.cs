@@ -133,6 +133,18 @@ public class LinkedAccountService : ILinkedAccountService
         }
 
         await _dataService.DeleteLinkedAccountAsync(account.Id);
+
+        // Detach the per-platform status row too, so the account drops out of
+        // aggregates (odds boosts, goal sums, unified balance) immediately —
+        // matching the !delink path. Keeping its follow/sub history is fine;
+        // the row simply returns to the unlinked pool (null ViewerId).
+        var status = await _dataService.GetViewerPlatformStatusAsync(username, platform);
+        if (status != null && status.ViewerId != null)
+        {
+            status.ViewerId = null;
+            await _dataService.SaveViewerPlatformStatusAsync(status);
+        }
+
         _logger.LogInformation("Unlinked {Username} ({Platform})", username, platform);
         return true;
     }

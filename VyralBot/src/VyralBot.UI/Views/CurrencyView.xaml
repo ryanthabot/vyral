@@ -166,14 +166,14 @@
                             <!-- Gift Sub Bonus -->
                             <CheckBox Grid.Row="4" Grid.Column="0" Content="Gift Sub Bonus (per sub)" IsChecked="{Binding Settings.GiftSubBonusEnabled}" 
                                       Foreground="White" VerticalAlignment="Center"/>
-                            <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding Settings.GiftSubBonusAmount, UpdateSourceTrigger=PropertyChanged}" 
+                            <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding Settings.GiftSubBonusAmountPerSub, UpdateSourceTrigger=PropertyChanged}"
                                      Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                             <TextBlock Grid.Row="4" Grid.Column="4" Text="points" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
 
                             <!-- Raid Bonus -->
                             <CheckBox Grid.Row="6" Grid.Column="0" Content="Raid Bonus (per viewer)" IsChecked="{Binding Settings.RaidBonusEnabled}" 
                                       Foreground="White" VerticalAlignment="Center"/>
-                            <TextBox Grid.Row="6" Grid.Column="2" Text="{Binding Settings.RaidBonusAmount, UpdateSourceTrigger=PropertyChanged}" 
+                            <TextBox Grid.Row="6" Grid.Column="2" Text="{Binding Settings.RaidBonusAmountPerViewer, UpdateSourceTrigger=PropertyChanged}"
                                      Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                             <TextBlock Grid.Row="6" Grid.Column="4" Text="points" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                         </Grid>
@@ -181,6 +181,105 @@
                         <!-- Save Button -->
                         <Button Content="💾 Save Settings" Command="{Binding SaveSettingsCommand}" 
                                 Background="{DynamicResource PrimaryBrush}" Foreground="White" Padding="20,10" Margin="0,30,0,0" 
+                                BorderThickness="0" FontSize="14" FontWeight="SemiBold" Cursor="Hand"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Bank & Decay Tab -->
+            <TabItem Header="🏦 Bank &amp; Decay">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20" MaxWidth="800">
+                        <TextBlock Text="Bank &amp; Decay Configuration" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,0,0,15"/>
+
+                        <!-- Viewer Bank Settings -->
+                        <TextBlock Text="Viewer Bank" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,20,0,15"/>
+
+                        <CheckBox Content="Enable Viewer Bank" IsChecked="{Binding Settings.BankEnabled}"
+                                  Foreground="White" Margin="0,0,0,4"/>
+                        <TextBlock Text="Enables !deposit / !withdraw / !bank chat commands and once-per-day interest payouts on banked currency."
+                                   FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,15"/>
+
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="20"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="15"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0">
+                                <TextBlock Text="Daily Interest Rate (%)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding Settings.BankInterestRate, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                <TextBlock Text="Percent of each viewer's bank balance paid as interest once per day (1 = 1% daily)."
+                                           FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="0" Grid.Column="2">
+                                <TextBlock Text="Withdrawal Penalty (%)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding Settings.BankWithdrawalPenalty, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                <TextBlock Text="Percent fee deducted from every withdrawal when moving points back to the wallet (0 = no penalty)."
+                                           FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="2" Grid.Column="0">
+                                <TextBlock Text="Max Bank Balance" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding Settings.BankMaxBalance, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                <TextBlock Text="Cap on a single viewer's bank balance; deposits and interest past it are refused (0 = unlimited)."
+                                           FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="2" Grid.Column="2">
+                                <TextBlock Text="Withdrawal Cooldown (minutes)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding Settings.BankWithdrawalCooldownMinutes, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                <TextBlock Text="Minutes a viewer must wait between withdrawals (0 = none). Warning: not enforced by the bank service yet."
+                                           FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Inactivity Decay Settings -->
+                        <TextBlock Text="Inactivity Decay" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,20,0,15"/>
+
+                        <CheckBox Content="Enable Inactivity Decay" IsChecked="{Binding Settings.CurrencyDecayEnabled}"
+                                  Foreground="White" Margin="0,0,0,4"/>
+                        <TextBlock Text="Enables the hourly background job that trims inactive viewers' balances (this job also processes daily bank interest payouts)."
+                                   FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,15"/>
+
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="20"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0">
+                                <TextBlock Text="Decay Percentage (%)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding Settings.CurrencyDecayPercent, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                <TextBlock Text="Percent of the balance removed on each hourly pass from inactive viewers (5 = 5% per run)."
+                                           FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="0" Grid.Column="2">
+                                <TextBlock Text="Inactivity Threshold (days)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding Settings.CurrencyDecayDays, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                <TextBlock Text="Viewers with no activity for more than this many days count as inactive (0 disables decay)."
+                                           FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Save Button -->
+                        <Button Content="💾 Save Settings" Command="{Binding SaveSettingsCommand}"
+                                Background="{DynamicResource PrimaryBrush}" Foreground="White" Padding="20,10" Margin="0,30,0,0"
                                 BorderThickness="0" FontSize="14" FontWeight="SemiBold" Cursor="Hand"/>
                     </StackPanel>
                 </ScrollViewer>

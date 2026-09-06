@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using VyralBot.Data;
 using System.Globalization;
 using System.Media;
+using System.Windows.Media;
+using System.Windows.Threading;
 using VyralBot.Core.Services.Audio;
 
 namespace VyralBot.Core.Services.Audio;
@@ -21,9 +23,41 @@ public class SoundService : ISoundService
     {
         _logger = logger;
         _dataService = dataService;
-        // Use wwwroot/sounds for browser source compatibility
-        _soundsDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "VyralBot.Api", "wwwroot", "sounds");
+        // Use wwwroot/sounds under the app output so /sounds/<file> is served by the
+        // embedded web server's static root (wwwroot) for browser-source compatibility.
+        _soundsDirectory = Path.Combine(AppContext.BaseDirectory, "wwwroot", "sounds");
         Directory.CreateDirectory(_soundsDirectory);
+        MigrateLegacySounds();
+    }
+
+    /// <summary>
+    /// One-time best-effort migration: uploads made before the sounds folder moved to
+    /// wwwroot/sounds lived in VyralBot.Api/wwwroot/sounds next to the app output.
+    /// Copies any files found there into the new location (no overwrite, never throws).
+    /// </summary>
+    private void MigrateLegacySounds()
+    {
+        try
+        {
+            var legacyDirectory = Path.Combine(AppContext.BaseDirectory, "..", "VyralBot.Api", "wwwroot", "sounds");
+            if (!Directory.Exists(legacyDirectory))
+            {
+                return;
+            }
+
+            foreach (var file in Directory.GetFiles(legacyDirectory))
+            {
+                var destination = Path.Combine(_soundsDirectory, Path.GetFileName(file));
+                if (!File.Exists(destination))
+                {
+                    File.Copy(file, destination);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to migrate legacy sound files into {Directory}", _soundsDirectory);
+        }
     }
 
     public Task<List<string>> GetSoundFilesAsync()
@@ -328,9 +362,8 @@ public class SoundService : ISoundService
             }
             else
             {
-                // For MP3/OGG/M4A, we'd need additional dependencies (NAudio, etc.)
-                // For now, log that we'd need those for non-WAV
-                _logger.LogWarning("Local playback only supports .wav files. Use browser source for {File}", Path.GetFileName(filePath));
+                // .mp3/.ogg/.m4a need WPF's MediaPlayer (SoundPlayer is .wav-only)
+                PlayWithMediaPlayer(filePath, volume);
             }
         }
         catch (Exception ex)
@@ -339,6 +372,65 @@ public class SoundService : ISoundService
         }
 
         await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Plays non-.wav formats (.mp3/.ogg/.m4a) via WPF <see cref="MediaPlayer"/> on a
+    /// dedicated STA background thread. MediaPlayer's media clock needs a Dispatcher
+    /// pump, so the thread runs a Dispatcher that is shut down on MediaEnded/MediaFailed.
+    /// </summary>
+    private void PlayWithMediaPlayer(string filePath, float volume)
+    {
+        var thread = new Thread(() =>
+        {
+            MediaPlayer? player = null;
+            try
+            {
+                player = new MediaPlayer();
+
+                void Shutdown()
+                {
+                    try
+                    {
+                        player?.Close();
+                        player?.Dispatcher.InvokeShutdown();
+                    }
+                    catch
+                    {
+                        // best-effort cleanup
+                    }
+                }
+
+                player.MediaEnded += (s, e) => Shutdown();
+                player.MediaFailed += (s, e) =>
+                {
+                    _logger.LogError(e.ErrorException, "Local playback failed for {FilePath}", filePath);
+                    Shutdown();
+                };
+
+                player.Open(new Uri(filePath));
+                player.Volume = Math.Clamp(volume, 0.0, 1.0);
+                player.Play();
+
+                Dispatcher.Run(); // Pump until MediaEnded/MediaFailed shuts the dispatcher down
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error playing local sound: {FilePath}", filePath);
+                try
+                {
+                    player?.Close();
+                    player?.Dispatcher.InvokeShutdown();
+                }
+                catch
+                {
+                    // best-effort cleanup
+                }
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true;
+        thread.Start();
     }
 }
 

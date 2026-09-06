@@ -14,9 +14,9 @@
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         ResizeMode="CanResize"
-        Background="{StaticResource BackgroundDarkBrush}"
+        Background="{DynamicResource BackgroundDarkBrush}"
         Icon="{DynamicResource AppLogoSource}"
-        TextElement.Foreground="{StaticResource TextPrimaryBrush}"
+        TextElement.Foreground="{DynamicResource TextPrimaryBrush}"
         TextElement.FontWeight="Regular"
         TextElement.FontSize="13"
         FontFamily="{materialDesign:MaterialDesignFont}">
@@ -36,7 +36,7 @@
         <converters:InvertBooleanToVisibilityConverter x:Key="InvertBooleanToVisibilityConverter"/>
     </Window.Resources>
 
-    <Border Background="{StaticResource BackgroundDarkBrush}"
+    <Border Background="{DynamicResource BackgroundDarkBrush}"
             BorderThickness="0"
             CornerRadius="8">
         <Grid>
@@ -49,7 +49,7 @@
 
             <!-- Custom Title Bar -->
             <Border Grid.Row="0"
-                    Background="{StaticResource CardBackgroundBrush}"
+                    Background="{DynamicResource CardBackgroundBrush}"
                     CornerRadius="8,8,0,0"
                     MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <Grid>
@@ -71,7 +71,7 @@
                                  FontSize="14"
                                  FontWeight="SemiBold"
                                  VerticalAlignment="Center"
-                                 Foreground="{StaticResource TextPrimaryBrush}"/>
+                                 Foreground="{DynamicResource TextPrimaryBrush}"/>
                     </StackPanel>
 
                     <!-- Window Controls -->
@@ -82,7 +82,7 @@
                                 Width="46"
                                 Height="32"
                                 Padding="0"
-                                Foreground="{StaticResource TextSecondaryBrush}">
+                                Foreground="{DynamicResource TextSecondaryBrush}">
                             <materialDesign:PackIcon Kind="WindowMinimize" Width="16" Height="16"/>
                         </Button>
                         <Button Click="MaximizeButton_Click"
@@ -90,7 +90,7 @@
                                 Width="46"
                                 Height="32"
                                 Padding="0"
-                                Foreground="{StaticResource TextSecondaryBrush}">
+                                Foreground="{DynamicResource TextSecondaryBrush}">
                             <materialDesign:PackIcon Kind="WindowMaximize" Width="16" Height="16"/>
                         </Button>
                         <Button Click="CloseButton_Click"
@@ -98,12 +98,12 @@
                                 Width="46"
                                 Height="32"
                                 Padding="0"
-                                Foreground="{StaticResource TextSecondaryBrush}">
+                                Foreground="{DynamicResource TextSecondaryBrush}">
                             <Button.Resources>
                                 <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignFlatButton}">
                                     <Style.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background" Value="{StaticResource ErrorRedBrush}"/>
+                                            <Setter Property="Background" Value="{DynamicResource ErrorRedBrush}"/>
                                         </Trigger>
                                     </Style.Triggers>
                                 </Style>
@@ -125,11 +125,10 @@
 
             <!-- Sidebar -->
             <Border Grid.Column="0"
-                    Background="{StaticResource CardBackgroundBrush}"
-                    BorderBrush="{StaticResource GlassBorderBrush}"
-                    BorderThickness="0,0,1,0"
-                    CornerRadius="0,0,0,8"
-                    Effect="{StaticResource CardShadow}">
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderLightBrush}"
+                    BorderThickness="0,1,1,0"
+                    CornerRadius="0,0,0,8">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
@@ -483,7 +482,7 @@
 
                     <!-- Bottom Buttons -->
                     <StackPanel Grid.Row="1" Margin="0,0,0,16">
-                        <Separator Margin="0,0,0,8" Background="{StaticResource BorderLightBrush}"/>
+                        <Separator Margin="0,0,0,8" Background="{DynamicResource BorderLightBrush}"/>
 
                         <!-- Settings -->
                         <Button Style="{StaticResource MaterialDesignFlatButton}"
@@ -563,7 +562,7 @@
                                     <!-- Connections Card -->
                                     <materialDesign:Card Grid.Column="0"
                                                         Padding="24"
-                                                        Background="{StaticResource CardBackgroundBrush}"
+                                                        Background="{DynamicResource CardBackgroundBrush}"
                                                         Cursor="Hand">
                                         <materialDesign:Card.InputBindings>
                                             <MouseBinding Command="{Binding DataContext.NavigateToPlatformsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
@@ -578,12 +577,12 @@
                                             <TextBlock Text="Connections"
                                                      FontSize="16"
                                                      FontWeight="SemiBold"
-                                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                                      HorizontalAlignment="Center"
                                                      Margin="0,0,0,6"/>
                                             <TextBlock Text="Manage your platform connections"
                                                      FontSize="11"
-                                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                                      TextWrapping="Wrap"
                                                      TextAlignment="Center"
                                                      HorizontalAlignment="Center"/>
@@ -593,7 +592,7 @@
                                     <!-- Chat Card -->
                                     <materialDesign:Card Grid.Column="2"
                                                         Padding="24"
-                                                        Background="{StaticResource CardBackgroundBrush}"
+                                                        Background="{DynamicResource CardBackgroundBrush}"
                                                         Cursor="Hand">
                                         <materialDesign:Card.InputBindings>
                                             <MouseBinding Command="{Binding DataContext.NavigateToChatHubCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
@@ -608,12 +607,12 @@
                                             <TextBlock Text="Chat"
                                                      FontSize="16"
                                                      FontWeight="SemiBold"
-                                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                                      HorizontalAlignment="Center"
                                                      Margin="0,0,0,6"/>
                                             <TextBlock Text="Complete chat management for all platforms"
                                                      FontSize="11"
-                                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                                      TextWrapping="Wrap"
                                                      TextAlignment="Center"
                                                      HorizontalAlignment="Center"/>
@@ -623,7 +622,7 @@
                                     <!-- Tools Card -->
                                     <materialDesign:Card Grid.Column="4"
                                                         Padding="24"
-                                                        Background="{StaticResource CardBackgroundBrush}"
+                                                        Background="{DynamicResource CardBackgroundBrush}"
                                                         Cursor="Hand">
                                         <materialDesign:Card.InputBindings>
                                             <MouseBinding Command="{Binding DataContext.NavigateToToolsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
@@ -638,12 +637,12 @@
                                             <TextBlock Text="Tools"
                                                      FontSize="16"
                                                      FontWeight="SemiBold"
-                                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                                      HorizontalAlignment="Center"
                                                      Margin="0,0,0,6"/>
                                             <TextBlock Text="Stream tools, chat features, and more"
                                                      FontSize="11"
-                                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                                      TextWrapping="Wrap"
                                                      TextAlignment="Center"
                                                      HorizontalAlignment="Center"/>
@@ -653,7 +652,7 @@
                                     <!-- Integrations Card -->
                                     <materialDesign:Card Grid.Column="6"
                                                         Padding="24"
-                                                        Background="{StaticResource CardBackgroundBrush}"
+                                                        Background="{DynamicResource CardBackgroundBrush}"
                                                         Cursor="Hand">
                                         <materialDesign:Card.InputBindings>
                                             <MouseBinding Command="{Binding DataContext.NavigateToIntegrationsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
@@ -668,12 +667,12 @@
                                             <TextBlock Text="Integrations"
                                                      FontSize="16"
                                                      FontWeight="SemiBold"
-                                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                                      HorizontalAlignment="Center"
                                                      Margin="0,0,0,6"/>
                                             <TextBlock Text="Third-party integrations and bots"
                                                      FontSize="11"
-                                                     Foreground="{StaticResource TextSecondaryBrush}"
+                                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                                      TextWrapping="Wrap"
                                                      TextAlignment="Center"
                                                      HorizontalAlignment="Center"/>
@@ -686,12 +685,12 @@
                                     <TextBlock Text="Support"
                                              FontSize="18"
                                              FontWeight="SemiBold"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,0,0,16"/>
 
                                     <!-- Documentation -->
-                                    <Border Background="{StaticResource CardBackgroundBrush}"
-                                           BorderBrush="{StaticResource BorderLightBrush}"
+                                    <Border Background="{DynamicResource CardBackgroundBrush}"
+                                           BorderBrush="{DynamicResource BorderLightBrush}"
                                            BorderThickness="0,0,0,1"
                                            Padding="16"
                                            Cursor="Hand">
@@ -710,16 +709,16 @@
                                                                    Width="24"
                                                                    Height="24"
                                                                    VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
 
                                             <StackPanel Grid.Column="1" Margin="16,0">
                                                 <TextBlock Text="Documentation"
                                                          FontSize="14"
                                                          FontWeight="SemiBold"
-                                                         Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
                                                 <TextBlock Text="Explore the official documentation for Vyral"
                                                          FontSize="12"
-                                                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                         Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             </StackPanel>
 
                                             <materialDesign:PackIcon Grid.Column="2"
@@ -727,13 +726,13 @@
                                                                    Width="20"
                                                                    Height="20"
                                                                    VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                                                   Foreground="{DynamicResource TextMutedBrush}"/>
                                         </Grid>
                                     </Border>
 
                                     <!-- Discord -->
-                                    <Border Background="{StaticResource CardBackgroundBrush}"
-                                           BorderBrush="{StaticResource BorderLightBrush}"
+                                    <Border Background="{DynamicResource CardBackgroundBrush}"
+                                           BorderBrush="{DynamicResource BorderLightBrush}"
                                            BorderThickness="0,0,0,1"
                                            Padding="16"
                                            Cursor="Hand">
@@ -758,10 +757,10 @@
                                                 <TextBlock Text="Discord"
                                                          FontSize="14"
                                                          FontWeight="SemiBold"
-                                                         Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
                                                 <TextBlock Text="Join the Vyral community!"
                                                          FontSize="12"
-                                                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                         Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             </StackPanel>
 
                                             <materialDesign:PackIcon Grid.Column="2"
@@ -769,12 +768,12 @@
                                                                    Width="20"
                                                                    Height="20"
                                                                    VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                                                   Foreground="{DynamicResource TextMutedBrush}"/>
                                         </Grid>
                                     </Border>
 
                                     <!-- Ideas & Suggestions -->
-                                    <Border Background="{StaticResource CardBackgroundBrush}"
+                                    <Border Background="{DynamicResource CardBackgroundBrush}"
                                            Padding="16"
                                            Cursor="Hand">
                                         <Border.InputBindings>
@@ -798,10 +797,10 @@
                                                 <TextBlock Text="Ideas &amp; Suggestions"
                                                          FontSize="14"
                                                          FontWeight="SemiBold"
-                                                         Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
                                                 <TextBlock Text="Share and discuss ideas for new features or improvements to Vyral"
                                                          FontSize="12"
-                                                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                         Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             </StackPanel>
 
                                             <materialDesign:PackIcon Grid.Column="2"
@@ -809,7 +808,7 @@
                                                                    Width="20"
                                                                    Height="20"
                                                                    VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                                                   Foreground="{DynamicResource TextMutedBrush}"/>
                                         </Grid>
                                     </Border>
                                 </StackPanel>
@@ -899,6 +898,11 @@
                         <!-- Performance Monitor View (Settings → Performance tab) -->
                         <DataTemplate DataType="{x:Type vm:PerformanceViewModel}">
                             <local:PerformanceView/>
+                        </DataTemplate>
+
+                        <!-- Viewer Hub View (Settings → Viewer Hub tab) -->
+                        <DataTemplate DataType="{x:Type vm:ViewerHubViewModel}">
+                            <local:ViewerHubView/>
                         </DataTemplate>
 
                         <!-- Audio Settings View -->
@@ -1001,7 +1005,7 @@
                                         MaxHeight="600"
                                         VerticalAlignment="Center"
                                         HorizontalAlignment="Center"
-                                        Background="{StaticResource CardBackgroundBrush}"
+                                        Background="{DynamicResource CardBackgroundBrush}"
                                         Padding="40"
                                         Visibility="{Binding ShowCreateProfile, Converter={StaticResource InvertBooleanToVisibilityConverter}}">
                     <Grid>
@@ -1018,11 +1022,11 @@
                             <TextBlock Text="Vyral"
                                        FontSize="28"
                                        FontWeight="Bold"
-                                       Foreground="{StaticResource VyralRedBrush}"
+                                       Foreground="{DynamicResource VyralRedBrush}"
                                        HorizontalAlignment="Center"/>
                             <TextBlock Text="Select Your Profile"
                                        FontSize="16"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        HorizontalAlignment="Center"
                                        Margin="0,5,0,0"/>
                         </StackPanel>
@@ -1035,7 +1039,7 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Border Background="Transparent"
-                                                BorderBrush="{StaticResource BorderLightBrush}"
+                                                BorderBrush="{DynamicResource BorderLightBrush}"
                                                 BorderThickness="1"
                                                 CornerRadius="4"
                                                 Padding="15,10"
@@ -1050,7 +1054,7 @@
                                                 <Style TargetType="Border">
                                                     <Style.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter Property="Background" Value="{StaticResource CardBackgroundBrush}"/>
+                                                            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
                                                         </Trigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -1065,10 +1069,10 @@
                                                     <TextBlock Text="{Binding DisplayName}"
                                                                FontSize="16"
                                                                FontWeight="SemiBold"
-                                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
                                                     <TextBlock Text="{Binding Name}"
                                                                FontSize="12"
-                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"
                                                                Margin="0,2,0,0"/>
                                                 </StackPanel>
 
@@ -1077,7 +1081,7 @@
                                                                          Width="16"
                                                                          Height="16"
                                                                          VerticalAlignment="Center"
-                                                                         Foreground="{StaticResource TextMutedBrush}"
+                                                                         Foreground="{DynamicResource TextMutedBrush}"
                                                                          ToolTip="PIN Protected"
                                                                          Visibility="{Binding HasPin, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                             </Grid>
@@ -1092,14 +1096,14 @@
                                     Margin="0,15,0,0"
                                     Visibility="{Binding ShowPinEntry, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <TextBlock Text="Enter PIN:"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        FontSize="13"
                                        Margin="0,0,0,5"/>
                             <PasswordBox x:Name="ProfilePinBox"
                                          MaxLength="6"
                                          FontSize="14"
-                                         Background="{StaticResource CardBackgroundBrush}"
-                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         Background="{DynamicResource CardBackgroundBrush}"
+                                         Foreground="{DynamicResource TextPrimaryBrush}"
                                          Padding="8"
                                          PasswordChanged="ProfilePinBox_PasswordChanged"/>
                         </StackPanel>
@@ -1121,7 +1125,7 @@
                             <Button Content="Continue"
                                     Command="{Binding ConfirmProfileSelectionCommand}"
                                     Style="{StaticResource MaterialDesignRaisedButton}"
-                                    Background="{StaticResource VyralRedBrush}"
+                                    Background="{DynamicResource VyralRedBrush}"
                                     Width="120"
                                     FontSize="14"
                                     Margin="0,0,8,0"/>
@@ -1138,7 +1142,7 @@
                     <materialDesign:Card Width="500"
                                         VerticalAlignment="Center"
                                         HorizontalAlignment="Center"
-                                        Background="{StaticResource CardBackgroundBrush}"
+                                        Background="{DynamicResource CardBackgroundBrush}"
                                         Padding="40"
                                         Visibility="{Binding ShowCreateProfile, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Grid>
@@ -1154,11 +1158,11 @@
                             <TextBlock Text="Create New Profile"
                                        FontSize="24"
                                        FontWeight="Bold"
-                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        HorizontalAlignment="Center"/>
                             <TextBlock Text="Set up your Vyral profile"
                                        FontSize="13"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        HorizontalAlignment="Center"
                                        Margin="0,5,0,0"/>
                         </StackPanel>
@@ -1167,7 +1171,7 @@
                         <StackPanel Grid.Row="1">
                             <!-- Profile Name -->
                             <TextBlock Text="Profile Name *"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        FontSize="12"
                                        Margin="0,0,0,5"/>
                             <TextBox Text="{Binding NewProfileName, UpdateSourceTrigger=PropertyChanged}"
@@ -1178,12 +1182,12 @@
 
                             <TextBlock Text="(letters, numbers, underscore, hyphen only)"
                                        FontSize="10"
-                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
                                        Margin="0,-12,0,15"/>
 
                             <!-- Display Name -->
                             <TextBlock Text="Display Name (optional)"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        FontSize="12"
                                        Margin="0,0,0,5"/>
                             <TextBox Text="{Binding NewProfileDisplayName, UpdateSourceTrigger=PropertyChanged}"
@@ -1194,7 +1198,7 @@
 
                             <!-- PIN Code -->
                             <TextBlock Text="PIN Code (optional)"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        FontSize="12"
                                        Margin="0,0,0,5"/>
                             <PasswordBox x:Name="NewProfilePinBox"
@@ -1207,7 +1211,7 @@
 
                             <TextBlock Text="Protect this profile with a PIN"
                                        FontSize="10"
-                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
                                        Margin="0,0,0,0"/>
                         </StackPanel>
 
@@ -1228,7 +1232,7 @@
                             <Button Content="Create"
                                     Command="{Binding ConfirmCreateProfileCommand}"
                                     Style="{StaticResource MaterialDesignRaisedButton}"
-                                    Background="{StaticResource VyralRedBrush}"
+                                    Background="{DynamicResource VyralRedBrush}"
                                     Width="120"
                                     FontSize="14"
                                     Margin="0,0,8,0"/>

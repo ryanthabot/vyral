@@ -274,8 +274,12 @@ public partial class DataManagementViewModel : ViewModelBase
         try
         {
             IsBusy = true;
+            // EventStatistics is the live, populated history (Event History page);
+            // EventLogs is the legacy table. Clear both — only EventStatistics
+            // returns a count, so report that.
+            var deleted = await _dataService.DeleteEventStatisticsAsync();
             await _dataService.DeleteEventLogsAsync();
-            StatusMessage = "Event history cleared";
+            StatusMessage = $"Event history cleared ({deleted} events)";
             await LoadDataInventoryAsync();
         }
         catch (Exception ex)

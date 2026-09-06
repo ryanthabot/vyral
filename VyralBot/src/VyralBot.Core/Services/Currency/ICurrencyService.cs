@@ -96,6 +96,13 @@ public interface ICurrencyService
     /// Get economy statistics (total in circulation, earned today, spent today).
     /// </summary>
     Task<EconomyStats> GetEconomyStatsAsync();
+
+    /// <summary>
+    /// Merges every linked account's balance into the viewer's canonical
+    /// account (unified balances). No-op when unified balances are off or the
+    /// viewer has fewer than two linked accounts.
+    /// </summary>
+    Task ConsolidateViewerBalancesAsync(string viewerId);
 }
 
 public record EconomyStats(long TotalInCirculation, long TotalEarnedToday, long TotalSpentToday, int ActiveUsers, double AverageBalance);

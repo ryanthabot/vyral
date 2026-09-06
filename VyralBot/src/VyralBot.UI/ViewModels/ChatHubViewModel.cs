@@ -165,6 +165,17 @@ public partial class ChatHubViewModel : ViewModelBase
     /// <summary>True when the selected platform supports manual OAuth token refresh (YouTube refreshes on connect; Discord bot tokens don't expire).</summary>
     public bool CanRefreshCurrentPlatformTokens => SelectedPlatform is "Twitch" or "Kick";
 
+    /// <summary>Tab highlight flags — RadioButton.IsChecked needs a bool; SelectedPlatform is a string.</summary>
+    public bool IsTwitchSelected => string.Equals(SelectedPlatform, "Twitch", StringComparison.Ordinal);
+
+    public bool IsKickSelected => string.Equals(SelectedPlatform, "Kick", StringComparison.Ordinal);
+
+    public bool IsYouTubeSelected => string.Equals(SelectedPlatform, "YouTube", StringComparison.Ordinal);
+
+    public bool IsTiktokSelected => string.Equals(SelectedPlatform, "TikTok", StringComparison.Ordinal);
+
+    public bool IsDiscordSelected => string.Equals(SelectedPlatform, "Discord", StringComparison.Ordinal);
+
     [RelayCommand]
     private async Task ConnectCurrentPlatformAsync()
     {
@@ -218,6 +229,11 @@ public partial class ChatHubViewModel : ViewModelBase
         UpdateCurrentPlatform();
         OnPropertyChanged(nameof(IsCurrentPlatformManageable));
         OnPropertyChanged(nameof(CanRefreshCurrentPlatformTokens));
+        OnPropertyChanged(nameof(IsTwitchSelected));
+        OnPropertyChanged(nameof(IsKickSelected));
+        OnPropertyChanged(nameof(IsYouTubeSelected));
+        OnPropertyChanged(nameof(IsTiktokSelected));
+        OnPropertyChanged(nameof(IsDiscordSelected));
         ConnectionActionMessage = null;
     }
 }

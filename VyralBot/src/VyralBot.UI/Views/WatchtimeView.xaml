@@ -32,7 +32,7 @@
                        Command="{Binding ResetStreamSessionCommand}"
                        Margin="0,0,8,0"/>
                 <materialDesign:Chip Content="{Binding TotalActiveViewers, StringFormat='{}{0} Active Viewers'}"
-                                    Background="#4CAF50"
+                                    Background="{DynamicResource SuccessBrush}"
                                     Margin="8,0,0,0"/>
             </StackPanel>
         </StackPanel>
@@ -49,7 +49,10 @@
 
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,8,0,8">
                         <TextBlock Text="Show Top:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <TextBox Text="{Binding TopViewersLimit, UpdateSourceTrigger=PropertyChanged}"
+                        <!-- Default (LostFocus) source update: OnTopViewersLimitChanged
+                             reloads on every source update, so PropertyChanged would
+                             fire one DB query per keystroke. Refresh button still works. -->
+                        <TextBox Text="{Binding TopViewersLimit}"
                                 Width="60"
                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"/>
                         <TextBlock Text="viewers" VerticalAlignment="Center" Margin="8,0,0,0"/>

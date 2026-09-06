@@ -32,6 +32,7 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <converters:PlusOneConverter x:Key="PlusOneConverter"/>
     </UserControl.Resources>
 
     <Grid>
@@ -113,7 +114,10 @@
                                       TextWrapping="Wrap"
                                       Margin="0,0,0,8"/>
                             <WrapPanel Margin="0,0,0,8">
-                                <materialDesign:Chip Style="{StaticResource StatusChip}"/>
+                                <!-- DataContext here is PollViewModel (no Status property):
+                                     point the chip at the selected poll like the list template. -->
+                                <materialDesign:Chip Style="{StaticResource StatusChip}"
+                                                     DataContext="{Binding SelectedPoll}"/>
                             </WrapPanel>
                         </StackPanel>
 
@@ -183,7 +187,7 @@
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Username" Binding="{Binding Username}" Width="*"/>
                         <DataGridTextColumn Header="Platform" Binding="{Binding Platform}" Width="100"/>
-                        <DataGridTextColumn Header="Option #" Binding="{Binding OptionIndex}" Width="80"/>
+                        <DataGridTextColumn Header="Option #" Binding="{Binding OptionIndex, Converter={StaticResource PlusOneConverter}}" Width="80"/>
                         <DataGridTextColumn Header="Voted At" Binding="{Binding VotedAt, StringFormat='{}{0:g}'}" Width="150"/>
                     </DataGrid.Columns>
                 </DataGrid>
@@ -200,8 +204,10 @@
                       TextWrapping="Wrap"/>
         </Grid>
 
-        <!-- Create Poll Dialog -->
-        <materialDesign:DialogHost x:Name="CreatePollDialog" Grid.ColumnSpan="2">
+        <!-- Create Poll Dialog. Identifier MUST match the "RootDialog" used by
+             CreatePollButton_Click (DialogHost.Show) and CreatePollAsync
+             (DialogHost.Close) — without it the Show call throws. -->
+        <materialDesign:DialogHost x:Name="CreatePollDialog" Identifier="RootDialog" Grid.ColumnSpan="2">
             <materialDesign:DialogHost.DialogContent>
                 <StackPanel Width="500" Margin="16">
                     <TextBlock Text="Create New Poll" 

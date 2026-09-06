@@ -30,15 +30,33 @@ public sealed class UiPreferencesService
         try
         {
             var path = _settingsPathFactory();
-            if (!File.Exists(path)) return UiPreferences.Defaults;
+            if (!File.Exists(path)) return CloneDefaults();
             var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<UiPreferences>(json, JsonOptions) ?? UiPreferences.Defaults;
+            return JsonSerializer.Deserialize<UiPreferences>(json, JsonOptions) ?? CloneDefaults();
         }
         catch (Exception)
         {
-            return UiPreferences.Defaults; // corrupt/unreadable → defaults, never crash startup
+            return CloneDefaults(); // corrupt/unreadable → defaults, never crash startup
         }
     }
+
+    /// <summary>
+    /// Copy of <see cref="UiPreferences.Defaults"/>. The static Defaults instance is shared,
+    /// and callers (ThemeManager) mutate the loaded preferences — returning Defaults itself
+    /// would pollute the defaults for the whole session.
+    /// </summary>
+    private static UiPreferences CloneDefaults() => new()
+    {
+        ThemeId = UiPreferences.Defaults.ThemeId,
+        Custom = new CustomThemeSettings
+        {
+            BaseTheme = UiPreferences.Defaults.Custom.BaseTheme,
+            PrimaryHex = UiPreferences.Defaults.Custom.PrimaryHex,
+            LogoVariant = UiPreferences.Defaults.Custom.LogoVariant,
+        },
+        DarkShadeLevel = UiPreferences.Defaults.DarkShadeLevel,
+        LightShadeLevel = UiPreferences.Defaults.LightShadeLevel,
+    };
 
     public void Save(UiPreferences preferences)
     {

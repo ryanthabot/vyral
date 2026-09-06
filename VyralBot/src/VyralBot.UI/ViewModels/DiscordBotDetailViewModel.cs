@@ -65,6 +65,46 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
     [ObservableProperty]
     private bool _commandsLoaded;
 
+    // ===== Identity (auto-detected, read-only — populated from the config row) =====
+
+    /// <summary>Detected Discord application ID, "—" until the bot has connected once.</summary>
+    [ObservableProperty]
+    private string _detectedApplicationId = "—";
+
+    /// <summary>Detected Discord account username, "—" until the bot has connected once.</summary>
+    [ObservableProperty]
+    private string _detectedBotUsername = "—";
+
+    /// <summary>Detected avatar URL, null until the bot has connected once.</summary>
+    [ObservableProperty]
+    private string? _detectedAvatarUrl;
+
+    /// <summary>True when <see cref="DetectedAvatarUrl"/> is set (gates the avatar image vs. fallback icon).</summary>
+    [ObservableProperty]
+    private bool _hasAvatar = false;
+
+    // ===== Bot roles (single-select per role — the manager clears the role elsewhere) =====
+
+    /// <summary>True when THIS bot currently holds the account-linking role.</summary>
+    [ObservableProperty]
+    private bool _isLinkingBot = false;
+
+    /// <summary>True when THIS bot currently holds the giveaway-announcements role.</summary>
+    [ObservableProperty]
+    private bool _isGiveawayBot = false;
+
+    // ===== Startup (per-bot "start at app launch" flag persisted on the config row) =====
+
+    /// <summary>True when THIS bot should be started automatically when the app launches.</summary>
+    [ObservableProperty]
+    private bool _autoStart = false;
+
+    /// <summary>Reentrancy guard: one role toggle in flight at a time.</summary>
+    private bool _isUpdatingRole;
+
+    /// <summary>Reentrancy guard: one AutoStart toggle in flight at a time.</summary>
+    private bool _isUpdatingAutoStart;
+
     public ObservableCollection<DiscordGuildViewModel> Guilds { get; } = new();
 
     /// <summary>
@@ -156,6 +196,10 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
     public async Task LoadAsync(string botId)
     {
         BotId = botId ?? throw new ArgumentNullException(nameof(botId));
+        // This VM is a DI singleton reused for every bot — drop the previous
+        // bot's cached invite URL so UpdateInviteUrl recomputes it from the
+        // token of the bot being loaded.
+        _inviteUrl = null;
         Status = "Loading...";
         await RefreshAsync();
         await LoadBotCommandsAsync();
@@ -179,7 +223,7 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
             var forThisBot = allCommands
                 .Where(c => !c.IsBuiltIn)
                 .Where(c => string.IsNullOrEmpty(c.BotId)
-                            || string.Equals(c.BotId, BotId, StringComparison.Ordinal))
+                            || string.Equals(c.BotId, BotId, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -246,17 +290,179 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
                 Status = "This bot is no longer configured";
                 Guilds.Clear();
                 HasGuilds = false;
+                DetectedApplicationId = "—";
+                DetectedBotUsername = "—";
+                DetectedAvatarUrl = null;
+                HasAvatar = false;
+                IsLinkingBot = false;
+                IsGiveawayBot = false;
+                AutoStart = false;
                 return;
             }
 
             BotName = config.Name;
             UpdateInviteUrl(config.Token);
             UpdateFromService();
+            ApplyIdentity(config);
+            ApplyRoleState(bots);
+            // Startup flag lives on this bot's persisted row (the manager owns
+            // the launch-time auto-start, the UI only mirrors the saved value).
+            AutoStart = config.AutoStart;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error loading Discord bot {BotId}", BotId);
             Status = $"Error: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Fills the read-only "Identity (auto-detected)" fields from the bot's
+    /// persisted config row (the manager populates these when the gateway
+    /// connects). Falls back to dashes so a never-connected bot still reads well.
+    /// </summary>
+    private void ApplyIdentity(DiscordBotConfig config)
+    {
+        DetectedApplicationId = string.IsNullOrWhiteSpace(config.ApplicationId) ? "—" : config.ApplicationId!;
+        DetectedBotUsername = string.IsNullOrWhiteSpace(config.BotUsername) ? "—" : config.BotUsername!;
+        DetectedAvatarUrl = config.AvatarUrl;
+        HasAvatar = !string.IsNullOrWhiteSpace(config.AvatarUrl);
+    }
+
+    /// <summary>
+    /// Reflects the single-select role state from the FRESH bot rows: each role
+    /// belongs to at most one bot, so this page's checkboxes are only checked
+    /// when this bot's row holds the flag.
+    /// </summary>
+    private void ApplyRoleState(IReadOnlyList<DiscordBotConfig> bots)
+    {
+        var linkingBot = bots.FirstOrDefault(b => b.RoleLinking);
+        var giveawayBot = bots.FirstOrDefault(b => b.RoleGiveaway);
+
+        IsLinkingBot = linkingBot != null
+            && string.Equals(linkingBot.Id, BotId, StringComparison.OrdinalIgnoreCase);
+        IsGiveawayBot = giveawayBot != null
+            && string.Equals(giveawayBot.Id, BotId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [RelayCommand]
+    private async Task ToggleLinkingRoleAsync(object? parameter)
+    {
+        await SetRoleAsync(DiscordBotRoles.Linking, parameter is true);
+    }
+
+    [RelayCommand]
+    private async Task ToggleGiveawayRoleAsync(object? parameter)
+    {
+        await SetRoleAsync(DiscordBotRoles.Giveaway, parameter is true);
+    }
+
+    /// <summary>
+    /// Assigns or clears one role for this bot via the manager (AssignRoleAsync
+    /// clears the role on other bots and raises BotsChanged), then reloads all
+    /// bot rows and re-binds BOTH checkboxes from the fresh rows so the
+    /// single-select outcome is reflected immediately.
+    /// </summary>
+    private async Task SetRoleAsync(string role, bool isChecked)
+    {
+        if (_isUpdatingRole || string.IsNullOrEmpty(BotId))
+            return;
+
+        _isUpdatingRole = true;
+        try
+        {
+            await _botManager.AssignRoleAsync(BotId, role, isChecked);
+            _logger.LogInformation("Discord role {Role} {State} for bot {BotId}",
+                role, isChecked ? "assigned" : "cleared", BotId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error setting Discord role {Role} for bot {BotId}", role, BotId);
+            Status = "Could not update bot roles — try again";
+        }
+        finally
+        {
+            // Reload from the stored rows either way: on success this mirrors the
+            // single-select result onto both checkboxes; on failure it reverts.
+            try
+            {
+                var bots = await _botManager.LoadBotsAsync();
+                ApplyRoleState(bots);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error reloading Discord bot roles for {BotId}", BotId);
+            }
+
+            _isUpdatingRole = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ToggleAutoStartAsync(object? parameter)
+    {
+        await SetAutoStartAsync(parameter is true);
+    }
+
+    /// <summary>
+    /// Flips the "Start this bot when the app launches" flag on THIS bot's
+    /// persisted config row (load the fresh row, set AutoStart, save through
+    /// the manager's UpdateBotAsync — the same load/flip/save path the
+    /// channel picker uses). Reloads the stored rows in the finally block so
+    /// the checkbox mirrors the SAVED value: correct after success, reverted
+    /// after a failed save. The manager raises BotsChanged, which refreshes
+    /// the bots list (and its rocket badge) as well.
+    /// </summary>
+    private async Task SetAutoStartAsync(bool isEnabled)
+    {
+        if (_isUpdatingAutoStart || string.IsNullOrEmpty(BotId))
+            return;
+
+        _isUpdatingAutoStart = true;
+        try
+        {
+            var bots = await _botManager.LoadBotsAsync();
+            var config = bots.FirstOrDefault(b =>
+                string.Equals(b.Id, BotId, StringComparison.OrdinalIgnoreCase));
+            if (config == null)
+            {
+                Status = "This bot is no longer configured";
+                return;
+            }
+
+            var saved = await _botManager.UpdateBotAsync(config with { AutoStart = isEnabled });
+            if (saved)
+            {
+                _logger.LogInformation("AutoStart {State} for bot {BotId}",
+                    isEnabled ? "enabled" : "disabled", BotId);
+            }
+            else
+            {
+                Status = "Could not save the startup setting — try again";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error setting AutoStart for bot {BotId}", BotId);
+            Status = "Could not update the startup setting — try again";
+        }
+        finally
+        {
+            // Reload from the stored row either way: on success this mirrors the
+            // saved flag onto the checkbox; on failure it reverts.
+            try
+            {
+                var bots = await _botManager.LoadBotsAsync();
+                var config = bots.FirstOrDefault(b =>
+                    string.Equals(b.Id, BotId, StringComparison.OrdinalIgnoreCase));
+                AutoStart = config?.AutoStart ?? false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error reloading AutoStart for bot {BotId}", BotId);
+            }
+
+            _isUpdatingAutoStart = false;
         }
     }
 

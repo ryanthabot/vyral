@@ -34,7 +34,11 @@ public class SendMessageNode : INode
             if (bridge is null)
                 return NodeResult.Fail("Discord bridge unavailable (buttons/menus require Discord)");
 
-            var channelOverride = NodeConfig.Get(node, "platform").Trim();
+            // "ChannelOverride" (mirrors SendEmbedNode) — a channel name, NOT the
+            // "platform" key: reading "platform" here sent component messages to
+            // a channel literally named "Discord"/"Twitch" when a step saved a
+            // platform override alongside Buttons/Menu config.
+            var channelOverride = NodeConfig.Get(node, "ChannelOverride").Trim();
             var deliveredComponents = await bridge.SendToChannelWithComponentsAsync(
                 ctx.BotId, ctx.GuildName, channelOverride, text, null,
                 buttonsJson, menuJson, $"vyralwf:{ctx.WorkflowId}:{node.Id}").ConfigureAwait(false);

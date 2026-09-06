@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using VyralBot.Core.Models.Rules;
+using VyralBot.Core.Services.Rules;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
 
@@ -18,6 +19,7 @@ public partial class ConditionalRulesViewModel : ViewModelBase
 {
     private readonly IDataService _dataService;
     private readonly ILogger<ConditionalRulesViewModel> _logger;
+    private readonly IRuleEvaluator? _ruleEvaluator;
 
     [ObservableProperty]
     private ObservableCollection<AutoReplyRule> _rules = new();
@@ -63,10 +65,12 @@ public partial class ConditionalRulesViewModel : ViewModelBase
 
     public ObservableCollection<string> Platforms { get; } = new() { "All", "Twitch", "Kick", "Discord" };
 
+    // Must match the event-type strings the live pipeline stores/looks up
+    // (see ChatViewModel event handlers: GetSettingAsync("Kick"/"Twitch", ...)).
     public ObservableCollection<string> EventTypes { get; } = new()
     {
-        "Follow", "Subscription", "Raid", "Host", "Bits", "Donation",
-        "SubscriptionGift", "ChatMessage", "ChannelPointRedemption"
+        "ChatMessage", "Follow", "Subscribe", "Resub", "GiftSub", "Raid",
+        "Cheer", "Host", "RewardRedeemed", "KicksGifted", "StreamStatus"
     };
 
     public ObservableCollection<string> ConditionTypes { get; } = new()
@@ -81,10 +85,12 @@ public partial class ConditionalRulesViewModel : ViewModelBase
         "EndsWith", "Modulo"
     };
 
-    public ConditionalRulesViewModel(IDataService dataService, ILogger<ConditionalRulesViewModel> logger)
+    public ConditionalRulesViewModel(IDataService dataService, ILogger<ConditionalRulesViewModel> logger,
+        IRuleEvaluator? ruleEvaluator = null)
     {
         _dataService = dataService;
         _logger = logger;
+        _ruleEvaluator = ruleEvaluator;
     }
 
     public async Task LoadRulesAsync()
@@ -222,6 +228,13 @@ public partial class ConditionalRulesViewModel : ViewModelBase
                 Value = ConditionValue
             };
 
+            // The UI treats Value as the divisor for modulo ("count % 100 == 0"),
+            // so persist it into ModuloDivisor as well for the evaluator.
+            if (compOp == ComparisonOperator.Modulo && int.TryParse(ConditionValue, out var moduloDivisor))
+            {
+                newCondition.ModuloDivisor = moduloDivisor;
+            }
+
             // Parse existing condition JSON or create new root condition
             RuleCondition? rootCondition = null;
             if (!string.IsNullOrWhiteSpace(EditConditionJson) && EditConditionJson != "{}")
@@ -271,31 +284,97 @@ public partial class ConditionalRulesViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private Task TestRuleAsync()
+    private async Task TestRuleAsync()
     {
-        if (SelectedRule == null) return Task.CompletedTask;
+        if (SelectedRule == null) return;
 
         try
         {
-            // Show test results in a message box
+            // Sample context mirroring what the live pipeline feeds the evaluator
+            // (numeric fields the condition builder examples use, plus booleans
+            // for Status conditions).
+            var testPlatform = string.IsNullOrEmpty(SelectedRule.Platform) || SelectedRule.Platform == "All"
+                ? "Twitch"
+                : SelectedRule.Platform;
+            var testContext = new Dictionary<string, object>
+            {
+                ["username"] = "TestUser",
+                ["platform"] = testPlatform,
+                ["event_type"] = SelectedRule.EventType,
+                ["count"] = 100,
+                ["months"] = 1,
+                ["viewers"] = 10,
+                ["amount"] = 5,
+                ["bits"] = 100,
+                ["is_subscriber"] = false,
+                ["is_moderator"] = false
+            };
+
+            // Parse the stored condition JSON
+            RuleCondition? condition = null;
+            string? jsonError = null;
+            if (!string.IsNullOrWhiteSpace(SelectedRule.ConditionJson))
+            {
+                try
+                {
+                    condition = JsonSerializer.Deserialize<RuleCondition>(SelectedRule.ConditionJson);
+                }
+                catch (JsonException ex)
+                {
+                    jsonError = ex.Message;
+                }
+            }
+
+            if (jsonError != null)
+            {
+                MessageBox.Show(
+                    $"Rule '{SelectedRule.Name}' has invalid condition JSON and can never be evaluated.\n\n{jsonError}",
+                    "Test Rule", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_ruleEvaluator == null)
+            {
+                MessageBox.Show("Rule evaluator is not available.", "Test Rule",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Evaluate the rule's condition against the sample context
+            var matched = _ruleEvaluator.EvaluateCondition(condition, testContext);
+
+            string reason;
+            if (condition == null || string.IsNullOrWhiteSpace(condition.Field))
+                reason = "The rule has no condition, so it matches every event.";
+            else if (condition.Type == Core.Models.Rules.ConditionType.Time)
+                reason = matched
+                    ? "The time condition matched the current time."
+                    : "The time condition did not match the current time.";
+            else if (!testContext.ContainsKey(condition.Field))
+                reason = $"Field '{condition.Field}' was not present in the sample context, so it cannot match.";
+            else if (matched)
+                reason = "The condition matched the sample values.";
+            else
+                reason = $"The condition did not match the sample value for '{condition.Field}'.";
+
             var info = $"Rule: {SelectedRule.Name}\n" +
-                      $"Platform: {SelectedRule.Platform}\n" +
+                      $"Platform: {SelectedRule.Platform} (tested as {testPlatform})\n" +
                       $"Event: {SelectedRule.EventType}\n" +
                       $"Enabled: {SelectedRule.IsEnabled}\n" +
                       $"Priority: {SelectedRule.Priority}\n" +
                       $"Triggered: {SelectedRule.TriggerCount} times\n" +
                       $"Last Triggered: {SelectedRule.LastTriggeredAt?.ToLocalTime().ToString() ?? "Never"}\n\n" +
                       $"Condition: {SelectedRule.ConditionJson}\n\n" +
-                      $"Reply: {SelectedRule.ReplyTemplate}";
+                      $"Result: {(matched ? "MATCHED" : "NOT MATCHED")}\n" +
+                      $"Reason: {reason}";
 
-            MessageBox.Show(info, "Rule Details", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(info, "Test Rule", MessageBoxButton.OK,
+                matched ? MessageBoxImage.Information : MessageBoxImage.Warning);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to test rule");
             MessageBox.Show($"Failed to test rule: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
-
-        return Task.CompletedTask;
     }
 }

@@ -1,9 +1,14 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Wpf;
+using VyralBot.Core.Services.EventBus;
 using VyralBot.Data;
 using VyralBot.Integrations.Kick;
+using VyralBot.Integrations.Kick.Events;
+using VyralBot.UI.Models;
+using VyralBot.UI.Services;
 
 namespace VyralBot.UI.ViewModels;
 
@@ -16,6 +21,17 @@ public partial class KickDashboardViewModel : ViewModelBase
     private readonly ILogger<KickDashboardViewModel> _logger;
     private readonly IDataService _dataService;
     private readonly IKickService _kickService;
+    private readonly IEventBus _eventBus;
+    private readonly IStreamActionsService _streamActions;
+
+    private readonly List<Guid> _subscriptionIds = new();
+    private bool _isSubscribed;
+
+    /// <summary>Max entries kept in the Activity Feed (oldest dropped).</summary>
+    private const int MaxActivityItems = 50;
+
+    /// <summary>Live activity feed shown in the dashboard's Activity Feed panel.</summary>
+    public ObservableCollection<ActivityItem> RecentActivity { get; } = new();
 
     public WebView2? StreamPreviewWebView { get; set; }
 
@@ -45,20 +61,39 @@ public partial class KickDashboardViewModel : ViewModelBase
     [ObservableProperty]
     private string _streamUrl = "";
 
+    [ObservableProperty]
+    private string _statusMessage = "";
+
+    // ── Stream Management quick actions ──────────────────────────────
+    [ObservableProperty]
+    private bool _isEmoteOnly = false;
+
+    [ObservableProperty]
+    private bool _isFollowerOnly = false;
+
+    [ObservableProperty]
+    private bool _isSlowMode = false;
+
     public KickDashboardViewModel(
         ILogger<KickDashboardViewModel> logger,
         IDataService dataService,
-        IKickService kickService)
+        IKickService kickService,
+        IEventBus eventBus,
+        IStreamActionsService streamActions)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _kickService = kickService ?? throw new ArgumentNullException(nameof(kickService));
+        _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
+        _streamActions = streamActions ?? throw new ArgumentNullException(nameof(streamActions));
     }
 
     public async Task InitializeAsync()
     {
         _logger.LogInformation("Initializing Kick dashboard");
-        
+
+        await SubscribeToActivityEventsAsync();
+
         try
         {
             var platform = await _dataService.GetPlatformByNameAsync("Kick");
@@ -175,6 +210,181 @@ public partial class KickDashboardViewModel : ViewModelBase
         {
             _logger.LogError(ex, "Error saving Kick settings");
             Status = $"Error saving: {ex.Message}";
+        }
+    }
+
+    // ======================================================================
+    // Stream Management quick actions
+    // ======================================================================
+
+    [RelayCommand]
+    private async Task ClearChatAsync()
+        => await RunStreamActionAsync("🧹", () => _streamActions.KickClearChatAsync());
+
+    [RelayCommand]
+    private async Task ToggleEmoteOnlyAsync(bool enabled)
+    {
+        // Note: the ToggleButton's IsChecked binding already flipped IsEmoteOnly
+        // before this command runs — 'enabled' IS the new value, so do not re-invert it.
+        var result = await RunStreamActionAsync("😊", () => _streamActions.KickSetEmoteOnlyAsync(enabled));
+        if (result is null || !result.Success)
+        {
+            IsEmoteOnly = !enabled; // Revert so the switch shows the real state
+        }
+    }
+
+    [RelayCommand]
+    private async Task ToggleFollowerOnlyAsync(bool enabled)
+    {
+        // Note: the ToggleButton's IsChecked binding already flipped IsFollowerOnly
+        // before this command runs — 'enabled' IS the new value, so do not re-invert it.
+        var result = await RunStreamActionAsync("👥", () => _streamActions.KickSetFollowerOnlyAsync(enabled));
+        if (result is null || !result.Success)
+        {
+            IsFollowerOnly = !enabled; // Revert so the switch shows the real state
+        }
+    }
+
+    [RelayCommand]
+    private async Task ToggleSlowModeAsync(bool enabled)
+    {
+        // Note: the ToggleButton's IsChecked binding already flipped IsSlowMode
+        // before this command runs — 'enabled' IS the new value, so do not re-invert it.
+        var result = await RunStreamActionAsync("🐢", () => _streamActions.KickSetSlowModeAsync(enabled));
+        if (result is null || !result.Success)
+        {
+            IsSlowMode = !enabled; // Revert so the switch shows the real state
+        }
+    }
+
+    /// <summary>
+    /// Executes a stream action and surfaces the outcome in the Activity Feed and StatusMessage.
+    /// Returns null when the action was not executed (not connected) or threw.
+    /// </summary>
+    private async Task<StreamActionResult?> RunStreamActionAsync(string emoji, Func<Task<StreamActionResult>> action)
+    {
+        if (!IsConnected)
+        {
+            const string text = "⚠️ Connect Kick to use stream actions";
+            AddActivity(text);
+            StatusMessage = text;
+            return null;
+        }
+
+        try
+        {
+            var result = await action();
+            var text = result.Success ? $"{emoji} {result.Message}" : $"⚠️ {result.Message}";
+            AddActivity(text);
+            StatusMessage = text;
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Kick stream action failed");
+            var text = $"⚠️ Kick action failed: {ex.Message}";
+            AddActivity(text);
+            StatusMessage = text;
+            return null;
+        }
+    }
+
+    // ======================================================================
+    // Activity Feed (follows / subs / gift subs / gifted Kicks / rewards / hosts)
+    // ======================================================================
+
+    private async Task SubscribeToActivityEventsAsync()
+    {
+        if (_isSubscribed)
+        {
+            return; // Prevent duplicate subscriptions when re-initializing
+        }
+        _isSubscribed = true;
+
+        try
+        {
+            _subscriptionIds.Add(await _eventBus.SubscribeAsync<KickFollowEvent>(OnActivityEventAsync));
+            _subscriptionIds.Add(await _eventBus.SubscribeAsync<KickSubscribeEvent>(OnActivityEventAsync));
+            _subscriptionIds.Add(await _eventBus.SubscribeAsync<KickGiftSubEvent>(OnActivityEventAsync));
+            _subscriptionIds.Add(await _eventBus.SubscribeAsync<KickKicksGiftedEvent>(OnActivityEventAsync));
+            _subscriptionIds.Add(await _eventBus.SubscribeAsync<KickRewardRedeemedEvent>(OnActivityEventAsync));
+            _subscriptionIds.Add(await _eventBus.SubscribeAsync<KickHostEvent>(OnActivityEventAsync));
+            _subscriptionIds.Add(await _eventBus.SubscribeAsync<KickStreamStatusEvent>(OnStreamStatusAsync));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to subscribe to Kick dashboard activity events");
+            _isSubscribed = false;
+        }
+    }
+
+    /// <summary>Unsubscribes from activity events. Called by the view's Unloaded handler.</summary>
+    public void Cleanup()
+    {
+        foreach (var id in _subscriptionIds)
+        {
+            try
+            {
+                _eventBus.Unsubscribe(id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to unsubscribe activity subscription {SubscriptionId}", id);
+            }
+        }
+        _subscriptionIds.Clear();
+        _isSubscribed = false;
+    }
+
+    private Task OnActivityEventAsync<TEvent>(TEvent evt) where TEvent : IEvent
+    {
+        var text = evt switch
+        {
+            KickFollowEvent e => $"🌱 New follower! ({e.FollowerCount} total)",
+            KickSubscribeEvent e => $"⭐ {e.Username} subscribed (Month {e.MonthsSubscribed})",
+            KickGiftSubEvent e => $"🎁 {e.GifterUsername} gifted {e.Count} subscription(s)!",
+            KickKicksGiftedEvent e => $"💰 {e.SenderUsername} gifted {e.Amount} Kicks!",
+            KickRewardRedeemedEvent e => $"🏆 {e.Username} redeemed \"{e.RewardName}\"",
+            KickHostEvent e => $"🎯 {e.HostUsername} is hosting with {e.ViewerCount} viewer(s)!",
+            _ => $"🔔 {typeof(TEvent).Name.Replace("Kick", "").Replace("Event", "")} received"
+        };
+
+        AddActivity(text);
+        return Task.CompletedTask;
+    }
+
+    private Task OnStreamStatusAsync(KickStreamStatusEvent e)
+    {
+        IsLive = e.IsLive;
+        AddActivity(e.IsLive
+            ? "🔴 Stream is now LIVE!"
+            : "⚫ Stream went offline");
+        return Task.CompletedTask;
+    }
+
+    private void AddActivity(string text)
+    {
+        try
+        {
+            System.Windows.Application.Current?.Dispatcher.InvokeAsync(() =>
+            {
+                try
+                {
+                    RecentActivity.Insert(0, new ActivityItem(DateTime.Now, text));
+                    while (RecentActivity.Count > MaxActivityItems)
+                    {
+                        RecentActivity.RemoveAt(RecentActivity.Count - 1);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to add Kick dashboard activity entry");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to marshal Kick dashboard activity to the UI thread");
         }
     }
 }

@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using MaterialDesignThemes.Wpf;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.ObjectModel;
@@ -9,6 +10,8 @@ using System.Threading.Tasks;
 using VyralBot.Core.Services;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
+using VyralBot.UI.Services;
+using VyralBot.Workflows.Runtime;
 
 namespace VyralBot.UI.ViewModels;
 
@@ -20,6 +23,12 @@ public partial class PollViewModel : ViewModelBase
     private readonly PollService _pollService;
     private readonly IDataService _dataService;
     private readonly ILogger<PollViewModel> _logger;
+
+    // Chat announcements (poll results) — same per-platform routing the
+    // workflow sends use. IServiceProvider is required to build the
+    // ExecutionContext instances the sender's SendAsync contract expects.
+    private readonly WorkflowMessageSender _messageSender;
+    private readonly IServiceProvider _serviceProvider;
 
     [ObservableProperty]
     private ObservableCollection<Poll> _polls = new();
@@ -71,11 +80,15 @@ public partial class PollViewModel : ViewModelBase
     public PollViewModel(
         PollService pollService,
         IDataService dataService,
-        ILogger<PollViewModel> logger)
+        ILogger<PollViewModel> logger,
+        WorkflowMessageSender messageSender,
+        IServiceProvider serviceProvider)
     {
         _pollService = pollService;
         _dataService = dataService;
         _logger = logger;
+        _messageSender = messageSender;
+        _serviceProvider = serviceProvider;
     }
 
     public async Task InitializeAsync()
@@ -225,6 +238,10 @@ public partial class PollViewModel : ViewModelBase
             NewPollAllowedPlatforms = "All";
             NewPollScheduledEnd = null;
 
+            // Close the "Create New Poll" dialog (PollView's DialogHost uses
+            // the "RootDialog" identifier) so the round-trip completes.
+            DialogHost.Close("RootDialog");
+
             StatusMessage = $"✅ Poll '{poll.Question}' created successfully!";
             _logger.LogInformation("Created poll: {Question}", poll.Question);
         }
@@ -248,18 +265,25 @@ public partial class PollViewModel : ViewModelBase
             return;
         }
 
+        var selected = SelectedPoll;
+
         try
         {
             IsLoading = true;
             StatusMessage = "Starting poll...";
 
-            var success = await _pollService.StartPollAsync(SelectedPoll.Id);
+            var success = await _pollService.StartPollAsync(selected.Id);
 
             if (success)
             {
                 await LoadPollsAsync();
-                StatusMessage = $"✅ Poll '{SelectedPoll.Question}' started!";
-                _logger.LogInformation("Started poll: {Question}", SelectedPoll.Question);
+
+                // The reload swaps in new entity instances and clears the
+                // TwoWay selection — re-select before reading the property.
+                SelectedPoll = Polls.FirstOrDefault(p => p.Id == selected.Id);
+
+                StatusMessage = $"✅ Poll '{selected.Question}' started!";
+                _logger.LogInformation("Started poll: {Question}", selected.Question);
             }
             else
             {
@@ -286,19 +310,32 @@ public partial class PollViewModel : ViewModelBase
             return;
         }
 
+        var selected = SelectedPoll;
+
         try
         {
             IsLoading = true;
             StatusMessage = "Ending poll...";
 
-            var (success, results, message) = await _pollService.EndPollAsync(SelectedPoll.Id);
+            var (success, results, message) = await _pollService.EndPollAsync(selected.Id);
 
             if (success)
             {
                 await LoadPollsAsync();
+
+                // The reload swaps in new entity instances and clears the
+                // TwoWay selection — re-select FIRST, otherwise the votes
+                // refresh below early-returns and the results stay stale.
+                SelectedPoll = Polls.FirstOrDefault(p => p.Id == selected.Id);
                 await LoadVotesForSelectedPollAsync();
+
                 StatusMessage = $"✅ {message}";
-                _logger.LogInformation("Ended poll: {Question}", SelectedPoll.Question);
+                _logger.LogInformation("Ended poll: {Question}", selected.Question);
+
+                // Announce the results on the connected platforms — the
+                // chat-command end path announces too, so a UI-drawn end
+                // should be equally visible to viewers.
+                await AnnounceToChatAsync(message);
             }
             else
             {
@@ -325,18 +362,25 @@ public partial class PollViewModel : ViewModelBase
             return;
         }
 
+        var selected = SelectedPoll;
+
         try
         {
             IsLoading = true;
             StatusMessage = "Cancelling poll...";
 
-            var success = await _pollService.CancelPollAsync(SelectedPoll.Id);
+            var success = await _pollService.CancelPollAsync(selected.Id);
 
             if (success)
             {
                 await LoadPollsAsync();
-                StatusMessage = $"✅ Poll '{SelectedPoll.Question}' cancelled";
-                _logger.LogInformation("Cancelled poll: {Question}", SelectedPoll.Question);
+
+                // The reload swaps in new entity instances and clears the
+                // TwoWay selection — re-select before reading the property.
+                SelectedPoll = Polls.FirstOrDefault(p => p.Id == selected.Id);
+
+                StatusMessage = $"✅ Poll '{selected.Question}' cancelled";
+                _logger.LogInformation("Cancelled poll: {Question}", selected.Question);
             }
             else
             {
@@ -363,16 +407,20 @@ public partial class PollViewModel : ViewModelBase
             return;
         }
 
+        var selected = SelectedPoll;
+
         try
         {
             IsLoading = true;
             StatusMessage = "Deleting poll...";
 
-            await _dataService.DeletePollAsync(SelectedPoll.Id);
+            await _dataService.DeletePollAsync(selected.Id);
             await LoadPollsAsync();
 
+            // The reload cleared the selection (the poll no longer exists) —
+            // use the captured entity for the log line.
             StatusMessage = "✅ Poll deleted successfully";
-            _logger.LogInformation("Deleted poll: {Question}", SelectedPoll.Question);
+            _logger.LogInformation("Deleted poll: {Question}", selected.Question);
         }
         catch (Exception ex)
         {
@@ -388,11 +436,45 @@ public partial class PollViewModel : ViewModelBase
     [RelayCommand]
     private async Task RefreshAsync()
     {
-        await LoadPollsAsync();
-        if (SelectedPoll != null)
+        try
         {
-            await LoadVotesForSelectedPollAsync();
+            await LoadPollsAsync();
+            if (SelectedPoll != null)
+            {
+                await LoadVotesForSelectedPollAsync();
+            }
+            StatusMessage = "✅ Refreshed";
         }
-        StatusMessage = "✅ Refreshed";
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error refreshing polls");
+            StatusMessage = $"❌ Error refreshing polls: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Broadcasts an announcement to every connected platform via the
+    /// workflow message sender (same per-platform routing workflow sends
+    /// use). Never throws — send failures are logged and the UI flow
+    /// continues unaffected.
+    /// </summary>
+    private async Task AnnounceToChatAsync(string message)
+    {
+        try
+        {
+            foreach (var platform in new[] { "Twitch", "Kick", "Discord" })
+            {
+                var context = new VyralBot.Workflows.Runtime.ExecutionContext(_serviceProvider, _logger)
+                {
+                    Platform = platform
+                };
+
+                await _messageSender.SendAsync(context, message);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to broadcast poll announcement to chat");
+        }
     }
 }

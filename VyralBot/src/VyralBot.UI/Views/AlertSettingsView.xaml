@@ -111,7 +111,7 @@
                     <Button Content="Test Alert"
                            Command="{Binding TestAlertCommand}"
                            Style="{StaticResource MaterialDesignRaisedButton}"
-                           Background="#FF9C27B0"
+                           Background="{DynamicResource PrimaryBrush}"
                            HorizontalAlignment="Left"
                            Padding="30,10"/>
                 </StackPanel>
@@ -220,7 +220,7 @@
                 <Button Content="Save Settings"
                        Command="{Binding SaveSettingsCommand}"
                        Style="{StaticResource MaterialDesignRaisedButton}"
-                       Background="#FF4CAF50"
+                       Background="{DynamicResource SuccessBrush}"
                        Padding="30,10"/>
             </StackPanel>
 

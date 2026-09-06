@@ -8,7 +8,7 @@
              xmlns:converters="clr-namespace:VyralBot.UI.Converters"
              xmlns:behaviors="clr-namespace:VyralBot.UI.Behaviors"
              xmlns:diag="clr-namespace:System.Diagnostics;assembly=WindowsBase"
-             Background="{StaticResource BackgroundDarkBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
     
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -52,8 +52,8 @@
         
         <!-- Header -->
         <Border Grid.Row="0" 
-                Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource BorderLightBrush}"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderLightBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="16,12"
                 Margin="0,0,0,8">
@@ -77,9 +77,9 @@
                     <Popup IsOpen="{Binding IsAllPlatformsSettingsOpen, Mode=TwoWay}"
                            PlacementTarget="{Binding ElementName=AllPlatformsSettingsButton}"
                            Placement="Bottom"
-                           StaysOpen="False"
+                           StaysOpen="True"
                            AllowsTransparency="True">
-                        <Border Background="{StaticResource CardBackgroundBrush}"
+                        <Border Background="{DynamicResource CardBackgroundBrush}"
                                 BorderBrush="{StaticResource PrimaryHueMidBrush}"
                                 BorderThickness="1"
                                 CornerRadius="4"
@@ -90,23 +90,27 @@
                                            FontWeight="SemiBold" 
                                            Margin="0,0,0,8"/>
                                 
-                                <!-- Placeholder Action Buttons -->
+                                <!-- Quick Action Buttons -->
                                 <Button Content="Start Giveaway"
+                                        Command="{Binding StartGiveawayCommand}"
                                         Style="{StaticResource MaterialDesignFlatButton}"
                                         HorizontalAlignment="Stretch"
                                         Margin="0,0,0,4"/>
-                                
+
                                 <Button Content="Start Poll"
+                                        Command="{Binding StartPollCommand}"
                                         Style="{StaticResource MaterialDesignFlatButton}"
                                         HorizontalAlignment="Stretch"
                                         Margin="0,0,0,4"/>
-                                
+
                                 <Button Content="Send Announcement"
+                                        Command="{Binding SendAnnouncementCommand}"
                                         Style="{StaticResource MaterialDesignFlatButton}"
                                         HorizontalAlignment="Stretch"
                                         Margin="0,0,0,4"/>
-                                
+
                                 <Button Content="Trigger Event"
+                                        Command="{Binding TriggerEventCommand}"
                                         Style="{StaticResource MaterialDesignFlatButton}"
                                         HorizontalAlignment="Stretch"/>
                             </StackPanel>
@@ -131,9 +135,9 @@
                     <Popup IsOpen="{Binding IsTwitchSettingsOpen, Mode=TwoWay}"
                            PlacementTarget="{Binding ElementName=TwitchSettingsButton}"
                            Placement="Bottom"
-                           StaysOpen="False"
+                           StaysOpen="True"
                            AllowsTransparency="True">
-                        <Border Background="{StaticResource CardBackgroundBrush}"
+                        <Border Background="{DynamicResource CardBackgroundBrush}"
                                 Padding="8"
                                 CornerRadius="6"
                                 BorderThickness="1"
@@ -163,9 +167,9 @@
                     <Popup IsOpen="{Binding IsKickSettingsOpen, Mode=TwoWay}"
                            PlacementTarget="{Binding ElementName=KickSettingsButton}"
                            Placement="Bottom"
-                           StaysOpen="False"
+                           StaysOpen="True"
                            AllowsTransparency="True">
-                        <Border Background="{StaticResource CardBackgroundBrush}"
+                        <Border Background="{DynamicResource CardBackgroundBrush}"
                                 Padding="8"
                                 CornerRadius="6"
                                 BorderThickness="1"
@@ -195,9 +199,9 @@
                     <Popup IsOpen="{Binding IsYoutubeSettingsOpen, Mode=TwoWay}"
                            PlacementTarget="{Binding ElementName=YoutubeSettingsButton}"
                            Placement="Bottom"
-                           StaysOpen="False"
+                           StaysOpen="True"
                            AllowsTransparency="True">
-                        <Border Background="{StaticResource CardBackgroundBrush}"
+                        <Border Background="{DynamicResource CardBackgroundBrush}"
                                 Padding="8"
                                 CornerRadius="6"
                                 BorderThickness="1"
@@ -227,9 +231,9 @@
                     <Popup IsOpen="{Binding IsTiktokSettingsOpen, Mode=TwoWay}"
                            PlacementTarget="{Binding ElementName=TiktokSettingsButton}"
                            Placement="Bottom"
-                           StaysOpen="False"
+                           StaysOpen="True"
                            AllowsTransparency="True">
-                        <Border Background="{StaticResource CardBackgroundBrush}"
+                        <Border Background="{DynamicResource CardBackgroundBrush}"
                                 Padding="8"
                                 CornerRadius="6"
                                 BorderThickness="1"
@@ -258,9 +262,9 @@
                     <Popup IsOpen="{Binding IsDiscordSettingsOpen, Mode=TwoWay}"
                            PlacementTarget="{Binding ElementName=DiscordSettingsButton}"
                            Placement="Bottom"
-                           StaysOpen="False"
+                           StaysOpen="True"
                            AllowsTransparency="True">
-                        <Border Background="{StaticResource CardBackgroundBrush}"
+                        <Border Background="{DynamicResource CardBackgroundBrush}"
                                 Padding="8"
                                 CornerRadius="6"
                                 BorderThickness="1"
@@ -275,18 +279,46 @@
                 
                 <!-- Utility Buttons (Right Side) -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Command="{Binding ToggleAutoScrollCommand}"
+                    <!-- DM feed toggles: DMs reveals the Direct Messages feed;
+                         Combined shows chat and DMs side by side (enabling it
+                         forces the DM panel on — see ChatViewModel). -->
+                    <ToggleButton IsChecked="{Binding ShowDmPanel, Mode=TwoWay}"
+                                  Style="{StaticResource MaterialDesignIconButton}"
+                                  ToolTip="Show DMs sent to the bot"
+                                  Height="32"
+                                  Margin="0,0,8,0"
+                                  Padding="8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Chat" Width="16" Height="16" VerticalAlignment="Center"/>
+                            <TextBlock Text="DMs" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                        </StackPanel>
+                    </ToggleButton>
+
+                    <ToggleButton IsChecked="{Binding CombinedView, Mode=TwoWay}"
+                                  Style="{StaticResource MaterialDesignIconButton}"
+                                  ToolTip="Show chat and DMs side by side"
+                                  Height="32"
+                                  Margin="0,0,8,0"
+                                  Padding="8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="SelectAll" Width="16" Height="16" VerticalAlignment="Center"/>
+                            <TextBlock Text="Combined" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                        </StackPanel>
+                    </ToggleButton>
+
+                    <ToggleButton Command="{Binding ToggleAutoScrollCommand}"
+                          IsChecked="{Binding AutoScroll, Mode=OneWay}"
                           Style="{StaticResource MaterialDesignIconButton}"
                           ToolTip="Toggle Auto-Scroll"
                           Width="32"
                           Height="32"
                           Margin="0,0,8,0">
-                        <materialDesign:PackIcon Kind="ArrowDown" Width="18" Height="18"/>
-                    </Button>
+                        <materialDesign:PackIcon Kind="ArrowCollapseDown" Width="18" Height="18"/>
+                    </ToggleButton>
                     
                     <Button Command="{Binding LoadHistoryCommand}"
                           Style="{StaticResource MaterialDesignIconButton}"
-                          ToolTip="Load Chat History (50 messages)"
+                          ToolTip="Load Chat History (200 messages)"
                           Width="32"
                           Height="32"
                           Margin="0,0,8,0">
@@ -313,11 +345,52 @@
             </Grid>
         </Border>
         
-        <!-- Chat Messages - Using ListBox with VirtualizingStackPanel for memory efficiency -->
-        <materialDesign:Card Grid.Row="1" 
-                            Background="{StaticResource CardBackgroundBrush}"
-                            Margin="0,0,0,8">
+        <!-- Message area: chat on the LEFT and the DM feed on the RIGHT when
+             CombinedView is on; the DM feed alone takes the full area when only
+             ShowDmPanel is on; otherwise the plain single-column chat (all three
+             columns are fixed *, the containers span/position themselves via
+             style triggers below, so "both off" renders exactly as before). -->
+        <Grid Grid.Row="1" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Chat (spans the whole row except in combined mode; hidden only
+                 when the DM panel shows on its own) -->
             <Grid>
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Grid.ColumnSpan" Value="3"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CombinedView}" Value="True">
+                                <Setter Property="Grid.ColumnSpan" Value="1"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding DmOnlyView}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- "Chat" header: combined mode only, so the classic
+                             single-column view stays pixel-identical -->
+                        <TextBlock Grid.Row="0"
+                                   Text="Chat"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Margin="14,10,0,0"
+                                   Visibility="{Binding CombinedView, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                        <Grid Grid.Row="1">
             <ListBox x:Name="ChatScrollViewer"
                      ItemsSource="{Binding Messages}"
                      Background="Transparent"
@@ -362,7 +435,7 @@
                                     <TextBlock Grid.Column="0"
                                              Text="{Binding Timestamp, StringFormat='h:mm tt'}"
                                              FontSize="10"
-                                             Foreground="{StaticResource TextSecondaryBrush}"
+                                             Foreground="{DynamicResource TextSecondaryBrush}"
                                              VerticalAlignment="Center"
                                              Margin="0,0,8,0"/>
                                     
@@ -394,17 +467,28 @@
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
                                         
-                                        <!-- Username -->
-                                        <TextBlock Text="{Binding Username}" 
-                                                 FontSize="13"
-                                                 FontWeight="SemiBold"
-                                                 Foreground="{Binding Color}"
-                                                 VerticalAlignment="Center"
-                                                 Margin="4,0,0,0"/>
+                                        <!-- Username (clickable — opens the viewer profile window) -->
+                                        <Button Command="{Binding DataContext.OpenViewerProfileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                              CommandParameter="{Binding}"
+                                              Cursor="Hand"
+                                              ToolTip="View viewer profile"
+                                              VerticalAlignment="Center"
+                                              Margin="4,0,0,0">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <ContentPresenter/>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                            <TextBlock Text="{Binding Username}"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{Binding Color}"
+                                                   VerticalAlignment="Center"/>
+                                        </Button>
                                         
                                         <TextBlock Text=":" 
                                                  FontSize="13"
-                                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                                 Foreground="{DynamicResource TextSecondaryBrush}"
                                                  VerticalAlignment="Center"
                                                  Margin="2,0,0,0"/>
                                     </StackPanel>
@@ -415,7 +499,7 @@
                                     <TextBlock Grid.Column="2"
                                              Text="{Binding Message}"
                                              FontSize="13"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              TextWrapping="Wrap"
                                              VerticalAlignment="Center"/>
                                 </Grid>
@@ -431,18 +515,374 @@
                         VerticalAlignment="Top"
                         Margin="0,8,0,0"
                         Padding="8,4"
-                        Background="{StaticResource TwitchBrush}"
+                        Background="{DynamicResource TwitchBrush}"
                         Foreground="White"
                         FontWeight="SemiBold"
                         Click="NewMessagesButton_Click">
                     New messages
                 </Button>
             </Grid>
-        </materialDesign:Card>
-        
+                    </Grid>
+                </materialDesign:Card>
+            </Grid>
+
+            <!-- Thin separator between chat and DM feed (combined mode only) -->
+            <Border Grid.Column="1"
+                    Width="1"
+                    Margin="8,0"
+                    Background="{DynamicResource BorderLightBrush}"
+                    Visibility="{Binding CombinedView, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+            <!-- DM inbox: full area on its own (ShowDmPanel only), right half in
+                 combined mode. Shows the conversation list (inbox) or, when a
+                 conversation is open, its thread + reply bar. The thread
+                 auto-scrolls via the DmScrollTarget selection anchor (ListBox
+                 brings its selected item into view). -->
+            <Grid Visibility="{Binding ShowDmPanel, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Grid.Column" Value="0"/>
+                        <Setter Property="Grid.ColumnSpan" Value="3"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CombinedView}" Value="True">
+                                <Setter Property="Grid.Column" Value="2"/>
+                                <Setter Property="Grid.ColumnSpan" Value="1"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Inbox header: shown while NO conversation is open -->
+                        <Grid Grid.Row="0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Direct Messages"
+                                                       FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       Margin="14,10,0,6"/>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,8,0">
+                                            <Button Command="{Binding LoadAllDmHistoryCommand}" Style="{StaticResource MaterialDesignFlatButton}" ToolTip="Load every saved DM conversation with full history" Margin="0,0,8,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <materialDesign:PackIcon Kind="History" Width="16" Height="16" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Load all history" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Command="{Binding ClearAllDmHistoryCommand}" Style="{StaticResource MaterialDesignFlatButton}" ToolTip="Delete ALL saved DM history">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <materialDesign:PackIcon Kind="Delete" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource ErrorRedBrush}"/>
+                                                    <TextBlock Text="Clear all" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                                                </StackPanel>
+                                            </Button>
+                                            </StackPanel>
+                                        </Grid>
+
+                        <!-- Thread header: back button + the open conversation's
+                             username (shown while a conversation IS open) -->
+                        <Grid Grid.Row="0"
+                              Margin="6,6,10,6"
+                              Visibility="{Binding HasSelectedDmConversation, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button Grid.Column="0"
+                                    Command="{Binding BackToDmInboxCommand}"
+                                    Style="{StaticResource MaterialDesignIconButton}"
+                                    Width="32"
+                                    Height="32"
+                                    ToolTip="All conversations">
+                                <materialDesign:PackIcon Kind="ArrowLeft" Width="18" Height="18"/>
+                            </Button>                                    <Button Command="{Binding LoadDmHistoryCommand}" Style="{StaticResource MaterialDesignIconButton}" Width="32" Height="32" ToolTip="Reload this conversation's full saved history" Margin="4,0,0,0">
+                                        <materialDesign:PackIcon Kind="History" Width="18" Height="18"/>
+                                    </Button>
+                                    <Button Command="{Binding ClearDmHistoryCommand}" Style="{StaticResource MaterialDesignIconButton}" Width="32" Height="32" ToolTip="Delete this conversation's saved DM history" Margin="4,0,0,0">
+                                        <materialDesign:PackIcon Kind="Delete" Width="18" Height="18"/>
+                                    </Button>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0">
+                                <TextBlock Text="{Binding SelectedDmConversation.Username}"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding SelectedDmConversation.Platform}"
+                                           FontSize="10"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="8,2,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Inbox list: one row per DM conversation (username bold,
+                             muted single-line preview, short time right-aligned,
+                             unread badge when > 0). Clicking a row opens the thread
+                             (SelectedItem binds TwoWay to SelectedDmConversation). -->
+                        <ListBox x:Name="DmConversationsList"
+                                 Grid.Row="1"
+                                 ItemsSource="{Binding DmConversations}"
+                                 SelectedItem="{Binding SelectedDmConversation, Mode=TwoWay}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Padding="6"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.CanContentScroll="True"
+                                 VirtualizingStackPanel.IsVirtualizing="True"
+                                 VirtualizingStackPanel.VirtualizationMode="Recycling"
+                                 VirtualizingStackPanel.ScrollUnit="Item">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="10,7"
+                                            Margin="0,1"
+                                            CornerRadius="4"
+                                            Background="Transparent">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Platform logo -->
+                                            <Image Grid.Column="0"
+                                                   Style="{StaticResource PlatformLogoStyle}"
+                                                   Margin="0,0,10,0"/>
+
+                                            <!-- Username + last-message preview -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Username}"
+                                                           FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding LastPreview}"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Margin="0,2,0,0"/>
+                                            </StackPanel>
+
+                                            <!-- Time + unread badge -->
+                                            <StackPanel Grid.Column="2"
+                                                        VerticalAlignment="Center"
+                                                        HorizontalAlignment="Right"
+                                                        Margin="8,0,0,0">
+                                                <TextBlock Text="{Binding LastAtText}"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           HorizontalAlignment="Right"/>
+                                                <Border CornerRadius="8"
+                                                        Background="{DynamicResource PrimaryBrush}"
+                                                        Padding="5,1"
+                                                        Margin="0,4,0,0"
+                                                        HorizontalAlignment="Right">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasUnread}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock Text="{Binding UnreadCount}"
+                                                               FontSize="10"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="White"/>
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <!-- Thread view: the open conversation's messages. Same
+                             message layout as before (muted background + hairline
+                             border). Auto-scrolls via the DmScrollTarget selection
+                             anchor (ListBox brings its selected item into view). -->
+                        <ListBox x:Name="DmThreadList"
+                                 Grid.Row="1"
+                                 ItemsSource="{Binding SelectedDmConversation.Messages}"
+                                 SelectedItem="{Binding DmScrollTarget, Mode=TwoWay}"
+                                 Visibility="{Binding HasSelectedDmConversation, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Padding="12"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.CanContentScroll="True"
+                                 VirtualizingStackPanel.IsVirtualizing="True"
+                                 VirtualizingStackPanel.VirtualizationMode="Recycling"
+                                 VirtualizingStackPanel.ScrollUnit="Item"
+                                 VirtualizingStackPanel.CacheLength="5,5"
+                                 VirtualizingStackPanel.CacheLengthUnit="Item">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <ContentPresenter/>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <!-- Same message layout as the main chat, with a
+                                     muted background and hairline border to mark
+                                     DM entries (DynamicResource brushes only).
+                                     Messages the BOT sent carry Username = bot
+                                     username, so replies read like the main feed. -->
+                                <DataTemplate>
+                                    <Border Padding="8,4"
+                                          Margin="0,2"
+                                          Background="{DynamicResource CardHoverBrush}"
+                                          BorderBrush="{DynamicResource BorderLightBrush}"
+                                          BorderThickness="0,0,0,1"
+                                          CornerRadius="3">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Timestamp -->
+                                            <TextBlock Grid.Column="0"
+                                                     Text="{Binding TimestampDisplay}"
+                                                     FontSize="10"
+                                                     Foreground="{DynamicResource TextSecondaryBrush}"
+                                                     VerticalAlignment="Center"
+                                                     Margin="0,0,8,0"/>
+
+                                            <!-- Platform Logo + Badges + Username -->
+                                            <StackPanel Grid.Column="1"
+                                                      Orientation="Horizontal"
+                                                      Margin="0,0,8,0">
+                                                <Image Style="{StaticResource PlatformLogoStyle}"
+                                                       Margin="0,0,6,0"/>
+
+                                                <ItemsControl ItemsSource="{Binding BadgeImages}" Margin="0,0,4,0">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <StackPanel Orientation="Horizontal"/>
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Image Width="18" Height="18"
+                                                                   Margin="0,0,2,0"
+                                                                   VerticalAlignment="Center"
+                                                                   Source="{Binding Image}"
+                                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                                   Stretch="Uniform"
+                                                                   ToolTip="{Binding Name}"/>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <!-- Username (clickable — opens the viewer profile window) -->
+                                                <Button Command="{Binding DataContext.OpenViewerProfileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                      CommandParameter="{Binding}"
+                                                      Cursor="Hand"
+                                                      ToolTip="View viewer profile"
+                                                      VerticalAlignment="Center"
+                                                      Margin="4,0,0,0">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <ContentPresenter/>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                    <TextBlock Text="{Binding Username}"
+                                                           FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{Binding Color}"
+                                                           VerticalAlignment="Center"/>
+                                                </Button>
+
+                                                <TextBlock Text=":"
+                                                         FontSize="13"
+                                                         Foreground="{DynamicResource TextSecondaryBrush}"
+                                                         VerticalAlignment="Center"
+                                                         Margin="2,0,0,0"/>
+                                            </StackPanel>
+
+                                            <!-- Message -->
+                                            <TextBlock Grid.Column="2"
+                                                     Text="{Binding Message}"
+                                                     FontSize="13"
+                                                     Foreground="{DynamicResource TextPrimaryBrush}"
+                                                     TextWrapping="Wrap"
+                                                     VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <!-- Reply bar: mirrors the main chat input (hint TextBox +
+                             Enter-to-send KeyBinding + Send button). Command is
+                             disabled while the input is empty or no conversation
+                             is open (CanSendDmReply). -->
+                        <Grid Grid.Row="2"
+                              Margin="8,4,8,8"
+                              Visibility="{Binding HasSelectedDmConversation, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding DmReplyInput, UpdateSourceTrigger=PropertyChanged}"
+                                     materialDesign:HintAssist.Hint="Reply..."
+                                     FontSize="13"
+                                     VerticalAlignment="Center"
+                                     Margin="0,0,8,0">
+                                <TextBox.InputBindings>
+                                    <KeyBinding Key="Return" Command="{Binding SendDmReplyCommand}"/>
+                                </TextBox.InputBindings>
+                            </TextBox>
+
+                            <Button Grid.Column="1"
+                                    Command="{Binding SendDmReplyCommand}"
+                                    Style="{StaticResource MaterialDesignIconButton}"
+                                    Width="36"
+                                    Height="36"
+                                    ToolTip="Send reply">
+                                <materialDesign:PackIcon Kind="Send" Width="18" Height="18"/>
+                            </Button>
+                        </Grid>
+                    </Grid>
+                </materialDesign:Card>
+            </Grid>
+        </Grid>
+
         <!-- Message Input -->
         <materialDesign:Card Grid.Row="2" 
-                            Background="{StaticResource CardBackgroundBrush}"
+                            Background="{DynamicResource CardBackgroundBrush}"
                             Padding="12">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -467,11 +907,11 @@
                         
                         <!-- Platform Selector Popup -->
                         <Popup IsOpen="{Binding IsPlatformSelectorOpen}"
-                               StaysOpen="False"
+                               StaysOpen="True"
                                Placement="Top"
                                PlacementTarget="{Binding RelativeSource={RelativeSource AncestorType=Button}}">
-                            <Border Background="{StaticResource CardBackgroundBrush}"
-                                    BorderBrush="{StaticResource BorderLightBrush}"
+                            <Border Background="{DynamicResource CardBackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderLightBrush}"
                                     BorderThickness="1"
                                     CornerRadius="4"
                                     Padding="4">
@@ -490,7 +930,7 @@
                                                     <TextBlock Text="{Binding Name}" 
                                                              Margin="8,0,0,0" 
                                                              VerticalAlignment="Center"
-                                                             Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                             Foreground="{DynamicResource TextPrimaryBrush}"/>
                                                 </StackPanel>
                                             </Button>
                                         </DataTemplate>

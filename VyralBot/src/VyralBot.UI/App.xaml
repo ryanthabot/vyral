@@ -19,6 +19,10 @@
                 <ResourceDictionary Source="/Themes/Colors/NativeColors.xaml" />
             </ResourceDictionary.MergedDictionaries>
             
+            <!-- App logo (window/taskbar icon and the shell header images).
+                 Never defined before, so the taskbar showed the default icon. -->
+            <ImageSource x:Key="AppLogoSource">/Resources/Images/vyral-logo.png</ImageSource>
+
             <!-- Define theme colors for Teal primary and Cyan secondary -->
             <Color x:Key="PrimaryHueLightColor">#FF80CBC4</Color>
             <Color x:Key="PrimaryHueMidColor">#FF26A69A</Color>

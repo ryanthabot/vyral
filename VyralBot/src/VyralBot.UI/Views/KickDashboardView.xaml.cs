@@ -73,6 +73,7 @@ public partial class KickDashboardView : UserControl
         if (DataContext is KickDashboardViewModel viewModel)
         {
             viewModel.WebView2InitializeRequested -= OnWebView2InitializeRequested;
+            viewModel.Cleanup();
         }
     }
 }

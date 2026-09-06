@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Net;
@@ -101,7 +102,17 @@ public class WebServerService : IDisposable
                 }
             });
             _app.UseWebSockets();
-            _app.UseStaticFiles(); // Serve wwwroot (audio.html, sounds)
+
+            // Serve static files (audio.html, sounds) from the app's output wwwroot.
+            // Rooting explicitly at BaseDirectory is required because the default
+            // ContentRoot/web-root is the process CWD and the staticwebassets manifest
+            // does not apply in Production runs of this in-process host.
+            var wwwrootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+            Directory.CreateDirectory(wwwrootPath);
+            _app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(wwwrootPath)
+            });
             _app.UseRouting();
             _app.UseMiddleware<VyralBot.Api.Middleware.KickWebhookValidationMiddleware>();
             _app.MapControllers();

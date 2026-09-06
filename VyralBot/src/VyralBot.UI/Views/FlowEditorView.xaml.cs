@@ -310,9 +310,15 @@ public partial class FlowEditorView : UserControl
         }
 
         // Ctrl+S saves regardless of focus (typing in a text box must not eat it).
+        // Mirrors the SAVE button's IsEnabled binding (IsBusy -> disabled): while
+        // a save is in flight the shortcut must be a no-op, or Ctrl+S re-enters
+        // the save pipeline.
         if (e.Key == Key.S && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {
-            viewModel.SaveCommand.Execute(null);
+            if (!viewModel.IsBusy)
+            {
+                viewModel.SaveCommand.Execute(null);
+            }
             e.Handled = true;
             return;
         }

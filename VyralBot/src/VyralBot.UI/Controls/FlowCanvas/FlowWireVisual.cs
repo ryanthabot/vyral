@@ -34,8 +34,12 @@ internal sealed class FlowWireVisual : Canvas
     private const double MarkerSize = 8d;      // visible ⊗ ring diameter
     private const double MarkerHitSize = 14d;  // generous transparent click target around the ring
 
-    private static readonly Brush MarkerStroke = FlowCanvasPalette.Brush(FlowCanvasPalette.PortNeutral);
-    private static readonly Brush MarkerStrokeHover =
+    // NOT cached in static fields: the ⊗ marker brushes resolve the LIVE
+    // palette on every use, so wire rebuilds after a theme change render the
+    // markers in the fresh attachment grey (static readonly fields would keep
+    // the palette colors captured at type-initialization time forever).
+    private static SolidColorBrush MarkerStroke => FlowCanvasPalette.Brush(FlowCanvasPalette.PortNeutral);
+    private static SolidColorBrush MarkerStrokeHover =>
         FlowCanvasPalette.Brush(FlowCanvasPalette.Brighten(FlowCanvasPalette.Color(FlowCanvasPalette.PortNeutral), 0.65d));
 
     private readonly Path _hitPath;

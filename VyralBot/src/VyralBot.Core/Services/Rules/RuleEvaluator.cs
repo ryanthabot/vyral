@@ -28,6 +28,15 @@ public class RuleEvaluator : IRuleEvaluator
     {
         try
         {
+            // A null condition or an empty default condition (the "{}" JSON that
+            // "New Rule"/"Clear All" produce, deserialized to Field="") means
+            // "no condition" - the rule always matches.
+            if (condition is null)
+                return true;
+
+            if (condition.Type != ConditionType.Complex && string.IsNullOrWhiteSpace(condition.Field))
+                return true;
+
             return condition.Type switch
             {
                 ConditionType.Value => EvaluateValueCondition(condition, context),
@@ -53,15 +62,33 @@ public class RuleEvaluator : IRuleEvaluator
             return false;
         }
 
-        // Handle modulo operator specially
-        if (condition.Operator == ComparisonOperator.Modulo && condition.ModuloDivisor.HasValue)
+        // Handle modulo operator specially. UI semantics: Value IS the divisor
+        // (e.g. "count % 100 == 0" => Field=count, Operator=Modulo, Value=100),
+        // with ModuloDivisor as an optional explicit override.
+        if (condition.Operator == ComparisonOperator.Modulo)
         {
-            if (fieldValue is int intValue)
+            var divisor = condition.ModuloDivisor ?? 0;
+            if (divisor == 0 && !int.TryParse(condition.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out divisor))
             {
-                var remainder = intValue % condition.ModuloDivisor.Value;
-                return int.TryParse(condition.Value, out var expectedRemainder) && remainder == expectedRemainder;
+                _logger.LogWarning("Modulo condition for field {Field} has no valid divisor (Value='{Value}')",
+                    condition.Field, condition.Value);
+                return false;
             }
-            return false;
+
+            if (divisor == 0)
+            {
+                _logger.LogWarning("Modulo condition for field {Field} has a zero divisor", condition.Field);
+                return false;
+            }
+
+            if (!IsNumericType(fieldValue))
+            {
+                _logger.LogWarning("Modulo condition field {Field} value is not numeric", condition.Field);
+                return false;
+            }
+
+            var numericFieldValue = Convert.ToDouble(fieldValue);
+            return Math.Abs(numericFieldValue % divisor) < 0.0001;
         }
 
         // Try numeric comparison first

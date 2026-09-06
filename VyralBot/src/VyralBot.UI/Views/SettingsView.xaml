@@ -4,6 +4,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:converters="clr-namespace:VyralBot.UI.Converters"
+             xmlns:controls="clr-namespace:VyralBot.UI.Controls.ColorPicker"
              Background="{DynamicResource BackgroundPrimaryBrush}">
     
     <UserControl.Resources>
@@ -161,8 +162,29 @@
                                                          Margin="0,0,12,0"
                                                          VerticalAlignment="Center"
                                                          Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Commands" 
-                                           FontSize="14" 
+                                <TextBlock Text="Commands"
+                                           FontSize="14"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Viewer Hub Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="ViewerHub"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="LinkVariant"
+                                                         Width="20"
+                                                         Height="20"
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Viewer Hub"
+                                           FontSize="14"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource TextPrimaryBrush}"/>
                             </StackPanel>
@@ -722,10 +744,16 @@
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
                                     </StackPanel>
+                                    <!-- Live accent picker: TwoWay-bound, updates the theme live while dragging -->
+                                    <TextBlock Text="Pick accent color — updates live" FontSize="12"
+                                               Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,8"/>
+                                    <controls:ColorPicker SelectedColor="{Binding CustomPrimaryHexPickerColor, Mode=TwoWay}"
+                                                          HorizontalAlignment="Left" Margin="0,0,0,12"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                                         <TextBlock Text="Hex:" FontWeight="SemiBold" VerticalAlignment="Center"
                                                    Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,8,0"/>
-                                        <TextBox Text="{Binding CustomPrimaryHex, UpdateSourceTrigger=PropertyChanged}" Width="110"
+                                        <TextBox Text="{Binding CustomPrimaryHex, UpdateSourceTrigger=PropertyChanged}"
+                                                 Width="110" VerticalAlignment="Center"
                                                  Style="{StaticResource MaterialDesignTextBox}"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
@@ -735,6 +763,52 @@
                                     </StackPanel>
                                     <Button Content="Apply Custom Theme" Style="{StaticResource MaterialDesignRaisedButton}"
                                             Command="{Binding ApplyCustomThemeCommand}" HorizontalAlignment="Left"/>
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <!-- Brightness Levels -->
+                            <TextBlock Text="Brightness Levels" FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+                            <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                                 UniformCornerRadius="8" Padding="16" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Margin="0,0,0,12"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               Text="Slide to make the whole app darker or lighter — changes apply instantly."/>
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="140"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="110"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Dark mode level" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <Slider Grid.Column="1" Minimum="-100" Maximum="100"
+                                                TickFrequency="10" IsSnapToTickEnabled="False"
+                                                SmallChange="5" LargeChange="20"
+                                                VerticalAlignment="Center" Margin="12,0"
+                                                Value="{Binding DarkShadeLevel, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding DarkShadeLevelText}"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                    </Grid>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="140"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="110"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Light mode level" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <Slider Grid.Column="1" Minimum="-100" Maximum="100"
+                                                TickFrequency="10" IsSnapToTickEnabled="False"
+                                                SmallChange="5" LargeChange="20"
+                                                VerticalAlignment="Center" Margin="12,0"
+                                                Value="{Binding LightShadeLevel, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding LightShadeLevelText}"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                    </Grid>
                                 </StackPanel>
                             </materialDesign:Card>
 
@@ -748,8 +822,8 @@
                         <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Platforms}">
                             
                             <!-- Platform Selection Grid -->
-                            <UniformGrid Rows="3" 
-                                         Columns="2" 
+                            <UniformGrid Rows="4"
+                                         Columns="2"
                                          Margin="0,0,0,24"
                                          Visibility="{Binding ShowPlatformGrid, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <!-- Twitch Platform Card -->
@@ -965,6 +1039,60 @@
                                         </TextBlock>
                                     </StackPanel>
                                 </Button>
+
+                                <!-- Facebook Gaming Platform Card -->
+                                <Button Command="{Binding SelectFacebookCommand}"
+                                        Style="{StaticResource MaterialDesignRaisedButton}"
+                                        Height="140"
+                                        Margin="0,8,8,0"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        ToolTipService.ShowOnDisabled="True">
+                                    <StackPanel>
+                                        <materialDesign:PackIcon Kind="Facebook"
+                                                                 Width="64"
+                                                                 Height="64"
+                                                                 Margin="0,0,0,12"
+                                                                 HorizontalAlignment="Center"
+                                                                 Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Facebook Gaming"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Configure Facebook integration"
+                                                   FontSize="12"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <!-- Rumble Platform Card -->
+                                <Button Command="{Binding SelectRumbleCommand}"
+                                        Style="{StaticResource MaterialDesignRaisedButton}"
+                                        Height="140"
+                                        Margin="8,8,0,0"
+                                        Background="{DynamicResource CardBackgroundBrush}"
+                                        ToolTipService.ShowOnDisabled="True">
+                                    <StackPanel>
+                                        <materialDesign:PackIcon Kind="VideoOutline"
+                                                                 Width="64"
+                                                                 Height="64"
+                                                                 Margin="0,0,0,12"
+                                                                 HorizontalAlignment="Center"
+                                                                 Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Rumble"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Configure Rumble integration"
+                                                   FontSize="12"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </Button>
                             </UniformGrid>
 
                             <!-- Startup & Connection Behavior -->
@@ -988,6 +1116,35 @@
                                                 Padding="12,4"
                                                 VerticalAlignment="Top"/>
                                     </Grid>
+
+                                    <!-- Launch VyralBot when the PC starts (Windows HKCU Run key) -->
+                                    <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Padding="14"
+                                            Margin="0,8,0,10">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="Launch VyralBot when my PC starts"
+                                                           FontSize="15"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                <TextBlock Text="Start VyralBot automatically when you sign in to Windows"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            </StackPanel>
+                                            <ToggleButton Grid.Column="1"
+                                                          IsChecked="{Binding PlatformStartupSettingsViewModel.LaunchOnPcStart}"
+                                                          Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                          VerticalAlignment="Center"
+                                                          ToolTip="Start VyralBot automatically when you sign in to Windows"/>
+                                        </Grid>
+                                    </Border>
 
                                     <ItemsControl ItemsSource="{Binding PlatformStartupSettingsViewModel.Platforms}" Margin="0,8,0,0">
                                         <ItemsControl.ItemTemplate>
@@ -1697,6 +1854,10 @@
                         <ContentControl Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Performance}"
                                         Content="{Binding PerformanceViewModel}"/>
 
+                        <!-- Viewer Hub Panel -->
+                        <ContentControl Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=ViewerHub}"
+                                        Content="{Binding ViewerHubViewModel}"/>
+
                         <!-- Security Panel -->
                         <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Security}">
                             <TextBlock Text="Security"
@@ -1799,6 +1960,18 @@
                                                 Style="{StaticResource MaterialDesignFlatButton}"
                                                 Padding="12,6"
                                                 Margin="0,0,8,8"/>
+
+                                        <Button Content="🔄 Restart App"
+                                                Command="{Binding RestartApplicationCommand}"
+                                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                                Padding="14,6"
+                                                Margin="0,0,8,8"
+                                                ToolTip="Closes Vyral and starts it again — useful after changing settings that need a restart"/>
+                                        <TextBlock Text="Restarts the application"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   Margin="0,0,12,8"/>
                                     </WrapPanel>
                                 </StackPanel>
                             </materialDesign:Card>
@@ -2049,7 +2222,7 @@
                                Foreground="{DynamicResource TextSecondaryBrush}"
                                Margin="0,0,0,20">
                         <Run Text="Enter the PIN for "/>
-                        <Run Text="{Binding _profileToSwitchTo.DisplayName, Mode=OneWay}" FontWeight="SemiBold"/>
+                        <Run Text="{Binding PendingSwitchProfileName, Mode=OneWay}" FontWeight="SemiBold"/>
                         <Run Text=" to switch to this profile."/>
                     </TextBlock>
 

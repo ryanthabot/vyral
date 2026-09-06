@@ -342,9 +342,23 @@ public class FlowCanvasNode : INotifyPropertyChanged
         else if (string.Equals(BlockType, "comparison", StringComparison.OrdinalIgnoreCase)
             && portKey.StartsWith(BlockCatalog.PortCasePrefix, StringComparison.Ordinal))
         {
-            Dictionary<string, string> compTargets = _branchTargets ??= new Dictionary<string, string>(StringComparer.Ordinal);
-            compTargets[portKey] = targetId;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BranchTargets)));
+            if (targetId == null)
+            {
+                // Clearing a case port must REMOVE the key (like the non-comparison
+                // branch below) — assigning null into the dictionary leaves
+                // "case:{i}" => null entries that break the dictionary invariant.
+                if (_branchTargets != null && _branchTargets.Remove(portKey))
+                {
+                    _branchTargets = _branchTargets.Count == 0 ? null : _branchTargets;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BranchTargets)));
+                }
+            }
+            else
+            {
+                Dictionary<string, string> compTargets = _branchTargets ??= new Dictionary<string, string>(StringComparer.Ordinal);
+                compTargets[portKey] = targetId;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BranchTargets)));
+            }
         }
         else if (portKey.StartsWith(BlockCatalog.PortCasePrefix, StringComparison.Ordinal))
         {

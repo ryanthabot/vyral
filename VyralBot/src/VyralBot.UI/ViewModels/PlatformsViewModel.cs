@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using System.IO;
+using System.Windows;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
 using VyralBot.Integrations.Twitch;
@@ -30,6 +31,7 @@ public partial class PlatformsViewModel : ViewModelBase
     private readonly TikTokWebSetupViewModel _tiktokWebSetupViewModel;
     private readonly DiscordWebSetupViewModel _discordWebSetupViewModel;
     private readonly IDiscordService _discordService;
+    private readonly IDiscordBotManager _discordBotManager;
     private readonly IProfileService _profileService;
 
     private Func<Task>? _onPlatformConnectionChanged;
@@ -66,6 +68,10 @@ public partial class PlatformsViewModel : ViewModelBase
     [ObservableProperty]
     private string _youtubeUsername = string.Empty;
 
+    /// <summary>The YouTube Platform row currently loaded for the connection card (used as the RECONNECT CommandParameter).</summary>
+    [ObservableProperty]
+    private Platform? _youTubePlatformRow;
+
     [ObservableProperty]
     private string _tiktokStatus = "Disconnected";
 
@@ -83,6 +89,14 @@ public partial class PlatformsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _discordUsername = string.Empty;
+
+    // Coming-soon stubs (Facebook Gaming, Rumble): informational cards only.
+    // No connection flow exists yet, so these always stay false ("Not Connected").
+    [ObservableProperty]
+    private bool _isFacebookConnected;
+
+    [ObservableProperty]
+    private bool _isRumbleConnected;
 
     // View state properties - control what's currently displayed
     [ObservableProperty]
@@ -150,6 +164,7 @@ public partial class PlatformsViewModel : ViewModelBase
         TikTokWebSetupViewModel tiktokWebSetupViewModel,
         DiscordWebSetupViewModel discordWebSetupViewModel,
         IDiscordService discordService,
+        IDiscordBotManager discordBotManager,
         IProfileService profileService)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -165,6 +180,7 @@ public partial class PlatformsViewModel : ViewModelBase
         _tiktokWebSetupViewModel = tiktokWebSetupViewModel ?? throw new ArgumentNullException(nameof(tiktokWebSetupViewModel));
         _discordWebSetupViewModel = discordWebSetupViewModel ?? throw new ArgumentNullException(nameof(discordWebSetupViewModel));
         _discordService = discordService ?? throw new ArgumentNullException(nameof(discordService));
+        _discordBotManager = discordBotManager ?? throw new ArgumentNullException(nameof(discordBotManager));
         _profileService = profileService ?? throw new ArgumentNullException(nameof(profileService));
 
         // Subscribe to setup completion events
@@ -173,6 +189,89 @@ public partial class PlatformsViewModel : ViewModelBase
         _youtubeWebSetupViewModel.SetupCompleted += OnYouTubeSetupCompleted;
         _tiktokWebSetupViewModel.SetupCompleted += OnTikTokSetupCompleted;
         _discordWebSetupViewModel.SetupCompleted += OnDiscordSetupCompleted;
+
+        // Live Discord bot changes (bot started/stopped anywhere in the app)
+        // refresh the Discord card from the manager instead of the stale
+        // Platform row. Same ctor-subscription pattern as above; this VM is a
+        // DI singleton, so the handler lives for the app like the others.
+        _discordBotManager.BotsChanged += OnDiscordBotsChanged;
+    }
+
+    /// <summary>
+    /// A managed Discord bot started/stopped/changed: re-resolve the Discord
+    /// card from LIVE truth. The manager raises this from background threads —
+    /// hop to the UI thread before touching observable properties.
+    /// </summary>
+    private void OnDiscordBotsChanged()
+    {
+        var app = Application.Current;
+        if (app == null)
+            return;
+
+        _ = app.Dispatcher.InvokeAsync(async () =>
+        {
+            try
+            {
+                await ApplyDiscordLiveStateAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error refreshing the Discord card after a bot change");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Resolves the Discord card from LIVE truth: when a managed bot is
+    /// connected (<see cref="IDiscordBotManager.Primary"/>), the card shows
+    /// THAT bot's detected gateway username (falling back to its persisted
+    /// row's <c>BotUsername</c>) with a Connected status. Only when nothing is
+    /// connected does the card fall back to the Discord Platform row — which
+    /// can be stale because it holds whichever bot last wrote it.
+    /// </summary>
+    private async Task ApplyDiscordLiveStateAsync()
+    {
+        try
+        {
+            var live = _discordBotManager.Primary;
+            if (live?.IsConnected == true)
+            {
+                var liveUsername = live.BotUsername ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(liveUsername))
+                {
+                    // Gateway identity not ready yet — use the connected bot's
+                    // persisted row (populated when the bot last connected).
+                    var bots = await _discordBotManager.LoadBotsAsync();
+                    liveUsername = bots.FirstOrDefault(b =>
+                        _discordBotManager.Get(b.Id)?.IsConnected == true)?.BotUsername ?? string.Empty;
+                }
+
+                IsDiscordConnected = true;
+                DiscordStatus = string.IsNullOrWhiteSpace(liveUsername)
+                    ? "Connected"
+                    : $"Connected as {liveUsername}";
+                if (!string.IsNullOrWhiteSpace(liveUsername))
+                {
+                    DiscordUsername = liveUsername;
+                }
+
+                _logger.LogInformation("Discord card showing live bot {Username}", liveUsername);
+                return;
+            }
+
+            // Nothing connected live: fall back to the Platform row as before.
+            var platform = await _dataService.GetPlatformByNameAsync("Discord");
+            IsDiscordConnected = platform?.Status == "Connected"
+                && !string.IsNullOrEmpty(platform?.AccessToken);
+            DiscordStatus = platform == null
+                ? "Disconnected"
+                : (IsDiscordConnected ? "Connected" : (platform.Status ?? "Disconnected"));
+            DiscordUsername = platform?.Username ?? string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resolving the live Discord bot for the Platforms card");
+        }
     }
 
     /// <summary>
@@ -283,6 +382,7 @@ public partial class PlatformsViewModel : ViewModelBase
         {
             var platform = await _dataService.GetPlatformByNameAsync("YouTube");
             if (platform != null &&
+                !_youtubeService.IsConnected &&
                 !string.IsNullOrEmpty(platform.AccessToken) &&
                 !string.IsNullOrEmpty(platform.Username))
             {
@@ -293,6 +393,10 @@ public partial class PlatformsViewModel : ViewModelBase
                     platform.RefreshToken,
                     platform.Username);
                 _logger.LogInformation("✅ YouTube chat service connected successfully");
+            }
+            else if (_youtubeService.IsConnected)
+            {
+                _logger.LogInformation("YouTube chat service already connected — skipping auto-connect to avoid a duplicate poll loop");
             }
         }
         catch (Exception ex)
@@ -482,6 +586,9 @@ public partial class PlatformsViewModel : ViewModelBase
                 DiscordStatus = discordPlatform.Status ?? "Disconnected";
                 DiscordUsername = discordPlatform.Username ?? string.Empty;
             }
+
+            // Prefer the LIVE connected bot over the (possibly stale) Platform row
+            await ApplyDiscordLiveStateAsync();
 
             _logger.LogInformation("Platform status loaded - Twitch: {TwitchStatus}, Kick: {KickStatus}, YouTube: {YouTubeStatus}, TikTok: {TikTokStatus}, Discord: {DiscordStatus}",
                 TwitchStatus, KickStatus, YoutubeStatus, TiktokStatus, DiscordStatus);
@@ -1411,6 +1518,7 @@ public partial class PlatformsViewModel : ViewModelBase
             var platform = await _dataService.GetPlatformByNameAsync("YouTube");
             if (platform != null)
             {
+                YouTubePlatformRow = platform;
                 YoutubeUsername = platform.Username ?? string.Empty;
                 if (_youtubeService.IsConnected)
                 {
@@ -1711,6 +1819,43 @@ public partial class PlatformsViewModel : ViewModelBase
         }
     }
 
+    // ====== COMING SOON STUBS (FACEBOOK GAMING & RUMBLE) ======
+    // Informational only: no setup wizard, no connection logic, no Platform-row
+    // loading. Clicking a card just tells the user support is on the way. The
+    // Settings page reuses these commands (SelectFacebookCommand/SelectRumbleCommand).
+
+    [RelayCommand]
+    private async Task SelectFacebookAsync()
+    {
+        await Task.CompletedTask;
+        try
+        {
+            _logger.LogInformation("SelectFacebook called");
+            StatusMessage = "Facebook Gaming support is coming soon — account linking is already compatible.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in SelectFacebook");
+            StatusMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task SelectRumbleAsync()
+    {
+        await Task.CompletedTask;
+        try
+        {
+            _logger.LogInformation("SelectRumble called");
+            StatusMessage = "Rumble support is coming soon — account linking is already compatible.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in SelectRumble");
+            StatusMessage = $"Error: {ex.Message}";
+        }
+    }
+
     // ====== DISCORD PLATFORM METHODS ======
 
     [RelayCommand]
@@ -1755,6 +1900,18 @@ public partial class PlatformsViewModel : ViewModelBase
         {
             _logger.LogInformation("Loading Discord platform data from database");
             await _dataService.EnsureDatabaseCreatedAsync();
+
+            // Prefer LIVE truth: when a managed bot is connected, the card shows
+            // THAT bot (the Platform row only holds whichever bot last wrote it).
+            // The legacy wizard-service auto-connect below is skipped in that
+            // case so the stale row's token cannot reconnect an old bot over the
+            // live one.
+            await ApplyDiscordLiveStateAsync();
+            if (_discordBotManager.Primary?.IsConnected == true)
+            {
+                return;
+            }
+
             var platform = await _dataService.GetPlatformByNameAsync("Discord");
             if (platform != null)
             {

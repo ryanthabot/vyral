@@ -104,9 +104,9 @@ public partial class ConflictRowViewModel : ObservableObject
 /// = JSON array of built-in command names registered as disabled.
 /// </para>
 /// <para>
-/// The DisabledBuiltIns list is REGISTERED STORAGE ONLY in V1 — nothing reads
-/// it at runtime yet. Teaching <c>DiscordModCommandHandler</c> to consult it
-/// per bot is a follow-up task.
+/// The DisabledBuiltIns list is enforced at runtime: ChatViewModel's Discord
+/// moderation handler skips the built-in command for that bot while its name is
+/// persisted here (see <see cref="DisableBuiltInAsync"/>).
 /// </para>
 /// </remarks>
 public partial class DiscordBotIntegrationsViewModel : ViewModelBase
@@ -448,7 +448,19 @@ public partial class DiscordBotIntegrationsViewModel : ViewModelBase
     [RelayCommand]
     private async Task DisableInVyralAsync(ConflictRowViewModel? row)
     {
-        if (row?.CustomCommandId is null || IsBusy)
+        if (row is null || IsBusy)
+            return;
+
+        // Built-in clash: persist to the DisabledBuiltIns config key that
+        // ChatViewModel enforces at runtime (see DisableBuiltInAsync).
+        if (row.IsBuiltIn)
+        {
+            await DisableBuiltInAsync(row.CommandDisplay);
+            StatusText = $"Disabled Vyral built-in '{NormalizeCommandName(row.CommandDisplay)}' — the external service can own it now.";
+            return;
+        }
+
+        if (row.CustomCommandId is null)
             return;
 
         var command = _customCommands.FirstOrDefault(c => c.Id == row.CustomCommandId);
@@ -486,7 +498,19 @@ public partial class DiscordBotIntegrationsViewModel : ViewModelBase
     [RelayCommand]
     private async Task ReenableInVyralAsync(ConflictRowViewModel? row)
     {
-        if (row?.CustomCommandId is null || IsBusy)
+        if (row is null || IsBusy)
+            return;
+
+        // Built-in clash: remove the name from the DisabledBuiltIns config key
+        // (see ReenableBuiltInAsync).
+        if (row.IsBuiltIn)
+        {
+            await ReenableBuiltInAsync(row.CommandDisplay);
+            StatusText = $"Re-enabled Vyral built-in '{NormalizeCommandName(row.CommandDisplay)}'.";
+            return;
+        }
+
+        if (row.CustomCommandId is null)
             return;
 
         var command = _customCommands.FirstOrDefault(c => c.Id == row.CustomCommandId);
@@ -523,11 +547,10 @@ public partial class DiscordBotIntegrationsViewModel : ViewModelBase
 
     /// <summary>
     /// Registers a built-in moderation command name (e.g. "ban") as disabled for
-    /// this bot. V1 STORAGE ONLY: the list is persisted under
-    /// "DiscordBot.{botId}.DisabledBuiltIns" but nothing enforces it at runtime
-    /// yet — <c>DiscordModCommandHandler</c> must learn to read it per bot.
-    /// No UI calls this yet; it exists so enforcement and a future toggle have
-    /// a ready writer.
+    /// this bot. Persisted under "DiscordBot.{botId}.DisabledBuiltIns" — the
+    /// exact key ChatViewModel's moderation handler consults before answering a
+    /// built-in command for this bot, so a disabled built-in is really skipped.
+    /// Reached from the Integrations card's conflict rows (DISABLE IN VYRAL).
     /// </summary>
     public async Task DisableBuiltInAsync(string commandName)
     {
@@ -539,7 +562,7 @@ public partial class DiscordBotIntegrationsViewModel : ViewModelBase
         RecomputeConflicts();
     }
 
-    /// <summary>Undoes <see cref="DisableBuiltInAsync"/> (storage only in V1).</summary>
+    /// <summary>Undoes <see cref="DisableBuiltInAsync"/>.</summary>
     public async Task ReenableBuiltInAsync(string commandName)
     {
         if (!_disabledBuiltIns.Remove(NormalizeCommandName(commandName)))
@@ -654,15 +677,21 @@ public partial class DiscordBotIntegrationsViewModel : ViewModelBase
 
                 if (IsBuiltInName(normalized))
                 {
+                    // Built-ins are disableable: DisableBuiltInAsync persists the
+                    // name under "DiscordBot.{botId}.DisabledBuiltIns", the exact
+                    // key ChatViewModel enforces when a "!name" message arrives.
+                    var isDisabled = _disabledBuiltIns.Contains(normalized);
                     Conflicts.Add(new ConflictRowViewModel
                     {
                         CommandDisplay = raw,
                         ServiceName = record.Name,
                         IsBuiltIn = true,
                         VyralTargetText = "Vyral built-in moderation command",
-                        BuiltInStatusText = _disabledBuiltIns.Contains(normalized)
-                            ? "Registered disabled — runtime enforcement pending (V1)"
-                            : "Built-in — cannot disable yet (V1)"
+                        BuiltInStatusText = isDisabled
+                            ? "Disabled on Vyral for this bot — the external service owns it"
+                            : "Built-in — disable on Vyral to hand it to the external service",
+                        CanDisable = !isDisabled,
+                        CanReenable = isDisabled
                     });
                 }
 

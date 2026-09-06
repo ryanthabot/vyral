@@ -4,7 +4,7 @@
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              xmlns:converters="clr-namespace:VyralBot.UI.Converters"
-             Background="{StaticResource BackgroundDarkBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
     
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -21,8 +21,8 @@
 
         <!-- Step Navigation Header (exact copy from Twitch/Kick) -->
         <Border Grid.Row="0" 
-                Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource BorderLightBrush}"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderLightBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="32,24">
             <Border.Style>
@@ -41,7 +41,7 @@
         <!-- Content Area -->
         <Grid Grid.Row="1">
             <!-- Success Screen (exact copy from Twitch/Kick) -->
-            <Border Background="{StaticResource BackgroundDarkBrush}">
+            <Border Background="{DynamicResource BackgroundDarkBrush}">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -77,7 +77,7 @@
                 <!-- Main Content Area -->
                 <Grid Grid.Row="1">
                     <!-- WebView2 Browser (exact copy from Twitch/Kick) -->
-                    <Border Background="{StaticResource BackgroundDarkBrush}">
+                    <Border Background="{DynamicResource BackgroundDarkBrush}">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -100,8 +100,8 @@
                 
                 <!-- Bottom Action Bar (exact copy from Twitch/Kick) -->
                 <Border Grid.Row="2" 
-                       Background="{StaticResource CardBackgroundBrush}"
-                       BorderBrush="{StaticResource BorderLightBrush}"
+                       Background="{DynamicResource CardBackgroundBrush}"
+                       BorderBrush="{DynamicResource BorderLightBrush}"
                        BorderThickness="0,1,0,0"
                        Padding="32,16">
                     <ContentPresenter x:Name="ActionBarPresenter" />
@@ -109,7 +109,7 @@
             </Grid>
 
             <!-- Modal Dialog (exact copy from Twitch/Kick) -->
-            <Border Background="#CC000000">
+            <Border Background="{DynamicResource OverlayBackgroundBrush}">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Visibility" Value="Collapsed"/>

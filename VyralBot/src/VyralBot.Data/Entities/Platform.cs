@@ -120,7 +120,27 @@ public class Platform
     /// Auto-start Discord chat on app launch
     /// </summary>
     public bool DiscordChatAutoStart { get; set; } = false;
-    
+
+    /// <summary>
+    /// Enable chat receiving for Facebook
+    /// </summary>
+    public bool FacebookChatEnabled { get; set; } = false;
+
+    /// <summary>
+    /// Auto-start Facebook chat on app launch
+    /// </summary>
+    public bool FacebookChatAutoStart { get; set; } = false;
+
+    /// <summary>
+    /// Enable chat receiving for Rumble
+    /// </summary>
+    public bool RumbleChatEnabled { get; set; } = false;
+
+    /// <summary>
+    /// Auto-start Rumble chat on app launch
+    /// </summary>
+    public bool RumbleChatAutoStart { get; set; } = false;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

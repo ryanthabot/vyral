@@ -104,6 +104,10 @@ public class CurrencyGameService : ICurrencyGameService, IDisposable
         _cooldowns[key] = DateTime.UtcNow;
     }
 
+    /// <inheritdoc />
+    public void MarkPlayed(string username, string platform, string gameType)
+        => SetCooldown(username, platform, gameType);
+
     public async Task<GameResult> PlaySlotsAsync(string username, string platform, int amount)
     {
         var (canPlay, reason) = await CanPlayAsync(username, platform, "Slots", amount);

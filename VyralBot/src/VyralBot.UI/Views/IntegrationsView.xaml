@@ -16,17 +16,17 @@
                     Style="{StaticResource MaterialDesignFlatButton}"
                     Command="{Binding DataContext.NavigateToHomeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                     HorizontalAlignment="Left"
-                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Foreground="{DynamicResource TextSecondaryBrush}"
                     Margin="0,0,0,16"/>
 
             <!-- Title -->
             <TextBlock Text="Integrations"
                        FontSize="24" FontWeight="Bold"
-                       Foreground="{StaticResource TextPrimaryBrush}"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
                        Margin="0,0,0,4"/>
             <TextBlock Text="Third-party integrations and bots"
                        FontSize="14"
-                       Foreground="{StaticResource TextSecondaryBrush}"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
                        Margin="0,0,0,24"/>
 
             <!-- Integration Cards -->
@@ -43,7 +43,7 @@
 
                 <!-- BotGhost Card -->
                 <materialDesign:Card Grid.Column="0" Padding="24"
-                                     Background="{StaticResource CardBackgroundBrush}"
+                                     Background="{DynamicResource CardBackgroundBrush}"
                                      Cursor="Hand">
                     <StackPanel HorizontalAlignment="Center">
                         <Image Source="/Resources/Images/botghost-logo.png"
@@ -51,10 +51,10 @@
                                RenderOptions.BitmapScalingMode="HighQuality"
                                HorizontalAlignment="Center" Margin="0,0,0,12"/>
                         <TextBlock Text="BotGhost" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"
                                    Margin="0,0,0,6"/>
                         <TextBlock Text="Coming soon" FontSize="11"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
                                    HorizontalAlignment="Center" FontStyle="Italic"/>
                     </StackPanel>
                 </materialDesign:Card>

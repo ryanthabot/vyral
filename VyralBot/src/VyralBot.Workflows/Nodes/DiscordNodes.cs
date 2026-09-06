@@ -24,10 +24,15 @@ internal static partial class DiscordNodeHelper
     public static IDiscordWorkflowBridge? ResolveBridge(ExecutionContext ctx) =>
         ctx.Services.GetService<IDiscordWorkflowBridge>();
 
-    /// <summary>Resolves the target username: node config (substituted), falling back to the triggering user.</summary>
+    /// <summary>
+    /// Resolves the target username: node config (substituted), falling back to
+    /// the triggering user. Reads "User" first — the key BlockCatalog declares
+    /// for the moderate block — then "Username" (the key used by the DM/role/
+    /// role-condition blocks and older saved flows).
+    /// </summary>
     public static string ResolveUsername(WorkflowNode node, ExecutionContext ctx)
     {
-        var username = ctx.Substitute(NodeConfigLookup.Get(node, "Username")).Trim();
+        var username = ctx.Substitute(NodeConfigLookup.Get(node, "User", "Username")).Trim();
         if (username.Length == 0)
             username = ctx.Username.Trim();
         return username;

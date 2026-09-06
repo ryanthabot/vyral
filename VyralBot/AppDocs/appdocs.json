@@ -98,6 +98,18 @@
           "title": "TikTok & OBS"
         },
         {
+          "path": "platforms/tiktok.md",
+          "title": "TikTok"
+        },
+        {
+          "path": "platforms/facebook.md",
+          "title": "Facebook Gaming"
+        },
+        {
+          "path": "platforms/rumble.md",
+          "title": "Rumble"
+        },
+        {
           "path": "platforms/dashboards.md",
           "title": "Platform Dashboards"
         }
@@ -133,6 +145,14 @@
         {
           "path": "chat-features/automation.md",
           "title": "Automation"
+        },
+        {
+          "path": "chat-features/account-linking.md",
+          "title": "Account Linking"
+        },
+        {
+          "path": "chat-features/viewer-profiles.md",
+          "title": "Viewer Profiles"
         }
       ]
     },
@@ -174,6 +194,10 @@
         {
           "path": "stream-tools/currency.md",
           "title": "Currency & Rewards"
+        },
+        {
+          "path": "stream-tools/vyral-goals.md",
+          "title": "Vyral Goals"
         }
       ]
     },

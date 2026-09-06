@@ -13,6 +13,7 @@ using VyralBot.Core.Services.ProcessManagement;
 using VyralBot.Core.Services.Performance;
 using VyralBot.Core.Services.Profiles;
 using VyralBot.Core.Services.Currency;
+using VyralBot.Core.Services.Linking;
 using VyralBot.Core.Services.Commands;
 using VyralBot.Core.Services.Variables;
 using VyralBot.Core.Services;
@@ -42,6 +43,15 @@ public partial class App : Application
 {
     private readonly IHost? _host;
     private static Mutex? _instanceMutex;
+
+    /// <summary>
+    /// Set by the Settings → Advanced "Restart App" button: OnExit launches a
+    /// new instance AFTER all cleanup completes (mutex released, host stopped,
+    /// bots disconnected), with a short extra delay so ports settle and the old
+    /// process is fully gone — preventing two instances from ever polling the
+    /// platform APIs at once.
+    /// </summary>
+    public static bool PendingRestart { get; set; }
 
     /// <summary>
     /// Gets the dependency injection host.
@@ -131,6 +141,12 @@ public partial class App : Application
                 services.AddSingleton<ICurrencyRewardsService, CurrencyRewardsService>();
                 services.AddSingleton<ICurrencyCommandService, CurrencyCommandService>();
                 services.AddSingleton<ILinkedAccountService, LinkedAccountService>();
+                // Cross-platform linking (link codes, viewer status, multi-platform bonus, social goals)
+                services.AddSingleton<ILinkCodeService, LinkCodeService>();
+                services.AddSingleton<IViewerStatusService, ViewerStatusService>();
+                services.AddSingleton<IMultiPlatformBonusService, MultiPlatformBonusService>();
+                services.AddSingleton<ISocialGoalService, SocialGoalService>();
+                services.AddSingleton<IViewerProfileService, ViewerProfileService>(); // admin viewer-profile aggregate (read-only)
                 services.AddSingleton<ILoyaltyTierService, LoyaltyTierService>();
                 services.AddSingleton<ICurrencyGameService, CurrencyGameService>();
                 services.AddSingleton<ICurrencyBoostService, CurrencyBoostService>();
@@ -146,6 +162,9 @@ public partial class App : Application
                 services.AddSingleton<PollService>();
                 services.AddSingleton<PollCommandService>();
 
+                // Giveaway/Poll scheduler: auto-ends giveaways and polls at their ScheduledEndTime
+                services.AddHostedService<GiveawayPollSchedulerService>();
+
                 // Watchtime system
                 services.AddSingleton<WatchtimeService>();
                 services.AddSingleton<WatchtimeCommandService>();
@@ -159,6 +178,8 @@ public partial class App : Application
                 services.AddSingleton<CommandTimerService>(); // scheduled command firing (Commands page → Timers tab)
                 services.AddSingleton<CommandActionRunner>(); // custom-command action-sequence executor (needs every platform sender)
                 services.AddSingleton<UI.Services.PlatformConnectionService>(); // shared connect/disconnect/token-refresh for Settings + Chat Hub
+                services.AddSingleton<UI.Services.WindowsStartupService>(); // HKCU Run-key toggle: "Launch VyralBot when my PC starts"
+                services.AddSingleton<IStreamActionsService, StreamActionsService>(); // stream-management quick actions (Twitch Helix / Kick mod commands / YouTube liveBroadcasts)
 
                 // Workflow automation engine (Automation page)
                 var workflowNodeRegistry = new VyralBot.Workflows.Nodes.NodeRegistry();
@@ -279,6 +300,8 @@ public partial class App : Application
                 services.AddSingleton<WatchtimeViewModel>();
                 services.AddSingleton<EventTestingViewModel>();
                 services.AddSingleton<ChatHubViewModel>();
+                services.AddSingleton<ViewerHubViewModel>(); // Viewer Hub page (linked-platform status, goals, multi-platform bonus) — ctor fully DI-resolved
+                services.AddTransient<ViewerProfileViewModel>(); // admin viewer-profile window (one instance per opened window)
                 services.AddSingleton<ToolsViewModel>();
                 services.AddSingleton<IntegrationsViewModel>();
                 services.AddSingleton<DocumentationViewModel>();
@@ -287,8 +310,8 @@ public partial class App : Application
                 services.AddTransient<ProfileSelectorViewModel>();
                 services.AddSingleton<WebServerSettingsViewModel>();
                 services.AddSingleton<PerformanceViewModel>();
-                services.AddTransient<PlatformStartupSettingsViewModel>(); // Settings → Platforms startup cards (fresh per navigation)
-                services.AddTransient<DataManagementViewModel>();           // Settings → Data Management (fresh per navigation)
+                services.AddSingleton<PlatformStartupSettingsViewModel>(); // Settings → Platforms startup cards (ctor-injected into the singleton SettingsViewModel; InitializeAsync re-runs per navigation)
+                services.AddSingleton<DataManagementViewModel>();           // Settings → Data Management (ctor-injected into the singleton SettingsViewModel; InitializeAsync re-runs per navigation)
 
                 // Views
                 services.AddTransient<Views.TwitchDashboardView>();
@@ -339,9 +362,9 @@ public partial class App : Application
             }
             catch { /* Ignore if locked or doesn't exist */ }
 
-            Log.Information("Starting application host (WPF + Kestrel)...");
+            Log.Information("Starting application host (WPF + Kestrel on demand)...");
             await _host!.StartAsync();
-            Log.Information("✅ Application host started successfully - Kestrel is now listening on http://localhost:5000");
+            Log.Information("✅ Application host started successfully (the Kestrel web server starts on demand via WebhookCoordinatorService)");
 
             // Set static ServiceProvider for DI access
             ServiceProvider = _host.Services;
@@ -385,6 +408,82 @@ public partial class App : Application
             // Initialize database schema
             var dataService = _host.Services.GetRequiredService<IDataService>();
             await dataService.EnsureDatabaseCreatedAsync();
+
+            // Social goals: seed the default goals once (no-op when any already exist).
+            // Fire-and-forget — a failure must never block or break startup.
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var socialGoals = _host.Services.GetRequiredService<ISocialGoalService>();
+                    await socialGoals.SeedDefaultsAsync();
+                    Log.Information("Default social goals ensured");
+                }
+                catch (Exception ex)
+                {
+                    _host.Services.GetRequiredService<ILogger<App>>().LogError(ex, "Failed to seed default social goals");
+                }
+
+            // UNIFIED BALANCES: consolidate points for viewers that were
+            // linked in previous sessions (merge-on-link only covers new
+            // links; this pass heals everyone already linked).
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var scope = _host.Services.CreateScope();
+                    var currency = scope.ServiceProvider.GetRequiredService<VyralBot.Core.Services.Currency.ICurrencyService>();
+                    var data = scope.ServiceProvider.GetRequiredService<VyralBot.Data.IDataService>();
+                    var accounts = await data.GetAllLinkedAccountsAsync();
+                    foreach (var group in accounts.GroupBy(a => a.ViewerId).Where(g => g.Count() >= 2))
+                    {
+                        await currency.ConsolidateViewerBalancesAsync(group.Key);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _host.Services.GetRequiredService<ILogger<App>>().LogError(ex, "Startup unified-balance consolidation failed");
+                }
+            });
+            });
+
+            // Discord bots: auto-start them as EARLY as possible. The previous
+            // trigger (CheckPlatformConnectionsAsync) only runs after the full
+            // settings/platform load chain. Fire-and-forget: resolve the DI
+            // singleton MainViewModel and call its public early-start hook.
+            // The one-shot guard inside AutoStartDiscordBotsAsync keeps the
+            // later CheckPlatformConnectionsAsync trigger as a harmless no-op
+            // (guard-reuse — no duplicated connection logic). A failure here
+            // must never block or break startup.
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var mainViewModel = _host.Services.GetRequiredService<MainViewModel>();
+                    await mainViewModel.StartDiscordBotsEarlyAsync();
+                    Log.Information("Early Discord bot auto-start finished");
+                }
+                catch (Exception ex)
+                {
+                    _host.Services.GetRequiredService<ILogger<App>>().LogError(ex, "Early Discord bot auto-start failed");
+                }
+            });
+
+            // Link codes: one-time purge of link codes expired for more than 24h.
+            // Fire-and-forget — a failure must never block or break startup.
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var linkCodes = _host.Services.GetRequiredService<ILinkCodeService>();
+                    await linkCodes.CleanupExpiredAsync();
+                    Log.Information("Expired link codes cleaned up");
+                }
+                catch (Exception ex)
+                {
+                    _host.Services.GetRequiredService<ILogger<App>>().LogError(ex, "Failed to clean up expired link codes");
+                }
+            });
 
             // Start trigger engine
             var triggerEngine = _host.Services.GetRequiredService<ITriggerEngine>();
@@ -439,7 +538,7 @@ public partial class App : Application
                 {
                     Log.Information("Auto-login enabled for current profile, skipping profile selector");
                     // Initialize profile data for auto-login
-                    _ = mainViewModel.OnProfileLoadedAsync();
+                    await InitializeProfileDataAsync(mainViewModel);
                 }
                 else
                 {
@@ -451,7 +550,7 @@ public partial class App : Application
             {
                 Log.Information("Single profile detected, skipping profile selector");
                 // Initialize profile data for single profile auto-load
-                _ = mainViewModel.OnProfileLoadedAsync();
+                await InitializeProfileDataAsync(mainViewModel);
             }
 
             base.OnStartup(e);
@@ -511,42 +610,23 @@ public partial class App : Application
         }
     }
 
-    private async Task AutoConnectTwitchAsync()
+    /// <summary>
+    /// Awaits MainViewModel.OnProfileLoadedAsync with guarded error reporting. The first
+    /// steps of profile initialization are unguarded, so a failure there must not
+    /// silently kill settings load + platform auto-connect without a trace.
+    /// </summary>
+    private async Task InitializeProfileDataAsync(MainViewModel mainViewModel)
     {
         try
         {
-            Log.Information("Checking for Twitch auto-connect...");
-
-            using var scope = _host!.Services.CreateScope();
-            var dataService = scope.ServiceProvider.GetRequiredService<IDataService>();
-
-            // Ensure database exists first
-            await dataService.EnsureDatabaseCreatedAsync();
-
-            var platform = await dataService.GetPlatformByNameAsync("Twitch");
-
-            if (platform != null && platform.Status == "Connected" && !string.IsNullOrEmpty(platform.AccessToken))
-            {
-                Log.Information("Found connected Twitch platform for {Username}, connecting to IRC...", platform.Username);
-
-                var twitchService = _host.Services.GetRequiredService<ITwitchService>();
-                var accessToken = TwitchOAuthService.Decrypt(platform.AccessToken);
-                var botUsername = platform.Username?.ToLower() ?? "bot";
-                var channel = platform.Username ?? "";
-
-                await twitchService.ConnectAsync(botUsername, accessToken, channel);
-
-                Log.Information("Successfully auto-connected to Twitch IRC for #{Channel}", channel);
-            }
-            else
-            {
-                Log.Information("No connected Twitch platform found for auto-connect");
-            }
+            await mainViewModel.OnProfileLoadedAsync();
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Error during Twitch auto-connect - continuing with app startup");
-            // Don't throw - let the app continue even if auto-connect fails
+            _host!.Services.GetRequiredService<ILogger<App>>().LogError(ex, "Error initializing profile data after startup");
+            MessageBox.Show(
+                $"Failed to initialize profile data: {ex.Message}\n\nSettings and platform auto-connect may not be loaded. See logs/vyralbot-*.txt for details.",
+                "Vyral", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -714,6 +794,36 @@ public partial class App : Application
 
             // Give the OS a moment to clean up
             System.Threading.Thread.Sleep(100);
+
+            // LAST step of all: if the user asked for a restart, launch a detached
+            // helper that waits ~3s (old process gone, mutex released, ports and
+            // file locks settled) and only then starts the new instance.
+            if (PendingRestart)
+            {
+                try
+                {
+                    var exePath = Environment.ProcessPath;
+                    if (!string.IsNullOrWhiteSpace(exePath) && System.IO.File.Exists(exePath))
+                    {
+                        Log.Information("Restart requested — launching the new instance in 3 seconds");
+                        var psi = new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c timeout /t 3 /nobreak >nul & start \"\" \"{exePath}\"")
+                        {
+                            CreateNoWindow = true,
+                            UseShellExecute = false,
+                            WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
+                        };
+                        System.Diagnostics.Process.Start(psi);
+                    }
+                    else
+                    {
+                        Log.Error("Restart requested but the executable path is unavailable");
+                    }
+                }
+                catch (Exception restartEx)
+                {
+                    Log.Error(restartEx, "Failed to schedule the application restart");
+                }
+            }
         }
         catch (Exception ex)
         {

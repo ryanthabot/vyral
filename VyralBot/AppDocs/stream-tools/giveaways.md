@@ -6,7 +6,7 @@
 
 The Giveaways tool lets a streamer create a giveaway in the app, start it, let viewers enter by typing a keyword in chat (for example `!enter`), and then draw one or more winners with a weighted random draw. Entries can come from any platform the bot is connected to, and subscribers can be given extra "tickets" so they win proportionally more often.
 
-What works end to end (since the 2026-08-15 fix pass): chat entries via `!giveaway enter` or the custom keyword, real eligibility checks, the full lifecycle from the UI (Start / Draw Winners / Cancel), the weighted drawing logic, and persistence in the per-profile database.
+What works end to end (since the 2026-08-15 fix pass): chat entries via `!giveaway enter` or the custom keyword, real eligibility checks, the full lifecycle from the UI (Start / Draw Winners / Cancel / Delete), the weighted drawing logic, and persistence in the per-profile database. On top of that: per-giveaway **odds boosts** driven by [account linking](../chat-features/account-linking.md), a **live-updating page** (event-debounced reloads), and **adaptive entry intake** that batches under flood traffic.
 
 Two eligibility caveats remain:
 
@@ -30,6 +30,7 @@ Fill in the create form and press **Create Giveaway**:
 | **Max Entries** | Cap on total entries. `0` (the default) means **unlimited** — the hint reads "Max Total Entries (0 = unlimited)"; any positive number caps total entries. | `0` (unlimited) |
 | **Subscriber Bonus** (toggle) | Gives subscribers extra entries. | Off |
 | **Subscriber Bonus Entries** | Extra entries a subscriber gets (on top of their 1). | `5` |
+| **Enable follower/sub-tier odds boosts** (toggle) | Per-giveaway odds boost: extra entries from sub tier, follower-anywhere, and linked-platform count — see [Odds boosts](#odds-boosts). | Off |
 | **Min Watchtime (minutes)** | Viewers need at least this much tracked watchtime to enter. Works — real watchtime is checked at entry time. | `0` |
 | **Followers Only** (toggle) | Only followers may enter. Works on **Twitch** (real Helix check, needs the `moderator:read:followers` scope); always rejects on Kick/YouTube. | Off |
 | **Subscribers Only** (toggle) | Only subscribers may enter. This restriction works. | Off |
@@ -46,6 +47,33 @@ After creation the giveaway appears in the list with status **Pending**. The for
 4. Press **Refresh** any time to reload the list, the selected giveaway's entries, and the Total Entries / Unique Participants counters.
 5. Press **Draw Winners** to end the giveaway. The draw picks unique winners from a weighted pool (each entry contributes its entry count in tickets), marks the winning entries, stores the winner names on the giveaway, and flips the status to **Completed**.
 6. **Cancel Giveaway** aborts an Active or Pending giveaway (status **Cancelled**, no winners drawn).
+7. **🗑 Delete** removes a non-active giveaway and all its entries after a confirmation dialog. Deleting an **Active** giveaway is refused with "Cancel the giveaway before deleting it" — an active giveaway's live entry intake would be orphaned — so cancel first, then delete.
+
+The list, entries grid, and counters update themselves: every giveaway event (start, entry, winners drawn, cancel, intake-mode switch) funnels into a debounced reload (1 second), so you no longer need to press Refresh to see new entries arrive. Refresh still forces an immediate reload.
+
+### Odds boosts
+
+With **Enable follower/sub-tier odds boosts** checked on a giveaway, each entry's ticket count grows from three cross-platform facts resolved through [account linking](../chat-features/account-linking.md):
+
+| Boost | Default | Source |
+|---|---|---|
+| Sub tier 1 / 2 / 3 (best tier across linked platforms) | +1 / +2 / +3 | `Odds.Tier1/2/3BonusEntries` |
+| Follower (follows on any linked platform) | +1 | `Odds.FollowerBonusEntries` |
+| Each extra linked platform (beyond the first, capped at 3) | +1 each | `Odds.LinkedPlatformBonusEntries` + `Odds.LinkedPlatformBonusCap` |
+
+A sample breakdown the engine produces: `Tier 3 (+3), Follower (+1), 3 linked platforms (+2)`. With odds boosts on, the sub reward comes from the tier ladder only (there is no separate "Sub" part — a current subscriber with no recorded tier counts as tier 1). The breakdown is stored on the entry row (prefixed to the entry's message) so you can audit why an entry had the ticket count it did. The legacy **Subscriber Bonus** still applies on its own when the odds toggle is off — and stacks with it when both are on.
+
+The thresholds and bonuses are config keys (30-second cache) — defaults above; see [Data & Settings](#data--settings).
+
+### Adaptive entry intake (Live ↔ Timed)
+
+Under a giveaway flood, entry intake switches modes automatically so the chat pipeline stays responsive:
+
+- **Live** (normal) — every `!enter` is validated and persisted immediately, exactly as it always was.
+- **Timed** (high traffic) — when the entry rate reaches **120 entries/minute** (`Giveaway.LiveMaxEntriesPerMinute`), new entries are queued in memory (up to 10,000) and flushed to the database in batches every **10 seconds** (`Giveaway.TimedFlushSeconds`; a 500-entry backlog forces an earlier flush). Duplicate entries within a batch collapse to the latest request. Only the duplicate-entry check is re-run at persist time (the queue may hold stale requests) — full eligibility was validated when the entry was accepted into the queue.
+- **Back to Live** — when the rate falls to **60 entries/minute or less** (`Giveaway.TimedResumeEntriesPerMinute`), intake switches back and any pending batch is flushed immediately, so a draw always sees every entry.
+
+Chatters are kept in the loop on every connected platform: switching to Timed announces "⏱ High traffic — giveaway entries are being batched every few seconds." and returning to Live announces "⚡ Traffic normalized — giveaway entries are live again." The page's intake badge and list update through the same debounced reload as everything else.
 
 ### Chat commands
 
@@ -70,6 +98,12 @@ Two Core services split the responsibility: `GiveawayService` is the engine, `Gi
 **Entry validation.** `EnterGiveawayAsync` (`GiveawayService.cs:100-202`) checks, in order: giveaway exists and is Active; platform is in the allow-list (comma-split, case-insensitive, `All` bypasses); follower requirement; subscriber requirement; minimum watchtime; no existing entry for the (username, platform) pair; and the optional max-entries cap. It then computes `EntryCount = 1 + SubscriberBonusEntries` when the bonus is enabled and the user is a subscriber, saves the entry, and refreshes denormalized `TotalEntries` / `UniqueParticipants` counters on the giveaway row.
 
 **Weighted drawing.** `DrawWinnersAsync` expands every entry into its `EntryCount` tickets in an in-memory pool, then draws up to `min(WinnerCount, entries.Count)` unique winners, re-rolling duplicates with a cap of 100 attempts per winner. Winning rows get `IsWinner = true` and `WonAt`; the giveaway stores winners as a comma-joined `"name (platform)"` string and is marked Completed.
+
+**Odds boosts.** When the giveaway has `OddsBoostEnabled`, the persist path resolves the viewer identity via `ILinkedAccountService` and the cross-platform aggregates via `IViewerStatusService` (best linked sub tier, follower-anywhere, linked-platform count), then computes bonus entries with the static `GiveawayOdds.Calculate` — which returns both the total and the human-readable breakdown ("Tier 3 (+3), Follower (+1), 3 linked platforms (+2)"). The breakdown is prefixed onto the entry's `Message` column, so the audit trail and the ticket math live on the same row. Config values come through a 30-second cached `OddsSettings` read.
+
+**Adaptive intake.** `GiveawayService` keeps a rolling `EntryRateWindow`. In Live mode each `EnterGiveawayAsync` validates and persists synchronously. Crossing the Live threshold flips the internal mode to Timed, publishes `GiveawayIntakeModeChangedEvent`, and routes entries into a `ConcurrentQueue` drained by a lazily-started flush loop (batched every `Giveaway.TimedFlushSeconds`, early-flush at a 500-entry backlog, per-(username, platform) dedupe keeping the latest request, 10,000-entry queue cap with graceful rejection beyond it). Falling to the resume threshold flips back, flushes the pending batch immediately, and publishes the event again. `ChatViewModel` subscribes to the event and announces both transitions to every connected platform.
+
+**Live UI.** `GiveawayViewModel` subscribes to the giveaway event family (started, entry, winners drawn, cancelled, intake-mode changed) and funnels all of them into a single 1-second debounced dispatcher reload — bursts of entries produce one refresh, not one per message. Deletion is blocked in the view model for Active giveaways before it ever reaches `DeleteGiveawayAsync`, which removes the giveaway and its entries together.
 
 **Command routing (live).** `ChatViewModel.OnChatMessageReceivedAsync` orchestrates: for any `!`-prefixed message it calls `GiveawayCommandService.ProcessCommandAsync`, which handles `!giveaway <subcommand>` plus any custom keyword matching the active giveaway's `EntryKeyword` (`GiveawayCommandService.cs:39-55`). The orchestrator consumes the platform-agnostic [ChatMessageReceivedEvent](../../src/VyralBot.Core/Models/ChatMessageReceivedEvent.cs) published by all three chat integrations, with MessageId dedupe and a bot-echo skip. See [Event Bus](../architecture/event-bus.md).
 
@@ -154,10 +188,20 @@ if (giveaway.MinWatchtimeMinutes > 0 && watchtimeMinutes < giveaway.MinWatchtime
 
 Everything lives in the per-profile SQLite database (see [Data Layer](../architecture/data-layer.md) and the [database reference](../reference/database-reference.md)):
 
-- **Giveaways** — one row per giveaway: `Name`, `Description`, `EntryKeyword`, `Status` (0=Pending, 1=Active, 2=Completed, 3=Cancelled), `CreatedAt/StartedAt/EndedAt`, `ScheduledEndTime` (stored, never acted on), `MaxEntries` (null = unlimited), `WinnerCount`, `SubscriberBonusEnabled/Entries`, `MinWatchtimeMinutes`, `AllowedPlatforms`, `FollowersOnly`, `SubscribersOnly`, `Winners` (comma-joined names), `TotalEntries`, `UniqueParticipants`.
-- **GiveawayEntries** — one row per participant: `GiveawayId`, `Username`, `Platform`, `PlatformUserId` (always null from the chat path), `EnteredAt`, `EntryCount` (1 + subscriber bonus), `IsSubscriber`, `IsFollower`, `WatchtimeMinutes` (snapshot at entry), `Message`, `IsWinner`, `WonAt`.
+- **Giveaways** — one row per giveaway: `Name`, `Description`, `EntryKeyword`, `Status` (0=Pending, 1=Active, 2=Completed, 3=Cancelled), `CreatedAt/StartedAt/EndedAt`, `ScheduledEndTime` (stored, never acted on), `MaxEntries` (null = unlimited), `WinnerCount`, `SubscriberBonusEnabled/Entries`, `OddsBoostEnabled`, `MinWatchtimeMinutes`, `AllowedPlatforms`, `FollowersOnly`, `SubscribersOnly`, `Winners` (comma-joined names), `TotalEntries`, `UniqueParticipants`.
+- **GiveawayEntries** — one row per participant: `GiveawayId`, `Username`, `Platform`, `PlatformUserId` (always null from the chat path), `EnteredAt`, `EntryCount` (1 + subscriber bonus + odds-boost bonuses), `IsSubscriber`, `IsFollower`, `WatchtimeMinutes` (snapshot at entry), `Message` (with the odds breakdown prefixed, e.g. `Tier 2 (+2), Follower (+1); <viewer message>`), `IsWinner`, `WonAt`.
 
-There are no giveaway-specific config keys; all settings are per-giveaway columns.
+Giveaway-specific config keys (read through the service's 30-second cache):
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Odds.Tier1BonusEntries` / `Tier2BonusEntries` / `Tier3BonusEntries` | 1 / 2 / 3 | Bonus entries for best linked sub tier 1/2/3. |
+| `Odds.FollowerBonusEntries` | `1` | Bonus entries when the viewer follows on any linked platform. |
+| `Odds.LinkedPlatformBonusEntries` | `1` | Bonus entries per linked platform beyond the first. |
+| `Odds.LinkedPlatformBonusCap` | `3` | Maximum extra platforms that earn the bonus. |
+| `Giveaway.LiveMaxEntriesPerMinute` | `120` | Entry rate that switches intake to Timed. |
+| `Giveaway.TimedResumeEntriesPerMinute` | `60` | Rate at which intake switches back to Live. |
+| `Giveaway.TimedFlushSeconds` | `10` | Batch flush interval in Timed mode. |
 
 ## Status & Known Issues
 
@@ -166,5 +210,9 @@ There are no giveaway-specific config keys; all settings are per-giveaway column
 - **Min-watchtime works** — real watchtime from [Watchtime](watchtime.md) is checked at entry time on every platform.
 - **Max Entries: 0 = unlimited** — the form defaults to `0`, which the engine treats as uncapped; a positive value caps total entries.
 - **Scheduled end time is inert** — `ScheduledEndTime` is stored and displayed but no background job ends the giveaway when it passes.
+- **Delete is blocked while Active** — the button refuses with "Cancel the giveaway before deleting it"; cancel first, then delete.
+- **The page updates itself** — giveaway events drive a 1-second debounced reload of the list, entries, and counters; Refresh forces an immediate reload.
+- **Adaptive intake is automatic** — Timed batching (10-second flushes) engages at 120 entries/min and releases at ≤60/min, with chat announcements on both transitions; only the duplicate-entry check is re-run at persist time (eligibility was validated at intake).
+- **Odds boosts resolve through account linking** — tier/follower/linked-platform boosts need the viewer identity; an unlinked viewer only gets the sub bonus (if any) and the base ticket.
 - **Replies only go to Twitch/Kick** — entries from other platforms are recorded, but the bot's response is only sent via the Twitch/Kick send paths.
 - **No overlay output** — winners are announced in chat and in the page's status bar only; there is no giveaway browser-source page (see [Browser Sources](browser-sources.md)).

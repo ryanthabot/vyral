@@ -238,6 +238,37 @@ public partial class KickChatSettingsViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Mirrors a saved ChatEventSetting's sound fields into the EventSound_/EventVolume_
+    /// config keys SoundService reads for real playback: the file name (empty string
+    /// disables) and an invariant 0..1 volume string. Rows without a sound file are
+    /// skipped so mappings made on the Sounds page are never cleared from here.
+    /// </summary>
+    private async Task PersistEventSoundConfigAsync(string playbackEventType, VyralBot.Data.Entities.ChatEventSetting setting)
+    {
+        if (_dataService == null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(setting.SoundFile))
+            {
+                return;
+            }
+
+            await _dataService.SetConfigValueAsync($"EventSound_Kick_{playbackEventType}", setting.SoundEnabled ? setting.SoundFile : string.Empty);
+            await _dataService.SetConfigValueAsync(
+                $"EventVolume_Kick_{playbackEventType}",
+                (Math.Clamp(setting.SoundVolume, 0, 100) / 100.0).ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist the event sound config for Kick/{EventType}", playbackEventType);
+        }
+    }
+
     [RelayCommand]
     private async Task SaveSettingsAsync()
     {
@@ -251,6 +282,7 @@ public partial class KickChatSettingsViewModel : ViewModelBase
             followSetting.AutoReplyEnabled = FollowAutoReplyEnabled;
             followSetting.AutoReplyMessage = FollowAutoReplyMessage;
             await _eventSettingsService.SaveSettingAsync(followSetting);
+            await PersistEventSoundConfigAsync("follow", followSetting);
 
             // Save Subscribe settings
             var subscribeSetting = await _eventSettingsService.GetSettingAsync("Kick", "Subscribe") ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "Kick", EventType = "Subscribe" };
@@ -258,6 +290,7 @@ public partial class KickChatSettingsViewModel : ViewModelBase
             subscribeSetting.AutoReplyEnabled = SubscribeAutoReplyEnabled;
             subscribeSetting.AutoReplyMessage = SubscribeAutoReplyMessage;
             await _eventSettingsService.SaveSettingAsync(subscribeSetting);
+            await PersistEventSoundConfigAsync("subscribe", subscribeSetting);
 
             // Save Gift Sub settings
             var giftSubSetting = await _eventSettingsService.GetSettingAsync("Kick", "GiftSub") ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "Kick", EventType = "GiftSub" };
@@ -265,6 +298,7 @@ public partial class KickChatSettingsViewModel : ViewModelBase
             giftSubSetting.AutoReplyEnabled = GiftSubAutoReplyEnabled;
             giftSubSetting.AutoReplyMessage = GiftSubAutoReplyMessage;
             await _eventSettingsService.SaveSettingAsync(giftSubSetting);
+            await PersistEventSoundConfigAsync("giftsub", giftSubSetting);
 
             // Save Host settings
             var hostSetting = await _eventSettingsService.GetSettingAsync("Kick", "Host") ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "Kick", EventType = "Host" };
@@ -272,6 +306,7 @@ public partial class KickChatSettingsViewModel : ViewModelBase
             hostSetting.AutoReplyEnabled = HostAutoReplyEnabled;
             hostSetting.AutoReplyMessage = HostAutoReplyMessage;
             await _eventSettingsService.SaveSettingAsync(hostSetting);
+            await PersistEventSoundConfigAsync("host", hostSetting);
 
             // Save Kicks Gifted settings
             var kicksGiftedSetting = await _eventSettingsService.GetSettingAsync("Kick", "KicksGifted") ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "Kick", EventType = "KicksGifted" };

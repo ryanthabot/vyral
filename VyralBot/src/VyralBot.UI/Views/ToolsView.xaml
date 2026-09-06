@@ -11,7 +11,7 @@
     <UserControl.Resources>
         <Style x:Key="ToolCardButton" TargetType="materialDesign:Card">
             <Setter Property="Padding" Value="20"/>
-            <Setter Property="Background" Value="{StaticResource CardBackgroundBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Margin" Value="0,0,0,0"/>
         </Style>
@@ -25,22 +25,22 @@
                     Style="{StaticResource MaterialDesignFlatButton}"
                     Command="{Binding DataContext.NavigateToHomeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                     HorizontalAlignment="Left"
-                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Foreground="{DynamicResource TextSecondaryBrush}"
                     Margin="0,0,0,16"/>
 
             <!-- Title -->
             <TextBlock Text="Tools"
                        FontSize="24" FontWeight="Bold"
-                       Foreground="{StaticResource TextPrimaryBrush}"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
                        Margin="0,0,0,4"/>
             <TextBlock Text="Stream tools, chat features, and more"
                        FontSize="14"
-                       Foreground="{StaticResource TextSecondaryBrush}"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
                        Margin="0,0,0,24"/>
 
             <!-- Chat Features Section -->
             <TextBlock Text="Chat Features" FontSize="18" FontWeight="SemiBold"
-                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                       Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,12"/>
 
             <Grid Margin="0,0,0,32">
                 <Grid.ColumnDefinitions>
@@ -63,7 +63,7 @@
                                                  Foreground="{DynamicResource TextMutedBrush}"
                                                  HorizontalAlignment="Center" Margin="0,0,0,10"/>
                         <TextBlock Text="Events &amp; Alerts" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </materialDesign:Card>
 
@@ -77,7 +77,7 @@
                                                  Foreground="{DynamicResource TextMutedBrush}"
                                                  HorizontalAlignment="Center" Margin="0,0,0,10"/>
                         <TextBlock Text="Currency &amp; Rewards" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </materialDesign:Card>
 
@@ -91,7 +91,7 @@
                                                  Foreground="{DynamicResource TextMutedBrush}"
                                                  HorizontalAlignment="Center" Margin="0,0,0,10"/>
                         <TextBlock Text="Commands" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </materialDesign:Card>
 
@@ -105,14 +105,14 @@
                                                  Foreground="{DynamicResource TextMutedBrush}"
                                                  HorizontalAlignment="Center" Margin="0,0,0,10"/>
                         <TextBlock Text="Event History" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </materialDesign:Card>
             </Grid>
 
             <!-- Stream Tools Section -->
             <TextBlock Text="Stream Tools" FontSize="18" FontWeight="SemiBold"
-                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                       Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,12"/>
 
             <!-- Row 1 -->
             <Grid Margin="0,0,0,12">
@@ -136,7 +136,7 @@
                                                  Foreground="{DynamicResource TextMutedBrush}"
                                                  HorizontalAlignment="Center" Margin="0,0,0,10"/>
                         <TextBlock Text="Audio Settings" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </materialDesign:Card>
 
@@ -150,7 +150,7 @@
                                                  Foreground="{DynamicResource TextMutedBrush}"
                                                  HorizontalAlignment="Center" Margin="0,0,0,10"/>
                         <TextBlock Text="Sounds" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </materialDesign:Card>
 
@@ -164,7 +164,7 @@
                                                  Foreground="{DynamicResource TextMutedBrush}"
                                                  HorizontalAlignment="Center" Margin="0,0,0,10"/>
                         <TextBlock Text="Statistics" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </materialDesign:Card>
 
@@ -178,7 +178,7 @@
                                                  Foreground="{DynamicResource TextMutedBrush}"
                                                  HorizontalAlignment="Center" Margin="0,0,0,10"/>
                         <TextBlock Text="Visual Alerts" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </materialDesign:Card>
             </Grid>
@@ -205,7 +205,7 @@
                                                  Foreground="{DynamicResource TextMutedBrush}"
                                                  HorizontalAlignment="Center" Margin="0,0,0,10"/>
                         <TextBlock Text="Conditional Rules" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </materialDesign:Card>
 
@@ -219,7 +219,7 @@
                                                  Foreground="{DynamicResource TextMutedBrush}"
                                                  HorizontalAlignment="Center" Margin="0,0,0,10"/>
                         <TextBlock Text="Giveaways" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </materialDesign:Card>
 
@@ -233,7 +233,7 @@
                                                  Foreground="{DynamicResource TextMutedBrush}"
                                                  HorizontalAlignment="Center" Margin="0,0,0,10"/>
                         <TextBlock Text="Polls" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </materialDesign:Card>
 
@@ -247,7 +247,7 @@
                                                  Foreground="{DynamicResource TextMutedBrush}"
                                                  HorizontalAlignment="Center" Margin="0,0,0,10"/>
                         <TextBlock Text="Watchtime" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </materialDesign:Card>
             </Grid>

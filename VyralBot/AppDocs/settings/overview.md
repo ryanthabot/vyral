@@ -1,6 +1,6 @@
 # Settings Overview
 
-> The Settings page is a 13-category hub where 4 categories are implemented today — Profile management, Platforms, Variables, and API & Webhooks — and 9 are "Coming Soon" placeholders.
+> The Settings page is a 13-category hub where 5 categories are implemented today — Profile management, Platforms, Variables, Viewer Hub, and API & Webhooks — and 8 are "Coming Soon" placeholders.
 
 ## Overview
 
@@ -10,11 +10,12 @@ Open **Settings** from the bottom of the sidebar. The page is a two-pane layout:
 |---|---|---|
 | **Profile** | Implemented | Auto-Login toggle plus full profile management (list, create, switch, export, delete, change PIN) |
 | **Theme** | Placeholder | "Coming Soon..." text only |
-| **Platforms** | Implemented | Grid of 6 platform cards — but only Twitch and Kick navigate anywhere |
+| **Platforms** | Implemented | Grid of 6 platform cards (only Twitch and Kick navigate) plus the **Startup & Connection** section — see below |
 | **Data Management** | Placeholder | "Coming Soon..." text only |
 | **Notifications** | Placeholder | "Coming Soon..." text only |
 | **Commands** | Placeholder | "Coming Soon..." text only (real commands page lives under Chat Features) |
 | **Variables** | Implemented | Hosts the full Variables manager |
+| **Viewer Hub** | Implemented | Multi-Platform Bonus mode/settings, Vyral Goals management, and Linked Viewers with per-account unlink — see below |
 | **Timers** | Placeholder | "Coming Soon..." text only |
 | **Automation** | Placeholder | "Coming Soon..." text only |
 | **API & Webhooks** | Implemented | Web server + ngrok configuration — see [API, Web Server & ngrok](web-server-ngrok.md) |
@@ -25,6 +26,8 @@ Open **Settings** from the bottom of the sidebar. The page is a two-pane layout:
 Note that Audio, Alert, and Sounds settings do **not** live here — they are separate top-level pages in the sidebar ([Audio Settings](../stream-tools/audio.md), [Visual Alerts](../stream-tools/visual-alerts.md), [Sounds](../stream-tools/sounds.md)).
 
 ## User Guide
+
+Themes apply **live** — picking a theme (or applying a custom one) re-colors the whole app instantly, no restart needed: every page, card, dialog, the Chat window, and even the flow editor's canvas/wires/cards re-skin in place. Built-in themes also clear any leftover custom-accent overrides, so switching from a Custom theme back to a built-in one is clean. A handful of colors are intentionally theme-independent: platform identity accents (Kick green, Twitch purple, Discord blurple), the flow editor's per-panel rail accents, alert-overlay colors (rendered over live video), and the color-picker swatches. The **Advanced** tab also has a **🔄 Restart App** button that closes Vyral and starts it again for you. The Theme page also has a **Brightness Levels** card with two sliders — one for dark themes, one for light — that darken or lighten the entire app's backgrounds, cards, borders, and canvas in real time as you drag (0 = the theme's native palette, up to ±100 toward black or white). Your level is remembered per base theme (dark and light separately), applies on startup, survives theme switches, and the flow editor's canvas follows it too. Custom themes also get a full **color picker** (saturation/value square + hue strip + live hex and RGB readout) — drag it and the entire app's accent recolors in real time.
 
 ### Profile category
 
@@ -52,6 +55,11 @@ Six cards: Twitch, Kick, YouTube, TikTok, Discord, OBS.
 - **Kick** card navigates to a real settings page (see below).
 - **YouTube / Discord / OBS cards are disabled with explanatory tooltips** (fixed 2026-08-15), and TikTok's is too: YouTube and Discord are configured entirely through their Platforms-page wizards (Discord's bots and channel selection live on its [Discord Bots page](../platforms/discord.md#multiple-bots)), and neither platform has a settings sub-page; TikTok/OBS have no backend at all. The cards no longer look clickable-and-dead — note this says nothing about the platforms themselves, only that this page has nothing to configure for them.
 
+**Startup & Connection.** Launch behavior for the app and its Discord bot, in one place:
+
+- *Discord auto-start* — starts your **primary Discord bot** when the app launches. Extra bots each have their own **"Start this bot when the app launches"** toggle on the [Discord Bots page](../platforms/discord.md#multiple-bots) instead.
+- *"Launch VyralBot when my PC starts"* — registers a **Windows Run-key entry for the current user**, so Vyral starts automatically when you sign in to Windows. It is per-user: it follows the Windows account you set it under, and other users' sign-ins are unaffected.
+
 **The Kick settings page** (only reached from here) shows, when Kick is connected:
 
 - **Connection Status** — status dot/text and a Disconnect button.
@@ -66,6 +74,18 @@ Six cards: Twitch, Kick, YouTube, TikTok, Discord, OBS.
 ### Variables category
 
 Hosts the complete [Variables](../chat-features/variables.md) manager — search, category filter, add/edit/delete of editable variables, and a view of the seeded system and social variables. This is currently the only navigation path to the Variables manager; it has no sidebar entry of its own.
+
+### Viewer Hub category
+
+The Viewer Hub is the streamer's control panel for the viewer-facing economy that grew out of [account linking](../chat-features/account-linking.md). Four areas:
+
+**Multi-Platform Bonus.** Picks the mode for the cross-platform earnings bonus documented in [Vyral Goals](../stream-tools/vyral-goals.md#the-multi-platform-bonus): **Off** (default — linked viewers earn at 1x), **OptIn** (only viewers who typed `!mp on` get it), or **Auto** (every linked viewer). The bonus ladder amounts are editable here too — 1.25x at 2 linked platforms, 1.5x at 3, 2.0x at 4, 2.5x at 5+ — and persist to the `MultiPlatform.Mode` / `MultiPlatform.Bonus2..Bonus5` config keys (30-second service cache, so changes apply within half a minute).
+
+**Vyral Goals.** Manage the goal list documented in [Vyral Goals](../stream-tools/vyral-goals.md): the four seeded defaults (Bridge Builder, Everywhere At Once, Loyal Follower, Tier 2 Supporter) plus anything you add. Each goal has a name, condition type (`LinkedPlatforms` / `FollowPlatforms` / `SubAnyPlatform` / `SubTier`), target count, reward type (points / multiplier / badge), and reward value; goals can be disabled without deleting. Completing a goal is announced in chat on every connected platform.
+
+**Linked Viewers.** Lists every [link group](../chat-features/viewer-profiles.md) account-by-account, and each linked account row carries its own **Unlink** button — the streamer-side override for removing an account a viewer can't remove themselves (banned users, disputes). Clicking through opens the same [viewer profile window](../chat-features/viewer-profiles.md) that chat username clicks open.
+
+**Account Linking.** The **Account linking Discord bot** selector picks which Discord bot handles the [link/delink DM flow](../chat-features/account-linking.md#choosing-your-linking-bot): single-select, falling back to the Primary bot when unset, and kept in sync with the Roles card on each bot's page in the [Discord section](../platforms/discord.md#bot-roles). Replies to link DMs always come from the bot that received the DM.
 
 ## How It Works (Developer)
 
@@ -87,6 +107,7 @@ The codebase has three distinct things called "platform settings" — keep them 
 | ngrok auth token | `<profile>/ngrok_credentials.json` (plaintext) | ngrok wizard + the settings-page token editor |
 | Twitch OAuth client id/secret | `<profile>/twitch_credentials.json` | `TwitchOAuthService` |
 | Platform tokens, status, chat enabled / auto-start flags | DB `Platforms` row | Setup wizards, settings pages, auto-connect |
+| Launch-on-Windows-startup (Run key) | Windows registry Run key (HKCU, per-user) | Settings → Platforms → Startup & Connection |
 | Kick auto-replies toggle | DB `Configs` key `Kick.AutoRepliesEnabled` | Kick settings page |
 | Support links (Discord invite, Ideas URL) | DB `Configs` keys `Support.DiscordUrl` / `Support.IdeasUrl` | Settings → Profile → Support Links |
 | Per-event display/auto-reply settings | DB `ChatEventSettings` rows | Chat Hub VMs via `ChatEventSettingsService` |
@@ -143,7 +164,7 @@ await _eventBus.PublishAsync(new PlatformChatRoutingChangedEvent { ... });
 
 ## Gotchas / Status & Known Issues
 
-- **9 of 13 categories are placeholders** — Theme, Data Management, Notifications, Commands, Timers, Automation, Performance, Security, and Advanced show only "Coming Soon...".
+- **8 of 13 categories are placeholders** — Theme, Data Management, Notifications, Commands, Timers, Automation, Performance, Security, and Advanced show only "Coming Soon...".
 - **YouTube/TikTok/Discord/OBS platform cards are disabled with explanatory tooltips** — they no longer look clickable (fixed 2026-08-15); only Twitch and Kick navigate. (Discord being disabled here does not mean the platform is unavailable — it is configured through the [Platforms wizard](../platforms/discord.md) and has no settings sub-page.) See the [known issues ledger](../reference/known-issues.md).
 - **Auto-connect re-enables chat display** — the `<Platform>ChatEnabled` flag is force-set true on first successful auto-connect (intended behavior — KI-14).
 - **Twitch settings page is a stub** — nothing loads or saves there.

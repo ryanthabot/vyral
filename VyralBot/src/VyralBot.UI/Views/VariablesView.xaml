@@ -122,10 +122,9 @@
                                                        FontFamily="Consolas" FontSize="16" FontWeight="SemiBold"
                                                        Foreground="{DynamicResource PrimaryHueMidBrush}"/>
                                             
-                                            <!-- System/Read-only Badge -->
-                                            <Border Background="{DynamicResource MaterialDesignDivider}" 
-                                                    CornerRadius="3" Padding="6,2" Margin="12,0,0,0"
-                                                    Visibility="{Binding IsEditable, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <!-- System/Read-only Badge (hidden by default, shown when IsEditable=False via style trigger) -->
+                                            <Border Background="{DynamicResource MaterialDesignDivider}"
+                                                    CornerRadius="3" Padding="6,2" Margin="12,0,0,0">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -162,7 +161,7 @@
                                         
                                         <TextBlock Text="{Binding Description}" FontSize="12" TextWrapping="Wrap"
                                                    Foreground="{DynamicResource MaterialDesignBodyLight}" Margin="0,0,0,8"
-                                                   Visibility="{Binding Description, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                                   Visibility="{Binding Description, Converter={StaticResource NullOrEmptyToVisibilityConverter}}"/>
                                         
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                             <TextBlock Text="Category: " FontSize="11" 
@@ -171,7 +170,7 @@
                                                        Foreground="{DynamicResource MaterialDesignBody}"/>
                                         </StackPanel>
                                         
-                                        <StackPanel Orientation="Horizontal" Visibility="{Binding Value, Converter={StaticResource NullToVisibilityConverter}}">
+                                        <StackPanel Orientation="Horizontal" Visibility="{Binding Value, Converter={StaticResource NullOrEmptyToVisibilityConverter}}">
                                             <TextBlock Text="Value: " FontSize="11" 
                                                        Foreground="{DynamicResource MaterialDesignBodyLight}"/>
                                             <TextBlock Text="{Binding Value}" FontSize="11" FontFamily="Consolas"
@@ -222,9 +221,9 @@
             </ScrollViewer>
 
             <!-- Status Bar -->
-            <Border Grid.Row="3" Background="{DynamicResource MaterialDesignToolBarBackground}" 
+            <Border Grid.Row="3" Background="{DynamicResource MaterialDesignToolBarBackground}"
                     Padding="20,12" BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="0,1,0,0"
-                    Visibility="{Binding StatusMessage, Converter={StaticResource NullToVisibilityConverter}}">
+                    Visibility="{Binding StatusMessage, Converter={StaticResource NullOrEmptyToVisibilityConverter}}">
                 <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource MaterialDesignBody}"/>
             </Border>
         </Grid>

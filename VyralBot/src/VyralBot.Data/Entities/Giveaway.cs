@@ -79,6 +79,11 @@ public class Giveaway
     public string AllowedPlatforms { get; set; } = "All";
     
     /// <summary>
+    /// Whether linked-viewer odds boost is enabled for this giveaway
+    /// </summary>
+    public bool OddsBoostEnabled { get; set; } = false;
+
+    /// <summary>
     /// Whether followers-only mode is enabled
     /// </summary>
     public bool FollowersOnly { get; set; } = false;

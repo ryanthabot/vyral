@@ -12,6 +12,7 @@ using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using VyralBot.UI.Services;
 using VyralBot.Workflows.Abstractions;
 
 namespace VyralBot.UI.Controls.FlowCanvas;
@@ -338,6 +339,12 @@ public class FlowCanvasControl : Control
         AllowDrop = true;
         Template = BuildTemplate();
         _nodes.CollectionChanged += OnNodesCollectionChanged;
+
+        // Live re-theme: while loaded, a ThemeManager theme switch rebuilds the
+        // whole canvas with the refreshed palette (see OnThemeChanged). The
+        // subscription itself lives in OnApplyTemplate (template-applied path);
+        // Unloaded drops it so a discarded editor never leaks the handler.
+        Unloaded += (_, _) => ThemeManager.Instance.ThemeChanged -= OnThemeChanged;
     }
 
     // =====================================================================================
@@ -956,6 +963,79 @@ public class FlowCanvasControl : Control
         ApplyParameterCards(); // rebuild the parameter row against the (new) layer
         EnsurePinnedWires();
         RebuildAllVisuals();
+
+        // Live re-theme (subscribe once, however often the template applies —
+        // unsubscribing first keeps a template re-application from stacking
+        // duplicate handlers; Unloaded removes it entirely).
+        ThemeManager.Instance.ThemeChanged -= OnThemeChanged;
+        ThemeManager.Instance.ThemeChanged += OnThemeChanged;
+    }
+
+    // =====================================================================================
+    // Live re-theme (ThemeManager.ThemeChanged)
+    // =====================================================================================
+
+    /// <summary>
+    /// Re-themes the OPEN canvas when the user switches themes in Settings:
+    /// refreshes the palette, rebuilds the pinned trigger/error cards and the
+    /// locked pinned wires (they are created once and would otherwise keep
+    /// stale brushes), then rebuilds the control template — the root
+    /// background, the dot grid and the three canvas buttons bake palette
+    /// brushes at build time — and lets <see cref="OnApplyTemplate"/> run its
+    /// full pipeline (pinned cards, parameter row, ALL node visuals and
+    /// wires) against the refreshed <see cref="FlowCanvasPalette"/>.
+    /// </summary>
+    private void OnThemeChanged()
+    {
+        FlowCanvasPalette.RefreshFromResources();
+
+        RecreatePinnedCards(); // cached cards keep stale accent/background brushes — force a rebuild
+        RecreatePinnedWires(); // locked entry/error wires were created with the old wire colors
+
+        // A new template instance re-bakes every brush the template owns
+        // (root background, dot grid, canvas buttons). ApplyTemplate forces
+        // OnApplyTemplate right away so the rebuild is not deferred to the
+        // next layout pass.
+        Template = BuildTemplate();
+        ApplyTemplate();
+    }
+
+    /// <summary>Drops the cached pinned trigger/error cards so ApplyTriggerCard/ApplyErrorCard rebuild them with the new palette.</summary>
+    private void RecreatePinnedCards()
+    {
+        if (_triggerCard != null)
+        {
+            (_triggerCard.Parent as Panel)?.Children.Remove(_triggerCard);
+            _triggerCard = null;
+            _triggerTitleText = null;
+            _triggerSubtitleText = null;
+        }
+
+        if (_errorCard != null)
+        {
+            (_errorCard.Parent as Panel)?.Children.Remove(_errorCard);
+            _errorCard = null;
+            // _errorCardX/_errorCardY are deliberately KEPT — the dragged
+            // position survives the re-theme (ApplyErrorCard reuses them).
+        }
+    }
+
+    /// <summary>Drops the locked pinned wires so EnsurePinnedWires recreates them with the new wire colors.</summary>
+    private void RecreatePinnedWires()
+    {
+        if (_entryWire != null)
+        {
+            _entryWire.DisconnectRequested -= OnPinnedWireDisconnectRequested;
+            _wireLayer?.Children.Remove(_entryWire);
+            _entryWire = null;
+        }
+
+        if (_errorWire != null)
+        {
+            _errorWire.DisconnectRequested -= OnPinnedWireDisconnectRequested;
+            _wireLayer?.Children.Remove(_errorWire);
+            _errorWire = null;
+        }
     }
 
     // =====================================================================================

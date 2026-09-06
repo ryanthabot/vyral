@@ -314,6 +314,35 @@ public partial class PerformanceViewModel : ViewModelBase
                 "Discord" => _discordBotManager.Connected.Count > 0 || _discordService.IsConnected,
                 _ => (bool?)null,
             };
+            // YouTube gets an expressive status: the interesting reasons
+            // (not live yet, chat active, re-auth needed) beat a bare word.
+            if (row.Platform == "YouTube")
+            {
+                if (_youTubeService.RequiresReauth)
+                {
+                    row.Status = "Re-authorization required";
+                }
+                else if (_youTubeService.IsConnected)
+                {
+                    row.Status = _youTubeService.LiveChatState switch
+                    {
+                        "Listening" => "Connected — chat active",
+                        "WaitingForBroadcast" => "Connected — waiting for you to go live",
+                        _ => "Connected",
+                    };
+                }
+                else if (string.Equals(row.DbStatus, "Connected", StringComparison.OrdinalIgnoreCase)
+                    && _youTubeService.LiveChatState == "Connecting")
+                {
+                    row.Status = "Connecting…";
+                }
+                else
+                {
+                    row.Status = row.DbStatus ?? "Disconnected";
+                }
+            }
+            else
+            {
             row.Status = live switch
             {
                 true => "Connected",
@@ -321,6 +350,7 @@ public partial class PerformanceViewModel : ViewModelBase
                 false => row.DbStatus ?? "Disconnected",
                 null => row.DbStatus ?? "Disconnected",
             };
+            }
 
             if (row.Platform == "Discord")
             {

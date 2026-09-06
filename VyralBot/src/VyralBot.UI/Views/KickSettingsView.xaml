@@ -2,7 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-             Background="{StaticResource BackgroundDarkBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
     
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -26,16 +26,19 @@
                 <TextBlock Text="Kick Settings" 
                          FontSize="32"
                          FontWeight="Bold"
-                         Foreground="{StaticResource TextPrimaryBrush}"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
                          Margin="0,0,0,8"/>
                 <TextBlock Text="Manage your Kick integration settings" 
                          FontSize="14"
-                         Foreground="{StaticResource TextSecondaryBrush}"/>
+                         Foreground="{DynamicResource TextSecondaryBrush}"/>
             </StackPanel>
             
             <!-- Back Button -->
+            <!-- Note: this view is hosted in MainWindow (DataContext is KickSettingsViewModel),
+                     so the old ElementName=SettingsViewRoot binding crossed namescopes and silently
+                     failed. Navigate back to the Platforms grid via the window's MainViewModel. -->
             <Button Grid.Column="1"
-                    Command="{Binding DataContext.BackToPlatformGridCommand, ElementName=SettingsViewRoot}"
+                    Command="{Binding DataContext.NavigateToPlatformsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                     Style="{StaticResource MaterialDesignFlatButton}"
                     VerticalAlignment="Top"
                     Margin="16,0,0,0"
@@ -43,12 +46,12 @@
                 <StackPanel Orientation="Horizontal">
                     <materialDesign:PackIcon Kind="ArrowLeft" 
                                              VerticalAlignment="Center"
-                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                             Foreground="{DynamicResource TextPrimaryBrush}"
                                              Margin="0,0,8,0"/>
                     <TextBlock Text="Back" 
                                VerticalAlignment="Center"
                                FontSize="14"
-                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                               Foreground="{DynamicResource TextPrimaryBrush}"/>
                 </StackPanel>
             </Button>
         </Grid>
@@ -58,7 +61,7 @@
             <StackPanel>
                 <!-- Connection Status Card -->
                 <materialDesign:Card Padding="24"
-                                    Background="{StaticResource CardBackgroundBrush}"
+                                    Background="{DynamicResource CardBackgroundBrush}"
                                     Margin="0,0,0,24">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -91,9 +94,9 @@
                             <TextBlock Text="{Binding Status}" 
                                      FontSize="16"
                                      FontWeight="SemiBold"
-                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,4"/>
-                            <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
+                            <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Text" Value="Not connected to Kick"/>
@@ -138,14 +141,14 @@
                 
                 <!-- Account Settings -->
                 <materialDesign:Card Padding="24" 
-                                    Background="{StaticResource CardBackgroundBrush}"
+                                    Background="{DynamicResource CardBackgroundBrush}"
                                     Margin="0,0,0,16"
                                     Visibility="{Binding IsConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel>
                         <TextBlock Text="Account Settings" 
                                  FontSize="18"
                                  FontWeight="SemiBold"
-                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
                                  Margin="0,0,0,24"/>
                         
                         <!-- Username -->
@@ -176,33 +179,33 @@
                 
                 <!-- Chat Settings -->
                 <materialDesign:Card Padding="24" 
-                                    Background="{StaticResource CardBackgroundBrush}"
+                                    Background="{DynamicResource CardBackgroundBrush}"
                                     Margin="0,0,0,16"
                                     Visibility="{Binding IsConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel>
                         <TextBlock Text="Chat Settings" 
                                  FontSize="18"
                                  FontWeight="SemiBold"
-                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
                                  Margin="0,0,0,16"/>
                         
                         <TextBlock Text="Chat integration is enabled. Messages will appear in the unified chat view." 
                                  FontSize="14"
-                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 Foreground="{DynamicResource TextSecondaryBrush}"
                                  TextWrapping="Wrap"/>
                     </StackPanel>
                 </materialDesign:Card>
                 
                 <!-- Webhook Settings -->
                 <materialDesign:Card Padding="24" 
-                                    Background="{StaticResource CardBackgroundBrush}"
+                                    Background="{DynamicResource CardBackgroundBrush}"
                                     Margin="0,0,0,16"
                                     Visibility="{Binding IsConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel>
                         <TextBlock Text="Webhook Settings" 
                                  FontSize="18"
                                  FontWeight="SemiBold"
-                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
                                  Margin="0,0,0,16"/>
                         
                         <!-- Enable Webhooks Toggle -->
@@ -216,10 +219,10 @@
                                 <TextBlock Text="Enable Webhooks" 
                                          FontSize="14" 
                                          FontWeight="SemiBold"
-                                         Foreground="{StaticResource TextPrimaryBrush}"/>
+                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
                                 <TextBlock Text="Receive real-time events from Kick (chat messages, follows, subscriptions, etc.)" 
                                          FontSize="12" 
-                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         Foreground="{DynamicResource TextSecondaryBrush}"
                                          TextWrapping="Wrap"
                                          Margin="0,4,0,0"/>
                             </StackPanel>
@@ -233,7 +236,7 @@
                         </Grid>
                         
                         <!-- Webhook Status -->
-                        <Border Background="{StaticResource BackgroundSecondaryBrush}"
+                        <Border Background="{DynamicResource BackgroundSecondaryBrush}"
                                 BorderBrush="{DynamicResource KickBrush}"
                                 BorderThickness="1"
                                 CornerRadius="4"
@@ -251,12 +254,12 @@
                                                        Height="16"
                                                        VerticalAlignment="Center"
                                                        Margin="0,0,8,0"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 
                                 <TextBlock Grid.Column="1"
                                          Text="{Binding WebhookStatus}"
                                          FontSize="12"
-                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         Foreground="{DynamicResource TextSecondaryBrush}"
                                          TextWrapping="Wrap"
                                          VerticalAlignment="Center"/>
                             </Grid>
@@ -264,7 +267,7 @@
                         
                         <TextBlock TextWrapping="Wrap" 
                                  FontSize="12"
-                                 Foreground="{StaticResource TextSecondaryBrush}">
+                                 Foreground="{DynamicResource TextSecondaryBrush}">
                             <Run Text="Note: The webhook server must be running to receive events. "/>
                             <Hyperlink NavigateUri="settings://api" 
                                      RequestNavigate="WebhookSettings_RequestNavigate"
@@ -277,13 +280,13 @@
                 
                 <!-- Chat Settings Card (WebView2) -->
                 <materialDesign:Card Padding="24"
-                                    Background="{StaticResource CardBackgroundBrush}"
+                                    Background="{DynamicResource CardBackgroundBrush}"
                                     Margin="0,0,0,24">
                     <StackPanel>
                         <TextBlock Text="Chat Settings (WebView2)" 
                                  FontSize="18"
                                  FontWeight="SemiBold"
-                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
                                  Margin="0,0,0,16"/>
                         
                         <!-- Enable Chat Toggle -->
@@ -291,7 +294,7 @@
                                 IsChecked="{Binding IsChatEnabled}"
                                 Margin="0,0,0,8"
                                 Style="{StaticResource MaterialDesignCheckBox}"
-                                Foreground="{StaticResource TextPrimaryBrush}">
+                                Foreground="{DynamicResource TextPrimaryBrush}">
                             <CheckBox.ToolTip>
                                 <TextBlock Text="When enabled, Kick chat messages will be received via WebView2.&#x0a;When disabled, you can still send messages via webhooks."
                                          TextWrapping="Wrap"
@@ -305,7 +308,7 @@
                                 IsEnabled="{Binding IsChatEnabled}"
                                 Margin="0,0,0,16"
                                 Style="{StaticResource MaterialDesignCheckBox}"
-                                Foreground="{StaticResource TextPrimaryBrush}">
+                                Foreground="{DynamicResource TextPrimaryBrush}">
                             <CheckBox.ToolTip>
                                 <TextBlock Text="Automatically start chat connection when the app launches&#x0a;(only if Kick chat is enabled)"
                                          TextWrapping="Wrap"
@@ -366,7 +369,7 @@
                                 <TextBlock Grid.Column="1"
                                          Text="{Binding ChatStatus}"
                                          FontSize="12"
-                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                         Foreground="{DynamicResource TextSecondaryBrush}"
                                          VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
@@ -374,7 +377,7 @@
                         <!-- Info Text -->
                         <TextBlock Text="WebView2 chat runs independently from setup wizards and ngrok webhooks. This provides real-time chat messages while webhooks handle followers, subs, and other events."
                                  FontSize="11"
-                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 Foreground="{DynamicResource TextSecondaryBrush}"
                                  Margin="0,12,0,0"
                                  TextWrapping="Wrap"/>
 
@@ -384,7 +387,7 @@
                                   IsChecked="{Binding AutoRepliesEnabled}"
                                   Margin="0,0,0,8"
                                   Style="{StaticResource MaterialDesignCheckBox}"
-                                  Foreground="{StaticResource TextPrimaryBrush}">
+                                  Foreground="{DynamicResource TextPrimaryBrush}">
                             <CheckBox.ToolTip>
                                 <TextBlock Text="When enabled, VyralBot will automatically send a thank-you message in Kick chat when someone follows, and a sad message when someone unfollows. Requires the app to be connected to Kick."
                                            TextWrapping="Wrap"
@@ -396,17 +399,17 @@
                 
                 <!-- About Kick Integration -->
                 <materialDesign:Card Padding="24" 
-                                    Background="{StaticResource CardBackgroundBrush}">
+                                    Background="{DynamicResource CardBackgroundBrush}">
                     <StackPanel>
                         <TextBlock Text="About Kick Integration" 
                                  FontSize="18"
                                  FontWeight="SemiBold"
-                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
                                  Margin="0,0,0,16"/>
                         
                         <TextBlock TextWrapping="Wrap" 
                                  FontSize="14"
-                                 Foreground="{StaticResource TextSecondaryBrush}"
+                                 Foreground="{DynamicResource TextSecondaryBrush}"
                                  Margin="0,0,0,8">
                             <Run Text="VyralBot connects to Kick using:"/>
                             <LineBreak/><LineBreak/>

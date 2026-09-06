@@ -88,6 +88,13 @@ public class WebhooksController : ControllerBase
                     await ProcessLivestreamStatusAsync(root, messageId, timestamp);
                     break;
 
+                case "livestream.metadata.updated":
+                    // Subscribed by WebhookCoordinatorService (KickLib LivestreamMetadataUpdated),
+                    // but there is no in-app consumer yet - acknowledge so logs are honest
+                    // and Kick receives a 200 instead of this falling into the unknown bucket.
+                    _logger.LogInformation("Received livestream.metadata.updated webhook - metadata update ignored (no consumer)");
+                    break;
+
                 case "moderation.banned":
                     _logger.LogInformation("Received moderation event - processing and publishing to EventBus");
                     await ProcessModerationBanAsync(root, messageId, timestamp);

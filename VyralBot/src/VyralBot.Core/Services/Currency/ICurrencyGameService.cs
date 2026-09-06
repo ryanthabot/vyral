@@ -39,6 +39,12 @@ public interface ICurrencyGameService
     /// Check if a user can play a game (cooldown check).
     /// </summary>
     Task<(bool CanPlay, string? Reason)> CanPlayAsync(string username, string platform, string gameType, int amount);
+
+    /// <summary>
+    /// Record that a user just played a game, starting its cooldown. Used by games
+    /// resolved outside this service (e.g. !gamble) so their cooldown is enforced too.
+    /// </summary>
+    void MarkPlayed(string username, string platform, string gameType);
 }
 
 public record GameResult(bool Won, int AmountChange, string Message);

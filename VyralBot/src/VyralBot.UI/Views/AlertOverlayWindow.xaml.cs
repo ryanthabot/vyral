@@ -1,6 +1,8 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 
@@ -11,10 +13,55 @@ public partial class AlertOverlayWindow : Window
     private DispatcherTimer? _autoCloseTimer;
     private Storyboard? _currentAnimation;
 
+    // WS_EX_* style bits that make the overlay click-through and non-activating
+    private const int GWL_EXSTYLE = -20;
+    private const int WS_EX_TRANSPARENT = 0x00000020;
+    private const int WS_EX_LAYERED = 0x00080000;
+    private const int WS_EX_NOACTIVATE = 0x08000000;
+    private const int WM_MOUSEACTIVATE = 0x0021;
+    private const int MA_NOACTIVATE = 3;
+
+    [DllImport("user32.dll")]
+    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll")]
+    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
     public AlertOverlayWindow()
     {
         InitializeComponent();
-        Opacity = 0; // Start invisible
+        Opacity = 0; // Start invisible; ShowAlertAsync sets it to 1 when the alert is displayed
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+
+        // Make the overlay click-through so it never steals mouse input from the
+        // applications/stream beneath it, and never steals focus.
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var source = HwndSource.FromHwnd(hwnd);
+        source?.AddHook(WndProc);
+
+        var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+        SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_NOACTIVATE);
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == WM_MOUSEACTIVATE)
+        {
+            // Never activate on mouse click
+            handled = true;
+            return new IntPtr(MA_NOACTIVATE);
+        }
+
+        return IntPtr.Zero;
     }
 
     /// <summary>
@@ -64,8 +111,13 @@ public partial class AlertOverlayWindow : Window
         // Position the window
         PositionWindow(position);
 
-        // Show window
+        // Show window. The window starts at Opacity 0; raise it to 1 just before the
+        // entrance animation begins (the storyboards animate the inner Border, whose
+        // opacity multiplies with the window's - leaving the window at 0 would render
+        // every alert invisible).
+        Opacity = 0;
         Show();
+        Opacity = 1;
 
         // Play animation
         PlayAnimation(animation);

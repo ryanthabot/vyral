@@ -68,7 +68,8 @@ Everything viewers do with currency happens through chat commands. The full comm
 | Bank | `!deposit`, `!withdraw`, `!bank` |
 | Auctions | `!auction` (moderator), `!bid` |
 | Moderation & boosts | `!give`, `!take`, `!boost` (moderator) |
-| Account linking | `!link` |
+| Account linking | `!link`, `!link <code>` (`!linkcode <code>`), `!linked`, `!delink <platform>` / `!delink <code>` |
+| Goals & status | `!goals`, `!mystatus`, `!mp on\|off` |
 
 All of these are live from chat (the command pipeline runs on every connected platform; replies go to Twitch/Kick only). Moderator-gated commands reply with an explicit "You must be a moderator to use !x" message rather than silence.
 
@@ -109,7 +110,15 @@ Earning paths apply the full multiplier stack, floored with `Math.Floor`:
 - **Loyalty tier multipliers** — `GetTierMultiplierAsync`, from the viewer's lifetime-earnings tier.
 - **Role multipliers** — `GetEffectiveMultiplierAsync` (sub 2.0, VIP 1.5, mod 1.5; highest wins, not stacking) when the earning event knows the viewer's role.
 
-The stack multiplies event bonuses, watchtime awards, and chat-activity awards. Settings for role multipliers are among the fields the Settings-tab save does not persist (KI-29).
+The multiplier stack multiplies event bonuses, watchtime awards, and chat-activity awards — and it now includes the **multi-platform bonus** as a final factor (see the section below). Settings for role multipliers are among the fields the Settings-tab save does not persist (KI-29).
+
+### Multi-platform bonus
+
+Viewers who [link platforms](../chat-features/account-linking.md) earn more: the bonus multiplies every earning path by **1.25x at 2 linked platforms, 1.5x at 3, 2.0x at 4, and 2.5x at 5+** (configurable via `MultiPlatform.Bonus2..Bonus5`). Three modes govern it (`MultiPlatform.Mode`, edited under **Settings → Viewer Hub**): **Off** (default — never applies), **OptIn** (only viewers who typed `!mp on`), and **Auto** (every linked viewer). Completed Multiplier-type [Vyral Goals](vyral-goals.md) stack on top. The full walkthrough — ladder table, `!mp`/`!mystatus` behavior, and the goal interplay — lives in [Vyral Goals](vyral-goals.md#the-multi-platform-bonus).
+
+### Giveaway odds settings
+
+The per-giveaway follower/sub-tier odds boosts read their bonus sizes from the `Odds.*` config keys (tier 1/2/3 bonuses, follower bonus, per-extra-linked-platform bonus and cap) — defaults and semantics documented in [Giveaways → Odds boosts](giveaways.md#odds-boosts).
 
 ### Rewards store and approval queue (CurrencyRewardsService)
 
@@ -136,7 +145,8 @@ Moderators create auctions (item name, description, starting bid, duration in mi
 
 - **`CurrencyBoostService`** — timed multipliers, global or per-platform; `!boost` (moderator) creates them; `TriggerHypeTrainBoostAsync` (level-scaled 1.5x/2x/3x for 15–25 minutes) exists for a hype-train integration that has no caller.
 - **`LoyaltyTierService`** — tiers evaluated from lifetime `TotalEarned` with a 10-minute tier-list cache; six tiers are seeded: Newcomer (0), Regular (1,000), Loyal (5,000), Veteran (25,000), Elite (100,000), Legend (500,000), each with an `EarnMultiplier` (1.0 to 2.0). Used by `!rank` and by the rewards gate; the earn multiplier itself is never applied.
-- **`LinkedAccountService`** — cross-platform identity: a stable `ViewerId` shared by `LinkedAccount` rows. `InitiateLinkAsync` generates a 6-digit code valid 5 minutes (in memory, and written to the bot's log); `VerifyLinkAsync` matches it and links the account. `!link twitch` on one platform then `!link <platform> <code>` on the other completes a link. Since 2026-08-15 the `!link` reply text matches the actual flow: it shows the 6-digit code and the 5-minute verification window (no more "type verify" instruction drift). One quirk remains: the initiation path assumes the same username on both platforms.
+- **`LinkedAccountService`** — cross-platform identity: a stable `ViewerId` shared by `LinkedAccount` rows. Since the linking wave it is backed by **`LinkCodeService`** (`VyralBot.Core/Services/Linking/`), which owns the live `!link` family: 6-digit codes valid 5 minutes, single-use, redeemed with `!link <code>` / `!linkcode <code>` or via Discord DM — the full flow documented in [Account Linking](../chat-features/account-linking.md). One quirk remains in the older initiation path: it assumes the same username on both platforms.
+- **`MultiPlatformBonusService`** — the multi-platform earnings bonus: mode/opt-in/ladder resolution plus goal multipliers, multiplied into every earning path by `ApplyEarnMultipliersAsync`. Details in [Vyral Goals](vyral-goals.md).
 
 ### Background maintenance (CurrencyDecayBackgroundService)
 
@@ -255,5 +265,6 @@ The transaction audit trail records `TransactionType` values including Earn, Spe
 - **Boosts, tier, and role multipliers apply** — the earning paths multiply by platform × boost × tier × role (floored). Role-multiplier settings are among the fields the Settings save does not persist (KI-29).
 - **Game cooldowns are in-memory** — restart clears them.
 - **Banking is off by default** — `BankEnabled` defaults to false and has no UI toggle; enabling it requires editing the database directly (the Settings save does not write that column — KI-29).
-- **Link verification codes are also written to the bot log** — the chat reply now shows the code and 5-minute window correctly; the log remains the fallback place to find a code.
+- **Link codes are proper DB rows now** — the live `!link` flow (6-digit codes, 5-minute expiry, single-use) is persisted in the `LinkCodes` table with the correct chat reply; see [Account Linking](../chat-features/account-linking.md).
+- **The multi-platform bonus is off by default** — `MultiPlatform.Mode` defaults to `Off`, so linked viewers earn at 1x until the streamer selects OptIn or Auto under Settings → Viewer Hub (see [Vyral Goals](vyral-goals.md#the-multi-platform-bonus)).
 - **Ledger locking is cosmetic** — `_balanceLock` guards nothing; concurrent awards to the same wallet could race (low practical risk in the current pipeline).

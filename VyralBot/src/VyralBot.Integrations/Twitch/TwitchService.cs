@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using System.Text;
+using System.Text.Json;
 using VyralBot.Core.Models;
 using VyralBot.Core.Services.Chat;
 using VyralBot.Core.Services.EventBus;
@@ -69,6 +71,16 @@ public class TwitchService : ITwitchService, IDisposable
         if (string.IsNullOrEmpty(accessToken)) throw new ArgumentNullException(nameof(accessToken));
         if (string.IsNullOrEmpty(channel)) throw new ArgumentNullException(nameof(channel));
 
+        // Early-return when already connected to the same channel so repeated
+        // ConnectAsync calls can't spawn duplicate IRC clients (duplicated messages).
+        var normalizedChannel = channel.TrimStart('#').ToLowerInvariant();
+        if (IsConnected && !string.IsNullOrEmpty(_channel) &&
+            string.Equals(_channel.TrimStart('#').ToLowerInvariant(), normalizedChannel, StringComparison.Ordinal))
+        {
+            _logger.LogWarning("Already connected to Twitch IRC #{Channel} - skipping duplicate connect", channel);
+            return;
+        }
+
         _logger.LogInformation("Connecting to Twitch as {Username} in #{Channel}", username, channel);
 
         // Load platform settings for filter checks
@@ -91,6 +103,30 @@ public class TwitchService : ITwitchService, IDisposable
         _refreshToken = refreshToken;
         _channel = channel;
         _intentionalDisconnect = false;
+
+        // Tear down any previous IRC client before creating a new one so we never
+        // leak a connected socket (the old client's events kept firing duplicated
+        // messages alongside the new one).
+        if (_client != null)
+        {
+            _logger.LogInformation("Disconnecting previous Twitch IRC client before reconnecting");
+            _intentionalDisconnect = true; // prevent the old client's OnDisconnected from triggering auto-reconnect
+            _client.Connected -= OnConnected;
+            _client.MessageReceived -= OnMessageReceived;
+            _client.Disconnected -= OnDisconnected;
+            _client.AuthenticationFailed -= OnAuthenticationFailed;
+            try
+            {
+                _client.Disconnect();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error disconnecting previous Twitch IRC client");
+            }
+            _client.Dispose();
+            _client = null;
+            _intentionalDisconnect = false;
+        }
 
         // Create lightweight IRC client
         var ircLogger = _loggerFactory.CreateLogger<LightweightTwitchIrc>();
@@ -176,6 +212,579 @@ public class TwitchService : ITwitchService, IDisposable
         _logger.LogDebug("Sending message to #{Channel}: {Message}", _channel, message);
         await _client!.SendMessageAsync(message);
     }
+
+    #region Stream Management (Helix API)
+
+    private const string HelixApiBase = "https://api.twitch.tv/helix";
+
+    /// <summary>Raw Helix API response; Success is true for 2xx status codes.</summary>
+    private sealed record HelixResponse(bool Success, System.Net.HttpStatusCode StatusCode, string Body);
+
+    /// <summary>
+    /// Sends an authenticated Helix request with Bearer + Client-Id headers.
+    /// On 401 the stored access token is refreshed once (when a refresh token
+    /// exists) and the request is retried. Never throws for HTTP failures —
+    /// callers inspect <see cref="HelixResponse"/>.
+    /// </summary>
+    private async Task<HelixResponse> SendHelixAsync(HttpMethod method, string pathWithQuery, string? jsonBody, bool allowTokenRefresh = true)
+    {
+        if (string.IsNullOrEmpty(_accessToken))
+        {
+            return new HelixResponse(false, System.Net.HttpStatusCode.Unauthorized, "Not connected to Twitch");
+        }
+
+        var platform = await GetTwitchPlatformAsync();
+        var clientId = !string.IsNullOrEmpty(platform?.ClientId) ? platform.ClientId : _oAuthService.ClientId;
+        if (string.IsNullOrEmpty(clientId))
+        {
+            _logger.LogWarning("Twitch Helix call skipped - no Client-Id configured");
+            return new HelixResponse(false, System.Net.HttpStatusCode.BadRequest,
+                "Twitch client credentials are missing - re-complete the Twitch setup in Platforms.");
+        }
+
+        try
+        {
+            using var client = new HttpClient();
+            using var request = new HttpRequestMessage(method, $"{HelixApiBase}/{pathWithQuery.TrimStart('/')}");
+            request.Headers.Add("Authorization", $"Bearer {_accessToken}");
+            request.Headers.Add("Client-Id", clientId);
+            if (jsonBody != null)
+            {
+                request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+            }
+
+            using var response = await client.SendAsync(request);
+            var body = await response.Content.ReadAsStringAsync();
+
+            if (response.IsSuccessStatusCode)
+            {
+                return new HelixResponse(true, response.StatusCode, body);
+            }
+
+            // 401 → the stored access token likely expired; refresh once and retry.
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized && allowTokenRefresh && await TryRefreshAccessTokenAsync())
+            {
+                return await SendHelixAsync(method, pathWithQuery, jsonBody, allowTokenRefresh: false);
+            }
+
+            _logger.LogWarning("Twitch Helix {Method} {Path} failed: {Status} - {Body}",
+                method.Method, pathWithQuery, response.StatusCode, body);
+            return new HelixResponse(false, response.StatusCode, body);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Twitch Helix {Method} {Path} threw", method.Method, pathWithQuery);
+            return new HelixResponse(false, System.Net.HttpStatusCode.InternalServerError, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Refreshes the stored Twitch access token (used on Helix 401 responses).
+    /// Returns true when new tokens are available for a retry.
+    /// </summary>
+    private async Task<bool> TryRefreshAccessTokenAsync()
+    {
+        if (string.IsNullOrEmpty(_refreshToken))
+        {
+            _logger.LogWarning("Cannot refresh Twitch token - no refresh token available");
+            return false;
+        }
+
+        try
+        {
+            try
+            {
+                await _oAuthService.LoadCredentialsAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to load Twitch client credentials before refresh; proceeding anyway");
+            }
+
+            var result = await _oAuthService.RefreshAccessTokenAsync(_refreshToken);
+            if (!result.HasValue)
+            {
+                _logger.LogError("Failed to refresh Twitch access token");
+                return false;
+            }
+
+            _accessToken = result.Value.AccessToken;
+            _refreshToken = result.Value.RefreshToken;
+
+            try
+            {
+                if (!string.IsNullOrEmpty(_botUsername))
+                {
+                    await _oAuthService.SaveTokensAsync(_botUsername, _accessToken, _refreshToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to persist refreshed Twitch tokens");
+            }
+
+            _logger.LogInformation("Refreshed Twitch access token for Helix API calls");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error refreshing Twitch access token");
+            return false;
+        }
+    }
+
+    /// <summary>Loads the Twitch Platform row (UserId / ClientId live here).</summary>
+    private async Task<Platform?> GetTwitchPlatformAsync()
+    {
+        if (_dataService == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await _dataService.GetPlatformByNameAsync("Twitch");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load the Twitch platform row");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Resolves the broadcaster user id used for Helix stream-management calls:
+    /// the Platform row's UserId when present, otherwise the token's own user
+    /// via GET /helix/users.
+    /// </summary>
+    private async Task<string?> ResolveBroadcasterIdAsync()
+    {
+        var platform = await GetTwitchPlatformAsync();
+        if (!string.IsNullOrEmpty(platform?.UserId))
+        {
+            return platform.UserId;
+        }
+
+        var response = await SendHelixAsync(HttpMethod.Get, "users", null);
+        if (!response.Success)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(response.Body);
+            if (doc.RootElement.TryGetProperty("data", out var data) && data.GetArrayLength() > 0 &&
+                data[0].TryGetProperty("id", out var id))
+            {
+                return id.GetString();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse the Twitch user lookup response");
+        }
+
+        return null;
+    }
+
+    /// <summary>Resolves a category name to its game id via GET /helix/search/categories.</summary>
+    private async Task<string?> ResolveCategoryIdAsync(string categoryName)
+    {
+        var response = await SendHelixAsync(HttpMethod.Get,
+            $"search/categories?query={Uri.EscapeDataString(categoryName)}&first=1", null);
+        if (!response.Success)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(response.Body);
+            if (doc.RootElement.TryGetProperty("data", out var data) && data.GetArrayLength() > 0 &&
+                data[0].TryGetProperty("id", out var id))
+            {
+                return id.GetString();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse the Twitch category search response");
+        }
+
+        return null;
+    }
+
+    /// <summary>Extracts Twitch's human-readable error message from a Helix error body.</summary>
+    private static string? TryExtractTwitchErrorMessage(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String)
+            {
+                var text = message.GetString();
+                return string.IsNullOrWhiteSpace(text) ? null : text;
+            }
+        }
+        catch
+        {
+            // Not JSON (e.g. empty body on 204) - fall through.
+        }
+
+        return null;
+    }
+
+    /// <summary>Maps a failed Helix response to a user-presentable message.</summary>
+    private static string MapHelixFailure(HelixResponse response)
+    {
+        return response.StatusCode switch
+        {
+            System.Net.HttpStatusCode.Unauthorized =>
+                "Twitch rejected this action (401). Re-complete the Twitch setup in Platforms to grant the new moderation permissions.",
+            System.Net.HttpStatusCode.Forbidden =>
+                "Twitch rejected this action (403). Re-complete the Twitch setup in Platforms to grant the new moderation permissions.",
+            _ => TryExtractTwitchErrorMessage(response.Body) is { } detail
+                ? $"Twitch rejected this action: {detail}"
+                : $"Twitch rejected this action ({(int)response.StatusCode})."
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<TwitchActionResponse> EditChannelInfoAsync(string? title, string? category)
+    {
+        var hasTitle = !string.IsNullOrWhiteSpace(title);
+        var hasCategory = !string.IsNullOrWhiteSpace(category);
+        if (!hasTitle && !hasCategory)
+        {
+            return new TwitchActionResponse(false, "Nothing to update - enter a title or category first.");
+        }
+
+        var broadcasterId = await ResolveBroadcasterIdAsync();
+        if (string.IsNullOrEmpty(broadcasterId))
+        {
+            return new TwitchActionResponse(false,
+                "Could not resolve the Twitch broadcaster id - re-complete the Twitch setup in Platforms.");
+        }
+
+        var body = new Dictionary<string, object>();
+        if (hasTitle)
+        {
+            body["title"] = title!.Trim();
+        }
+
+        if (hasCategory)
+        {
+            var gameId = await ResolveCategoryIdAsync(category!.Trim());
+            if (string.IsNullOrEmpty(gameId))
+            {
+                return new TwitchActionResponse(false, $"Category \"{category.Trim()}\" was not found on Twitch.");
+            }
+
+            body["game_id"] = gameId;
+        }
+
+        var response = await SendHelixAsync(HttpMethod.Patch,
+            $"channels?broadcaster_id={broadcasterId}", JsonSerializer.Serialize(body));
+        if (!response.Success)
+        {
+            return new TwitchActionResponse(false, MapHelixFailure(response));
+        }
+
+        _logger.LogInformation("Updated Twitch channel info (title set: {TitleSet}, category set: {CategorySet})",
+            hasTitle, hasCategory);
+        return new TwitchActionResponse(true,
+            hasTitle && hasCategory
+                ? $"Channel updated - title \"{title!.Trim()}\", category \"{category!.Trim()}\"."
+                : hasTitle
+                    ? $"Channel title updated to \"{title!.Trim()}\"."
+                    : $"Channel category updated to \"{category!.Trim()}\".");
+    }
+
+    /// <inheritdoc />
+    public async Task<TwitchActionResponse> CreateStreamMarkerAsync(string? description)
+    {
+        var broadcasterId = await ResolveBroadcasterIdAsync();
+        if (string.IsNullOrEmpty(broadcasterId))
+        {
+            return new TwitchActionResponse(false,
+                "Could not resolve the Twitch broadcaster id - re-complete the Twitch setup in Platforms.");
+        }
+
+        var payload = new Dictionary<string, object> { ["user_id"] = broadcasterId };
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            payload["description"] = description.Trim();
+        }
+
+        var response = await SendHelixAsync(HttpMethod.Post, "streams/markers", JsonSerializer.Serialize(payload));
+        if (!response.Success)
+        {
+            var detail = TryExtractTwitchErrorMessage(response.Body) ?? string.Empty;
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound ||
+                detail.Contains("no active", StringComparison.OrdinalIgnoreCase) ||
+                detail.Contains("not live", StringComparison.OrdinalIgnoreCase))
+            {
+                return new TwitchActionResponse(false, "Cannot create a marker - the channel is not currently live.");
+            }
+
+            return new TwitchActionResponse(false, MapHelixFailure(response));
+        }
+
+        return string.IsNullOrWhiteSpace(description)
+            ? new TwitchActionResponse(true, "Stream marker created.")
+            : new TwitchActionResponse(true, $"Stream marker \"{description.Trim()}\" created.");
+    }
+
+    /// <inheritdoc />
+    public async Task<TwitchActionResponse> CreateClipAsync()
+    {
+        var broadcasterId = await ResolveBroadcasterIdAsync();
+        if (string.IsNullOrEmpty(broadcasterId))
+        {
+            return new TwitchActionResponse(false,
+                "Could not resolve the Twitch broadcaster id - re-complete the Twitch setup in Platforms.");
+        }
+
+        var response = await SendHelixAsync(HttpMethod.Post,
+            $"clips?broadcaster_id={broadcasterId}&has_delayed=false", null);
+        if (!response.Success)
+        {
+            return new TwitchActionResponse(false, MapHelixFailure(response));
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(response.Body);
+            if (doc.RootElement.TryGetProperty("data", out var data) && data.GetArrayLength() > 0)
+            {
+                var clip = data[0];
+                var url = clip.TryGetProperty("edit_url", out var editUrl) ? editUrl.GetString() : null;
+                if (string.IsNullOrEmpty(url) && clip.TryGetProperty("url", out var urlProp))
+                {
+                    url = urlProp.GetString();
+                }
+
+                if (!string.IsNullOrEmpty(url))
+                {
+                    return new TwitchActionResponse(true, $"Clip created: {url}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse the Twitch clip creation response");
+        }
+
+        return new TwitchActionResponse(true, "Clip created.");
+    }
+
+    /// <inheritdoc />
+    public async Task<TwitchActionResponse> RaidChannelAsync(string targetChannel)
+    {
+        if (string.IsNullOrWhiteSpace(targetChannel))
+        {
+            return new TwitchActionResponse(false, "Enter a channel name to raid.");
+        }
+
+        var target = targetChannel.Trim().TrimStart('#');
+
+        var broadcasterId = await ResolveBroadcasterIdAsync();
+        if (string.IsNullOrEmpty(broadcasterId))
+        {
+            return new TwitchActionResponse(false,
+                "Could not resolve the Twitch broadcaster id - re-complete the Twitch setup in Platforms.");
+        }
+
+        var lookup = await SendHelixAsync(HttpMethod.Get, $"users?login={Uri.EscapeDataString(target)}", null);
+        string? targetId = null;
+        if (lookup.Success)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(lookup.Body);
+                if (doc.RootElement.TryGetProperty("data", out var data) && data.GetArrayLength() > 0 &&
+                    data[0].TryGetProperty("id", out var id))
+                {
+                    targetId = id.GetString();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse the Twitch raid target lookup response");
+            }
+        }
+
+        if (string.IsNullOrEmpty(targetId))
+        {
+            return new TwitchActionResponse(false, $"Twitch channel \"{target}\" was not found.");
+        }
+
+        var raid = await SendHelixAsync(HttpMethod.Post,
+            $"raids?from_broadcaster_id={broadcasterId}&to_broadcaster_id={targetId}", null);
+        if (!raid.Success)
+        {
+            return new TwitchActionResponse(false, MapHelixFailure(raid));
+        }
+
+        _logger.LogInformation("Started Twitch raid to {Target}", target);
+        return new TwitchActionResponse(true, $"Raid started - heading over to {target}!");
+    }
+
+    /// <inheritdoc />
+    public async Task<TwitchActionResponse> StopRaidAsync()
+    {
+        var broadcasterId = await ResolveBroadcasterIdAsync();
+        if (string.IsNullOrEmpty(broadcasterId))
+        {
+            return new TwitchActionResponse(false,
+                "Could not resolve the Twitch broadcaster id - re-complete the Twitch setup in Platforms.");
+        }
+
+        var response = await SendHelixAsync(HttpMethod.Delete, $"raids?broadcaster_id={broadcasterId}", null);
+        if (!response.Success)
+        {
+            return new TwitchActionResponse(false, MapHelixFailure(response));
+        }
+
+        return new TwitchActionResponse(true, "Outgoing raid cancelled.");
+    }
+
+    /// <inheritdoc />
+    public async Task<TwitchActionResponse> ClearChatAsync()
+    {
+        var broadcasterId = await ResolveBroadcasterIdAsync();
+        if (string.IsNullOrEmpty(broadcasterId))
+        {
+            return new TwitchActionResponse(false,
+                "Could not resolve the Twitch broadcaster id - re-complete the Twitch setup in Platforms.");
+        }
+
+        var response = await SendHelixAsync(HttpMethod.Delete,
+            $"moderation/chat?broadcaster_id={broadcasterId}&moderator_id={broadcasterId}", null);
+        if (!response.Success)
+        {
+            return new TwitchActionResponse(false, MapHelixFailure(response));
+        }
+
+        return new TwitchActionResponse(true, "Twitch chat cleared.");
+    }
+
+    /// <inheritdoc />
+    public async Task<TwitchActionResponse> SetChatModeAsync(bool? emoteOnly, bool? followerOnly)
+    {
+        if (emoteOnly is null && followerOnly is null)
+        {
+            return new TwitchActionResponse(false, "Nothing to change - pick a chat mode to toggle.");
+        }
+
+        var broadcasterId = await ResolveBroadcasterIdAsync();
+        if (string.IsNullOrEmpty(broadcasterId))
+        {
+            return new TwitchActionResponse(false,
+                "Could not resolve the Twitch broadcaster id - re-complete the Twitch setup in Platforms.");
+        }
+
+        var body = new Dictionary<string, object>();
+        if (emoteOnly.HasValue)
+        {
+            body["emote_mode"] = emoteOnly.Value;
+        }
+
+        if (followerOnly.HasValue)
+        {
+            body["follower_mode"] = followerOnly.Value;
+        }
+
+        var response = await SendHelixAsync(HttpMethod.Put,
+            $"chat/settings?broadcaster_id={broadcasterId}&moderator_id={broadcasterId}",
+            JsonSerializer.Serialize(body));
+        if (!response.Success)
+        {
+            return new TwitchActionResponse(false, MapHelixFailure(response));
+        }
+
+        var parts = new List<string>();
+        if (emoteOnly.HasValue)
+        {
+            parts.Add($"emote-only {(emoteOnly.Value ? "on" : "off")}");
+        }
+
+        if (followerOnly.HasValue)
+        {
+            parts.Add($"follower-only {(followerOnly.Value ? "on" : "off")}");
+        }
+
+        return new TwitchActionResponse(true, $"Twitch chat updated - {string.Join(", ", parts)}.");
+    }
+
+    /// <inheritdoc />
+    public async Task<TwitchActionResponse> SetShieldModeAsync(bool enabled)
+    {
+        var broadcasterId = await ResolveBroadcasterIdAsync();
+        if (string.IsNullOrEmpty(broadcasterId))
+        {
+            return new TwitchActionResponse(false,
+                "Could not resolve the Twitch broadcaster id - re-complete the Twitch setup in Platforms.");
+        }
+
+        var response = await SendHelixAsync(HttpMethod.Put,
+            $"moderation/shield_mode?broadcaster_id={broadcasterId}&moderator_id={broadcasterId}",
+            JsonSerializer.Serialize(new { is_enabled = enabled }));
+        if (!response.Success)
+        {
+            return new TwitchActionResponse(false, MapHelixFailure(response));
+        }
+
+        return enabled
+            ? new TwitchActionResponse(true, "Shield Mode enabled - suspect users are monitored and timed out.")
+            : new TwitchActionResponse(true, "Shield Mode disabled.");
+    }
+
+    /// <inheritdoc />
+    public async Task<TwitchChatModeState?> GetChatModeStateAsync()
+    {
+        try
+        {
+            var broadcasterId = await ResolveBroadcasterIdAsync();
+            if (string.IsNullOrEmpty(broadcasterId))
+            {
+                return null;
+            }
+
+            var settings = await SendHelixAsync(HttpMethod.Get,
+                $"chat/settings?broadcaster_id={broadcasterId}&moderator_id={broadcasterId}", null);
+            var shield = await SendHelixAsync(HttpMethod.Get,
+                $"moderation/shield_mode?broadcaster_id={broadcasterId}&moderator_id={broadcasterId}", null);
+            if (!settings.Success || !shield.Success)
+            {
+                return null;
+            }
+
+            using var settingsDoc = JsonDocument.Parse(settings.Body);
+            using var shieldDoc = JsonDocument.Parse(shield.Body);
+
+            if (!settingsDoc.RootElement.TryGetProperty("data", out var settingsData) || settingsData.GetArrayLength() == 0 ||
+                !shieldDoc.RootElement.TryGetProperty("data", out var shieldData) || shieldData.GetArrayLength() == 0)
+            {
+                return null;
+            }
+
+            var settings0 = settingsData[0];
+            var shield0 = shieldData[0];
+            return new TwitchChatModeState(
+                settings0.TryGetProperty("emote_mode", out var emote) && emote.GetBoolean(),
+                settings0.TryGetProperty("follower_mode", out var follower) && follower.GetBoolean(),
+                shield0.TryGetProperty("is_enabled", out var shieldEnabled) && shieldEnabled.GetBoolean());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to read the Twitch chat mode state");
+            return null;
+        }
+    }
+
+    #endregion
 
     private void OnConnected(object? sender, EventArgs e)
     {

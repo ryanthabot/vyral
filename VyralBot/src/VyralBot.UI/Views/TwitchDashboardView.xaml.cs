@@ -58,6 +58,7 @@ public partial class TwitchDashboardView : UserControl
         if (DataContext is TwitchDashboardViewModel viewModel)
         {
             viewModel.WebView2InitializeRequested -= OnWebView2InitializeRequested;
+            viewModel.Cleanup();
         }
 
         // Dispose WebView2 when view is unloaded

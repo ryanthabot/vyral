@@ -17,6 +17,10 @@ public partial class KickSettingsViewModel : ViewModelBase
     private readonly IKickService _kickService;
     private readonly WebhookCoordinatorService _webhookCoordinator;
 
+    // Guards the persist-backs while InitializeAsync loads persisted values
+    // into the properties (mirrors KickChatSettingsViewModel's pattern).
+    private bool _isInitializing;
+
     [ObservableProperty]
     private string _username = "";
 
@@ -87,9 +91,13 @@ public partial class KickSettingsViewModel : ViewModelBase
 
             if (platform != null)
             {
-                // Always load chat settings from database regardless of connection status
+                // Always load chat settings from database regardless of connection status.
+                // Wrap in an _isInitializing guard so the property setters don't fire the
+                // persist-backs (DB rewrite + redundant routing event) on every page open.
+                _isInitializing = true;
                 IsChatEnabled = platform.KickChatEnabled;
                 AutoStartChat = platform.KickChatAutoStart;
+                _isInitializing = false;
                 _logger.LogInformation("Loaded Kick chat enabled from DB: {Enabled}", IsChatEnabled);
                 
                 if (platform.Status == "Connected")
@@ -123,6 +131,7 @@ public partial class KickSettingsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            _isInitializing = false;
             _logger.LogError(ex, "Error loading Kick settings");
             Status = $"Error: {ex.Message}";
         }
@@ -223,9 +232,18 @@ public partial class KickSettingsViewModel : ViewModelBase
                     return;
                 }
 
-                await _webhookCoordinator.EnableKickWebhooksAsync(accessToken, platform.UserId);
-                WebhookStatus = "Webhooks enabled - receiving events";
-                _logger.LogInformation("Kick webhooks enabled successfully");
+                var enableResult = await _webhookCoordinator.EnableKickWebhooksAsync(accessToken, platform.UserId);
+                if (enableResult)
+                {
+                    WebhookStatus = "Webhooks enabled - receiving events";
+                    _logger.LogInformation("Kick webhooks enabled successfully");
+                }
+                else
+                {
+                    WebhookStatus = "Failed to enable webhooks - one or more subscriptions were rejected. Check the webhook server status and Kick credentials.";
+                    IsWebhookEnabled = false;
+                    _logger.LogWarning("Kick webhook enable reported failure (subscriptions not registered)");
+                }
             }
             else
             {
@@ -286,12 +304,22 @@ public partial class KickSettingsViewModel : ViewModelBase
     // Chat WebView2 methods
     partial void OnIsChatEnabledChanged(bool value)
     {
-        _ = SaveChatEnabledSettingAsync(value);
+        // Keep the Start/Stop Chat button's CanExecute in sync with the toggle,
+        // otherwise the button stays stuck after IsChatEnabled changes.
+        ToggleChatCommand.NotifyCanExecuteChanged();
+
+        if (!_isInitializing)
+        {
+            _ = SaveChatEnabledSettingAsync(value);
+        }
     }
 
     partial void OnAutoStartChatChanged(bool value)
     {
-        _ = SaveAutoStartSettingAsync(value);
+        if (!_isInitializing)
+        {
+            _ = SaveAutoStartSettingAsync(value);
+        }
     }
 
     private async Task SaveChatEnabledSettingAsync(bool value)
