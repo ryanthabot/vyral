@@ -76,6 +76,10 @@ public class ProfileAwareDataService : IDataService
     public Task SaveDiscordBotAsync(DiscordBot bot) => GetCurrentService().SaveDiscordBotAsync(bot);
     public Task DeleteDiscordBotAsync(string id) => GetCurrentService().DeleteDiscordBotAsync(id);
 
+    // ===== W1T4 watchtime/points gating: per-bot assigned Discord channels =====
+    public Task<string?> GetAssignedChannelIdsAsync(string botId) => GetCurrentService().GetAssignedChannelIdsAsync(botId);
+    public Task SetAssignedChannelIdsAsync(string botId, string channelIds) => GetCurrentService().SetAssignedChannelIdsAsync(botId, channelIds);
+
     // Workflow operations (visual automation engine, VyralBot.Workflows)
     public Task<IEnumerable<WorkflowEntity>> GetWorkflowsAsync() => GetCurrentService().GetWorkflowsAsync();
     public Task SaveWorkflowAsync(WorkflowEntity workflow) => GetCurrentService().SaveWorkflowAsync(workflow);
@@ -303,4 +307,16 @@ public class ProfileAwareDataService : IDataService
     public Task SaveVariableAsync(Variable variable) => GetCurrentService().SaveVariableAsync(variable);
     public Task DeleteVariableAsync(string id) => GetCurrentService().DeleteVariableAsync(id);
     public Task UpdateVariableValueAsync(string name, string? value) => GetCurrentService().UpdateVariableValueAsync(name, value);
+
+    // Mod system + platform earnings operations
+    public Task SaveModActionAsync(ModAction action) => GetCurrentService().SaveModActionAsync(action);
+    public Task<IEnumerable<ModAction>> GetModActionsAsync(int limit = 200) => GetCurrentService().GetModActionsAsync(limit);
+    public Task<IEnumerable<ModAction>> GetModActionsForViewerAsync(string username, string userId, int limit = 100) => GetCurrentService().GetModActionsForViewerAsync(username, userId, limit);
+    public Task SaveModRoleAssignmentAsync(ModRoleAssignment assignment) => GetCurrentService().SaveModRoleAssignmentAsync(assignment);
+    public Task DeleteModRoleAssignmentAsync(string discordUserId) => GetCurrentService().DeleteModRoleAssignmentAsync(discordUserId);
+    public Task<IEnumerable<ModRoleAssignment>> GetModRoleAssignmentsAsync() => GetCurrentService().GetModRoleAssignmentsAsync();
+    public Task<ModRoleAssignment?> GetModRoleAssignmentAsync(string discordUserId) => GetCurrentService().GetModRoleAssignmentAsync(discordUserId);
+    public Task SavePlatformEarningsAsync(PlatformEarnings earnings) => GetCurrentService().SavePlatformEarningsAsync(earnings);
+    public Task<IEnumerable<PlatformEarnings>> GetPlatformEarningsAsync(string viewerId) => GetCurrentService().GetPlatformEarningsAsync(viewerId);
+    public Task AddPlatformEarningsAsync(string viewerId, string platform, long earned, long spent) => GetCurrentService().AddPlatformEarningsAsync(viewerId, platform, earned, spent);
 }

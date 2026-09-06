@@ -167,6 +167,7 @@ public partial class App : Application
 
                 // Watchtime system
                 services.AddSingleton<WatchtimeService>();
+            services.AddSingleton<VyralBot.Core.Services.StreamStatus.IStreamLiveRegistry, VyralBot.Integrations.StreamStatus.StreamLiveRegistry>();
                 services.AddSingleton<WatchtimeCommandService>();
                 services.AddHostedService<WatchtimeBackgroundService>();
 

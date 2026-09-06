@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using VyralBot.Core.Services.Linking;
+using VyralBot.Core.Services.StreamStatus;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
 
@@ -16,6 +17,7 @@ public class CurrencyService : ICurrencyService
     private readonly ICurrencyBoostService _boostService;
     private readonly ILoyaltyTierService _loyaltyTierService;
     private readonly IMultiPlatformBonusService? _multiPlatformBonus;
+    private readonly IStreamLiveRegistry? _streamLiveRegistry;
     private readonly object _balanceLock = new();
     private CurrencySetting? _cachedSettings;
     private DateTime _settingsCacheTime = DateTime.MinValue;
@@ -26,13 +28,15 @@ public class CurrencyService : ICurrencyService
         IDataService dataService,
         ICurrencyBoostService boostService,
         ILoyaltyTierService loyaltyTierService,
-        IMultiPlatformBonusService? multiPlatformBonus = null)
+        IMultiPlatformBonusService? multiPlatformBonus = null,
+        IStreamLiveRegistry? streamLiveRegistry = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _boostService = boostService ?? throw new ArgumentNullException(nameof(boostService));
         _loyaltyTierService = loyaltyTierService ?? throw new ArgumentNullException(nameof(loyaltyTierService));
         _multiPlatformBonus = multiPlatformBonus;
+        _streamLiveRegistry = streamLiveRegistry;
     }
 
     public async Task<CurrencySetting?> GetSettingsAsync()
@@ -416,8 +420,29 @@ public class CurrencyService : ICurrencyService
         return await _dataService.GetCurrencyTransactionsAsync(username, platform, limit);
     }
 
-    public async Task AwardChatActivityAsync(string username, string platform)
+    public async Task AwardChatActivityAsync(string username, string platform, string? channelId = null)
     {
+        // W1T4: Discord chat activity points are paid ONLY in channels the
+        // streamer assigned (per-bot AssignedChannelIds). Callers without
+        // channel info (channelId == null) keep working (back-compat) and are
+        // logged at Debug.
+        if (platform != null && platform.Equals("Discord", StringComparison.OrdinalIgnoreCase))
+        {
+            if (channelId == null)
+            {
+                _logger.LogDebug(
+                    "Discord chat activity for {Username}: no channel id supplied by caller — awarding (legacy path)",
+                    username);
+            }
+            else if (!await IsDiscordChannelAssignedAsync(channelId))
+            {
+                _logger.LogDebug(
+                    "Discord chat activity for {Username}: channel {ChannelId} is not in the streamer's assigned channels — skipping points",
+                    username, channelId);
+                return;
+            }
+        }
+
         var settings = await GetSettingsRequiredAsync();
 
         if (!settings.ChatActivityEnabled)
@@ -457,6 +482,17 @@ public class CurrencyService : ICurrencyService
 
     public async Task AwardWatchTimeAsync(string username, string platform)
     {
+        // W1T4 gating: Discord viewers never earn watch-time points, and stream
+        // platforms earn only while that platform is live. When no live
+        // registry is wired the live check is skipped (back-compat).
+        var isLive = _streamLiveRegistry is null
+            ? (bool?)null
+            : _streamLiveRegistry.IsLive(platform);
+        if (!WatchtimeService.ShouldAccrueWatchtime(platform, isLive))
+        {
+            return;
+        }
+
         var settings = await GetSettingsRequiredAsync();
 
         if (!settings.WatchTimeEnabled)
@@ -491,6 +527,57 @@ public class CurrencyService : ICurrencyService
         {
             currencyForCooldown.LastWatchTimeUpdate = DateTime.UtcNow;
             await _dataService.SaveUserCurrencyAsync(currencyForCooldown);
+        }
+    }
+
+    /// <summary>
+    /// W1T4 gating decision (pure, unit-tested in WatchtimeGatingTests):
+    /// whether <paramref name="channelId"/> appears in the streamer's assigned
+    /// channel list. Membership is comma-split and case-insensitive with
+    /// surrounding whitespace tolerated. A null/empty channel id or an
+    /// empty/missing assigned list is NOT allowed (strict per the approved
+    /// rules — callers that have no channel info must decide back-compat
+    /// themselves before consulting this helper).
+    /// </summary>
+    public static bool IsDiscordChannelAllowed(string? channelId, string? assignedCsv)
+    {
+        if (string.IsNullOrWhiteSpace(channelId) || string.IsNullOrWhiteSpace(assignedCsv))
+        {
+            return false;
+        }
+
+        var assigned = assignedCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return assigned.Contains(channelId.Trim(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Checks whether a Discord channel is assigned on ANY bot row (the chat
+    /// event does not carry which bot received it, so the per-bot assignment
+    /// lists are unioned). Data-layer failures fail OPEN (log + allow) so a
+    /// transient read error never silently stops earning.
+    /// </summary>
+    private async Task<bool> IsDiscordChannelAssignedAsync(string channelId)
+    {
+        try
+        {
+            var bots = await _dataService.GetDiscordBotsAsync();
+            foreach (var bot in bots)
+            {
+                var assignedCsv = await _dataService.GetAssignedChannelIdsAsync(bot.Id);
+                if (IsDiscordChannelAllowed(channelId, assignedCsv))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Failed to read DiscordBots.AssignedChannelIds — allowing Discord chat activity points for channel {ChannelId}",
+                channelId);
+            return true;
         }
     }
 

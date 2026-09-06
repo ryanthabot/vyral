@@ -186,6 +186,9 @@ public class DapperDataService : IDataService
                     RoleLinking = @RoleLinking,
                     RoleGiveaway = @RoleGiveaway,
                     AutoStart = @AutoStart,
+                    ModChannelId = @ModChannelId,
+                    ModChannelEnabled = @ModChannelEnabled,
+                    AssignedChannelIds = @AssignedChannelIds,
                     UpdatedAt = @UpdatedAt
                 WHERE Id = @Id", bot);
         }
@@ -196,11 +199,13 @@ public class DapperDataService : IDataService
                     Id, Name, Token, Status, SelectedChannelId,
                     ApplicationId, BotUsername, AvatarUrl, RoleLinking, RoleGiveaway,
                     AutoStart,
+                    ModChannelId, ModChannelEnabled, AssignedChannelIds,
                     CreatedAt, UpdatedAt
                 ) VALUES (
                     @Id, @Name, @Token, @Status, @SelectedChannelId,
                     @ApplicationId, @BotUsername, @AvatarUrl, @RoleLinking, @RoleGiveaway,
                     @AutoStart,
+                    @ModChannelId, @ModChannelEnabled, @AssignedChannelIds,
                     @CreatedAt, @UpdatedAt
                 )", bot);
         }
@@ -210,6 +215,25 @@ public class DapperDataService : IDataService
     {
         using var conn = CreateConnection();
         await conn.ExecuteAsync("DELETE FROM DiscordBots WHERE Id = @Id", new { Id = id });
+    }
+
+    // ===== W1T4 watchtime/points gating: per-bot assigned Discord channels =====
+    // Owned by the watchtime-gating task. The AssignedChannelIds column DDL is
+    // already handled by the mod-system migration block (AddColumnIfNotExistsAsync
+    // "DiscordBots"."AssignedChannelIds") — intentionally NOT duplicated here.
+    public async Task<string?> GetAssignedChannelIdsAsync(string botId)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<string>(
+            "SELECT AssignedChannelIds FROM DiscordBots WHERE Id = @BotId", new { BotId = botId });
+    }
+
+    public async Task SetAssignedChannelIdsAsync(string botId, string channelIds)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync(
+            "UPDATE DiscordBots SET AssignedChannelIds = @ChannelIds, UpdatedAt = @UpdatedAt WHERE Id = @BotId",
+            new { BotId = botId, ChannelIds = channelIds, UpdatedAt = DateTime.UtcNow });
     }
 
     #endregion
@@ -2720,6 +2744,197 @@ public class DapperDataService : IDataService
 
     #endregion
 
+    #region Mod System + Platform Earnings Operations
+
+    public async Task SaveModActionAsync(ModAction action)
+    {
+        using var conn = CreateConnection();
+
+        var exists = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM ModActions WHERE Id = @Id", new { action.Id });
+
+        if (exists > 0)
+        {
+            await conn.ExecuteAsync(@"
+                UPDATE ModActions SET
+                    ModUsername = @ModUsername,
+                    ModUserId = @ModUserId,
+                    TargetUsername = @TargetUsername,
+                    TargetUserId = @TargetUserId,
+                    Action = @Action,
+                    Details = @Details,
+                    Timestamp = @Timestamp
+                WHERE Id = @Id", action);
+        }
+        else
+        {
+            await conn.ExecuteAsync(@"
+                INSERT INTO ModActions (
+                    Id, ModUsername, ModUserId, TargetUsername, TargetUserId,
+                    Action, Details, Timestamp
+                ) VALUES (
+                    @Id, @ModUsername, @ModUserId, @TargetUsername, @TargetUserId,
+                    @Action, @Details, @Timestamp
+                )", action);
+        }
+    }
+
+    public async Task<IEnumerable<ModAction>> GetModActionsAsync(int limit = 200)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<ModAction>(
+            "SELECT * FROM ModActions ORDER BY Timestamp DESC LIMIT @Limit",
+            new { Limit = limit });
+    }
+
+    public async Task<IEnumerable<ModAction>> GetModActionsForViewerAsync(string username, string userId, int limit = 100)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<ModAction>(
+            "SELECT * FROM ModActions WHERE TargetUsername = @Username COLLATE NOCASE OR TargetUserId = @UserId ORDER BY Timestamp DESC LIMIT @Limit",
+            new { Username = username, UserId = userId, Limit = limit });
+    }
+
+    public async Task SaveModRoleAssignmentAsync(ModRoleAssignment assignment)
+    {
+        using var conn = CreateConnection();
+
+        // One assignment per Discord user (UNIQUE(DiscordUserId)) — upsert on that key
+        var exists = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM ModRoleAssignments WHERE DiscordUserId = @DiscordUserId",
+            new { assignment.DiscordUserId });
+
+        if (exists > 0)
+        {
+            await conn.ExecuteAsync(@"
+                UPDATE ModRoleAssignments SET
+                    Username = @Username,
+                    Tier = @Tier,
+                    AssignedBy = @AssignedBy,
+                    AssignedAt = @AssignedAt,
+                    DiscordRoleId = @DiscordRoleId
+                WHERE DiscordUserId = @DiscordUserId", assignment);
+        }
+        else
+        {
+            await conn.ExecuteAsync(@"
+                INSERT INTO ModRoleAssignments (
+                    Id, DiscordUserId, Username, Tier, AssignedBy, AssignedAt, DiscordRoleId
+                ) VALUES (
+                    @Id, @DiscordUserId, @Username, @Tier, @AssignedBy, @AssignedAt, @DiscordRoleId
+                )", assignment);
+        }
+    }
+
+    public async Task DeleteModRoleAssignmentAsync(string discordUserId)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync(
+            "DELETE FROM ModRoleAssignments WHERE DiscordUserId = @DiscordUserId",
+            new { DiscordUserId = discordUserId });
+    }
+
+    public async Task<IEnumerable<ModRoleAssignment>> GetModRoleAssignmentsAsync()
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<ModRoleAssignment>(
+            "SELECT * FROM ModRoleAssignments ORDER BY AssignedAt DESC");
+    }
+
+    public async Task<ModRoleAssignment?> GetModRoleAssignmentAsync(string discordUserId)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<ModRoleAssignment>(
+            "SELECT * FROM ModRoleAssignments WHERE DiscordUserId = @DiscordUserId",
+            new { DiscordUserId = discordUserId });
+    }
+
+    public async Task SavePlatformEarningsAsync(PlatformEarnings earnings)
+    {
+        using var conn = CreateConnection();
+        earnings.UpdatedAt = DateTime.UtcNow;
+
+        var exists = await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM PlatformEarnings WHERE ViewerId = @ViewerId AND Platform = @Platform COLLATE NOCASE",
+            earnings);
+
+        if (exists > 0)
+        {
+            await conn.ExecuteAsync(@"
+                UPDATE PlatformEarnings SET
+                    Earned = @Earned,
+                    Spent = @Spent,
+                    UpdatedAt = @UpdatedAt
+                WHERE ViewerId = @ViewerId AND Platform = @Platform COLLATE NOCASE", earnings);
+        }
+        else
+        {
+            await conn.ExecuteAsync(@"
+                INSERT INTO PlatformEarnings (Id, ViewerId, Platform, Earned, Spent, UpdatedAt)
+                VALUES (@Id, @ViewerId, @Platform, @Earned, @Spent, @UpdatedAt)", earnings);
+        }
+    }
+
+    public async Task<IEnumerable<PlatformEarnings>> GetPlatformEarningsAsync(string viewerId)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<PlatformEarnings>(
+            "SELECT * FROM PlatformEarnings WHERE ViewerId = @ViewerId",
+            new { ViewerId = viewerId });
+    }
+
+    public async Task AddPlatformEarningsAsync(string viewerId, string platform, long earned, long spent)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+
+        // Atomic read-add-write: the SELECT + UPDATE/INSERT pair runs in one
+        // transaction so concurrent earners can never lose an increment.
+        using var tx = conn.BeginTransaction();
+        try
+        {
+            var row = await conn.QueryFirstOrDefaultAsync<PlatformEarnings>(
+                "SELECT * FROM PlatformEarnings WHERE ViewerId = @ViewerId AND Platform = @Platform COLLATE NOCASE",
+                new { ViewerId = viewerId, Platform = platform }, tx);
+
+            if (row != null)
+            {
+                row.Earned += earned;
+                row.Spent += spent;
+                row.UpdatedAt = DateTime.UtcNow;
+
+                await conn.ExecuteAsync(
+                    "UPDATE PlatformEarnings SET Earned = @Earned, Spent = @Spent, UpdatedAt = @UpdatedAt WHERE Id = @Id",
+                    row, tx);
+            }
+            else
+            {
+                row = new PlatformEarnings
+                {
+                    ViewerId = viewerId,
+                    Platform = platform,
+                    Earned = earned,
+                    Spent = spent,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                await conn.ExecuteAsync(
+                    "INSERT INTO PlatformEarnings (Id, ViewerId, Platform, Earned, Spent, UpdatedAt) " +
+                    "VALUES (@Id, @ViewerId, @Platform, @Earned, @Spent, @UpdatedAt)",
+                    row, tx);
+            }
+
+            tx.Commit();
+        }
+        catch
+        {
+            tx.Rollback();
+            throw;
+        }
+    }
+
+    #endregion
+
     #region Data Management Operations (Settings → Data Management)
 
     // Whitelisted user-data tables surfaced in the Settings → Data Management inventory.
@@ -3793,6 +4008,61 @@ public class DapperDataService : IDataService
         // bot); the PRIMARY bot is NOT seeded to 1 — when the Platform row's
         // DiscordChatAutoStart is on, the startup path alone starts the primary bot.
         await AddColumnIfNotExistsAsync(conn, "DiscordBots", "AutoStart", "INTEGER NOT NULL DEFAULT 0");
+
+        // V5: mod system — per-bot mod channel routing and assigned mod channels
+        // (upgrades DiscordBots tables created before these columns existed)
+        await AddColumnIfNotExistsAsync(conn, "DiscordBots", "ModChannelId", "TEXT");
+        await AddColumnIfNotExistsAsync(conn, "DiscordBots", "ModChannelEnabled", "INTEGER NOT NULL DEFAULT 1");
+        await AddColumnIfNotExistsAsync(conn, "DiscordBots", "AssignedChannelIds", "TEXT");
+
+        // V5: mod system — cross-table upgrades for platform identity caching
+        await AddColumnIfNotExistsAsync(conn, "ViewerPlatformStatus", "PlatformUserId", "TEXT");
+        await AddColumnIfNotExistsAsync(conn, "LinkedAccounts", "PlatformUserId", "TEXT");
+
+        // V5: mod system — audit log of moderation actions
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS ModActions (
+                Id TEXT PRIMARY KEY,
+                ModUsername TEXT NOT NULL,
+                ModUserId TEXT,
+                TargetUsername TEXT NOT NULL,
+                TargetUserId TEXT,
+                Action TEXT NOT NULL,
+                Details TEXT,
+                Timestamp TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS IX_ModActions_Timestamp ON ModActions(Timestamp DESC);
+            CREATE INDEX IF NOT EXISTS IX_ModActions_TargetUsername ON ModActions(TargetUsername);
+        ");
+
+        // V5: mod system — one mod-role assignment per Discord user
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS ModRoleAssignments (
+                Id TEXT PRIMARY KEY,
+                DiscordUserId TEXT NOT NULL,
+                Username TEXT NOT NULL,
+                Tier TEXT NOT NULL,
+                AssignedBy TEXT,
+                AssignedAt TEXT NOT NULL,
+                DiscordRoleId TEXT,
+                UNIQUE(DiscordUserId)
+            );
+            CREATE INDEX IF NOT EXISTS IX_ModRoleAssignments_Tier ON ModRoleAssignments(Tier);
+        ");
+
+        // V5: per-platform points ledger (one row per unified viewer + platform)
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS PlatformEarnings (
+                Id TEXT PRIMARY KEY,
+                ViewerId TEXT NOT NULL,
+                Platform TEXT NOT NULL,
+                Earned INTEGER NOT NULL DEFAULT 0,
+                Spent INTEGER NOT NULL DEFAULT 0,
+                UpdatedAt TEXT NOT NULL,
+                UNIQUE(ViewerId, Platform)
+            );
+            CREATE INDEX IF NOT EXISTS IX_PlatformEarnings_ViewerId ON PlatformEarnings(ViewerId);
+        ");
 
         // Command timers: scheduled firing of commands (Commands page → Timers tab)
         await conn.ExecuteAsync(@"

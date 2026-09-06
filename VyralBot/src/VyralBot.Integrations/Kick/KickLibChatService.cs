@@ -374,6 +374,7 @@ public class KickLibChatService : IKickService, IDisposable
             Platform = "Kick",
             Channel = _currentChannel ?? "Unknown",
             Username = msg.Sender.Username,
+            UserId = msg.Sender.Id.ToString(),
             Message = msg.Content,
             IsModerator = chatEvent.IsModerator,
             IsSubscriber = chatEvent.IsSubscriber,

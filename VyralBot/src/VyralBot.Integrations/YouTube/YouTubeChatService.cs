@@ -679,6 +679,7 @@ public class YouTubeChatService : IYouTubeService, IDisposable
             Platform = "YouTube",
             Channel = _currentChannel ?? "Unknown",
             Username = displayName,
+            UserId = channelId,
             Message = messageText,
             IsModerator = isModerator,
             IsSubscriber = isMember,

@@ -986,6 +986,7 @@ public class TwitchService : ITwitchService, IDisposable
                 Platform = "Twitch",
                 Channel = e.Channel,
                 Username = e.Username,
+                UserId = e.UserId,
                 Message = e.Message,
                 IsModerator = e.IsModerator,
                 IsSubscriber = e.IsSubscriber,

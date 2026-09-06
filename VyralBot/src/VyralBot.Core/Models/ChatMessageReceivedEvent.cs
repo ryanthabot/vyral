@@ -26,6 +26,13 @@ public record ChatMessageReceivedEvent : EventBase
     public required string Username { get; init; }
 
     /// <summary>
+    /// Platform-assigned user id of the sender when the source platform
+    /// provides one (Twitch user id, Kick user id, YouTube channel id,
+    /// Discord snowflake). Null for platforms that do not expose it.
+    /// </summary>
+    public string? UserId { get; init; }
+
+    /// <summary>
     /// Raw message text.
     /// </summary>
     public required string Message { get; init; }

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
 using VyralBot.Core.Services.Currency;
+using VyralBot.Core.Services.StreamStatus;
 
 namespace VyralBot.Core.Services;
 
@@ -14,17 +15,43 @@ public class WatchtimeService
     private readonly IDataService _dataService;
     private readonly ILogger<WatchtimeService> _logger;
     private readonly ICurrencyService? _currencyService;
+    private readonly IStreamLiveRegistry? _streamLiveRegistry;
     private readonly TimeSpan _inactiveThreshold = TimeSpan.FromMinutes(5);
     private const int MinutesPerUpdate = 1; // Track every minute
 
     public WatchtimeService(
         IDataService dataService,
         ILogger<WatchtimeService> logger,
-        ICurrencyService? currencyService = null)
+        ICurrencyService? currencyService = null,
+        IStreamLiveRegistry? streamLiveRegistry = null)
     {
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _currencyService = currencyService;
+        _streamLiveRegistry = streamLiveRegistry;
+    }
+
+    /// <summary>
+    /// W1T4 gating decision (pure, unit-tested in WatchtimeGatingTests):
+    /// whether a viewer on <paramref name="platform"/> should accrue watch-time
+    /// points this tick. Discord NEVER accrues (it has no live concept);
+    /// every other platform accrues only while it is live. When the live
+    /// status is unknown (<paramref name="isLive"/> is null — e.g. no
+    /// IStreamLiveRegistry is wired) stream platforms accrue as before so
+    /// existing callers stay back-compat.
+    /// </summary>
+    /// <param name="platform">Viewer platform ("Twitch", "Kick", "YouTube", "Discord", ...).</param>
+    /// <param name="isLive">Live status of the platform; null when unknown / no registry.</param>
+    public static bool ShouldAccrueWatchtime(string? platform, bool? isLive)
+    {
+        // Discord has no live concept: its viewers never earn watch-time points.
+        if (string.Equals(platform, "Discord", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Unknown live status (no registry wired) → behave as before the gating.
+        return isLive ?? true;
     }
 
     /// <summary>
@@ -80,6 +107,17 @@ public class WatchtimeService
 
         foreach (var viewer in activeViewers)
         {
+            // W1T4 gating: Discord viewers never accrue watchtime, and stream
+            // platforms accrue only while that platform is live. When no live
+            // registry is wired the live check is skipped (back-compat).
+            var isLive = _streamLiveRegistry is null
+                ? (bool?)null
+                : _streamLiveRegistry.IsLive(viewer.Platform);
+            if (!ShouldAccrueWatchtime(viewer.Platform, isLive))
+            {
+                continue;
+            }
+
             viewer.TotalMinutes += minutes;
             viewer.StreamSessionMinutes += minutes;
             await _dataService.SaveUserWatchtimeAsync(viewer);

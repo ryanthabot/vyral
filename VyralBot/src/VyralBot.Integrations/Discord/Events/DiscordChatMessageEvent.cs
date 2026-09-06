@@ -42,6 +42,11 @@ public record DiscordChatMessageEvent : EventBase
     public required string Username { get; init; }
 
     /// <summary>
+    /// Discord snowflake ID of the sender when available.
+    /// </summary>
+    public string? SenderUserId { get; init; }
+
+    /// <summary>
     /// Raw message text.
     /// </summary>
     public required string Message { get; init; }

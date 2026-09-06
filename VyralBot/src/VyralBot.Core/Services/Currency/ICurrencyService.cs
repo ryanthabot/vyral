@@ -60,7 +60,13 @@ public interface ICurrencyService
     /// <summary>
     /// Award currency for chat activity (with cooldown check).
     /// </summary>
-    Task AwardChatActivityAsync(string username, string platform);
+    /// <param name="channelId">
+    /// Optional chat channel id. When <paramref name="platform"/> is "Discord"
+    /// and a channel id is supplied, points are paid ONLY if that channel is in
+    /// the streamer's per-bot assigned channel list (W1T4). Callers without
+    /// channel info may omit it (legacy behavior: award).
+    /// </param>
+    Task AwardChatActivityAsync(string username, string platform, string? channelId = null);
 
     /// <summary>
     /// Award currency for watch time (with interval check).

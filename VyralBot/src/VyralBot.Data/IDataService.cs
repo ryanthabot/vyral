@@ -38,6 +38,15 @@ public class DiscordBot
     /// <summary>This bot sends giveaway announcements (single-assignment role — only one row holds it).</summary>
     public bool RoleGiveaway { get; set; }
 
+    /// <summary>Per-bot snowflake channel used for mod-action announcements.</summary>
+    public string? ModChannelId { get; set; }
+
+    /// <summary>Whether this bot routes mod actions to its mod channel (defaults to on).</summary>
+    public bool ModChannelEnabled { get; set; } = true;
+
+    /// <summary>Comma-separated snowflake channel IDs this bot listens in for mod commands.</summary>
+    public string? AssignedChannelIds { get; set; }
+
     /// <summary>
     /// Start this bot automatically at app launch. The PRIMARY bot does not need
     /// this flag: when the Platform row's DiscordChatAutoStart is on, the startup
@@ -135,6 +144,15 @@ public interface IDataService
     Task<IEnumerable<DiscordBot>> GetDiscordBotsAsync();
     Task SaveDiscordBotAsync(DiscordBot bot);
     Task DeleteDiscordBotAsync(string id);
+
+    // ===== W1T4 watchtime/points gating: per-bot assigned Discord channels =====
+    // Owned by the watchtime-gating task. The AssignedChannelIds column itself
+    // (entity property, save path and DDL) is maintained elsewhere; these are
+    // the read/write members used by CurrencyService.AwardChatActivityAsync.
+    /// <summary>Reads the comma-separated assigned Discord channel ids for one bot (null when unset).</summary>
+    Task<string?> GetAssignedChannelIdsAsync(string botId);
+    /// <summary>Overwrites the comma-separated assigned Discord channel ids for one bot.</summary>
+    Task SetAssignedChannelIdsAsync(string botId, string channelIds);
 
     // Workflows (visual automation engine, VyralBot.Workflows)
     Task<IEnumerable<WorkflowEntity>> GetWorkflowsAsync();
@@ -379,6 +397,18 @@ public interface IDataService
     Task SaveUserWatchtimeAsync(UserWatchtime watchtime);
     Task DeactivateInactiveViewersAsync(DateTime inactiveSince);
     Task ResetStreamSessionMinutesAsync();
+
+    // Mod system + platform earnings
+    Task SaveModActionAsync(ModAction action);
+    Task<IEnumerable<ModAction>> GetModActionsAsync(int limit = 200);                 // ORDER BY Timestamp DESC
+    Task<IEnumerable<ModAction>> GetModActionsForViewerAsync(string username, string userId, int limit = 100); // TargetUsername COLLATE NOCASE OR TargetUserId
+    Task SaveModRoleAssignmentAsync(ModRoleAssignment assignment);                    // exists-check upsert on DiscordUserId
+    Task DeleteModRoleAssignmentAsync(string discordUserId);
+    Task<IEnumerable<ModRoleAssignment>> GetModRoleAssignmentsAsync();
+    Task<ModRoleAssignment?> GetModRoleAssignmentAsync(string discordUserId);
+    Task SavePlatformEarningsAsync(PlatformEarnings earnings);                        // exists-check upsert on (ViewerId, Platform)
+    Task<IEnumerable<PlatformEarnings>> GetPlatformEarningsAsync(string viewerId);    // one row per platform
+    Task AddPlatformEarningsAsync(string viewerId, string platform, long earned, long spent); // atomic read-add-write upsert
 
     // Variables
     Task<Variable?> GetVariableAsync(string id);
