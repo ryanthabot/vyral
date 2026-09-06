@@ -508,7 +508,7 @@ public class ModCommandEngineTests
         await t.Engine.HandleMessageAsync(Msg("!mod assignmod @newguy Owner"));
 
         Assert.Contains("Unknown tier", Assert.Single(t.Bot.SentMessages).Content);
-        Assert.Empty(t.Roles.Store);
+        Assert.Empty(t.Roles.AssignCalls);
         Assert.Empty(t.Data.ModActions);
     }
 
@@ -521,7 +521,7 @@ public class ModCommandEngineTests
         await t.Engine.HandleMessageAsync(Msg("!mod assignmod @newguy"));
 
         Assert.Contains("Usage", Assert.Single(t.Bot.SentMessages).Content);
-        Assert.Empty(t.Roles.Store);
+        Assert.Empty(t.Roles.AssignCalls);
     }
 
     // ------------------------------------------------------------------
