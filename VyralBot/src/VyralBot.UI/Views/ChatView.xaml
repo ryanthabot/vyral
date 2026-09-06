@@ -78,7 +78,7 @@
                     <Popup IsOpen="{Binding IsAllPlatformsSettingsOpen, Mode=TwoWay}"
                            PlacementTarget="{Binding ElementName=AllPlatformsSettingsButton}"
                            Placement="Bottom"
-                           StaysOpen="True"
+                           StaysOpen="False"
                            AllowsTransparency="True">
                         <Border Background="{DynamicResource CardBackgroundBrush}"
                                 BorderBrush="{StaticResource PrimaryHueMidBrush}"
@@ -136,7 +136,7 @@
                     <Popup IsOpen="{Binding IsTwitchSettingsOpen, Mode=TwoWay}"
                            PlacementTarget="{Binding ElementName=TwitchSettingsButton}"
                            Placement="Bottom"
-                           StaysOpen="True"
+                           StaysOpen="False"
                            AllowsTransparency="True">
                         <Border Background="{DynamicResource CardBackgroundBrush}"
                                 Padding="8"
@@ -168,7 +168,7 @@
                     <Popup IsOpen="{Binding IsKickSettingsOpen, Mode=TwoWay}"
                            PlacementTarget="{Binding ElementName=KickSettingsButton}"
                            Placement="Bottom"
-                           StaysOpen="True"
+                           StaysOpen="False"
                            AllowsTransparency="True">
                         <Border Background="{DynamicResource CardBackgroundBrush}"
                                 Padding="8"
@@ -200,7 +200,7 @@
                     <Popup IsOpen="{Binding IsYoutubeSettingsOpen, Mode=TwoWay}"
                            PlacementTarget="{Binding ElementName=YoutubeSettingsButton}"
                            Placement="Bottom"
-                           StaysOpen="True"
+                           StaysOpen="False"
                            AllowsTransparency="True">
                         <Border Background="{DynamicResource CardBackgroundBrush}"
                                 Padding="8"
@@ -232,7 +232,7 @@
                     <Popup IsOpen="{Binding IsTiktokSettingsOpen, Mode=TwoWay}"
                            PlacementTarget="{Binding ElementName=TiktokSettingsButton}"
                            Placement="Bottom"
-                           StaysOpen="True"
+                           StaysOpen="False"
                            AllowsTransparency="True">
                         <Border Background="{DynamicResource CardBackgroundBrush}"
                                 Padding="8"
@@ -263,7 +263,7 @@
                     <Popup IsOpen="{Binding IsDiscordSettingsOpen, Mode=TwoWay}"
                            PlacementTarget="{Binding ElementName=DiscordSettingsButton}"
                            Placement="Bottom"
-                           StaysOpen="True"
+                           StaysOpen="False"
                            AllowsTransparency="True">
                         <Border Background="{DynamicResource CardBackgroundBrush}"
                                 Padding="8"
@@ -931,7 +931,7 @@
                         
                         <!-- Platform Selector Popup -->
                         <Popup IsOpen="{Binding IsPlatformSelectorOpen}"
-                               StaysOpen="True"
+                               StaysOpen="False"
                                Placement="Top"
                                PlacementTarget="{Binding RelativeSource={RelativeSource AncestorType=Button}}">
                             <Border Background="{DynamicResource CardBackgroundBrush}"
@@ -971,7 +971,11 @@
                        VerticalAlignment="Center"
                        Margin="0,0,12,0">
                     <TextBox.Style>
-                        <Style TargetType="TextBox">
+                        <!-- BasedOn the implicit MaterialDesign style: keeps the dark
+                             themed chrome (transparent background over the card, bottom
+                             accent line, muted placeholder). A local style WITHOUT
+                             BasedOn wipes it and falls back to white WPF chrome. -->
+                        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                             <!-- Unified reply box: the placeholder switches while a DM
                                  thread is open (the hint must only be set here — a local
                                  attribute value would override the trigger). -->

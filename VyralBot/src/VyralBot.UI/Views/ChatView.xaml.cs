@@ -13,6 +13,7 @@ public partial class ChatView : UserControl
     private bool _isUserAtBottom = true;
     private int _unreadCount = 0;
     private ScrollViewer? _scrollViewer;
+    private Window? _hostWindow;
 
     public ChatView()
     {
@@ -26,11 +27,62 @@ public partial class ChatView : UserControl
     private void ChatView_Loaded(object? sender, RoutedEventArgs e)
     {
         TryAttachViewModel();
+        HookHostWindow();
     }
 
     private void ChatView_Unloaded(object? sender, RoutedEventArgs e)
     {
+        UnhookHostWindow();
         DetachViewModel();
+    }
+
+    /// <summary>
+    /// Subscribes to the host window's Deactivated event so open popups are
+    /// closed when the app loses activation (e.g. minimize) — otherwise WPF
+    /// Popups float topmost above every other application.
+    /// </summary>
+    private void HookHostWindow()
+    {
+        var window = Window.GetWindow(this);
+        if (_hostWindow == window) return;
+
+        UnhookHostWindow();
+        _hostWindow = window;
+        if (_hostWindow != null)
+        {
+            _hostWindow.Deactivated += HostWindow_Deactivated;
+        }
+    }
+
+    private void UnhookHostWindow()
+    {
+        if (_hostWindow != null)
+        {
+            _hostWindow.Deactivated -= HostWindow_Deactivated;
+            _hostWindow = null;
+        }
+    }
+
+    private void HostWindow_Deactivated(object? sender, EventArgs e)
+    {
+        CloseAllPopups();
+    }
+
+    /// <summary>
+    /// Closes every popup owned by this view (platform quick-settings flyouts
+    /// and the message-input platform selector) via their view-model flags.
+    /// </summary>
+    private void CloseAllPopups()
+    {
+        if (DataContext is not ChatViewModel vm) return;
+
+        vm.IsPlatformSelectorOpen = false;
+        vm.IsAllPlatformsSettingsOpen = false;
+        vm.IsTwitchSettingsOpen = false;
+        vm.IsKickSettingsOpen = false;
+        vm.IsYoutubeSettingsOpen = false;
+        vm.IsTiktokSettingsOpen = false;
+        vm.IsDiscordSettingsOpen = false;
     }
 
     private void ChatView_DataContextChanged(object? sender, DependencyPropertyChangedEventArgs e)
