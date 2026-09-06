@@ -70,7 +70,7 @@
                                Margin="0,0,0,12"/>
 
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <materialDesign:PackIcon Kind="Channel" Width="20" Height="20"
+                        <materialDesign:PackIcon Kind="Shield" Width="20" Height="20"
                                                  Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center"/>
                         <TextBlock Text="{Binding ModChannelStatus}"
                                    FontSize="13"
