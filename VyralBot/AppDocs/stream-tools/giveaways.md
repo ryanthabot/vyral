@@ -89,6 +89,8 @@ These commands are implemented by the giveaway engine and available to chat (see
 
 Unauthorized use of a moderator command gets a visible "Only moderators can..." reply. Bot responses are only ever sent back to Twitch or Kick; an entry accepted from another platform gets recorded, but its confirmation reply is dropped.
 
+Mods assigned a tier in the [mod system](../architecture/moderator-guide.md) can also run giveaways from the private mod channel: `!mod startgiveaway <name> <winnerCount> <keyword>`, `!mod cancelgiveaway`, and `!mod draw` — every action audited and visible in the viewer profiles and the Moderator page's action log.
+
 ## How It Works (Developer)
 
 Two Core services split the responsibility: `GiveawayService` is the engine, `GiveawayCommandService` is the chat-command adapter. Both are registered as singletons in `App.xaml.cs` (registration at `App.xaml.cs:129-130`).

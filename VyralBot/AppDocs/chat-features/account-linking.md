@@ -168,7 +168,7 @@ Tables: **LinkedAccounts** (one row per linked platform under a `ViewerId`) and 
 ## Status & Known Issues
 
 - **Codes generated in chat are public** — the `!link` reply necessarily lands in the channel. Fine in practice (single-use, 5-minute expiry); privacy-conscious viewers should use the Discord DM flow.
-- **The initiation quirk is gone** — the current `LinkCodeService` flow resolves both accounts through the code itself; the old same-username assumption documented in [Currency & Rewards](currency.md) no longer applies to the `!link`-family flow.
+- **The initiation quirk is gone** — the current `LinkCodeService` flow resolves both accounts through the code itself; the old same-username assumption documented in [Currency & Rewards](../stream-tools/currency.md) no longer applies to the `!link`-family flow.
 - **`!unlink` is retired, replaced by `!delink`** — typing it no longer unlinks anything; it answers only a pointer to the two-sided `!delink` flow (authorize from one account, confirm from the account being removed) so nobody can unilaterally strip another account out of a group. The one-shot streamer path is the Viewer Hub / viewer-profile unlink buttons ([Viewer Profiles](viewer-profiles.md)).
 - **TikTok/Facebook/Rumble cannot generate or redeem codes yet** — there is no chat connection to type into. Their identities are otherwise fully supported (delink, platform lists, bonus ladder, goals).
 - Linking state is per-profile — codes and links live in the profile's SQLite database and do not follow a profile switch.

@@ -1,6 +1,6 @@
 # Discord
 
-> Connect Vyral to your Discord servers as one bot — or several at once: a four-step bot-token setup wizard whose bot is adopted straight into the **Discord Bots** list (Home → Connections, the Platforms page, and the Bots page are one world), a bots page with per-bot start/stop, per-bot active channels, per-bot commands, and per-bot launch toggles, per-bot **roles** that choose which bot answers account-linking DMs and posts giveaway announcements, an identity that is auto-detected from each bot's token on connect, and Discord messages flowing through the same unified chat feed and command pipeline as Twitch, Kick, and YouTube — with DMs living in the Chat Window's [DM inbox](../chat/chat-window.md#the-dm-inbox-discord-direct-messages).
+> Connect Vyral to your Discord servers as one bot — or several at once: a four-step bot-token setup wizard whose bot is adopted straight into the **Discord Bots** list (Home → Connections, the Platforms page, and the Bots page are one world), a bots page with per-bot start/stop, per-bot active channels, per-bot commands, and per-bot launch toggles, per-bot **roles** that choose which bot answers account-linking DMs and posts giveaway announcements, an identity that is auto-detected from each bot's token on connect, a private auto-created **mod channel** where tier-gated mods run `!mod` commands (see the [Moderator Guide](../architecture/moderator-guide.md)), and Discord messages flowing through the same unified chat feed and command pipeline as Twitch, Kick, and YouTube — with DMs living in the Chat Window's [DM inbox](../chat/chat-window.md#the-dm-inbox-discord-direct-messages).
 
 ## Overview
 
@@ -80,6 +80,20 @@ Where roles are assigned:
 - **Settings → Viewer Hub → Account Linking** — the **Account linking Discord bot** selector sets the same assignment; the two paths stay in sync.
 
 **Sharing a bot with another bot platform?** A bot token holds only **one active gateway session**, so if the same bot is also run by another bot platform (BotGhost, MEE6, …), only one of the two can be online at a time — Vyral already guards against opening a second session for a token that is being served ([duplicate-token guards](#the-bot-manager)). The bot can still be assigned a role either way: point the Account linking and Giveaway announcements roles at your Vyral bot so it focuses on linking and giveaways, and let the external service handle moderation — just not while both are trying to hold the same token's session.
+
+### The mod system (#vyral-mods)
+
+Discord is also home to Vyral's **moderation team system**. One click on the [Moderator page](../architecture/moderator-guide.md) (Home → Moderator) has your primary running bot create — or reuse — a private text channel named **`#vyral-mods`**, locked down so that `@everyone` cannot see it and **only your mod role and the bot can** (the role name defaults to "Vyral Mod" and is configurable; the bot needs Manage Channels, which the wizard's Administrator invite already grants).
+
+That private channel is where assigned mods run **tier-gated `!mod` commands**:
+
+- **Four tiers** — TrialMod, Mod, SeniorMod, and Admin, each cumulative: TrialMod starts at kick/timeout/purge, Mod adds mute/unban and currency add/remove, SeniorMod adds ban plus giveaway and poll control, and Admin alone can set balances and assign mod tiers. Assignments are stored per Discord user (in the app, by user ID) and Vyral best-effort grants a Discord role named after the tier.
+- **Channel-scoped** — `!mod <action>` works only in the mod channel; anyone without a tier gets `❌ You are not a moderator.`, and a lower tier asking for a higher command is told which tier it requires.
+- **Audited** — every executed action (moderation, currency edits, giveaway start/cancel/draw, poll start/end) is written to a persistent log shown on the Moderator page and in the affected viewer's [profile window](../chat-features/viewer-profiles.md).
+
+You never have to type the syntax from the app: the Moderator page's **command builder** composes `!mod` commands from templates, previews them, sends them into the mod channel, and saves favorites for one-click reuse — and a **Moderator** shortcut chip in the Chat Hub jumps straight to the dashboard. **Settings → Moderator** holds the channel ID, role name, and an auto-create toggle. The full walkthrough — setup steps, the tier capability table, and the command reference — is the [Moderator Guide](../architecture/moderator-guide.md).
+
+This complements the [built-in moderation commands](#built-in-moderation-commands): those run for anyone Discord already considers a moderator (Manage Messages) anywhere the bot hears them, while the `!mod` system is your own tier ladder, confined to the private mod channel and audited.
 
 ### Auto-detected identity
 
@@ -236,6 +250,9 @@ The per-bot roles and identity detection are behavior-level facts (the UI and pi
 | [DiscordBotDetailViewModel.cs](../../src/VyralBot.UI/ViewModels/DiscordBotDetailViewModel.cs) | Per-bot dashboard: start/stop/reconnect, guild/channel snapshot, per-bot active channel, owner-ping test |
 | [DiscordBotDetailView.xaml](../../src/VyralBot.UI/Views/DiscordBotDetailView.xaml) | Per-bot dashboard layout (484 lines) |
 | [WorkflowDiscordBridge.cs](../../src/VyralBot.UI/Services/WorkflowDiscordBridge.cs) | Workflow bridge: slash-command registration + role/channel name lookups for the flow editor |
+| [ModCommandEngine.cs](../../src/VyralBot.Core/Services/Moderation/ModCommandEngine.cs) | The `!mod` engine: mod-channel filter, tier gate, action execution, audit logging (see the [Moderator Guide](../architecture/moderator-guide.md)) |
+| [ModTiers.cs](../../src/VyralBot.Core/Services/Moderation/ModTiers.cs) | The TrialMod/Mod/SeniorMod/Admin ladder — single source of truth for who may run what |
+| [ModeratorViewModel.cs](../../src/VyralBot.UI/ViewModels/ModeratorViewModel.cs) | Moderator dashboard: channel creation, tier assignments, action log, `!mod` command builder with favorites |
 | [DiscordDashboardViewModel.cs](../../src/VyralBot.UI/ViewModels/DiscordDashboardViewModel.cs) | Legacy single-bot dashboard — superseded, navigation command bound nowhere (KI-36) |
 | [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) | Discord feed handler (:2536), origin map (:648, :685), send-target resolution (:592-624), echo suppression |
 | [DataChatMessageStore.cs](../../src/VyralBot.UI/Services/Chat/DataChatMessageStore.cs) | Persists Discord chat history rows (maps `DiscordChatMessageEvent` both directions) |
@@ -315,6 +332,8 @@ They can also be **edited as flows**: the **EDIT** buttons on this page's Comman
 
 The commands execute through the bot that received the message (origin routing); app-issued `/` commands run on the primary connected bot. Mute uses Discord's native timeout (1–40320 minutes); slowmode 0–21600 seconds (0 disables); purge bulk-deletes up to 100 messages. The `!` cross-platform commands (giveaways, polls, currency) are unaffected.
 
+These built-ins are the *permission-mapped* layer — anyone Discord calls a moderator can use them, no app setup. For your own moderation team with a private channel, a four-tier ladder, and a full audit log, use the [mod system](#the-mod-system-vyral-mods) instead (the two coexist fine).
+
 ## Integrations (external bots) &amp; auto-detect
 
 Each bot dashboard has an **Integrations** card: register external bot services (BotGhost, MEE6, Dyno, Carl-bot, or custom), open their dashboards to sign in, and list the commands they run. Vyral flags conflicts with its own commands for that bot — custom commands can be disabled/re-enabled with one click, and built-ins can be registered as disabled (Vyral then declines them at runtime so the external service owns them).
@@ -336,7 +355,9 @@ Two stores side by side (both per-profile — see [Database Reference](../refere
 | `Status` | "Connected" / "Disconnected" / "Error" |
 | `DiscordChatEnabled` | Show/hide Discord messages in the unified feed (Chat Hub toggle + quick-settings popup, via `PlatformChatRoutingChangedEvent`) |
 
-**The `DiscordBots` table** — one row per managed bot (`Id`, `Name`, `Token`, `Status`, `SelectedChannelId`, plus auto-detected `ApplicationId`/`BotUsername`/`AvatarUrl`, the per-bot **"Start this bot when the app launches"** flag, and the `RoleLinking`/`RoleGiveaway` flags), written by the bot manager's CRUD and status updates; the "Primary" migration copies the legacy row's fields here on first load, and a wizard/Home connect writes its row here via adoption. Managed services still write the legacy `Platform` row on connect/disconnect (last writer wins) — harmless, and intentionally ignored by the manager. The per-bot **role assignments** (Account linking bot / Giveaway announcements bot) persist per profile alongside the bot rows, with at most one holder per role; unset roles resolve to Primary at answer time (see [Bot roles](#bot-roles)). The auto-detected identity (application ID, username, avatar) is display state derived from each bot's connected token, not a second thing to configure.
+**The `DiscordBots` table** — one row per managed bot (`Id`, `Name`, `Token`, `Status`, `SelectedChannelId`, plus auto-detected `ApplicationId`/`BotUsername`/`AvatarUrl`, the per-bot **"Start this bot when the app launches"** flag, the `RoleLinking`/`RoleGiveaway` flags, and the `ModChannelId` column the [mod system](#the-mod-system-vyral-mods) uses for per-bot mod routing), written by the bot manager's CRUD and status updates; the "Primary" migration copies the legacy row's fields here on first load, and a wizard/Home connect writes its row here via adoption. Managed services still write the legacy `Platform` row on connect/disconnect (last writer wins) — harmless, and intentionally ignored by the manager. The per-bot **role assignments** (Account linking bot / Giveaway announcements bot) persist per profile alongside the bot rows, with at most one holder per role; unset roles resolve to Primary at answer time (see [Bot roles](#bot-roles)). The auto-detected identity (application ID, username, avatar) is display state derived from each bot's connected token, not a second thing to configure.
+
+The [mod system](#the-mod-system-vyral-mods) adds its own per-profile stores: the `Mod.*` config keys (`Mod.ChannelId`, `Mod.ModRoleName`, `Mod.AutoCreateChannel`, `Mod.FavoriteCommands`) and two tables — `ModRoleAssignments` (one tier per Discord user) and `ModActions` (the audit log); see the [Moderator Guide](../architecture/moderator-guide.md).
 
 Custom commands carry an optional `Commands.BotId` — the `DiscordBots` row id a command is pinned to; null runs on every bot (see [Commands](../chat-features/commands.md)).
 
@@ -344,7 +365,7 @@ Chat history rows are written to the `ChatMessages` table with `Platform="Discor
 
 ## Status & Known Issues
 
-**Works**: the full bot-token wizard (portal → token → invite → validated connect) with automatic adoption of the connected bot into the Bots list (one world across Home → Connections, the Platforms card, and the Bots page), gateway connections with auto-reconnect for any number of bots, Quick Add / start / stop / rename / remove on the bots page, per-bot dashboards (status, auto-detected identity, servers list, per-bot active-channel picker, owner-ping test), per-bot roles (Account linking bot / Giveaway announcements bot, single-select with Primary fallback, assignable from the bot's page or the Viewer Hub selector), two-layer startup auto-start (the Startup & Connection flag for the primary bot plus per-bot launch toggles) with duplicate-token protection, the legacy "Primary" migration, messages from every bot in the unified feed with badges and blurple, DMs in the Chat Window's inbox with in-app replies through the receiving bot, per-origin reply routing with Primary fallback, per-bot command scoping, manual sends and send-to-all via Primary, chat history persistence, and the show/hide feed toggle.
+**Works**: the full bot-token wizard (portal → token → invite → validated connect) with automatic adoption of the connected bot into the Bots list (one world across Home → Connections, the Platforms card, and the Bots page), gateway connections with auto-reconnect for any number of bots, Quick Add / start / stop / rename / remove on the bots page, per-bot dashboards (status, auto-detected identity, servers list, per-bot active-channel picker, owner-ping test), per-bot roles (Account linking bot / Giveaway announcements bot, single-select with Primary fallback, assignable from the bot's page or the Viewer Hub selector), two-layer startup auto-start (the Startup & Connection flag for the primary bot plus per-bot launch toggles) with duplicate-token protection, the legacy "Primary" migration, messages from every bot in the unified feed with badges and blurple, DMs in the Chat Window's inbox with in-app replies through the receiving bot, per-origin reply routing with Primary fallback, per-bot command scoping, manual sends and send-to-all via Primary, chat history persistence, the show/hide feed toggle, and the [mod system](#the-mod-system-vyral-mods) (auto-created private `#vyral-mods`, four tier-gated mod tiers, audited `!mod` commands, the Moderator dashboard with its command builder, and Settings → Moderator).
 
 Current limitations, tracked in the [known issues ledger](../reference/known-issues.md):
 

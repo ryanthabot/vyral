@@ -218,6 +218,14 @@
       "title": "Architecture",
       "pages": [
         {
+          "path": "architecture/feature-history.md",
+          "title": "Feature History"
+        },
+        {
+          "path": "architecture/moderator-guide.md",
+          "title": "Moderator Guide"
+        },
+        {
           "path": "architecture/startup-lifecycle.md",
           "title": "Startup & Lifecycle"
         },

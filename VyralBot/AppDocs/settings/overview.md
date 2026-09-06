@@ -1,27 +1,28 @@
 # Settings Overview
 
-> The Settings page is a 13-category hub where 5 categories are implemented today — Profile management, Platforms, Variables, Viewer Hub, and API & Webhooks — and 8 are "Coming Soon" placeholders.
+> The Settings page is a 15-category hub, and every category is implemented today — profile management, platforms, theme, per-section tool settings, the Viewer Hub, the Moderator channel settings, and the API & Webhooks page.
 
 ## Overview
 
 Open **Settings** from the bottom of the sidebar. The page is a two-pane layout: a 280px category list on the left and a content area on the right that swaps based on `SelectedCategory` (`SettingsView.xaml`).
 
-| Category | State | What is actually there |
-|---|---|---|
-| **Profile** | Implemented | Auto-Login toggle plus full profile management (list, create, switch, export, delete, change PIN) |
-| **Theme** | Placeholder | "Coming Soon..." text only |
-| **Platforms** | Implemented | Grid of 6 platform cards (only Twitch and Kick navigate) plus the **Startup & Connection** section — see below |
-| **Data Management** | Placeholder | "Coming Soon..." text only |
-| **Notifications** | Placeholder | "Coming Soon..." text only |
-| **Commands** | Placeholder | "Coming Soon..." text only (real commands page lives under Chat Features) |
-| **Variables** | Implemented | Hosts the full Variables manager |
-| **Viewer Hub** | Implemented | Multi-Platform Bonus mode/settings, Vyral Goals management, and Linked Viewers with per-account unlink — see below |
-| **Timers** | Placeholder | "Coming Soon..." text only |
-| **Automation** | Placeholder | "Coming Soon..." text only |
-| **API & Webhooks** | Implemented | Web server + ngrok configuration — see [API, Web Server & ngrok](web-server-ngrok.md) |
-| **Performance** | Placeholder | "Coming Soon..." text only |
-| **Security** | Placeholder | "Coming Soon..." text only |
-| **Advanced** | Placeholder | "Coming Soon..." text only |
+| Category | What is actually there |
+|---|---|
+| **Profile** | Auto-Login toggle plus full profile management (list, create, switch, export, delete, change PIN) |
+| **Theme** | The full theme picker — built-in themes, Light/Dark base, Custom color builder, brightness sliders (applied live; see below) |
+| **Platforms** | Grid of 6 platform cards (only Twitch and Kick navigate) plus the **Startup & Connection** section — see below |
+| **Data Management** | Storage locations with sizes, data inventory counts, cleanup tools (clear history, compact DB, export backup) |
+| **Notifications** | Master toggles for event messages in chat and event sounds |
+| **Commands** | Command prefixes and per-platform command-processing toggles |
+| **Viewer Hub** | Account linking (including the linking-bot selector), Multi-Platform Bonus mode/settings, Vyral Goals management, and Linked Viewers with per-account unlink — see below |
+| **Variables** | Hosts the full Variables manager |
+| **Timers** | Command-timers master toggle |
+| **Automation** | Workflow master toggle, trigger gates, timer interval, execution-history retention |
+| **Moderator** | Mod channel ID, mod role name, and the auto-create toggle for the [mod system](../architecture/moderator-guide.md) — see below |
+| **API & Webhooks** | Web server + ngrok configuration — see [API, Web Server & ngrok](web-server-ngrok.md) |
+| **Performance** | The live performance monitor: process CPU/memory/GC, per-platform and per-component activity, child processes, sparklines |
+| **Security** | Token storage info and profile PIN status |
+| **Advanced** | App/version info, cache-clear and compact-DB buttons, and the **🔄 Restart App** button |
 
 Note that Audio, Alert, and Sounds settings do **not** live here — they are separate top-level pages in the sidebar ([Audio Settings](../stream-tools/audio.md), [Visual Alerts](../stream-tools/visual-alerts.md), [Sounds](../stream-tools/sounds.md)).
 
@@ -87,6 +88,17 @@ The Viewer Hub is the streamer's control panel for the viewer-facing economy tha
 
 **Account Linking.** The **Account linking Discord bot** selector picks which Discord bot handles the [link/delink DM flow](../chat-features/account-linking.md#choosing-your-linking-bot): single-select, falling back to the Primary bot when unset, and kept in sync with the Roles card on each bot's page in the [Discord section](../platforms/discord.md#bot-roles). Replies to link DMs always come from the bot that received the DM.
 
+### Moderator category
+
+The Moderator category holds the settings half of the [mod system](../architecture/moderator-guide.md) — the parts you set once and rarely touch:
+
+- **Mod Channel** — the Discord channel ID where `!mod` commands live. You normally leave this empty and let the Moderator page create the channel; pasting an existing channel ID points the mod engine at that channel instead.
+- **Mod role name** — the Discord role the private `#vyral-mods` channel is shared with (default `Vyral Mod`).
+- **Auto-create when missing** — when a mod action needs the channel and none is configured, Vyral creates it automatically (saved immediately).
+- **Save Moderator Settings** persists the values.
+
+Mod role assignments, the action log, and the `!mod` command builder are not here — they live on the **Moderator page** (Home → Moderator, also reachable from the Moderator chip in the Chat Hub), which is the operating dashboard. The full setup walkthrough, tier table, and command reference are in the [Moderator Guide](../architecture/moderator-guide.md).
+
 ## How It Works (Developer)
 
 ### Three families of per-platform settings
@@ -109,6 +121,7 @@ The codebase has three distinct things called "platform settings" — keep them 
 | Platform tokens, status, chat enabled / auto-start flags | DB `Platforms` row | Setup wizards, settings pages, auto-connect |
 | Launch-on-Windows-startup (Run key) | Windows registry Run key (HKCU, per-user) | Settings → Platforms → Startup & Connection |
 | Kick auto-replies toggle | DB `Configs` key `Kick.AutoRepliesEnabled` | Kick settings page |
+| Mod channel ID, mod role name, auto-create, favorites | DB `Configs` keys `Mod.ChannelId` / `Mod.ModRoleName` / `Mod.AutoCreateChannel` / `Mod.FavoriteCommands` | Settings → Moderator + the Moderator page (see the [Moderator Guide](../architecture/moderator-guide.md)) |
 | Support links (Discord invite, Ideas URL) | DB `Configs` keys `Support.DiscordUrl` / `Support.IdeasUrl` | Settings → Profile → Support Links |
 | Per-event display/auto-reply settings | DB `ChatEventSettings` rows | Chat Hub VMs via `ChatEventSettingsService` |
 | Custom variables | DB `Variables` table | Variables manager |
@@ -131,7 +144,7 @@ When `MainViewModel.CheckPlatformConnectionsAsync` auto-connects a platform whos
 
 | File | Role |
 |---|---|
-| [SettingsView.xaml](../../src/VyralBot.UI/Views/SettingsView.xaml) | The whole Settings page: category sidebar, all 13 category panels, and the four dialogs (delete confirm, change PIN, create profile, switch profile) |
+| [SettingsView.xaml](../../src/VyralBot.UI/Views/SettingsView.xaml) | The whole Settings page: category sidebar, all 15 category panels, and the four dialogs (delete confirm, change PIN, create profile, switch profile) |
 | [SettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/SettingsViewModel.cs) | Category selection, AutoLogin load/save, all profile-management dialogs, Twitch/Kick settings navigation commands |
 | [TwitchSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/TwitchSettingsViewModel.cs) | 27-line stub — status message only |
 | [KickSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/KickSettingsViewModel.cs) | Real Kick settings: disconnect, account save, webhook toggle, chat toggles, auto-replies flag |
@@ -164,7 +177,7 @@ await _eventBus.PublishAsync(new PlatformChatRoutingChangedEvent { ... });
 
 ## Gotchas / Status & Known Issues
 
-- **8 of 13 categories are placeholders** — Theme, Data Management, Notifications, Commands, Timers, Automation, Performance, Security, and Advanced show only "Coming Soon...".
+- **No placeholder categories remain** — all 15 categories have real content; the last "Coming Soon..." panels (Theme, Performance, and the per-section settings) were implemented across the theming, performance-monitor, and settings waves.
 - **YouTube/TikTok/Discord/OBS platform cards are disabled with explanatory tooltips** — they no longer look clickable (fixed 2026-08-15); only Twitch and Kick navigate. (Discord being disabled here does not mean the platform is unavailable — it is configured through the [Platforms wizard](../platforms/discord.md) and has no settings sub-page.) See the [known issues ledger](../reference/known-issues.md).
 - **Auto-connect re-enables chat display** — the `<Platform>ChatEnabled` flag is force-set true on first successful auto-connect (intended behavior — KI-14).
 - **Twitch settings page is a stub** — nothing loads or saves there.

@@ -281,6 +281,7 @@ public class ModCommandEngine : IModCommandEngine
             case "cancelgiveaway":
                 return await HandleCancelGiveawayAsync().ConfigureAwait(false);
             case "draw":
+            case "drawwinners":
                 return await HandleDrawAsync().ConfigureAwait(false);
             case "startpoll":
                 return await HandleStartPollAsync(args, message).ConfigureAwait(false);

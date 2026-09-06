@@ -12,6 +12,8 @@ The current-state picture:
 
 - **Chat earning is live.** Per-message chat-activity earning, `!daily`, games, redemptions, auctions, and every other chat command run through the command pipeline, which is fed by all three chat integrations (KI-1 resolved 2026-08-15).
 - **The multiplier stack is applied to earning paths** — platform × boost × tier × role (highest-wins per family, floored) now multiplies event bonuses, watchtime awards, and chat-activity awards.
+- **Linked viewers spend from one unified pool.** With [account linking](../chat-features/account-linking.md), all earning and spending routes to a single canonical account, so a viewer's balance is one spendable total that works from any linked platform — while a **per-platform earnings ledger** keeps recording where every point was earned or spent (see [Unified balances & the per-platform ledger](#unified-balances--the-per-platform-ledger)).
+- **Earning follows the stream.** Watch-time points accrue only while that platform is actually live (and never on Discord), and Discord chat-activity points are paid only in channels you assigned to your bots (see [Where points can be earned](#where-points-can-be-earned-live--channel-gating)).
 - **Watchtime earning is configurable** — `WatchTimeEnabled` / `WatchTimeAmount` / `WatchTimeInterval` are honored. **BEHAVIOR CHANGE:** the defaults award 10 per minute where older builds hard-coded 1 (KI-30 — set Points Per Interval to 1 for the old rate).
 - **The Settings tab persists** via the currency service (KI-7 resolved), with one caveat: the data-layer save writes only a subset of `CurrencySetting` fields — name/symbol, watch-time, chat-activity, and the follow/sub/giftsub/raid bonuses. Role multipliers and other columns keep their previous values even after a successful Save (KI-29).
 
@@ -115,6 +117,26 @@ The multiplier stack multiplies event bonuses, watchtime awards, and chat-activi
 ### Multi-platform bonus
 
 Viewers who [link platforms](../chat-features/account-linking.md) earn more: the bonus multiplies every earning path by **1.25x at 2 linked platforms, 1.5x at 3, 2.0x at 4, and 2.5x at 5+** (configurable via `MultiPlatform.Bonus2..Bonus5`). Three modes govern it (`MultiPlatform.Mode`, edited under **Settings → Viewer Hub**): **Off** (default — never applies), **OptIn** (only viewers who typed `!mp on`), and **Auto** (every linked viewer). Completed Multiplier-type [Vyral Goals](vyral-goals.md) stack on top. The full walkthrough — ladder table, `!mp`/`!mystatus` behavior, and the goal interplay — lives in [Vyral Goals](vyral-goals.md#the-multi-platform-bonus).
+
+### Unified balances & the per-platform ledger
+
+Before unification, a linked viewer had a separate wallet per platform — points earned on Twitch were unspendable on Kick. Now, when a viewer's accounts are [linked](../chat-features/account-linking.md), **all earning and spending routes to one canonical account row**: the balance is a single spendable pool that works from any linked platform, and the other accounts' rows are zeroed as their balances merge into it. This is on by default (`Linking.UnifiedBalances`, an explicit `false` restores per-platform wallets) and resolves through a short cache, so chat throughput is unaffected.
+
+A single pool alone would silently destroy per-platform history, so every earning or spending movement also appends to the **per-platform earnings ledger**: a running earned/spent total per platform, tagged with the platform where the points were *actually* earned or spent (not the canonical account they landed on). The ledger is atomic at the data layer and can never break an earn or spend — a ledger failure is logged and skipped after the balance is already saved. Unlinked viewers have no viewer ID and no ledger; their single wallet row is the record.
+
+Where this surfaces:
+
+- **The [viewer profile window](../chat-features/viewer-profiles.md)** shows the unified balance *and* the per-platform earned/spent breakdown side by side.
+- **[Mod economy commands](../architecture/moderator-guide.md)** (`addcurrency`/`removecurrency`/`setbalance` from the mod channel) adjust the unified pool, so the correction is spendable everywhere the viewer is linked.
+
+### Where points can be earned (live & channel gating)
+
+Two gates keep earning honest, applied to the watch-time and chat-activity streams:
+
+- **Watch-time only accrues while the platform is live.** A viewer idling in a Twitch/Kick/YouTube chat earns watch-time minutes and their points only while that platform is actually broadcasting; the moment the stream ends, accrual stops. **Discord viewers never earn watch-time points** — Discord has no live concept. (If the live-status registry is unavailable, stream platforms fall back to always accruing so nothing silently breaks.)
+- **Discord chat-activity points only in assigned channels.** A Discord message earns its per-message points only when the channel it was typed in is one of the streamer's **assigned channels** — the per-bot channel assignments from the [Discord bots pages](../platforms/discord.md#multiple-bots), unioned across bots. A bot sitting in a busy foreign server mints nothing there. Fail-safe: if the assignment list cannot be read, the award goes through (a transient database error should never silently stop earning), and legacy callers that supply no channel id keep the old always-award behavior.
+
+Event bonuses, `!daily`, games, and rewards redemption are not affected by these gates.
 
 ### Giveaway odds settings
 
@@ -242,6 +264,7 @@ All tables live in the per-profile SQLite database (see [Data Layer](../architec
 | CurrencyBoosts | `:2610` | active and past boosts |
 | CurrencyAuctions / CurrencyAuctionBids | `:2628` / `:2652` | auctions and their bids |
 | UserBankAccounts | `:2666` | bank balances and interest bookkeeping |
+| PlatformEarnings | `:4055` | the per-platform earned/spent ledger for [unified balances](#unified-balances--the-per-platform-ledger), keyed by (ViewerId, Platform) |
 
 `CurrencySetting` fields (entity at [CurrencySetting.cs](../../src/VyralBot.Data/Entities/CurrencySetting.cs)):
 
@@ -267,4 +290,7 @@ The transaction audit trail records `TransactionType` values including Earn, Spe
 - **Banking is off by default** — `BankEnabled` defaults to false and has no UI toggle; enabling it requires editing the database directly (the Settings save does not write that column — KI-29).
 - **Link codes are proper DB rows now** — the live `!link` flow (6-digit codes, 5-minute expiry, single-use) is persisted in the `LinkCodes` table with the correct chat reply; see [Account Linking](../chat-features/account-linking.md).
 - **The multi-platform bonus is off by default** — `MultiPlatform.Mode` defaults to `Off`, so linked viewers earn at 1x until the streamer selects OptIn or Auto under Settings → Viewer Hub (see [Vyral Goals](vyral-goals.md#the-multi-platform-bonus)).
+- **Unified balances are on by default** — `Linking.UnifiedBalances` defaults to true; setting it to `false` restores per-platform wallets for linked viewers. The ledger keeps its own records and never blocks an earn or spend.
+- **Watch-time points follow live status** — stream platforms accrue only while live and Discord viewers never accrue; if the live-status registry is not wired, stream platforms fall back to always accruing (back-compat).
+- **Discord chat-activity points respect assigned channels** — channels outside the per-bot assigned lists earn nothing; a failed assignment-list read fails open (awards continue) so a transient error cannot silently stop earning.
 - **Ledger locking is cosmetic** — `_balanceLock` guards nothing; concurrent awards to the same wallet could race (low practical risk in the current pipeline).

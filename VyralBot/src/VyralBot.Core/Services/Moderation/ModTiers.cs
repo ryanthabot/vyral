@@ -21,7 +21,7 @@ public static class ModTiers
     public static readonly string[] TierNames = { "TrialMod", "Mod", "SeniorMod", "Admin" };
 
     /// <summary>Commands a TrialMod may run.</summary>
-    public static readonly string[] TrialMod = { "kick", "timeout", "purge" };
+    public static readonly string[] TrialMod = { "kick", "timeout", "purge", "slowmode", "unmute" };
 
     /// <summary>Commands a Mod may run (includes every TrialMod command).</summary>
     public static readonly string[] Mod =

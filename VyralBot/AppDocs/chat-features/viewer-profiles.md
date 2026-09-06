@@ -1,6 +1,6 @@
 # Viewer Profiles
 
-> Click any username in the chat window and Vyral opens a full viewer profile — identity, linked accounts (with per-account unlink), sub/follow status, points and economy, watchtime and streaks, completed goals, giveaway entries, active perks, and recent events — in one scrollable window. For linked viewers it is the whole cross-platform person; for everyone else it is the one account you clicked.
+> Click any username in the chat window and Vyral opens a full viewer profile — identity, linked accounts (with per-account drill-down, platform user IDs, and live presence), sub/follow status, points and economy (unified totals plus a per-platform breakdown), watchtime and streaks, completed goals, giveaway entries, active perks, Discord DM history, and the moderation actions taken against that viewer — in one scrollable window. For linked viewers it is the whole cross-platform person; for everyone else it is the one account you clicked.
 
 ## Overview
 
@@ -23,17 +23,23 @@ The window is titled `Viewer — {username} ({platform})`, resizable, and everyt
 
 | Section | What you see | Why it matters |
 |---|---|---|
-| **Identity** | The viewer's internal ID and every linked account, one row per `(username, platform)`, with the account you clicked marked as current. A viewer with no links shows just the raw account and a "not linked" note. | Tells you instantly whether you are looking at one platform or a whole [link group](account-linking.md). |
-| **Linked accounts** | Per-account rows, each with its own **Unlink** button ("Remove this account from the link group"). | The banned-user override — removes one account from the group without a `!delink` code. |
+| **Identity** | The viewer's internal ID and every linked account, one row per `(username, platform)`, with the account you clicked marked as current. Each row shows the account's **platform user ID** (when the platform reported one) and a **live presence indicator** — a viewer is "live" while active in chat within roughly the last few minutes. A viewer with no links shows just the raw account and a "not linked" note. | Tells you instantly whether you are looking at one platform or a whole [link group](account-linking.md) — and who is in chat right now. |
+| **Linked accounts** | Per-account rows, each with its own **Unlink** button ("Remove this account from the link group") and clickable for a per-account **drill-down** (see below). | The banned-user override — removes one account from the group without a `!delink` code — plus a deep dive into any single account. |
 | **Sub / follow status** | Per-account follow state, sub tier, sub months, and last-seen from the platform status rows. | Feeds giveaway [odds boosts](../stream-tools/giveaways.md#odds-boosts) and [Vyral Goals](../stream-tools/vyral-goals.md); shows you *why* someone has a perk. |
-| **Points & economy** | Per-account balance, total earned, total spent, plus the most recent [currency](../stream-tools/currency.md) transactions. | Support questions ("where did my points go?") get answered without opening the database. |
+| **Points & economy** | Per-account balance, total earned, total spent, plus the most recent [currency](../stream-tools/currency.md) transactions — and, for linked viewers, the **per-platform earnings breakdown**: how much was earned and spent on each platform under the [unified balance pool](../stream-tools/currency.md). | Support questions ("where did my points go?") get answered without opening the database — including *where* the points came from. |
 | **Watchtime & streaks** | Total minutes, per-stream session minutes, first/last seen, active flag, and [viewer streaks](../stream-tools/watchtime.md). | Distinguishes lurkers from regulars at a glance. |
 | **Goals completed** | Every [Vyral Goal](../stream-tools/vyral-goals.md) this identity has completed, with reward. | Verify a claimed reward before re-issuing anything. |
 | **Giveaway entries** | [Giveaway](../stream-tools/giveaways.md) entries for each account, including winner flags. | Catch multi-account entry attempts or confirm a past win. |
 | **Perks** | Active perks per account (badges, multipliers, bonus modes). | See everything the identity currently benefits from in one list. |
+| **DM history** | The viewer's saved [Discord DM](../chat/chat-window.md#the-dm-inbox-discord-direct-messages) conversations with the bot, most recent first. | The full private conversation without opening the DM inbox — useful for link-code support questions. |
+| **Moderation actions** | Every [mod-system](../architecture/moderator-guide.md) action recorded against this viewer — who ran it, what it was, and the result. | "Why was this person muted?" is answerable without leaving the window. |
 | **Recent events** | Event statistics and highlights for the username (total events, notable types). | Recent history without digging through the [event log](event-history.md). |
 
 For linked viewers the sections aggregate across the whole link group — economy, watchtime, goals, and giveaways are shown per linked account so nothing gets silently summed in a way you cannot audit.
+
+### Drilling into a linked account
+
+Each linked-account row opens a **drill-down** view for exactly that one account: its header shows the account's username, platform, and platform user ID, and the sections beneath (status, economy, transactions, activity, giveaways, perks) show only that account's data. This is how you answer "what has *this* Twitch account done" when the person is linked on four platforms. A back control restores the whole-identity view.
 
 ### Unlinking a banned user
 
@@ -49,7 +55,7 @@ This is per-account, not per-group: unlinking the banned Twitch account leaves t
 
 ## How It Works (Developer)
 
-- `ViewerProfileService.GetProfileAsync(username, platform)` resolves the `ViewerId` via `ILinkedAccountService`, then assembles an immutable `ViewerProfileSnapshot` of plain entity rows: `LinkedAccount` rows (flagged `IsCurrent`), `ViewerPlatformStatus` (sub/follow), `UserCurrency` + transactions, `UserWatchtime` + `ViewerStreak`, goal completions joined with goal names, giveaway entries with giveaway names/winner flags, active perks, and event statistics. A `null` viewer ID yields a valid "not linked" snapshot rather than an error, so unlinked chatters still get a (thin) profile.
+- `ViewerProfileService.GetProfileAsync(username, platform)` resolves the `ViewerId` via `ILinkedAccountService`, then assembles an immutable `ViewerProfileSnapshot` of plain entity rows: `LinkedAccount` rows (flagged `IsCurrent`, each carrying the platform-reported user ID and a live-presence flag computed from watchtime activity), `ViewerPlatformStatus` (sub/follow), `UserCurrency` + transactions plus the per-platform `PlatformEarnings` breakdown, `UserWatchtime` + `ViewerStreak`, goal completions joined with goal names, giveaway entries with giveaway names/winner flags, active perks, saved Discord DM history, the mod actions recorded against the viewer (matched by username or viewer ID, capped at 100), and event statistics. A `null` viewer ID yields a valid "not linked" snapshot rather than an error, so unlinked chatters still get a (thin) profile.
 - `ViewerProfileViewModel.InitializeAsync(username, platform)` loads the snapshot on a background thread and marshals results to the UI dispatcher; sections are `[ObservableProperty]` collections the window binds directly. The per-row unlink command calls `ILinkCodeService.UnlinkAsync(username, platform)` and refreshes the snapshot.
 - `ViewerProfileWindow` is launched by `ChatViewModel`'s `OpenViewerProfileCommand` (wired to the username buttons in `ChatView.xaml`), resolving the VM/view pair through the app's DI container. Both the click wiring and the window follow the app's existing patterns (DynamicResource theme brushes, dispatcher marshaling, owner-set dialog).
 
