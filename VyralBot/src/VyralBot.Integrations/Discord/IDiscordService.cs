@@ -304,6 +304,19 @@ public interface IDiscordService
     Task<bool> SendDmToChannelAsync(string channelId, string content, string? embedJson = null);
 
     /// <summary>
+    /// Opens (or reuses) a DM channel with a user looked up by snowflake ID —
+    /// gateway cache first, then shared-guild member resolution, then a REST
+    /// user fetch — and returns the DM channel's snowflake id plus the user's
+    /// username so the caller can create a replyable conversation row (replies
+    /// go through <see cref="SendDmToChannelAsync"/> with the returned channel
+    /// id). Returns <c>Success=false</c> with null channel/username when the
+    /// bot is not connected, the id is not a valid snowflake or the user
+    /// cannot be resolved. Never throws.
+    /// </summary>
+    /// <param name="userId">Snowflake ID of the Discord user to DM.</param>
+    Task<(bool Success, string? ChannelId, string? Username)> OpenDmByUserIdAsync(string userId);
+
+    /// <summary>
     /// Grants a role (name or snowflake id) to a user (name, display name or
     /// snowflake id) in the origin/first guild. Returns false on failure.
     /// </summary>
@@ -464,4 +477,54 @@ Task<IReadOnlyList<string>> GetWorkflowRoleNamesAsync(string? guildName = null);
     /// text channel or the modify fails.
     /// </summary>
     Task<bool> SetSlowmodeOnOriginChannelAsync(int seconds, string? guildName = null);
+
+    // ==================================================================
+    // Mod-channel & role setup surface (W5A)
+    //
+    // Backs the moderation setup flow ("create mod channel", "create mod
+    // role", "pick mod channel"). All methods are best-effort: they return
+    // false / a failed result instead of throwing, with failures logged.
+    // ==================================================================
+
+    /// <summary>
+    /// Snowflake ID of the per-bot mod channel: the last value passed to
+    /// <see cref="SetModChannelAsync"/>, restored from this bot's DiscordBots
+    /// row on connect when a matching row exists. Null when none was set.
+    /// Survives disconnects (unlike <see cref="SelectedChannelId"/>).
+    /// </summary>
+    string? ModChannelId { get; }
+
+    /// <summary>
+    /// Setup helper: creates (or reuses, by name) a private text channel named
+    /// "vyral-mods" in the bot's guild — the single connected guild, else the
+    /// first (same resolution as <see cref="SendOwnerTestMessageAsync"/>'s
+    /// guild loop for the one-guild case). Permission overwrites: @everyone
+    /// denied ViewChannel; the bot and the given mod role allowed
+    /// ViewChannel/SendMessages/ReadMessageHistory. Returns
+    /// <c>Success=false</c> with an error when the bot is disconnected, in no
+    /// guild, or the mod role cannot be resolved. Never throws.
+    /// </summary>
+    /// <param name="modRoleName">Role name (or snowflake id) granted access to the channel.</param>
+    Task<CreateModChannelResult> CreateModChannelAsync(string modRoleName);
+
+    /// <summary>
+    /// Creates a mentionable role in the bot's guild (single guild or first).
+    /// Reuses an existing role of the same name instead of creating a
+    /// duplicate. Returns false when the bot is not connected, in no guild, or
+    /// lacks the Manage Roles permission. Never throws.
+    /// </summary>
+    /// <param name="roleName">Name of the role to create (trimmed).</param>
+    /// <param name="color">Optional role color; null keeps Discord's default.</param>
+    Task<bool> CreateRoleAsync(string roleName, DiscordColor? color = null);
+
+    /// <summary>
+    /// Store the snowflake ID of the channel mod actions are announced in and
+    /// persist it on this bot's DiscordBots row (ModChannelId column), matching
+    /// <see cref="SetSelectedChannelAsync"/>'s set-and-persist pattern. When no
+    /// row matches this instance's <see cref="BotId"/> (e.g. the setup
+    /// wizard's "primary" DI-singleton before migration) the value is kept in
+    /// memory only. Throws on persist failure (same as
+    /// <see cref="SetSelectedChannelAsync"/>).
+    /// </summary>
+    Task SetModChannelAsync(string channelId);
 }

@@ -11,6 +11,7 @@ public static class AppPages
     public const string Polls = "polls";
     public const string EventTesting = "eventtesting";
     public const string Settings = "settings";
+    public const string Moderator = "moderator";
 }
 
 /// <summary>

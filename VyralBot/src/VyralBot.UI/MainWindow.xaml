@@ -678,6 +678,51 @@
                                                      HorizontalAlignment="Center"/>
                                         </StackPanel>
                                     </materialDesign:Card>
+
+                                    <!-- Moderator Card (second row, full width) -->
+                                    <materialDesign:Card Grid.Row="1"
+                                                        Grid.Column="0"
+                                                        Grid.ColumnSpan="7"
+                                                        Padding="20"
+                                                        Background="{DynamicResource CardBackgroundBrush}"
+                                                        Cursor="Hand"
+                                                        Margin="0,12,0,0">
+                                        <materialDesign:Card.InputBindings>
+                                            <MouseBinding Command="{Binding DataContext.NavigateToModeratorCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                                        </materialDesign:Card.InputBindings>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <materialDesign:PackIcon Grid.Column="0"
+                                                                     Kind="ShieldAccount"
+                                                                     Width="36"
+                                                                     Height="36"
+                                                                     VerticalAlignment="Center"
+                                                                     Foreground="{DynamicResource PrimaryBrush}"/>
+
+                                            <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center">
+                                                <TextBlock Text="Moderator"
+                                                           FontSize="16"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                <TextBlock Text="Mod channel, mod roles, action log and the !mod command builder"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+
+                                            <materialDesign:PackIcon Grid.Column="2"
+                                                                     Kind="ChevronRight"
+                                                                     Width="20"
+                                                                     Height="20"
+                                                                     VerticalAlignment="Center"
+                                                                     Foreground="{DynamicResource TextMutedBrush}"/>
+                                        </Grid>
+                                    </materialDesign:Card>
                                 </Grid>
 
                                 <!-- Support Section -->
@@ -988,6 +1033,11 @@
                         <!-- Documentation View -->
                         <DataTemplate DataType="{x:Type vm:DocumentationViewModel}">
                             <local:DocumentationView/>
+                        </DataTemplate>
+
+                        <!-- Moderator View -->
+                        <DataTemplate DataType="{x:Type vm:ModeratorViewModel}">
+                            <local:ModeratorView/>
                         </DataTemplate>
                     </ContentControl.Resources>
                 </ContentControl>

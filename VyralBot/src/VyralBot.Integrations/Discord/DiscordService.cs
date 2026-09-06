@@ -54,6 +54,12 @@ public class DiscordService : IDiscordService, IDisposable
 
     private Platform? _platform;
     private string? _selectedChannelId;
+
+    // Per-bot mod channel (set via SetModChannelAsync, restored from the bot's
+    // DiscordBots row on connect). Deliberately NOT cleared on disconnect: the
+    // value outlives sessions so the primary singleton keeps its selection.
+    private string? _modChannelId;
+
     private string? _botUsername;
     private string? _connectedToken;
     private bool _isConnected;
@@ -193,6 +199,12 @@ public class DiscordService : IDiscordService, IDisposable
     public string? SelectedChannelId
     {
         get { lock (_stateSync) { return _selectedChannelId; } }
+    }
+
+    /// <inheritdoc />
+    public string? ModChannelId
+    {
+        get { lock (_stateSync) { return _modChannelId; } }
     }
 
     public IReadOnlyList<DiscordGuildInfo> ConnectedGuilds
@@ -378,6 +390,23 @@ public class DiscordService : IDiscordService, IDisposable
             lock (_stateSync)
             {
                 _selectedChannelId = _platform.ChannelId;
+            }
+
+            // Restore the per-bot mod channel from the bot's DiscordBots row
+            // (best-effort — the wizard's primary bot may not have a row yet,
+            // in which case the selection stays unset until it is made).
+            try
+            {
+                var botRows = await _dataService.GetDiscordBotsAsync().ConfigureAwait(false);
+                var botRow = botRows.FirstOrDefault(b => string.Equals(b.Id, BotId, StringComparison.Ordinal));
+                lock (_stateSync)
+                {
+                    _modChannelId = botRow?.ModChannelId;
+                }
+            }
+            catch (Exception modRestoreEx)
+            {
+                _logger.LogWarning(modRestoreEx, "⚠️ Failed to restore the mod channel for bot {BotId}", BotId);
             }
 
             var client = CreateClient();
@@ -2914,6 +2943,68 @@ public class DiscordService : IDiscordService, IDisposable
     }
 
     /// <inheritdoc />
+    public async Task<(bool Success, string? ChannelId, string? Username)> OpenDmByUserIdAsync(string userId)
+    {
+        var client = GetConnectedClient();
+        if (client == null)
+        {
+            _logger.LogWarning("❌ Cannot open a DM by user id: bot {BotId} is not connected", BotId);
+            return (false, null, null);
+        }
+
+        var query = (userId ?? string.Empty).Trim();
+        if (!ulong.TryParse(query, NumberStyles.Integer, CultureInfo.InvariantCulture, out var snowflake) || snowflake == 0)
+        {
+            _logger.LogWarning("❌ Cannot open a DM by user id: '{UserId}' is not a valid snowflake", userId);
+            return (false, null, null);
+        }
+
+        try
+        {
+            // Resolution order: gateway user cache, then a shared-guild member
+            // lookup (the client runs without the GuildMembers intent, so the
+            // REST download inside ResolveGuildMemberAsync matters), then a
+            // plain REST user fetch which works even when the bot shares NO
+            // guild with the target.
+            IUser? user = client.GetUser(snowflake);
+            if (user == null)
+            {
+                foreach (var guild in client.Guilds)
+                {
+                    var member = await ResolveGuildMemberAsync(guild, query).ConfigureAwait(false);
+                    if (member != null)
+                    {
+                        user = member;
+                        break;
+                    }
+                }
+            }
+            user ??= await TryGetRestUserAsync(client, snowflake).ConfigureAwait(false);
+            if (user == null)
+            {
+                _logger.LogWarning("❌ Cannot open a DM by user id: user {UserId} was not found for bot {BotId}", query, BotId);
+                return (false, null, null);
+            }
+
+            var dmChannel = await user.CreateDMChannelAsync().ConfigureAwait(false);
+            if (dmChannel == null)
+            {
+                _logger.LogWarning("❌ Cannot open a DM by user id: no DM channel for user {UserId} on bot {BotId}", query, BotId);
+                return (false, null, null);
+            }
+
+            _logger.LogInformation("✅ Opened DM channel {ChannelId} with {Username} on bot {BotId}",
+                dmChannel.Id, user.Username, BotId);
+            return (true, dmChannel.Id.ToString(), user.Username);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Failed to open a DM channel with user {UserId} on bot {BotId}", query, BotId);
+            return (false, null, null);
+        }
+    }
+
+    /// <inheritdoc />
     public Task<bool> AddRoleToUserAsync(string username, string roleIdOrName, string? reason, string? guildName = null)
         => ModifyWorkflowUserRoleAsync(username, roleIdOrName, grant: true, reason, guildName);
 
@@ -4488,6 +4579,183 @@ public class DiscordService : IDiscordService, IDisposable
                 _logger.LogWarning(ex, "⚠️ Workflow interaction reply failed");
             }
         };
+    }
+
+    #endregion
+
+    #region Mod channel & role setup
+
+    /// <summary>Name of the private mod channel this setup creates/reuses.</summary>
+    private const string ModChannelName = "vyral-mods";
+
+    /// <inheritdoc />
+    public async Task<CreateModChannelResult> CreateModChannelAsync(string modRoleName)
+    {
+        var client = GetConnectedClient();
+        if (client == null || client.CurrentUser == null)
+        {
+            return new CreateModChannelResult(false, null, "Bot is not connected — connect the bot first.");
+        }
+
+        // Single guild or first, matching SendOwnerTestMessageAsync's guild loop
+        var guild = client.Guilds.FirstOrDefault();
+        if (guild == null)
+        {
+            return new CreateModChannelResult(false, null,
+                "The bot is not in any server yet — invite it first, then try again.");
+        }
+
+        // Resolve the mod role BEFORE touching the channel so a typo never
+        // leaves a half-configured (bot-only, invisible) channel behind.
+        if (string.IsNullOrWhiteSpace(modRoleName))
+        {
+            return new CreateModChannelResult(false, null, "No mod role given — pick the role that should see the channel.");
+        }
+
+        var modRole = ResolveWorkflowRole(guild, modRoleName);
+        if (modRole == null)
+        {
+            return new CreateModChannelResult(false, null, $"Role '{modRoleName}' was not found in {guild.Name}.");
+        }
+
+        var botId = client.CurrentUser.Id;
+
+        try
+        {
+            // Reuse an existing mod channel so repeated setups don't multiply channels
+            // (typed as ITextChannel: reuse yields SocketTextChannel, create yields RestTextChannel)
+            ITextChannel? channel = guild.TextChannels.FirstOrDefault(c =>
+                c.Name.Equals(ModChannelName, StringComparison.OrdinalIgnoreCase));
+
+            if (channel == null)
+            {
+                channel = await guild.CreateTextChannelAsync(ModChannelName, props =>
+                {
+                    // Private: @everyone denied; the mod role + the bot allowed.
+                    props.PermissionOverwrites = new[]
+                    {
+                        new Overwrite(guild.Id, PermissionTarget.Role,
+                            new OverwritePermissions(viewChannel: PermValue.Deny)),
+                        new Overwrite(modRole.Id, PermissionTarget.Role,
+                            new OverwritePermissions(viewChannel: PermValue.Allow, sendMessages: PermValue.Allow, readMessageHistory: PermValue.Allow)),
+                        new Overwrite(botId, PermissionTarget.User,
+                            new OverwritePermissions(viewChannel: PermValue.Allow, sendMessages: PermValue.Allow, readMessageHistory: PermValue.Allow)),
+                    };
+                }).ConfigureAwait(false);
+                _logger.LogInformation("✅ Created private mod channel #{Channel} in {Guild}", channel.Name, guild.Name);
+            }
+
+            return new CreateModChannelResult(true, channel.Id.ToString(), null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to create the mod channel in guild {Guild}", guild.Name);
+            return new CreateModChannelResult(false, null,
+                $"Failed to create #{ModChannelName} in {guild.Name}: {ex.Message}. " +
+                "If this mentions permissions, re-invite the bot with the Manage Channels permission.");
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> CreateRoleAsync(string roleName, DiscordColor? color = null)
+    {
+        var client = GetConnectedClient();
+        if (client == null)
+        {
+            _logger.LogWarning("❌ Cannot create a Discord role: bot {BotId} is not connected", BotId);
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(roleName))
+        {
+            _logger.LogWarning("❌ Cannot create a Discord role: name is empty");
+            return false;
+        }
+
+        var guild = client.Guilds.FirstOrDefault();
+        if (guild == null)
+        {
+            _logger.LogWarning("❌ Cannot create a Discord role: bot {BotId} is in no guild", BotId);
+            return false;
+        }
+
+        // Reuse an existing role of the same name so repeated setup clicks
+        // don't multiply roles
+        var trimmedName = roleName.Trim();
+        var existing = guild.Roles.FirstOrDefault(r =>
+            string.Equals(r.Name, trimmedName, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            _logger.LogInformation("ℹ️ Discord role '{Role}' already exists in {Guild}", trimmedName, guild.Name);
+            return true;
+        }
+
+        var permissionError = GetMissingBotPermission(guild, GuildPermission.ManageRoles, "Manage Roles");
+        if (permissionError != null)
+        {
+            _logger.LogWarning("❌ Cannot create a Discord role: {Error}", permissionError);
+            return false;
+        }
+
+        try
+        {
+            // Discord.Net 3.20 takes the role color as RoleColors (the primary /
+            // gradient color configuration), not the plain Color struct.
+            RoleColors? roleColors = color.HasValue
+                ? new RoleColors(new Color(color.Value.R, color.Value.G, color.Value.B), null, null)
+                : (RoleColors?)null;
+            var role = await guild.CreateRoleAsync(trimmedName, permissions: null, roleColors, isMentionable: true)
+                .ConfigureAwait(false);
+            _logger.LogInformation("✅ Created Discord role '{Role}' in {Guild}", role.Name, guild.Name);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Failed to create Discord role '{Role}' in {Guild}", trimmedName, guild.Name);
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task SetModChannelAsync(string channelId)
+    {
+        if (string.IsNullOrWhiteSpace(channelId))
+        {
+            throw new ArgumentException("Channel ID must not be empty", nameof(channelId));
+        }
+
+        lock (_stateSync)
+        {
+            _modChannelId = channelId;
+        }
+
+        try
+        {
+            // Persist on the bot's DiscordBots row (same set-and-persist pattern
+            // as SetSelectedChannelAsync, which uses the Platform row instead —
+            // the DiscordBots table is where the per-bot mod channel lives).
+            var rows = await _dataService.GetDiscordBotsAsync().ConfigureAwait(false);
+            var row = rows.FirstOrDefault(b => string.Equals(b.Id, BotId, StringComparison.Ordinal));
+            if (row == null)
+            {
+                // No DiscordBots row for this BotId (e.g. the wizard's "primary"
+                // DI-singleton before legacy migration): keep the selection
+                // in-memory for this session.
+                _logger.LogInformation(
+                    "📢 Discord mod channel set to {ChannelId} for bot {BotId} (no DiscordBots row — kept in memory only)",
+                    channelId, BotId);
+                return;
+            }
+
+            row.ModChannelId = channelId;
+            await _dataService.SaveDiscordBotAsync(row).ConfigureAwait(false);
+            _logger.LogInformation("📢 Discord mod channel set to {ChannelId} for bot '{Name}'", channelId, row.Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Failed to persist Discord mod channel {ChannelId} for bot {BotId}", channelId, BotId);
+            throw;
+        }
     }
 
     #endregion

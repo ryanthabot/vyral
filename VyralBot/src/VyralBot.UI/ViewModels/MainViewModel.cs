@@ -87,6 +87,8 @@ public partial class MainViewModel : ViewModelBase
     private DocumentationViewModel? _documentationViewModel;
     private IServiceScope? _automationScope;
     private AutomationViewModel? _automationViewModel;
+    private IServiceScope? _moderatorScope;
+    private ModeratorViewModel? _moderatorViewModel;
 
     // One-shot guard for Discord bot auto-start: CheckPlatformConnectionsAsync
     // also runs on every PlatformConnectionChangedEvent refresh, but the bots
@@ -285,6 +287,9 @@ public partial class MainViewModel : ViewModelBase
                     break;
                 case AppPages.Settings:
                     NavigateToSettingsCommand.Execute(null);
+                    break;
+                case AppPages.Moderator:
+                    NavigateToModeratorCommand.Execute(null);
                     break;
                 default:
                     _logger.LogDebug("Unknown page key '{PageKey}' in NavigateToPageEvent - ignoring", e.PageKey);
@@ -1794,6 +1799,36 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Opens the Moderator page: mod channel setup, mod role assignments,
+    /// the action log and the !mod command builder.
+    /// </summary>
+    [RelayCommand]
+    private async Task NavigateToModeratorAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Moderator");
+
+        if (!CheckSetupInProgress(out _))
+            return;
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _moderatorViewModel);
+
+            _moderatorScope?.Dispose();
+            _moderatorScope = _serviceProvider.CreateScope();
+            _moderatorViewModel = _moderatorScope.ServiceProvider.GetRequiredService<ModeratorViewModel>();
+            await _moderatorViewModel.InitializeAsync();
+            CurrentViewModel = _moderatorViewModel;
+            Title = "Vyral - Moderator";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to Moderator");
+        }
+    }
+
     [RelayCommand]
     private async Task NavigateToToolsAsync()
     {
@@ -2454,6 +2489,16 @@ public partial class MainViewModel : ViewModelBase
             _automationScope = null;
             _automationViewModel = null;
             _logger.LogInformation("♻️ Disposed AutomationViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose Moderator (re-initializes on each navigation)
+        if (_moderatorViewModel != null && _moderatorViewModel != excludeViewModel)
+        {
+            _moderatorScope?.Dispose();
+            _moderatorScope = null;
+            _moderatorViewModel = null;
+            _logger.LogInformation("♻️ Disposed ModeratorViewModel to free memory");
             disposedCount++;
         }
 

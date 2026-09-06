@@ -258,6 +258,18 @@ public class ChatViewModel : ViewModelBase
 
 	private string _dmReplyInput = "";
 
+	// Unified reply box: true while a DM thread is open — the main chat input
+	// becomes the DM composer (SendMessageAsync routes to the DM reply path).
+	private bool _isDmReplyMode;
+
+	// "New DM" inline input in the DM inbox header: target user snowflake, the
+	// surfaced validation/API error, and whether the inline input is expanded.
+	private string _newDmUserId = "";
+
+	private string _newDmStatus = "";
+
+	private bool _isNewDmInputOpen;
+
 	private ChatMessage? _dmScrollTarget;
 
 	private bool _showDmPanel;
@@ -313,6 +325,10 @@ public class ChatViewModel : ViewModelBase
 
 	[GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.RelayCommandGenerator", "8.4.0.0")]
 	private RelayCommand? backToDmInboxCommand;
+
+	private AsyncRelayCommand? startDmByUserIdCommand;
+
+	private RelayCommand? toggleNewDmInputCommand;
 
 	[GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.RelayCommandGenerator", "8.4.0.0")]
 	private AsyncRelayCommand? loadHistoryCommand;
@@ -489,6 +505,78 @@ public class ChatViewModel : ViewModelBase
 				_dmReplyInput = value;
 				OnDmReplyInputChanged(value);
 				OnPropertyChanged("DmReplyInput");
+			}
+		}
+	}
+
+	/// <summary>True while a DM thread is open: the main chat input acts as the DM composer (placeholder + send routing switch).</summary>
+	public bool IsDmReplyMode
+	{
+		get
+		{
+			return _isDmReplyMode;
+		}
+		set
+		{
+			if (!EqualityComparer<bool>.Default.Equals(_isDmReplyMode, value))
+			{
+				OnPropertyChanging("IsDmReplyMode");
+				_isDmReplyMode = value;
+				OnPropertyChanged("IsDmReplyMode");
+			}
+		}
+	}
+
+	public string NewDmUserId
+	{
+		get
+		{
+			return _newDmUserId;
+		}
+		[MemberNotNull("_newDmUserId")]
+		set
+		{
+			if (!EqualityComparer<string>.Default.Equals(_newDmUserId, value))
+			{
+				OnPropertyChanging("NewDmUserId");
+				_newDmUserId = value;
+				OnPropertyChanged("NewDmUserId");
+			}
+		}
+	}
+
+	/// <summary>Inline validation/API error for the "New DM" input (empty = nothing to show).</summary>
+	public string NewDmStatus
+	{
+		get
+		{
+			return _newDmStatus;
+		}
+		[MemberNotNull("_newDmStatus")]
+		set
+		{
+			if (!EqualityComparer<string>.Default.Equals(_newDmStatus, value))
+			{
+				OnPropertyChanging("NewDmStatus");
+				_newDmStatus = value;
+				OnPropertyChanged("NewDmStatus");
+			}
+		}
+	}
+
+	public bool IsNewDmInputOpen
+	{
+		get
+		{
+			return _isNewDmInputOpen;
+		}
+		set
+		{
+			if (!EqualityComparer<bool>.Default.Equals(_isNewDmInputOpen, value))
+			{
+				OnPropertyChanging("IsNewDmInputOpen");
+				_isNewDmInputOpen = value;
+				OnPropertyChanged("IsNewDmInputOpen");
 			}
 		}
 	}
@@ -988,6 +1076,10 @@ public class ChatViewModel : ViewModelBase
 	[ExcludeFromCodeCoverage]
 	public IRelayCommand BackToDmInboxCommand => backToDmInboxCommand ?? (backToDmInboxCommand = new RelayCommand(BackToDmInbox));
 
+	public IRelayCommand ToggleNewDmInputCommand => toggleNewDmInputCommand ?? (toggleNewDmInputCommand = new RelayCommand(ToggleNewDmInput));
+
+	public IAsyncRelayCommand StartDmByUserIdCommand => startDmByUserIdCommand ?? (startDmByUserIdCommand = new AsyncRelayCommand(StartDmByUserIdAsync));
+
 	[GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.RelayCommandGenerator", "8.4.0.0")]
 	[ExcludeFromCodeCoverage]
 	public IAsyncRelayCommand LoadHistoryCommand => loadHistoryCommand ?? (loadHistoryCommand = new AsyncRelayCommand(LoadHistoryAsync));
@@ -1329,16 +1421,31 @@ public class ChatViewModel : ViewModelBase
 
 	private async Task SendDmReplyAsync()
 	{
-		DmConversation conversation = SelectedDmConversation;
-		string text = DmReplyInput?.Trim();
+		// Kept for the legacy reply-bar command (SendDmReplyCommand); the
+		// unified main input reaches the same core through SendMessageAsync's
+		// DM branch, using MessageInput as the text.
+		if (await SendDmReplyCoreAsync(SelectedDmConversation, DmReplyInput?.Trim()))
+		{
+			DmReplyInput = "";
+		}
+	}
+
+	/// <summary>
+	/// Shared DM reply send used by the legacy reply command AND the unified
+	/// main input when <see cref="IsDmReplyMode"/> is on. Returns true when the
+	/// message was delivered — the caller then clears its own input property
+	/// (DmReplyInput or MessageInput respectively).
+	/// </summary>
+	private async Task<bool> SendDmReplyCoreAsync(DmConversation? conversation, string? text)
+	{
 		if (conversation == null || string.IsNullOrEmpty(text))
 		{
-			return;
+			return false;
 		}
 		if (string.IsNullOrEmpty(conversation.ChannelId))
 		{
 			_logger.LogWarning("DM reply to {Username} skipped: DM channel id unknown (no DM recorded yet)", conversation.Username);
-			return;
+			return false;
 		}
 		// Reply routing: prefer the DM channel we have on file; otherwise
 		// resolve the recipient by username so replies work even when the
@@ -1357,7 +1464,7 @@ public class ChatViewModel : ViewModelBase
 		if (bot == null || !bot.IsConnected)
 		{
 			_logger.LogWarning("DM reply to {Username} skipped: no connected Discord bot", conversation.Username);
-			return;
+			return false;
 		}
 		bool delivered;
 		try
@@ -1381,7 +1488,7 @@ public class ChatViewModel : ViewModelBase
 		if (!delivered)
 		{
 			_logger.LogWarning("Failed to deliver DM reply to {Username} (channel {ChannelId})", conversation.Username, conversation.ChannelId);
-			return;
+			return false;
 		}
 		await ((DispatcherObject)Application.Current).Dispatcher.InvokeAsync((Action)delegate
 		{
@@ -1413,14 +1520,91 @@ public class ChatViewModel : ViewModelBase
 			conversation.LastPreview = text;
 			conversation.LastAt = chatMessage.Timestamp;
 			MoveDmConversationToFront(conversation);
-			DmReplyInput = "";
 			ScrollDmThreadToBottom();
 		});
+		return true;
 	}
 
 	private void BackToDmInbox()
 	{
 		SelectedDmConversation = null;
+	}
+
+	private void ToggleNewDmInput()
+	{
+		NewDmStatus = "";
+		IsNewDmInputOpen = !IsNewDmInputOpen;
+	}
+
+	/// <summary>
+	/// Starts a DM conversation from a raw Discord user snowflake entered in
+	/// the inbox header: validates the id (17-20 digits), opens the DM channel
+	/// on the primary/linked bot and selects the (new or existing) conversation
+	/// so the thread opens ready to reply. Nothing is persisted here — the
+	/// history row is saved with the first message.
+	/// </summary>
+	private async Task StartDmByUserIdAsync()
+	{
+		NewDmStatus = "";
+		string input = (NewDmUserId ?? string.Empty).Trim();
+		if (input.Length < 17 || input.Length > 20 || !input.All(char.IsDigit))
+		{
+			_logger.LogWarning("New DM skipped: '{UserId}' is not a 17-20 digit Discord user id", input);
+			NewDmStatus = "Enter a 17-20 digit Discord user ID.";
+			return;
+		}
+		IDiscordService? bot = ResolveDiscordSendTarget(null);
+		if (bot == null || !bot.IsConnected)
+		{
+			_logger.LogWarning("New DM skipped: no connected Discord bot");
+			NewDmStatus = "No connected Discord bot.";
+			return;
+		}
+		(bool success, string? channelId, string? username) = await bot.OpenDmByUserIdAsync(input);
+		if (!success || string.IsNullOrEmpty(channelId))
+		{
+			_logger.LogWarning("New DM failed for user id {UserId} on bot {BotId}", input, bot.BotId);
+			NewDmStatus = "Could not open a DM with that user ID.";
+			return;
+		}
+		string resolvedUsername = username ?? input;
+		await ((DispatcherObject)Application.Current).Dispatcher.InvokeAsync((Action)delegate
+		{
+			// Reuse an existing conversation for the same channel (or the same
+			// user on the same bot) instead of duplicating the inbox row.
+			DmConversation? conversation = DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.ChannelId, channelId, StringComparison.Ordinal));
+			if (conversation == null)
+			{
+				conversation = DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.Username, resolvedUsername, StringComparison.OrdinalIgnoreCase) && string.Equals(c.BotId, bot.BotId, StringComparison.Ordinal));
+			}
+			if (conversation != null)
+			{
+				// Refresh the routing info so the thread stays replyable even
+				// if the saved row predates this DM channel.
+				conversation.ChannelId = channelId;
+				conversation.BotId = bot.BotId;
+				MoveDmConversationToFront(conversation);
+			}
+			else
+			{
+				conversation = new DmConversation
+				{
+					Username = resolvedUsername,
+					ChannelId = channelId,
+					BotId = bot.BotId,
+					Platform = "Discord",
+					LastAt = DateTime.Now
+				};
+				DmConversations.Insert(0, conversation);
+			}
+			ShowDmPanel = true;
+			SelectedDmConversation = conversation;
+			NewDmUserId = "";
+			IsNewDmInputOpen = false;
+			NewDmStatus = "";
+			ScrollDmThreadToBottom();
+		});
+		_logger.LogInformation("Opened DM conversation with {Username} (channel {ChannelId}) via bot {BotId}", resolvedUsername, channelId, bot.BotId);
 	}
 
 	public ChatViewModel(ILogger<ChatViewModel> logger, IEventBus eventBus, ITwitchService twitchService, IKickService kickService, IYouTubeService youtubeService, IDiscordService discordService, IDiscordBotManager discordBotManager, KickSettingsViewModel kickSettings, IChatMessageStore chatStore, IChatEventSettingsService eventSettingsService, IAutoReplyService autoReplyService, IDiscordCommandHandler? discordCommandHandler = null, ICurrencyService? currencyService = null, ICurrencyCommandService? currencyCommandService = null, ICommandService? commandService = null, ISoundService? soundService = null, IAlertService? alertService = null, GiveawayCommandService? giveawayCommandService = null, PollCommandService? pollCommandService = null, WatchtimeService? watchtimeService = null, WatchtimeCommandService? watchtimeCommandService = null, IVariableReplacementService? variableReplacementService = null, IDataService? dataService = null, CommandActionRunner? commandActionRunner = null, WorkflowTriggerService? workflowTriggerService = null, IResponseWaiterRegistry? responseWaiters = null, ILinkCodeService? linkCodeService = null, IViewerStatusService? viewerStatusService = null, ISocialGoalService? socialGoalService = null)
@@ -3650,6 +3834,17 @@ public class ChatViewModel : ViewModelBase
 		if (string.IsNullOrWhiteSpace(MessageInput))
 		{
 			_logger.LogWarning("MessageInput is empty or whitespace");
+			return;
+		}
+		// Unified reply box: while a DM thread is open the main input is the DM
+		// composer — route to the shared DM reply core instead of the platform
+		// send paths (slash-command handling included).
+		if (IsDmReplyMode && SelectedDmConversation != null)
+		{
+			if (await SendDmReplyCoreAsync(SelectedDmConversation, MessageInput?.Trim()))
+			{
+				MessageInput = "";
+			}
 			return;
 		}
 		string slashCommand = MessageInput.Trim();
@@ -6082,6 +6277,8 @@ public class ChatViewModel : ViewModelBase
 	private void OnSelectedDmConversationChanged(DmConversation? value)
 	{
 		OnPropertyChanged("HasSelectedDmConversation");
+		// Unified reply box: DM mode on exactly while a thread is open.
+		IsDmReplyMode = value != null;
 		if (value != null && value.UnreadCount > 0)
 		{
 			value.UnreadCount = 0;
@@ -6112,6 +6309,13 @@ public class ChatViewModel : ViewModelBase
 		if (value)
 		{
 			ScrollDmThreadToBottom();
+		}
+		else if (SelectedDmConversation != null)
+		{
+			// The DM panel is gone, so its thread can no longer be seen —
+			// leave DM reply mode instead of leaving the main input silently
+			// composing DMs for a hidden conversation.
+			SelectedDmConversation = null;
 		}
 		OnPropertyChanged("DmOnlyView");
 	}

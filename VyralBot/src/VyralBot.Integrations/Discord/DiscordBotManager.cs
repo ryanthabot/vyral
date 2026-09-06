@@ -210,7 +210,10 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             BotUsername = bot.BotUsername,
             AvatarUrl = bot.AvatarUrl,
             RoleLinking = bot.RoleLinking,
-            RoleGiveaway = bot.RoleGiveaway
+            RoleGiveaway = bot.RoleGiveaway,
+            ModChannelId = bot.ModChannelId,
+            ModChannelEnabled = bot.ModChannelEnabled,
+            AssignedChannelIds = bot.AssignedChannelIds
         };
 
         await _dataService.SaveDiscordBotAsync(row).ConfigureAwait(false);
@@ -653,6 +656,9 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
                         AvatarUrl = migrated.AvatarUrl,
                         RoleLinking = migrated.RoleLinking,
                         RoleGiveaway = migrated.RoleGiveaway,
+                        ModChannelId = migrated.ModChannelId,
+                        ModChannelEnabled = migrated.ModChannelEnabled,
+                        AssignedChannelIds = migrated.AssignedChannelIds,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     }).ConfigureAwait(false);
@@ -1458,7 +1464,10 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
         row.BotUsername,
         row.AvatarUrl,
         row.RoleLinking,
-        row.RoleGiveaway)
+        row.RoleGiveaway,
+        row.ModChannelId,
+        row.ModChannelEnabled,
+        row.AssignedChannelIds)
     {
         AutoStart = row.AutoStart,
     };

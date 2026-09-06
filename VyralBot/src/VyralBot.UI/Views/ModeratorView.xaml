@@ -1,0 +1,462 @@
+<UserControl x:Class="VyralBot.UI.Views.ModeratorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:vm="clr-namespace:VyralBot.UI.ViewModels"
+             xmlns:converters="clr-namespace:VyralBot.UI.Converters"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ModeratorViewModel}"
+             Background="{DynamicResource BackgroundPrimaryBrush}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <converters:InvertBooleanConverter x:Key="InvertBooleanConverter"/>
+        <converters:NullOrEmptyToVisibilityConverter x:Key="StringNullOrEmptyToVisibilityConverter"/>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32" IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}">
+
+            <!-- Back Button -->
+            <Button Content="&#8592; BACK TO HOME"
+                    Style="{StaticResource MaterialDesignFlatButton}"
+                    Command="{Binding DataContext.NavigateToHomeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                    HorizontalAlignment="Left"
+                    Foreground="{DynamicResource TextSecondaryBrush}"
+                    Margin="0,0,0,16"/>
+
+            <!-- Title -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <materialDesign:PackIcon Kind="ShieldAccount" Width="28" Height="28"
+                                         Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Text="Moderator"
+                           FontSize="24" FontWeight="Bold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+            </StackPanel>
+            <TextBlock Text="Mod channel, mod roles, action log and the !mod command builder"
+                       FontSize="13"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       Margin="0,0,0,20"/>
+
+            <!-- Status Message -->
+            <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                    BorderBrush="{DynamicResource PrimaryBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="16,12"
+                    Margin="0,0,0,16"
+                    Visibility="{Binding StatusMessage, Converter={StaticResource StringNullOrEmptyToVisibilityConverter}}">
+                <TextBlock Text="{Binding StatusMessage}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           TextWrapping="Wrap"/>
+            </Border>
+
+            <!-- ============================================================ -->
+            <!-- Section 1: Mod Channel                                        -->
+            <!-- ============================================================ -->
+            <materialDesign:Card Padding="20" Margin="0,0,0,16"
+                                 Background="{DynamicResource CardBackgroundBrush}">
+                <StackPanel>
+                    <TextBlock Text="Mod Channel"
+                               FontSize="16" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,4"/>
+                    <TextBlock Text="The private channel where !mod commands and mod-action announcements are posted."
+                               FontSize="11"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,12"/>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <materialDesign:PackIcon Kind="Channel" Width="20" Height="20"
+                                                 Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding ModChannelStatus}"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="8,0,0,0"/>
+                        <Button Content="Create mod channel"
+                                Command="{Binding CreateModChannelCommand}"
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Background="{DynamicResource PrimaryBrush}"
+                                Margin="16,0,0,0"
+                                VerticalAlignment="Center"
+                                ToolTip="Creates the channel on the primary running bot and saves its ID"/>
+                    </StackPanel>
+
+                    <!-- Auto-create toggle -->
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Auto-create when missing"
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <TextBlock Text="Create the mod channel automatically the first time a mod action needs it"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <ToggleButton Grid.Column="1"
+                                      IsChecked="{Binding AutoCreateModChannel}"
+                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                      VerticalAlignment="Center"
+                                      Margin="16,0,0,0"/>
+                    </Grid>
+
+                    <!-- Mod role name -->
+                    <TextBlock Text="Mod role name"
+                               FontSize="14"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,4"/>
+                    <TextBox Text="{Binding ModRoleName, UpdateSourceTrigger=PropertyChanged}"
+                             MaxLength="100"
+                             materialDesign:HintAssist.Hint="Vyral Mod"
+                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             Width="280"
+                             HorizontalAlignment="Left"
+                             ToolTip="Name of the Discord role granted to mods (used when creating the mod channel)"/>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- ============================================================ -->
+            <!-- Section 2: Mod Roles                                          -->
+            <!-- ============================================================ -->
+            <materialDesign:Card Padding="20" Margin="0,0,0,16"
+                                 Background="{DynamicResource CardBackgroundBrush}">
+                <StackPanel>
+                    <TextBlock Text="Mod Roles"
+                               FontSize="16" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,4"/>
+                    <TextBlock Text="Assign one of the four mod tiers to a Discord user. Tiers map to the ModTiers rank order."
+                               FontSize="11"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,12"/>
+
+                    <!-- Add form -->
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="160"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding NewModDiscordUserId, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Discord user ID"
+                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                 VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="2"
+                                 Text="{Binding NewModUsername, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="Username"
+                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                 VerticalAlignment="Center"/>
+                        <ComboBox Grid.Column="4"
+                                  ItemsSource="{Binding Tiers}"
+                                  SelectedItem="{Binding SelectedModTier}"
+                                  Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                                  VerticalAlignment="Center"/>
+                        <Button Grid.Column="6"
+                                Content="Assign"
+                                Command="{Binding AssignModRoleCommand}"
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Background="{DynamicResource PrimaryBrush}"
+                                VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- Assignment rows -->
+                    <ItemsControl ItemsSource="{Binding ModAssignments}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                        CornerRadius="4"
+                                        Padding="12,8"
+                                        Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="110"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Username}"
+                                                       FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding DiscordUserId, StringFormat=&lt;{0}&gt;}"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="8,0,0,0"/>
+                                        </StackPanel>
+
+                                        <Border Grid.Column="1"
+                                                Background="{DynamicResource PrimaryLightBrush}"
+                                                CornerRadius="3"
+                                                Padding="8,2"
+                                                HorizontalAlignment="Left"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Tier}"
+                                                       FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        </Border>
+
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding AssignedBy, StringFormat=by {0}}"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="12,0,0,0"
+                                                   TextTrimming="CharacterEllipsis"/>
+
+                                        <Button Grid.Column="3"
+                                                Command="{Binding DataContext.RemoveModRoleCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="4"
+                                                ToolTip="Remove this mod role assignment">
+                                            <materialDesign:PackIcon Kind="Close" Width="16" Height="16"
+                                                                     Foreground="{DynamicResource ErrorBrush}"/>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- ============================================================ -->
+            <!-- Section 3: Action Log                                         -->
+            <!-- ============================================================ -->
+            <materialDesign:Card Padding="20" Margin="0,0,0,16"
+                                 Background="{DynamicResource CardBackgroundBrush}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Action Log"
+                                       FontSize="16" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <TextBlock Text="The latest 100 moderation actions performed by your mod team"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Command="{Binding RefreshModActionsCommand}"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Refresh" Width="16" Height="16" VerticalAlignment="Center"/>
+                                <TextBlock Text="Refresh" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding ModActions}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                        CornerRadius="4"
+                                        Padding="12,8"
+                                        Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="130"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding Timestamp, StringFormat=yyyy-MM-dd HH:mm}"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   VerticalAlignment="Center"/>
+
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding Action}"
+                                                   FontSize="12" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource PrimaryBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="12,0,0,0"
+                                                   TextTrimming="CharacterEllipsis"/>
+
+                                        <TextBlock Grid.Column="2"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="12,0,12,0"
+                                                   TextTrimming="CharacterEllipsis">
+                                            <TextBlock.Text>
+                                                <MultiBinding StringFormat="{}{0} &#8594; {1}">
+                                                    <Binding Path="ModUsername"/>
+                                                    <Binding Path="TargetUsername"/>
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                        </TextBlock>
+
+                                        <TextBlock Grid.Column="3"
+                                                   Text="{Binding Details}"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   MaxWidth="260"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- ============================================================ -->
+            <!-- Section 4: Command Builder                                    -->
+            <!-- ============================================================ -->
+            <materialDesign:Card Padding="20" Margin="0,0,0,16"
+                                 Background="{DynamicResource CardBackgroundBrush}">
+                <StackPanel>
+                    <TextBlock Text="Command Builder"
+                               FontSize="16" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,4"/>
+                    <TextBlock Text="Compose a !mod command and post it into the mod channel. The Discord-side engine applies its usual moderation gating."
+                               FontSize="11"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,12"/>
+
+                    <!-- Template picker -->
+                    <TextBlock Text="Action"
+                               FontSize="13"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,4"/>
+                    <ComboBox ItemsSource="{Binding ActionTemplates}"
+                              SelectedItem="{Binding SelectedTemplate}"
+                              Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                              Width="280"
+                              HorizontalAlignment="Left"
+                              Margin="0,0,0,12"/>
+
+                    <!-- Dynamic parameter fields -->
+                    <TextBox Text="{Binding BuilderTarget, UpdateSourceTrigger=PropertyChanged}"
+                             materialDesign:HintAssist.Hint="Target (username or Discord user ID)"
+                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             Margin="0,0,0,12"
+                             Visibility="{Binding IsTargetVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12"
+                                Visibility="{Binding IsAmountVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBox Text="{Binding BuilderAmount, UpdateSourceTrigger=PropertyChanged}"
+                                 materialDesign:HintAssist.Hint="{Binding AmountLabel}"
+                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                 Width="220"
+                                 VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <TextBox Text="{Binding BuilderReason, UpdateSourceTrigger=PropertyChanged}"
+                             materialDesign:HintAssist.Hint="Reason"
+                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             Margin="0,0,0,12"
+                             Visibility="{Binding IsReasonVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                    <!-- Live preview (signature element of the page) -->
+                    <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                            BorderBrush="{DynamicResource PrimaryBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="12,8"
+                            Margin="0,0,0,12">
+                        <TextBlock Text="{Binding ComposedPreview}"
+                                   FontFamily="Consolas"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Run command"
+                                Command="{Binding RunModCommandCommand}"
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Background="{DynamicResource PrimaryBrush}"
+                                ToolTip="Sends the composed command into the configured mod channel"/>
+                        <Button Content="Save as favorite"
+                                Command="{Binding SaveFavoriteCommand}"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                Margin="8,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- Favorites -->
+                    <TextBlock Text="Favorites"
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,16,0,8"/>
+                    <ItemsControl ItemsSource="{Binding FavoriteCommands}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                        CornerRadius="4"
+                                        Padding="12,6"
+                                        Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding}"
+                                                   FontFamily="Consolas"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"/>
+
+                                        <Button Grid.Column="1"
+                                                Command="{Binding DataContext.RunFavoriteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="4"
+                                                Margin="0,0,4,0"
+                                                ToolTip="Send this favorite to the mod channel">
+                                            <materialDesign:PackIcon Kind="Play" Width="16" Height="16"
+                                                                     Foreground="{DynamicResource SuccessBrush}"/>
+                                        </Button>
+
+                                        <Button Grid.Column="2"
+                                                Command="{Binding DataContext.DeleteFavoriteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="4"
+                                                ToolTip="Remove this favorite">
+                                            <materialDesign:PackIcon Kind="Delete" Width="16" Height="16"
+                                                                     Foreground="{DynamicResource ErrorBrush}"/>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </materialDesign:Card>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

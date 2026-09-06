@@ -253,6 +253,27 @@
                             </StackPanel>
                         </Button>
 
+                        <!-- Moderator Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="Moderator"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="ShieldAccount"
+                                                         Width="20"
+                                                         Height="20"
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Moderator"
+                                           FontSize="14"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
                         <!-- API & Webhooks Category -->
                         <Button Command="{Binding SelectCategoryCommand}"
                                 CommandParameter="API"
@@ -1841,6 +1862,79 @@
                             </materialDesign:Card>
 
                             <TextBlock Text="Workflow definitions, triggers and the visual editor are on the Automation page."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <!-- Moderator Panel -->
+                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Moderator}">
+                            <TextBlock Text="Moderator"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,0,0,16"/>
+
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Mod Channel"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,4"/>
+                                    <TextBlock Text="The private Discord channel where !mod commands and mod-action announcements are posted. Leave the ID empty to create the channel from the Moderator page."
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,12"/>
+                                    <TextBox Text="{Binding ModChannelId, UpdateSourceTrigger=PropertyChanged}"
+                                             MaxLength="32"
+                                             materialDesign:HintAssist.Hint="Discord channel ID"
+                                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                             Margin="0,0,0,12"/>
+
+                                    <TextBlock Text="Mod role name"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,4"/>
+                                    <TextBox Text="{Binding ModRoleName, UpdateSourceTrigger=PropertyChanged}"
+                                             MaxLength="100"
+                                             materialDesign:HintAssist.Hint="Vyral Mod"
+                                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                             Width="280"
+                                             HorizontalAlignment="Left"
+                                             Margin="0,0,0,12"/>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Auto-create when missing"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Create the mod channel automatically the first time a mod action needs it (saved immediately)"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      IsChecked="{Binding ModAutoCreateChannel}"
+                                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="16,0,0,0"/>
+                                    </Grid>
+
+                                    <Button Content="Save Moderator Settings"
+                                            Command="{Binding SaveModeratorSettingsCommand}"
+                                            Style="{StaticResource MaterialDesignRaisedButton}"
+                                            Background="{DynamicResource PrimaryBrush}"
+                                            HorizontalAlignment="Left"/>
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <TextBlock Text="Mod roles, the action log and the !mod command builder are on the Moderator page (Home &#8594; Moderator)."
                                        FontSize="11"
                                        Foreground="{DynamicResource TextMutedBrush}"
                                        TextWrapping="Wrap"/>

@@ -2,6 +2,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using VyralBot.Core.Services.EventBus;
+using VyralBot.Core.Services.EventBus.Events;
 using VyralBot.Data;
 using VyralBot.UI.Services;
 
@@ -157,6 +159,27 @@ public partial class ChatHubViewModel : ViewModelBase
     private void SelectPlatform(string platform)
     {
         SelectedPlatform = platform;
+    }
+
+    /// <summary>
+    /// Moderator shortcut chip: publishes a NavigateToPageEvent so MainViewModel
+    /// routes to the Moderator page (same embedded-surface pattern as the chat
+    /// quick-actions popup) without holding a MainViewModel reference.
+    /// </summary>
+    [RelayCommand]
+    private void NavigateToModerator()
+    {
+        try
+        {
+            if (_serviceProvider.GetService<IEventBus>() is { } eventBus)
+            {
+                _ = eventBus.PublishAsync(new NavigateToPageEvent { PageKey = AppPages.Moderator, Source = "System" });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to publish NavigateToPageEvent for the Moderator page");
+        }
     }
 
     /// <summary>True when the selected platform supports connect/disconnect from here (TikTok is not implemented yet).</summary>

@@ -51,13 +51,32 @@
         <StackPanel Margin="32,24,32,32">
 
             <!-- Header -->
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                <materialDesign:PackIcon Kind="ChatProcessing" Width="28" Height="28"
-                                         Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                <TextBlock Text="Chat Management"
-                           FontSize="24" FontWeight="Bold"
-                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-            </StackPanel>
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Grid.Column="0">
+                    <materialDesign:PackIcon Kind="ChatProcessing" Width="28" Height="28"
+                                             Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock Text="Chat Management"
+                               FontSize="24" FontWeight="Bold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                </StackPanel>
+                <!-- Moderator shortcut chip -->
+                <Button Grid.Column="1"
+                        Command="{Binding NavigateToModeratorCommand}"
+                        Style="{StaticResource MaterialDesignFlatButton}"
+                        VerticalAlignment="Center"
+                        ToolTip="Open the Moderator dashboard (mod channel, mod roles, action log, !mod builder)">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="ShieldAccount" Width="18" Height="18"
+                                                 Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"/>
+                        <TextBlock Text="Moderator" Margin="6,0,0,0" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
             <TextBlock Text="Configure chat behavior, event notifications, and auto-replies for each platform"
                        FontSize="13"
                        Foreground="{DynamicResource TextSecondaryBrush}"

@@ -307,6 +307,27 @@ public partial class App : Application
                 services.AddSingleton<IntegrationsViewModel>();
                 services.AddSingleton<DocumentationViewModel>();
                 services.AddSingleton<AutomationViewModel>(); // Automation page (structured workflow builder)
+                // Moderation system (Moderator page + Settings → Moderator):
+                // role assignments + the !mod command engine (built by the
+                // moderation task in VyralBot.Core/Services/Moderation) and the
+                // Moderator page ViewModel.
+                // IModRoleService: factory (not type-only) because ModRoleService
+                // takes the Core-side IModDiscordBot mirror, which the primary
+                // Discord service satisfies through ModDiscordBotAdapter.
+                services.AddSingleton<VyralBot.Core.Services.Moderation.IModRoleService>(sp =>
+                    new VyralBot.Core.Services.Moderation.ModRoleService(
+                        sp.GetRequiredService<IDataService>(),
+                        sp.GetService<IDiscordService>() is { } primaryDiscord
+                            ? new VyralBot.UI.Services.ModDiscordBotAdapter(primaryDiscord)
+                            : null,
+                        sp.GetRequiredService<ILogger<VyralBot.Core.Services.Moderation.ModRoleService>>()));
+                // The !mod engine: register the concrete type too so the startup
+                // wiring can set its seams on the SAME instance the interface
+                // consumers resolve.
+                services.AddSingleton<VyralBot.Core.Services.Moderation.ModCommandEngine>();
+                services.AddSingleton<VyralBot.Core.Services.Moderation.IModCommandEngine>(sp =>
+                    sp.GetRequiredService<VyralBot.Core.Services.Moderation.ModCommandEngine>());
+                services.AddSingleton<ModeratorViewModel>();
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<ProfileSelectorViewModel>();
                 services.AddSingleton<WebServerSettingsViewModel>();
@@ -404,6 +425,77 @@ public partial class App : Application
             catch (Exception ex)
             {
                 Log.Warning(ex, "Failed to attach the workflow Discord bridge to running bots");
+            }
+
+            // Moderator: wire the mod command engine to the mod channel, the
+            // multi-bot manager, the Discord chat event bus and the underlying
+            // moderation command handler. ModDiscordBotAdapter bridges the
+            // Core-side IModDiscordBot mirror to IDiscordService (Core cannot
+            // reference VyralBot.Integrations). The channel provider resolves
+            // Config "Mod.ChannelId" (saved by the Moderator page / Settings →
+            // Moderator) first and falls back to the primary running bot's
+            // DiscordBots row. Best-effort — a failure here must not break
+            // startup.
+            try
+            {
+                var modEngine = _host.Services.GetRequiredService<VyralBot.Core.Services.Moderation.ModCommandEngine>();
+                var modData = _host.Services.GetRequiredService<IDataService>();
+                var modBotManager = _host.Services.GetRequiredService<IDiscordBotManager>();
+                var modEventBus = _host.Services.GetRequiredService<IEventBus>();
+                var modHandler = new DiscordModCommandHandler(); // stateless, no DI needed
+
+                modEngine.ModChannelIdProvider = () =>
+                {
+                    var configured = modData.GetConfigValueAsync("Mod.ChannelId").GetAwaiter().GetResult();
+                    if (!string.IsNullOrWhiteSpace(configured))
+                    {
+                        return configured;
+                    }
+
+                    var primaryBotId = modBotManager.Primary?.BotId;
+                    var botRows = modData.GetDiscordBotsAsync().GetAwaiter().GetResult();
+                    return !string.IsNullOrWhiteSpace(primaryBotId)
+                        ? botRows.FirstOrDefault(b => string.Equals(b.Id, primaryBotId, StringComparison.Ordinal))?.ModChannelId
+                        : botRows.FirstOrDefault(b => !string.IsNullOrWhiteSpace(b.ModChannelId))?.ModChannelId;
+                };
+
+                modEngine.BotResolver = botId =>
+                {
+                    var svc = modBotManager.Get(botId);
+                    return svc == null ? null : new VyralBot.UI.Services.ModDiscordBotAdapter(svc);
+                };
+
+                // Feed the engine every Discord chat message, projected onto the
+                // Core-side ModChannelMessage record (the event type is not
+                // nameable from Core). The returned Guid lets StopAsync
+                // unsubscribe via the engine's own IEventBus.
+                modEngine.DiscordChatSubscriber = handler =>
+                    modEventBus.SubscribeAsync<VyralBot.Integrations.Discord.Events.DiscordChatMessageEvent>(
+                        e => handler(new VyralBot.Core.Services.Moderation.ModChannelMessage(
+                            e.ChannelId, e.SenderUserId, e.Username, e.Message, e.BotId)));
+
+                // Delegated moderation ("!kick @user" …) runs through the same
+                // command handler the bot's own chat uses, as a moderator.
+                modEngine.ModerationInvoker = async (botId, commandLine, channelId) =>
+                {
+                    var bot = modBotManager.Get(botId);
+                    if (bot == null)
+                    {
+                        return null;
+                    }
+
+                    var result = await modHandler.HandleAsync(
+                        bot, commandLine, callerIsModerator: true, callerIsOwner: false, channelId).ConfigureAwait(false);
+                    return result.Handled ? result.Response : null;
+                };
+
+                await modEngine.StartAsync();
+
+                Log.Information("Mod command engine wired (channel provider + bot resolver + chat subscriber + moderation invoker)");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to wire the mod command engine");
             }
 
             // Initialize database schema

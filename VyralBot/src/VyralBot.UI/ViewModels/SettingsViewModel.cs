@@ -1149,6 +1149,10 @@ public partial class SettingsViewModel : ViewModelBase
             WorkflowTimerIntervalSeconds = await GetIntAsync("Automation.TimerIntervalSeconds", 60);
             WorkflowHistoryRetentionDays = await GetIntAsync("Automation.ExecutionHistoryRetentionDays", 90);
 
+            ModChannelId = await _dataService.GetConfigValueAsync("Mod.ChannelId") ?? string.Empty;
+            ModAutoCreateChannel = await GetBoolAsync("Mod.AutoCreateChannel", true);
+            ModRoleName = await _dataService.GetConfigValueAsync("Mod.ModRoleName") ?? "Vyral Mod";
+
             // Security panel info — GetCurrentProfileAsync can return null (first run /
             // missing current_profile.txt); skip the pin check instead of throwing, a
             // throw here would leave _categorySettingsLoaded false and kill the
@@ -1168,6 +1172,50 @@ public partial class SettingsViewModel : ViewModelBase
     {
         var value = await _dataService.GetConfigValueAsync(key);
         return bool.TryParse(value, out var parsed) ? parsed : defaultValue;
+    }
+
+    // ----- Moderator -----
+
+    [ObservableProperty]
+    private string _modChannelId = string.Empty;
+
+    [ObservableProperty]
+    private bool _modAutoCreateChannel = true;
+
+    [ObservableProperty]
+    private string _modRoleName = "Vyral Mod";
+
+    partial void OnModAutoCreateChannelChanged(bool value)
+    {
+        if (_categorySettingsLoaded)
+        {
+            _ = SaveSimpleBoolSettingAsync("Mod.AutoCreateChannel", value, "Mod");
+        }
+    }
+
+    [RelayCommand]
+    private async Task SaveModeratorSettingsAsync()
+    {
+        try
+        {
+            var roleId = ModChannelId?.Trim() ?? string.Empty;
+            var roleName = string.IsNullOrWhiteSpace(ModRoleName) ? "Vyral Mod" : ModRoleName.Trim();
+
+            await _dataService.SetConfigValueAsync("Mod.ChannelId", roleId, "Mod");
+            await _dataService.SetConfigValueAsync("Mod.ModRoleName", roleName, "Mod");
+
+            ModChannelId = roleId;
+            ModRoleName = roleName;
+
+            StatusMessage = "Moderator settings saved";
+            _logger.LogInformation("Moderator settings saved (channel={ChannelId}, role={RoleName})", roleId, roleName);
+            await ClearStatusAfterDelayAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving moderator settings");
+            StatusMessage = $"Error saving moderator settings: {ex.Message}";
+        }
     }
 
     private async Task<int> GetIntAsync(string key, int defaultValue)

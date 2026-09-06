@@ -17,6 +17,9 @@ namespace VyralBot.Integrations.Discord;
 /// <param name="AvatarUrl">Avatar URL (PNG, 128px), auto-detected from the gateway at connect time.</param>
 /// <param name="RoleLinking">This bot handles account-link DMs (single-assignment role).</param>
 /// <param name="RoleGiveaway">This bot sends giveaway announcements (single-assignment role).</param>
+/// <param name="ModChannelId">Per-bot snowflake channel used for mod-action announcements.</param>
+/// <param name="ModChannelEnabled">Whether this bot routes mod actions to its mod channel (defaults to on).</param>
+/// <param name="AssignedChannelIds">Comma-separated snowflake channel IDs this bot listens in for mod commands.</param>
 public record DiscordBotConfig(
     string Id,
     string Name,
@@ -27,7 +30,10 @@ public record DiscordBotConfig(
     string? BotUsername = null,
     string? AvatarUrl = null,
     bool RoleLinking = false,
-    bool RoleGiveaway = false)
+    bool RoleGiveaway = false,
+    string? ModChannelId = null,
+    bool ModChannelEnabled = true,
+    string? AssignedChannelIds = null)
 {
     /// <summary>
     /// Start this bot automatically at app launch. The PRIMARY bot does not need

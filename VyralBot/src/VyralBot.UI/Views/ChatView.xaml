@@ -12,6 +12,7 @@
     
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <converters:NullOrEmptyToVisibilityConverter x:Key="NullOrEmptyToVisibilityConverter"/>
         <converters:BadgesToImagesConverter x:Key="BadgesToImagesConverter"/>
         <converters:PlatformToImageConverter x:Key="PlatformToImageConverter"/>
         <converters:PlatformToBrushConverter x:Key="PlatformToBrushConverter"/>
@@ -556,21 +557,24 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <!-- Inbox header: shown while NO conversation is open -->
                         <Grid Grid.Row="0"
                               Visibility="{Binding HasSelectedDmConversation, Converter={StaticResource InvertBooleanToVisibilityConverter}}">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="Direct Messages"
-                                                       FontSize="12" FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                                       Margin="14,10,0,6"/>
-                                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,8,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Direct Messages"
+                                       FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Margin="14,10,0,6"/>
+                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,8,0">
                                             <Button Command="{Binding LoadAllDmHistoryCommand}" Style="{StaticResource MaterialDesignFlatButton}" ToolTip="Load every saved DM conversation with full history" Margin="0,0,8,0">
                                                 <StackPanel Orientation="Horizontal">
                                                     <materialDesign:PackIcon Kind="History" Width="16" Height="16" VerticalAlignment="Center"/>
@@ -583,8 +587,47 @@
                                                     <TextBlock Text="Clear all" VerticalAlignment="Center" Margin="4,0,0,0"/>
                                                 </StackPanel>
                                             </Button>
-                                            </StackPanel>
-                                        </Grid>
+                                <!-- New DM: expands the inline user-ID input below;
+                                     StartDmByUserIdCommand opens a replyable conversation
+                                     (ChannelId + BotId set) and selects its thread. -->
+                                <Button Command="{Binding ToggleNewDmInputCommand}" Style="{StaticResource MaterialDesignFlatButton}" ToolTip="Start a new DM by Discord user ID" Margin="0,0,8,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon Kind="Plus" Width="16" Height="16" VerticalAlignment="Center"/>
+                                        <TextBlock Text="New DM" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                            <!-- Inline New DM input + validation/API status -->
+                            <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                        Margin="0,0,8,6"
+                                        Visibility="{Binding IsNewDmInputOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <TextBox Text="{Binding NewDmUserId, UpdateSourceTrigger=PropertyChanged}"
+                                             materialDesign:HintAssist.Hint="Discord user ID (17-20 digits)"
+                                             Width="220"
+                                             FontSize="12"
+                                             VerticalAlignment="Center"
+                                             Margin="0,0,4,0">
+                                        <TextBox.InputBindings>
+                                            <KeyBinding Key="Return" Command="{Binding StartDmByUserIdCommand}"/>
+                                        </TextBox.InputBindings>
+                                    </TextBox>
+                                    <Button Command="{Binding StartDmByUserIdCommand}"
+                                            Style="{StaticResource MaterialDesignIconButton}"
+                                            Width="32"
+                                            Height="32"
+                                            ToolTip="Open DM">
+                                        <materialDesign:PackIcon Kind="Check" Width="18" Height="18"/>
+                                    </Button>
+                                </StackPanel>
+                                <TextBlock Text="{Binding NewDmStatus}"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource ErrorRedBrush}"
+                                           HorizontalAlignment="Right"
+                                           Margin="0,4,4,0"
+                                           Visibility="{Binding NewDmStatus, Converter={StaticResource NullOrEmptyToVisibilityConverter}}"/>
+                            </StackPanel>
+                        </Grid>
 
                         <!-- Thread header: back button + username + history controls
                              (shown while a conversation IS open) -->
@@ -856,38 +899,6 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
 
-                        <!-- Reply bar: mirrors the main chat input (hint TextBox +
-                             Enter-to-send KeyBinding + Send button). Command is
-                             disabled while the input is empty or no conversation
-                             is open (CanSendDmReply). -->
-                        <Grid Grid.Row="2"
-                              Margin="8,4,8,8"
-                              Visibility="{Binding HasSelectedDmConversation, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-
-                            <TextBox Grid.Column="0"
-                                     Text="{Binding DmReplyInput, UpdateSourceTrigger=PropertyChanged}"
-                                     materialDesign:HintAssist.Hint="Reply..."
-                                     FontSize="13"
-                                     VerticalAlignment="Center"
-                                     Margin="0,0,8,0">
-                                <TextBox.InputBindings>
-                                    <KeyBinding Key="Return" Command="{Binding SendDmReplyCommand}"/>
-                                </TextBox.InputBindings>
-                            </TextBox>
-
-                            <Button Grid.Column="1"
-                                    Command="{Binding SendDmReplyCommand}"
-                                    Style="{StaticResource MaterialDesignIconButton}"
-                                    Width="36"
-                                    Height="36"
-                                    ToolTip="Send reply">
-                                <materialDesign:PackIcon Kind="Send" Width="18" Height="18"/>
-                            </Button>
-                        </Grid>
                     </Grid>
                 </materialDesign:Card>
             </Grid>
@@ -956,43 +967,86 @@
                 
                 <TextBox Grid.Column="1"
                        Text="{Binding MessageInput, UpdateSourceTrigger=PropertyChanged}"
-                       materialDesign:HintAssist.Hint="Send a message..."
                        FontSize="13"
                        VerticalAlignment="Center"
                        Margin="0,0,12,0">
+                    <TextBox.Style>
+                        <Style TargetType="TextBox">
+                            <!-- Unified reply box: the placeholder switches while a DM
+                                 thread is open (the hint must only be set here — a local
+                                 attribute value would override the trigger). -->
+                            <Setter Property="materialDesign:HintAssist.Hint" Value="Send a message..."/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsDmReplyMode}" Value="True">
+                                    <Setter Property="materialDesign:HintAssist.Hint" Value="Reply as Vyral Bot (DM)..."/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBox.Style>
                     <TextBox.InputBindings>
                         <KeyBinding Key="Return" Command="{Binding SendMessageCommand}"/>
                     </TextBox.InputBindings>
                 </TextBox>
-                
+
                 <Button Grid.Column="2"
                       Command="{Binding SendMessageCommand}"
                       Height="36"
                       Padding="24,0"
-                      Style="{StaticResource MaterialDesignRaisedButton}"
-                      Background="{Binding SelectedPlatform.Name, Converter={StaticResource PlatformToBrushConverter}}"
-                      Foreground="White"
                       BorderBrush="{StaticResource PrimaryHueMidBrush}"
                       BorderThickness="0">
+                    <!-- Platform brand background + readable Foreground (Facebook's
+                         white needs dark-blue text — converter "foreground" param).
+                         DM reply mode swaps the background for a Discord-blue → red
+                         diagonal gradient. -->
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                            <Setter Property="Background" Value="{Binding SelectedPlatform.Name, Converter={StaticResource PlatformToBrushConverter}}"/>
+                            <Setter Property="Foreground" Value="{Binding SelectedPlatform.Name, Converter={StaticResource PlatformToBrushConverter}, ConverterParameter=foreground}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsDmReplyMode}" Value="True">
+                                    <Setter Property="Background">
+                                        <Setter.Value>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                <GradientStop Color="#5865F2" Offset="0"/>
+                                                <GradientStop Color="#FF0000" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
                     <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="Send" 
-                                               Width="16" 
+                        <materialDesign:PackIcon Kind="Send"
+                                               Width="16"
                                                Height="16"
                                                VerticalAlignment="Center"
                                                Margin="0,0,6,0"/>
-                        <TextBlock Text="SEND" 
+                        <TextBlock Text="SEND"
                                  FontSize="12"
                                  FontWeight="SemiBold"
                                  VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
-                
+
                 <!-- Send to All Platforms Button -->
                 <Border Grid.Column="3"
                         BorderBrush="{StaticResource PrimaryHueMidBrush}"
                         BorderThickness="1"
                         CornerRadius="18"
                         Margin="8,0,0,0">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <!-- Hidden in DM reply mode so a DM draft cannot be
+                                 broadcast to every platform. -->
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsDmReplyMode}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <Button Command="{Binding SendToAllPlatformsCommand}"
                           Height="36"
                           Width="36"
