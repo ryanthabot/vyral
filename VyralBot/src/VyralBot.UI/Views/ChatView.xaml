@@ -586,16 +586,17 @@
                                             </StackPanel>
                                         </Grid>
 
-                        <!-- Thread header: back button + the open conversation's
-                             username (shown while a conversation IS open) -->
+                        <!-- Thread header: back button + username + history controls
+                             (shown while a conversation IS open) -->
                         <Grid Grid.Row="0"
                               Margin="6,6,10,6"
                               Visibility="{Binding HasSelectedDmConversation, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-
                             <Button Grid.Column="0"
                                     Command="{Binding BackToDmInboxCommand}"
                                     Style="{StaticResource MaterialDesignIconButton}"
@@ -603,13 +604,7 @@
                                     Height="32"
                                     ToolTip="All conversations">
                                 <materialDesign:PackIcon Kind="ArrowLeft" Width="18" Height="18"/>
-                            </Button>                                    <Button Command="{Binding LoadDmHistoryCommand}" Style="{StaticResource MaterialDesignIconButton}" Width="32" Height="32" ToolTip="Reload this conversation's full saved history" Margin="4,0,0,0">
-                                        <materialDesign:PackIcon Kind="History" Width="18" Height="18"/>
-                                    </Button>
-                                    <Button Command="{Binding ClearDmHistoryCommand}" Style="{StaticResource MaterialDesignIconButton}" Width="32" Height="32" ToolTip="Delete this conversation's saved DM history" Margin="4,0,0,0">
-                                        <materialDesign:PackIcon Kind="Delete" Width="18" Height="18"/>
-                                    </Button>
-
+                            </Button>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0">
                                 <TextBlock Text="{Binding SelectedDmConversation.Username}"
                                            FontSize="14"
@@ -622,8 +617,25 @@
                                            VerticalAlignment="Center"
                                            Margin="8,2,0,0"/>
                             </StackPanel>
+                            <Button Grid.Column="2"
+                                    Command="{Binding LoadDmHistoryCommand}"
+                                    Style="{StaticResource MaterialDesignIconButton}"
+                                    Width="32"
+                                    Height="32"
+                                    Margin="4,0,0,0"
+                                    ToolTip="Reload this conversation's full saved history">
+                                <materialDesign:PackIcon Kind="History" Width="18" Height="18"/>
+                            </Button>
+                            <Button Grid.Column="3"
+                                    Command="{Binding ClearDmHistoryCommand}"
+                                    Style="{StaticResource MaterialDesignIconButton}"
+                                    Width="32"
+                                    Height="32"
+                                    Margin="4,0,0,0"
+                                    ToolTip="Delete this conversation's saved DM history">
+                                <materialDesign:PackIcon Kind="Delete" Width="18" Height="18"/>
+                            </Button>
                         </Grid>
-
                         <!-- Inbox list: one row per DM conversation (username bold,
                              muted single-line preview, short time right-aligned,
                              unread badge when > 0). Clicking a row opens the thread
