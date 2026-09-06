@@ -25,5 +25,7 @@ public class ViewerPlatformStatus
 
     public bool IsFollower { get; set; }
 
-    public DateTime LastUpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime LastUpdatedAt { get; set; }
+
+	public string? PlatformUserId { get; set; }
 }

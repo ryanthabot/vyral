@@ -12,5 +12,7 @@ public class LinkedAccount
     public required string Platform { get; set; }
     public bool IsVerified { get; set; }
     public DateTime? VerifiedAt { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; }
+
+	public string? PlatformUserId { get; set; }
 }

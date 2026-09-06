@@ -27,6 +27,15 @@ public sealed record ViewerProfileAccountSnapshot
     /// <summary>Cached per-platform status (sub tier / follower), or null.</summary>
     public ViewerPlatformStatus? Status { get; init; }
 
+    /// <summary>Platform user id from the cached status row, when known.</summary>
+    public string? PlatformUserId { get; init; }
+
+    /// <summary>Lifetime points earned on this account's platform (PlatformEarnings.Earned).</summary>
+    public long PlatformEarned { get; init; }
+
+    /// <summary>Lifetime points spent on this account's platform (PlatformEarnings.Spent).</summary>
+    public long PlatformSpent { get; init; }
+
     /// <summary>Currency balance for this account, or null when never seen.</summary>
     public UserCurrency? Currency { get; init; }
 
@@ -45,6 +54,13 @@ public sealed record ViewerProfileAccountSnapshot
     /// <summary>Giveaway entries submitted from this account (newest first).</summary>
     public IReadOnlyList<ViewerProfileGiveawayEntrySnapshot> GiveawayEntries { get; init; }
         = Array.Empty<ViewerProfileGiveawayEntrySnapshot>();
+
+    /// <summary>
+    /// Discord DM history for this account's username (newest first). Populated
+    /// only by <see cref="IViewerProfileService.GetAccountDetailAsync"/> — the
+    /// profile-wide list lives on <see cref="ViewerProfileSnapshot.DmHistory"/>.
+    /// </summary>
+    public IReadOnlyList<DiscordDmMessage> DmHistory { get; init; } = Array.Empty<DiscordDmMessage>();
 }
 
 /// <summary>
@@ -110,6 +126,15 @@ public sealed record ViewerProfileSnapshot
 
     /// <summary>Timestamp of the user's most recent event, or null.</summary>
     public DateTime? LastEventAt { get; init; }
+
+    /// <summary>Discord DM history for the requested username (newest first).</summary>
+    public IReadOnlyList<DiscordDmMessage> DmHistory { get; init; } = Array.Empty<DiscordDmMessage>();
+
+    /// <summary>Moderation actions targeting this viewer (newest first, max 100).</summary>
+    public IReadOnlyList<ModAction> ModActions { get; init; } = Array.Empty<ModAction>();
+
+    /// <summary>Per-platform points ledger for the viewer (one row per platform).</summary>
+    public IReadOnlyList<PlatformEarnings> PlatformEarnings { get; init; } = Array.Empty<PlatformEarnings>();
 }
 
 /// <summary>
@@ -125,4 +150,14 @@ public interface IViewerProfileService
     /// account info.
     /// </summary>
     Task<ViewerProfileSnapshot> GetProfileAsync(string username, string platform);
+
+    /// <summary>
+    /// Builds the detail snapshot for one linked account (username+platform).
+    /// Returns null when the account is not linked to a viewer identity. The
+    /// returned snapshot carries the per-account aggregates plus this account's
+    /// DM history (<see cref="ViewerProfileAccountSnapshot.DmHistory"/>) and its
+    /// platform earnings totals (<see cref="ViewerProfileAccountSnapshot.PlatformEarned"/> /
+    /// <see cref="ViewerProfileAccountSnapshot.PlatformSpent"/>).
+    /// </summary>
+    Task<ViewerProfileAccountSnapshot?> GetAccountDetailAsync(string username, string platform);
 }

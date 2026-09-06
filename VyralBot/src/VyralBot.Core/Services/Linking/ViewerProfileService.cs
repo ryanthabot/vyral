@@ -16,6 +16,7 @@ namespace VyralBot.Core.Services.Linking;
 public class ViewerProfileService : IViewerProfileService
 {
     private const int RecentTransactionLimit = 25;
+    private const int ModActionLimit = 100;
 
     private readonly ILogger<ViewerProfileService> _logger;
     private readonly IDataService _dataService;
@@ -66,14 +67,10 @@ public class ViewerProfileService : IViewerProfileService
                 };
             }
 
-            // Group-wide lookups (one round trip each).
+            // Group-wide lookups (one round trip each), shared with GetAccountDetailAsync.
             var accounts = (await _linkedAccounts.GetLinkedAccountsAsync(viewerId)).ToList();
-            var statuses = (await _dataService.GetViewerStatusesByViewerIdAsync(viewerId)).ToList();
+            var (statuses, giveawayNames, platformEarnings) = await LoadViewerContextAsync(viewerId);
             var goalNames = (await _socialGoals.GetGoalsAsync())
-                .GroupBy(g => g.Id)
-                .ToDictionary(g => g.Key, g => g.First().Name);
-
-            var giveawayNames = (await _dataService.GetGiveawaysAsync())
                 .GroupBy(g => g.Id)
                 .ToDictionary(g => g.Key, g => g.First().Name);
 
@@ -84,7 +81,8 @@ public class ViewerProfileService : IViewerProfileService
                     account,
                     isCurrent: SameAccount(account, requestedUsername, requestedPlatform),
                     statuses,
-                    giveawayNames));
+                    giveawayNames,
+                    platformEarnings));
             }
 
             // Vyral goals completed by this viewer (newest first), joined with goal names.
@@ -105,9 +103,15 @@ public class ViewerProfileService : IViewerProfileService
                 .Select(kvp => new ViewerProfileEventStatRow(kvp.Key, kvp.Value))
                 .ToList();
 
+            // Moderation audit rows for this viewer (already newest-first from the store).
+            var modActions = (await _dataService.GetModActionsForViewerAsync(requestedUsername, viewerId, ModActionLimit))
+                .ToList();
+            var dmHistory = await LoadDmHistoryAsync(requestedUsername);
+
             _logger.LogInformation(
-                "Viewer profile built for {Username} ({Platform}): viewer {ViewerId}, {Accounts} account(s), {Goals} goal(s), {Events} event(s)",
-                requestedUsername, requestedPlatform, viewerId, accountSnapshots.Count, goals.Count, eventDetail.TotalEvents);
+                "Viewer profile built for {Username} ({Platform}): viewer {ViewerId}, {Accounts} account(s), {Goals} goal(s), {Events} event(s), {ModActions} mod action(s), {Dms} dm(s)",
+                requestedUsername, requestedPlatform, viewerId, accountSnapshots.Count, goals.Count, eventDetail.TotalEvents,
+                modActions.Count, dmHistory.Count);
 
             return new ViewerProfileSnapshot
             {
@@ -120,6 +124,9 @@ public class ViewerProfileService : IViewerProfileService
                 EventsByType = eventsByType,
                 FirstEventAt = eventDetail.FirstEventDate,
                 LastEventAt = eventDetail.LastEventDate,
+                DmHistory = dmHistory,
+                ModActions = modActions,
+                PlatformEarnings = platformEarnings,
             };
         }
         catch (Exception ex)
@@ -135,10 +142,15 @@ public class ViewerProfileService : IViewerProfileService
         LinkedAccount account,
         bool isCurrent,
         List<ViewerPlatformStatus> statuses,
-        IReadOnlyDictionary<Guid, string> giveawayNames)
+        IReadOnlyDictionary<Guid, string> giveawayNames,
+        List<PlatformEarnings> platformEarnings)
     {
         var status = statuses.FirstOrDefault(s =>
             SameAccount(s.Username, account.Username, s.Platform, account.Platform));
+
+        // Earnings are tracked per VIEWER; pick this account's platform row.
+        var earnings = platformEarnings.FirstOrDefault(e =>
+            SamePlatform(e.Platform, account.Platform));
 
         var currency = await _dataService.GetUserCurrencyAsync(account.Username, account.Platform);
 
@@ -172,6 +184,9 @@ public class ViewerProfileService : IViewerProfileService
             IsVerified = account.IsVerified,
             LinkedAt = account.CreatedAt,
             Status = status,
+            PlatformUserId = status?.PlatformUserId,
+            PlatformEarned = earnings?.Earned ?? 0,
+            PlatformSpent = earnings?.Spent ?? 0,
             Currency = currency,
             Transactions = transactions,
             Watchtime = watchtime,
@@ -180,6 +195,84 @@ public class ViewerProfileService : IViewerProfileService
             GiveawayEntries = entrySnapshots,
         };
     }
+
+    /// <summary>
+    /// Resolves one linked account to its detail snapshot, or null when the
+    /// (username, platform) pair is not linked to a viewer identity.
+    /// </summary>
+    public async Task<ViewerProfileAccountSnapshot?> GetAccountDetailAsync(string username, string platform)
+    {
+        var requestedUsername = (username ?? string.Empty).Trim();
+        var requestedPlatform = (platform ?? string.Empty).Trim();
+
+        try
+        {
+            var viewerId = await _linkedAccounts.GetViewerIdAsync(requestedUsername, requestedPlatform);
+            if (string.IsNullOrEmpty(viewerId))
+            {
+                viewerId = await _dataService.GetViewerIdAsync(requestedUsername, requestedPlatform);
+            }
+
+            if (string.IsNullOrEmpty(viewerId))
+            {
+                return null;
+            }
+
+            var accounts = await _linkedAccounts.GetLinkedAccountsAsync(viewerId);
+            var account = accounts.FirstOrDefault(a =>
+                SameAccount(a, requestedUsername, requestedPlatform));
+            if (account is null)
+            {
+                return null;
+            }
+
+            var (statuses, giveawayNames, platformEarnings) = await LoadViewerContextAsync(viewerId);
+            var snapshot = await BuildAccountSnapshotAsync(
+                account,
+                isCurrent: true,
+                statuses,
+                giveawayNames,
+                platformEarnings);
+
+            // The profile-wide DM list lives on the snapshot; the detail view
+            // gets the same history scoped to this account's username.
+            snapshot = snapshot with { DmHistory = await LoadDmHistoryAsync(account.Username) };
+
+            _logger.LogInformation(
+                "Account detail built for {Username} ({Platform}): viewer {ViewerId}, {Dms} dm(s)",
+                requestedUsername, requestedPlatform, viewerId, snapshot.DmHistory.Count);
+
+            return snapshot;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Error building account detail for {Username} ({Platform})",
+                requestedUsername, requestedPlatform);
+            throw;
+        }
+    }
+
+    /// <summary>Shared per-viewer lookups used by both profile and account-detail builds.</summary>
+    private async Task<(List<ViewerPlatformStatus> Statuses, IReadOnlyDictionary<Guid, string> GiveawayNames, List<PlatformEarnings> Earnings)>
+        LoadViewerContextAsync(string viewerId)
+    {
+        var statuses = (await _dataService.GetViewerStatusesByViewerIdAsync(viewerId)).ToList();
+        var giveawayNames = (await _dataService.GetGiveawaysAsync())
+            .GroupBy(g => g.Id)
+            .ToDictionary(g => g.Key, g => g.First().Name);
+        var earnings = (await _dataService.GetPlatformEarningsAsync(viewerId)).ToList();
+        return (statuses, giveawayNames, earnings);
+    }
+
+    /// <summary>DM history for one username, newest first (matches snapshot conventions).</summary>
+    private async Task<List<DiscordDmMessage>> LoadDmHistoryAsync(string username) =>
+        (await _dataService.GetDiscordDmHistoryAsync(username))
+            .OrderByDescending(m => m.Timestamp)
+            .ToList();
+
+    private static bool SamePlatform(string left, string right) =>
+        string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
 
     private static bool SameAccount(LinkedAccount account, string username, string platform) =>
         SameAccount(account.Username, username, account.Platform, platform);
