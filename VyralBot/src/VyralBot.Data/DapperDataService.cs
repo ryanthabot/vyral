@@ -946,7 +946,7 @@ public class DapperDataService : IDataService
     public async Task SaveDiscordDmMessageAsync(DiscordDmMessage message)
     {
         using var conn = CreateConnection();
-        await conn.ExecuteAsync("INSERT OR REPLACE INTO DiscordDmMessages (Id, BotId, BotUsername, ChannelId, Username, Direction, Content, Timestamp) VALUES (@Id, @BotId, @BotUsername, @ChannelId, @Username, @Direction, @Content, @Timestamp)", message);
+        await conn.ExecuteAsync("INSERT OR REPLACE INTO DiscordDmMessages (Id, BotId, BotUsername, ChannelId, Username, UserId, Direction, Content, Timestamp) VALUES (@Id, @BotId, @BotUsername, @ChannelId, @Username, @UserId, @Direction, @Content, @Timestamp)", message);
     }
 
     public async Task<IEnumerable<DiscordDmMessage>> GetDiscordDmHistoryAsync(string username)
@@ -963,6 +963,20 @@ public class DapperDataService : IDataService
         var rows = await conn.QueryAsync<(string Username, string BotUsername, string LastAt, int Total)>(
             "SELECT Username, MAX(BotUsername) AS BotUsername, MAX(Timestamp) AS LastAt, COUNT(1) AS Total FROM DiscordDmMessages GROUP BY Username COLLATE NOCASE ORDER BY MAX(Timestamp) DESC");
         return rows.Select(r => (r.Username, (string?)r.BotUsername, DateTime.TryParse(r.LastAt, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out var t) ? t : DateTime.MinValue, r.Total));
+    }
+
+    public async Task<IEnumerable<DiscordDmMessage>> SearchDiscordDmMessagesAsync(string query)
+    {
+        var pattern = "%" + (query ?? string.Empty).Trim() + "%";
+        if (pattern == "%%")
+        {
+            return Enumerable.Empty<DiscordDmMessage>();
+        }
+
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<DiscordDmMessage>(
+            "SELECT * FROM DiscordDmMessages WHERE Content LIKE @Pattern OR Username LIKE @Pattern COLLATE NOCASE ORDER BY Timestamp DESC LIMIT 100",
+            new { Pattern = pattern });
     }
 
         public async Task ClearDiscordDmHistoryAsync(string? username)
@@ -4759,6 +4773,7 @@ public class DapperDataService : IDataService
                 BotUsername TEXT,
                 ChannelId TEXT NOT NULL,
                 Username TEXT NOT NULL,
+                UserId TEXT,
                 Direction TEXT NOT NULL,
                 Content TEXT NOT NULL,
                 Timestamp TEXT NOT NULL
@@ -4766,6 +4781,10 @@ public class DapperDataService : IDataService
             CREATE INDEX IF NOT EXISTS IX_DiscordDmMessages_Username_Timestamp
                 ON DiscordDmMessages(Username, Timestamp);"
 );
+
+        // Discord DM history migration: remember each participant's Discord
+        // user id so replies and searches keep working without a cached channel.
+        await AddColumnIfNotExistsAsync(conn, "DiscordDmMessages", "UserId", "TEXT");
 
         // Ensure all currency built-in commands exist (migration for existing databases)
         var currencyCommandNames = new[] {

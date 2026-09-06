@@ -259,6 +259,7 @@ public interface IDataService
     Task SaveDiscordDmMessageAsync(DiscordDmMessage message);
     Task<IEnumerable<DiscordDmMessage>> GetDiscordDmHistoryAsync(string username);
     Task<IEnumerable<(string Username, string? BotUsername, DateTime LastAt, int Total)>> GetDiscordDmConversationsAsync();
+    Task<IEnumerable<DiscordDmMessage>> SearchDiscordDmMessagesAsync(string query); // Content/Username LIKE search, newest first, capped at 100 rows
     Task ClearDiscordDmHistoryAsync(string? username);
     Task SaveLinkCodeAsync(LinkCode code);
     Task InvalidateLinkCodesForViewerAsync(string viewerId);      // marks unredeemed codes expired

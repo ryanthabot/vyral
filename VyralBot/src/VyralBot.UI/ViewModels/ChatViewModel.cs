@@ -270,6 +270,12 @@ public class ChatViewModel : ViewModelBase
 
 	private bool _isNewDmInputOpen;
 
+	// DM inbox search: filters the conversation list by username/user id and
+	// runs a content search over saved DM history while non-empty.
+	private string _dmSearchQuery = "";
+
+	private readonly ObservableCollection<DmSearchResult> _dmSearchResults = new ObservableCollection<DmSearchResult>();
+
 	private ChatMessage? _dmScrollTarget;
 
 	private bool _showDmPanel;
@@ -329,6 +335,8 @@ public class ChatViewModel : ViewModelBase
 	private AsyncRelayCommand? startDmByUserIdCommand;
 
 	private RelayCommand? toggleNewDmInputCommand;
+
+	private AsyncRelayCommand<DmSearchResult>? openDmSearchResultCommand;
 
 	[GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.RelayCommandGenerator", "8.4.0.0")]
 	private AsyncRelayCommand? loadHistoryCommand;
@@ -580,6 +588,44 @@ public class ChatViewModel : ViewModelBase
 			}
 		}
 	}
+
+	/// <summary>
+	/// DM inbox search text. While non-empty the inbox shows matches over
+	/// conversation usernames, Discord user ids, last previews AND a saved
+	/// history content search (DmSearchResults); clearing it restores the
+	/// normal conversation list.
+	/// </summary>
+	public string DmSearchQuery
+	{
+		get
+		{
+			return _dmSearchQuery;
+		}
+		set
+		{
+			if (!EqualityComparer<string>.Default.Equals(_dmSearchQuery, value))
+			{
+				OnPropertyChanging("DmSearchQuery");
+				_dmSearchQuery = value;
+				OnPropertyChanged("DmSearchQuery");
+				OnPropertyChanged("IsDmSearching");
+				OnPropertyChanged("IsDmInboxIdle");
+				_ = ApplyDmSearchAsync();
+			}
+		}
+	}
+
+	/// <summary>True while a DM search query is active (inbox swaps to search results).</summary>
+	public bool IsDmSearching => !string.IsNullOrWhiteSpace(DmSearchQuery);
+
+	/// <summary>True while NO DM search query is active (normal conversation list is shown).</summary>
+	public bool IsDmInboxIdle => string.IsNullOrWhiteSpace(DmSearchQuery);
+
+	/// <summary>Search hits (username/id matches + saved-history content matches) shown while searching.</summary>
+	public ObservableCollection<DmSearchResult> DmSearchResults => _dmSearchResults;
+
+	/// <summary>True when the current search produced at least one hit.</summary>
+	public bool HasDmSearchResults => _dmSearchResults.Count > 0;
 
 	[GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.ObservablePropertyGenerator", "8.4.0.0")]
 	[ExcludeFromCodeCoverage]
@@ -1080,6 +1126,8 @@ public class ChatViewModel : ViewModelBase
 
 	public IAsyncRelayCommand StartDmByUserIdCommand => startDmByUserIdCommand ?? (startDmByUserIdCommand = new AsyncRelayCommand(StartDmByUserIdAsync));
 
+	public IAsyncRelayCommand OpenDmSearchResultCommand => openDmSearchResultCommand ?? (openDmSearchResultCommand = new AsyncRelayCommand<DmSearchResult>(OpenDmSearchResultAsync));
+
 	[GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.RelayCommandGenerator", "8.4.0.0")]
 	[ExcludeFromCodeCoverage]
 	public IAsyncRelayCommand LoadHistoryCommand => loadHistoryCommand ?? (loadHistoryCommand = new AsyncRelayCommand(LoadHistoryAsync));
@@ -1268,6 +1316,12 @@ public class ChatViewModel : ViewModelBase
 				}
 			}
 		}
+		// Never forget WHO is talking: adopt the sender's Discord user id the
+		// first time we see it so by-id replies and id search work forever.
+		if (string.IsNullOrEmpty(dmConversation.UserId) && !string.IsNullOrEmpty(evt.SenderUserId))
+		{
+			dmConversation.UserId = evt.SenderUserId;
+		}
 		// Dedupe: the same DM can arrive through more than one event path.
 		if (!string.IsNullOrEmpty(evt.MessageId))
 		{
@@ -1284,6 +1338,7 @@ public class ChatViewModel : ViewModelBase
 			BotId = dmConversation.BotId ?? string.Empty,
 			ChannelId = dmConversation.ChannelId ?? string.Empty,
 			Username = username,
+			UserId = dmConversation.UserId,
 			Direction = "Incoming",
 			Content = chatMessage.Message ?? string.Empty,
 			Timestamp = DateTime.UtcNow,
@@ -1363,6 +1418,13 @@ public class ChatViewModel : ViewModelBase
 				conversation.Messages.Clear();
 				foreach (DiscordDmMessage item in history)
 				{
+					// Backfill the participant's Discord user id from the first
+					// saved row that carries one (same pattern as the ChannelId
+					// backfill) so by-id replies survive restarts.
+					if (string.IsNullOrEmpty(conversation.UserId) && !string.IsNullOrEmpty(item.UserId))
+					{
+						conversation.UserId = item.UserId;
+					}
 					bool flag = item.Direction.Equals("Outgoing", StringComparison.OrdinalIgnoreCase);
 					ChatMessage chatMessage = new ChatMessage
 					{
@@ -1442,47 +1504,44 @@ public class ChatViewModel : ViewModelBase
 		{
 			return false;
 		}
-		if (string.IsNullOrEmpty(conversation.ChannelId))
-		{
-			_logger.LogWarning("DM reply to {Username} skipped: DM channel id unknown (no DM recorded yet)", conversation.Username);
-			return false;
-		}
-		// Reply routing: prefer the DM channel we have on file; otherwise
-		// resolve the recipient by username so replies work even when the
-		// conversation predates this session or the origin bot changed.
-		IDiscordService? bot = null;
-		bool byUsername = false;
-		if (!string.IsNullOrEmpty(conversation.ChannelId))
-		{
-			bot = ResolveDiscordDmSendTarget(conversation.BotId);
-		}
+		// Reply routing fallback chain: (1) the DM channel we have on file,
+		// (2) the participant's Discord user id — this rescues conversations
+		// whose channel is not gateway-cached (proactive by-id DMs, restarts),
+		// (3) resolving the recipient by username.
+		IDiscordService? bot = ResolveDiscordDmSendTarget(conversation.BotId);
 		if (bot == null || !bot.IsConnected)
 		{
 			bot = _discordBotManager.Connected.FirstOrDefault() ?? (_discordService.IsConnected ? _discordService : null);
-			byUsername = true;
 		}
 		if (bot == null || !bot.IsConnected)
 		{
 			_logger.LogWarning("DM reply to {Username} skipped: no connected Discord bot", conversation.Username);
 			return false;
 		}
-		bool delivered;
+		bool delivered = false;
 		try
 		{
-			delivered = byUsername
-				? await bot.SendDmAsync(conversation.Username, text, null)
-				: await bot.SendDmToChannelAsync(conversation.ChannelId, text);
-			if (!delivered && !byUsername)
+			if (!string.IsNullOrEmpty(conversation.ChannelId))
+			{
+				delivered = await bot.SendDmToChannelAsync(conversation.ChannelId, text);
+			}
+			if (!delivered && !string.IsNullOrEmpty(conversation.UserId))
+			{
+				(bool byUserId, string? userIdError) = await bot.SendDmToUserAsync(conversation.UserId, text);
+				delivered = byUserId;
+				if (!byUserId)
+				{
+					_logger.LogWarning("DM reply by user id {UserId} failed: {Error}", conversation.UserId, userIdError ?? "unknown error");
+				}
+			}
+			if (!delivered)
 			{
 				delivered = await bot.SendDmAsync(conversation.Username, text, null);
 			}
 		}
 		catch (Exception ex)
 		{
-			Exception ex2 = ex;
-			Exception ex3 = ex2;
-			Exception ex4 = ex3;
-			_logger.LogError(ex4, "DM reply to {Username} (channel {ChannelId}) threw", conversation.Username, conversation.ChannelId);
+			_logger.LogError(ex, "DM reply to {Username} (channel {ChannelId}) threw", conversation.Username, conversation.ChannelId);
 			delivered = false;
 		}
 		if (!delivered)
@@ -1513,6 +1572,7 @@ public class ChatViewModel : ViewModelBase
 				BotUsername = (bot.BotUsername ?? "Bot"),
 				ChannelId = conversation.ChannelId,
 				Username = conversation.Username,
+				UserId = conversation.UserId,
 				Direction = "Outgoing",
 				Content = text,
 				Timestamp = DateTime.UtcNow
@@ -1560,11 +1620,13 @@ public class ChatViewModel : ViewModelBase
 			NewDmStatus = "No connected Discord bot.";
 			return;
 		}
-		(bool success, string? channelId, string? username) = await bot.OpenDmByUserIdAsync(input);
+		(bool success, string? channelId, string? username, string? openError) = await bot.OpenDmByUserIdAsync(input);
 		if (!success || string.IsNullOrEmpty(channelId))
 		{
-			_logger.LogWarning("New DM failed for user id {UserId} on bot {BotId}", input, bot.BotId);
-			NewDmStatus = "Could not open a DM with that user ID.";
+			_logger.LogWarning("New DM failed for user id {UserId} on bot {BotId}: {Error}", input, bot.BotId, openError ?? "unknown error");
+			NewDmStatus = string.IsNullOrEmpty(openError)
+				? "Could not open a DM with that user ID."
+				: ("Could not open a DM: " + openError);
 			return;
 		}
 		string resolvedUsername = username ?? input;
@@ -1583,6 +1645,7 @@ public class ChatViewModel : ViewModelBase
 				// if the saved row predates this DM channel.
 				conversation.ChannelId = channelId;
 				conversation.BotId = bot.BotId;
+				conversation.UserId ??= input;
 				MoveDmConversationToFront(conversation);
 			}
 			else
@@ -1592,6 +1655,7 @@ public class ChatViewModel : ViewModelBase
 					Username = resolvedUsername,
 					ChannelId = channelId,
 					BotId = bot.BotId,
+					UserId = input,
 					Platform = "Discord",
 					LastAt = DateTime.Now
 				};
@@ -1605,6 +1669,136 @@ public class ChatViewModel : ViewModelBase
 			ScrollDmThreadToBottom();
 		});
 		_logger.LogInformation("Opened DM conversation with {Username} (channel {ChannelId}) via bot {BotId}", resolvedUsername, channelId, bot.BotId);
+	}
+
+	/// <summary>
+	/// Runs the DM inbox search for the current <see cref="DmSearchQuery"/>:
+	/// in-memory matches over the loaded conversations (Username / UserId /
+	/// last preview) plus a saved-history content search from the data store.
+	/// Results land in <see cref="DmSearchResults"/>; an empty query restores
+	/// the normal conversation list. Incoming DMs keep appending while
+	/// searching — clearing the box brings the untouched inbox back.
+	/// </summary>
+	private async Task ApplyDmSearchAsync()
+	{
+		string query = (DmSearchQuery ?? string.Empty).Trim();
+		if (query.Length == 0)
+		{
+			await ((DispatcherObject)Application.Current).Dispatcher.InvokeAsync((Action)delegate
+			{
+				_dmSearchResults.Clear();
+				OnPropertyChanged("HasDmSearchResults");
+			});
+			return;
+		}
+		List<DmSearchResult> results = new List<DmSearchResult>();
+		HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		foreach (DmConversation conversation in DmConversations)
+		{
+			bool usernameMatch = (!string.IsNullOrEmpty(conversation.Username) && conversation.Username.Contains(query, StringComparison.OrdinalIgnoreCase));
+			bool idMatch = (!string.IsNullOrEmpty(conversation.UserId) && conversation.UserId.Contains(query, StringComparison.Ordinal));
+			bool previewMatch = (!string.IsNullOrEmpty(conversation.LastPreview) && conversation.LastPreview.Contains(query, StringComparison.OrdinalIgnoreCase));
+			if (!usernameMatch && !idMatch && !previewMatch)
+			{
+				continue;
+			}
+			string snippet = previewMatch ? conversation.LastPreview : (idMatch ? ("Discord user ID " + conversation.UserId) : conversation.LastPreview);
+			string key = conversation.Username + "|" + snippet;
+			if (seen.Add(key))
+			{
+				results.Add(new DmSearchResult
+				{
+					Username = conversation.Username,
+					UserId = conversation.UserId,
+					BotId = conversation.BotId,
+					ChannelId = conversation.ChannelId,
+					Snippet = snippet,
+					Timestamp = conversation.LastAt
+				});
+			}
+		}
+		try
+		{
+			IEnumerable<DiscordDmMessage> contentHits = _dataService == null
+				? Enumerable.Empty<DiscordDmMessage>()
+				: await _dataService.SearchDiscordDmMessagesAsync(query);
+			foreach (DiscordDmMessage hit in contentHits)
+			{
+				string key = hit.Username + "|" + hit.Content;
+				if (!seen.Add(key))
+				{
+					continue;
+				}
+				results.Add(new DmSearchResult
+				{
+					Username = hit.Username,
+					UserId = hit.UserId,
+					BotId = hit.BotId,
+					ChannelId = hit.ChannelId,
+					Snippet = hit.Content,
+					Timestamp = hit.Timestamp.ToLocalTime()
+				});
+			}
+		}
+		catch (Exception exception)
+		{
+			_logger.LogWarning(exception, "DM content search failed for '{Query}'", query);
+		}
+		await ((DispatcherObject)Application.Current).Dispatcher.InvokeAsync((Action)delegate
+		{
+			// A newer query may have superseded this run while we were searching.
+			if (!string.Equals((DmSearchQuery ?? string.Empty).Trim(), query, StringComparison.Ordinal))
+			{
+				return;
+			}
+			_dmSearchResults.Clear();
+			foreach (DmSearchResult result in results)
+			{
+				_dmSearchResults.Add(result);
+			}
+			OnPropertyChanged("HasDmSearchResults");
+		});
+	}
+
+	/// <summary>
+	/// Opens the conversation behind a clicked search hit: creates (or reuses)
+	/// the conversation row — carrying over the remembered user id — selects it
+	/// (which loads the full persisted history) and clears the search so the
+	/// normal inbox returns.
+	/// </summary>
+	private Task OpenDmSearchResultAsync(DmSearchResult? result)
+	{
+		if (result == null)
+		{
+			return Task.CompletedTask;
+		}
+		DmSearchQuery = "";
+		DmConversation? conversation = DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.Username, result.Username, StringComparison.OrdinalIgnoreCase));
+		if (conversation == null)
+		{
+			conversation = new DmConversation
+			{
+				Username = result.Username,
+				BotId = (result.BotId ?? string.Empty),
+				ChannelId = (result.ChannelId ?? string.Empty),
+				UserId = result.UserId,
+				Platform = "Discord",
+				LastAt = ((result.Timestamp == default(DateTime)) ? DateTime.Now : result.Timestamp)
+			};
+			DmConversations.Insert(0, conversation);
+		}
+		else
+		{
+			conversation.UserId ??= result.UserId;
+			conversation.BotId = string.IsNullOrEmpty(conversation.BotId) ? (result.BotId ?? string.Empty) : conversation.BotId;
+			conversation.ChannelId = string.IsNullOrEmpty(conversation.ChannelId) ? (result.ChannelId ?? string.Empty) : conversation.ChannelId;
+		}
+		ShowDmPanel = true;
+		SelectedDmConversation = conversation;
+		MoveDmConversationToFront(conversation);
+		ScrollDmThreadToBottom();
+		_logger.LogInformation("DM search result opened for {Username}", result.Username);
+		return Task.CompletedTask;
 	}
 
 	public ChatViewModel(ILogger<ChatViewModel> logger, IEventBus eventBus, ITwitchService twitchService, IKickService kickService, IYouTubeService youtubeService, IDiscordService discordService, IDiscordBotManager discordBotManager, KickSettingsViewModel kickSettings, IChatMessageStore chatStore, IChatEventSettingsService eventSettingsService, IAutoReplyService autoReplyService, IDiscordCommandHandler? discordCommandHandler = null, ICurrencyService? currencyService = null, ICurrencyCommandService? currencyCommandService = null, ICommandService? commandService = null, ISoundService? soundService = null, IAlertService? alertService = null, GiveawayCommandService? giveawayCommandService = null, PollCommandService? pollCommandService = null, WatchtimeService? watchtimeService = null, WatchtimeCommandService? watchtimeCommandService = null, IVariableReplacementService? variableReplacementService = null, IDataService? dataService = null, CommandActionRunner? commandActionRunner = null, WorkflowTriggerService? workflowTriggerService = null, IResponseWaiterRegistry? responseWaiters = null, ILinkCodeService? linkCodeService = null, IViewerStatusService? viewerStatusService = null, ISocialGoalService? socialGoalService = null)
@@ -3062,53 +3256,85 @@ public class ChatViewModel : ViewModelBase
 		if (bot == null || !bot.IsConnected)
 		{
 			_logger.LogWarning("Discord DM send skipped (no connected bot): channel {ChannelId}", dmChannelId);
+			return;
 		}
-		else if (!(await bot.SendDmToChannelAsync(dmChannelId, content)))
+		// Same fallback chain as the inbox reply: channel id, then the
+		// participant's remembered Discord user id, then username resolution.
+		DmConversation? existingConversation = string.IsNullOrEmpty(username)
+			? null
+			: DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.Username, username, StringComparison.OrdinalIgnoreCase));
+		string? userId = existingConversation?.UserId;
+		bool delivered = false;
+		try
+		{
+			if (!string.IsNullOrEmpty(dmChannelId))
+			{
+				delivered = await bot.SendDmToChannelAsync(dmChannelId, content);
+			}
+			if (!delivered && !string.IsNullOrEmpty(userId))
+			{
+				(bool byUserId, string? userIdError) = await bot.SendDmToUserAsync(userId, content);
+				delivered = byUserId;
+				if (!byUserId)
+				{
+					_logger.LogWarning("DM send by user id {UserId} failed: {Error}", userId, userIdError ?? "unknown error");
+				}
+			}
+			if (!delivered && !string.IsNullOrEmpty(username))
+			{
+				delivered = await bot.SendDmAsync(username, content, null);
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Discord DM send threw (channel {ChannelId}, user {Username})", dmChannelId, username);
+			delivered = false;
+		}
+		if (!delivered)
 		{
 			_logger.LogWarning("Failed to deliver DM reply to {Username} (channel {ChannelId})", string.IsNullOrEmpty(username) ? "unknown" : username, dmChannelId);
+			return;
 		}
-		else
+		if (string.IsNullOrEmpty(username))
 		{
-			if (string.IsNullOrEmpty(username))
-			{
-				return;
-			}
-			_dataService?.SaveDiscordDmMessageAsync(new DiscordDmMessage
-			{
-				BotId = (botId ?? string.Empty),
-				BotUsername = (bot.BotUsername ?? "Bot"),
-				ChannelId = dmChannelId,
-				Username = (username ?? "Unknown"),
-				Direction = "Outgoing",
-				Content = content,
-				Timestamp = DateTime.UtcNow
-			});
-			await ((DispatcherObject)Application.Current).Dispatcher.InvokeAsync((Action)delegate
-			{
-				DmConversation dmConversation = DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.Username, username, StringComparison.OrdinalIgnoreCase));
-				if (dmConversation != null)
-				{
-					ChatMessage chatMessage = new ChatMessage
-					{
-						Platform = "Vyral",
-						Username = (bot.BotUsername ?? "Bot"),
-						Message = content,
-						Timestamp = DateTime.Now,
-						Color = "#5865F2",
-						IsModerator = false,
-						IsSubscriber = false,
-						IsVip = false,
-						IsBroadcaster = true,
-						Badges = new Dictionary<string, string> { { "broadcaster", "1" } }
-					};
-					chatMessage.InitializeBadges();
-					dmConversation.Messages.Add(chatMessage);
-					dmConversation.LastPreview = content;
-					dmConversation.LastAt = DateTime.Now;
-					
-				}
-			});
+			return;
 		}
+		_dataService?.SaveDiscordDmMessageAsync(new DiscordDmMessage
+		{
+			BotId = (botId ?? string.Empty),
+			BotUsername = (bot.BotUsername ?? "Bot"),
+			ChannelId = dmChannelId,
+			Username = (username ?? "Unknown"),
+			UserId = userId,
+			Direction = "Outgoing",
+			Content = content,
+			Timestamp = DateTime.UtcNow
+		});
+		await ((DispatcherObject)Application.Current).Dispatcher.InvokeAsync((Action)delegate
+		{
+			DmConversation dmConversation = DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.Username, username, StringComparison.OrdinalIgnoreCase));
+			if (dmConversation != null)
+			{
+				ChatMessage chatMessage = new ChatMessage
+				{
+					Platform = "Vyral",
+					Username = (bot.BotUsername ?? "Bot"),
+					Message = content,
+					Timestamp = DateTime.Now,
+					Color = "#5865F2",
+					IsModerator = false,
+					IsSubscriber = false,
+					IsVip = false,
+					IsBroadcaster = true,
+					Badges = new Dictionary<string, string> { { "broadcaster", "1" } }
+				};
+				chatMessage.InitializeBadges();
+				dmConversation.Messages.Add(chatMessage);
+				dmConversation.LastPreview = content;
+				dmConversation.LastAt = DateTime.Now;
+
+			}
+		});
 	}
 
 	private static string BuildWorkflowRoleList(bool isModerator, bool isBroadcaster, bool isVip, bool isSubscriber)

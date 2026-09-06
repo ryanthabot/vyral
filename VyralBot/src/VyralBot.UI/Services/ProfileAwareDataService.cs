@@ -170,6 +170,7 @@ public class ProfileAwareDataService : IDataService
     public Task SaveDiscordDmMessageAsync(DiscordDmMessage message) => GetCurrentService().SaveDiscordDmMessageAsync(message);
     public Task<IEnumerable<DiscordDmMessage>> GetDiscordDmHistoryAsync(string username) => GetCurrentService().GetDiscordDmHistoryAsync(username);
     public Task<IEnumerable<(string Username, string? BotUsername, DateTime LastAt, int Total)>> GetDiscordDmConversationsAsync() => GetCurrentService().GetDiscordDmConversationsAsync();
+    public Task<IEnumerable<DiscordDmMessage>> SearchDiscordDmMessagesAsync(string query) => GetCurrentService().SearchDiscordDmMessagesAsync(query);
     public Task ClearDiscordDmHistoryAsync(string? username) => GetCurrentService().ClearDiscordDmHistoryAsync(username);
     public Task<IEnumerable<LinkedAccount>> GetAllLinkedAccountsAsync() => GetCurrentService().GetAllLinkedAccountsAsync();
     public Task UpdateLinkedAccountViewerAsync(string accountId, string newViewerId) => GetCurrentService().UpdateLinkedAccountViewerAsync(accountId, newViewerId);

@@ -304,17 +304,33 @@ public interface IDiscordService
     Task<bool> SendDmToChannelAsync(string channelId, string content, string? embedJson = null);
 
     /// <summary>
+    /// Sends a plain-text DM straight to a user by their Discord snowflake ID
+    /// — resolving the user (gateway cache, then shared-guild member lookup,
+    /// then a REST user fetch that works even with no shared guild), opening
+    /// (or reusing) the DM channel and remembering it so later
+    /// <see cref="SendDmToChannelAsync"/> replies on the same channel keep
+    /// working after restarts or cache misses. Returns <c>Success=false</c>
+    /// with a human-readable <c>Error</c> when the bot is not connected, the
+    /// id is not a valid snowflake or the resolve/send fails. Never throws.
+    /// </summary>
+    /// <param name="recipientUserId">Snowflake ID of the Discord user to DM.</param>
+    /// <param name="content">Message text.</param>
+    Task<(bool Success, string? Error)> SendDmToUserAsync(string recipientUserId, string content);
+
+    /// <summary>
     /// Opens (or reuses) a DM channel with a user looked up by snowflake ID —
     /// gateway cache first, then shared-guild member resolution, then a REST
     /// user fetch — and returns the DM channel's snowflake id plus the user's
     /// username so the caller can create a replyable conversation row (replies
     /// go through <see cref="SendDmToChannelAsync"/> with the returned channel
-    /// id). Returns <c>Success=false</c> with null channel/username when the
-    /// bot is not connected, the id is not a valid snowflake or the user
-    /// cannot be resolved. Never throws.
+    /// id). The opened channel is registered in the bot's known-DM-channel
+    /// registry so replies work without a fresh gateway cache. Returns
+    /// <c>Success=false</c> with null channel/username and a human-readable
+    /// <c>Error</c> when the bot is not connected, the id is not a valid
+    /// snowflake or the user cannot be resolved. Never throws.
     /// </summary>
     /// <param name="userId">Snowflake ID of the Discord user to DM.</param>
-    Task<(bool Success, string? ChannelId, string? Username)> OpenDmByUserIdAsync(string userId);
+    Task<(bool Success, string? ChannelId, string? Username, string? Error)> OpenDmByUserIdAsync(string userId);
 
     /// <summary>
     /// Grants a role (name or snowflake id) to a user (name, display name or

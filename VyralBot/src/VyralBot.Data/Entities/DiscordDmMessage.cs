@@ -23,6 +23,13 @@ public class DiscordDmMessage
     /// <summary>The human participant's username (conversation key).</summary>
     public string Username { get; set; } = "";
 
+    /// <summary>
+    /// The human participant's Discord snowflake user id, when known —
+    /// lets replies reach the user by id even when the DM channel is not
+    /// gateway-cached, and keeps history searchable by id.
+    /// </summary>
+    public string? UserId { get; set; }
+
     /// <summary>"Incoming" (user → bot) or "Outgoing" (bot → user).</summary>
     public string Direction { get; set; } = "Incoming";
 

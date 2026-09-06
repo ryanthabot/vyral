@@ -2943,65 +2943,128 @@ public class DiscordService : IDiscordService, IDisposable
     }
 
     /// <inheritdoc />
-    public async Task<(bool Success, string? ChannelId, string? Username)> OpenDmByUserIdAsync(string userId)
+    public async Task<(bool Success, string? ChannelId, string? Username, string? Error)> OpenDmByUserIdAsync(string userId)
     {
         var client = GetConnectedClient();
         if (client == null)
         {
             _logger.LogWarning("❌ Cannot open a DM by user id: bot {BotId} is not connected", BotId);
-            return (false, null, null);
+            return (false, null, null, $"Bot {BotId} is not connected");
         }
 
         var query = (userId ?? string.Empty).Trim();
         if (!ulong.TryParse(query, NumberStyles.Integer, CultureInfo.InvariantCulture, out var snowflake) || snowflake == 0)
         {
             _logger.LogWarning("❌ Cannot open a DM by user id: '{UserId}' is not a valid snowflake", userId);
-            return (false, null, null);
+            return (false, null, null, $"'{userId}' is not a valid Discord user ID");
         }
 
         try
         {
-            // Resolution order: gateway user cache, then a shared-guild member
-            // lookup (the client runs without the GuildMembers intent, so the
-            // REST download inside ResolveGuildMemberAsync matters), then a
-            // plain REST user fetch which works even when the bot shares NO
-            // guild with the target.
-            IUser? user = client.GetUser(snowflake);
-            if (user == null)
-            {
-                foreach (var guild in client.Guilds)
-                {
-                    var member = await ResolveGuildMemberAsync(guild, query).ConfigureAwait(false);
-                    if (member != null)
-                    {
-                        user = member;
-                        break;
-                    }
-                }
-            }
-            user ??= await TryGetRestUserAsync(client, snowflake).ConfigureAwait(false);
+            IUser? user = await ResolveDmUserByIdAsync(client, snowflake, query).ConfigureAwait(false);
             if (user == null)
             {
                 _logger.LogWarning("❌ Cannot open a DM by user id: user {UserId} was not found for bot {BotId}", query, BotId);
-                return (false, null, null);
+                return (false, null, null, $"User {query} was not found (does the bot share a server, or is the ID correct?)");
             }
 
             var dmChannel = await user.CreateDMChannelAsync().ConfigureAwait(false);
             if (dmChannel == null)
             {
                 _logger.LogWarning("❌ Cannot open a DM by user id: no DM channel for user {UserId} on bot {BotId}", query, BotId);
-                return (false, null, null);
+                return (false, null, null, "Discord did not return a DM channel for that user");
+            }
+
+            // Remember the live channel so SendDmToChannelAsync replies work
+            // even when Discord.Net's DM cache misses this channel later.
+            if (dmChannel is IMessageChannel messageChannel)
+            {
+                _knownDmChannels[dmChannel.Id] = (messageChannel, snowflake);
             }
 
             _logger.LogInformation("✅ Opened DM channel {ChannelId} with {Username} on bot {BotId}",
                 dmChannel.Id, user.Username, BotId);
-            return (true, dmChannel.Id.ToString(), user.Username);
+            return (true, dmChannel.Id.ToString(), user.Username, null);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ Failed to open a DM channel with user {UserId} on bot {BotId}", query, BotId);
-            return (false, null, null);
+            return (false, null, null, ex.Message);
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<(bool Success, string? Error)> SendDmToUserAsync(string recipientUserId, string content)
+    {
+        var client = GetConnectedClient();
+        if (client == null)
+        {
+            _logger.LogWarning("❌ Cannot send a DM by user id: bot {BotId} is not connected", BotId);
+            return (false, $"Bot {BotId} is not connected");
+        }
+
+        var query = (recipientUserId ?? string.Empty).Trim();
+        if (!ulong.TryParse(query, NumberStyles.Integer, CultureInfo.InvariantCulture, out var snowflake) || snowflake == 0)
+        {
+            _logger.LogWarning("❌ Cannot send a DM by user id: '{UserId}' is not a valid snowflake", recipientUserId);
+            return (false, $"'{recipientUserId}' is not a valid Discord user ID");
+        }
+
+        try
+        {
+            IUser? user = await ResolveDmUserByIdAsync(client, snowflake, query).ConfigureAwait(false);
+            if (user == null)
+            {
+                _logger.LogWarning("❌ Cannot send a DM by user id: user {UserId} was not found for bot {BotId}", query, BotId);
+                return (false, $"User {query} was not found for bot {BotId}");
+            }
+
+            var dmChannel = await user.CreateDMChannelAsync().ConfigureAwait(false);
+            if (dmChannel is not IMessageChannel messageChannel)
+            {
+                _logger.LogWarning("❌ Cannot send a DM by user id: no DM channel for user {UserId} on bot {BotId}", query, BotId);
+                return (false, "Discord did not return a DM channel for that user");
+            }
+
+            var sent = await messageChannel.SendMessageAsync(content ?? string.Empty).ConfigureAwait(false);
+
+            // Register the live channel so later channel-id replies keep working.
+            _knownDmChannels[messageChannel.Id] = (messageChannel, snowflake);
+
+            RememberLastSentMessage(messageChannel.Id, sent?.Id ?? 0);
+            _logger.LogInformation("✅ Sent a DM to user {UserId} (channel {ChannelId}) on bot {BotId}",
+                query, messageChannel.Id, BotId);
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Failed to send a DM to user {UserId} on bot {BotId}", query, BotId);
+            return (false, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Resolves a DM target by snowflake id: the gateway user cache, then a
+    /// shared-guild member lookup (the client runs without the GuildMembers
+    /// intent, so the REST download inside ResolveGuildMemberAsync matters),
+    /// then a plain REST user fetch which works even when the bot shares NO
+    /// guild with the target. Null when nobody matches.
+    /// </summary>
+    private async Task<IUser?> ResolveDmUserByIdAsync(DiscordSocketClient client, ulong snowflake, string query)
+    {
+        IUser? user = client.GetUser(snowflake);
+        if (user == null)
+        {
+            foreach (var guild in client.Guilds)
+            {
+                var member = await ResolveGuildMemberAsync(guild, query).ConfigureAwait(false);
+                if (member != null)
+                {
+                    return member;
+                }
+            }
+        }
+        return user ?? await TryGetRestUserAsync(client, snowflake).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

@@ -565,6 +565,7 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -627,6 +628,23 @@
                                            Margin="0,4,4,0"
                                            Visibility="{Binding NewDmStatus, Converter={StaticResource NullOrEmptyToVisibilityConverter}}"/>
                             </StackPanel>
+                            <!-- DM search: filters the inbox by username, Discord
+                                 user id or message content (saved-history search)
+                                 while non-empty; clearing restores the inbox. -->
+                            <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="8,0,8,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <materialDesign:PackIcon Grid.Column="0" Kind="Magnify" Width="16" Height="16"
+                                                         Foreground="{DynamicResource TextSecondaryBrush}"
+                                                         VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding DmSearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                                         materialDesign:HintAssist.Hint="Search users, IDs, keywords…"
+                                         FontSize="12"
+                                         VerticalAlignment="Center"/>
+                            </Grid>
                         </Grid>
 
                         <!-- Thread header: back button + username + history controls
@@ -654,7 +672,9 @@
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
                                            VerticalAlignment="Center"/>
-                                <TextBlock Text="{Binding SelectedDmConversation.Platform}"
+                                <!-- Shows "(Discord • <user id>)" once the participant's
+                                     Discord user id is known, else the platform name. -->
+                                <TextBlock Text="{Binding SelectedDmConversation.HeaderDetail}"
                                            FontSize="10"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                            VerticalAlignment="Center"
@@ -687,6 +707,7 @@
                                  Grid.Row="1"
                                  ItemsSource="{Binding DmConversations}"
                                  SelectedItem="{Binding SelectedDmConversation, Mode=TwoWay}"
+                                 Visibility="{Binding IsDmInboxIdle, Converter={StaticResource BooleanToVisibilityConverter}}"
                                  Background="Transparent"
                                  BorderThickness="0"
                                  Padding="6"
@@ -765,6 +786,89 @@
                                                                Foreground="White"/>
                                                 </Border>
                                             </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <!-- DM search results: replaces the conversation list while
+                             a query is active. Each row is a lightweight hit
+                             (username + matched snippet + time); clicking one opens
+                             that conversation (full history loads) and clears the
+                             search so the normal inbox returns. -->
+                        <ListBox x:Name="DmSearchResultsList"
+                                 Grid.Row="1"
+                                 ItemsSource="{Binding DmSearchResults}"
+                                 Visibility="{Binding IsDmSearching, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Padding="6"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.CanContentScroll="True"
+                                 VirtualizingStackPanel.IsVirtualizing="True"
+                                 VirtualizingStackPanel.VirtualizationMode="Recycling"
+                                 VirtualizingStackPanel.ScrollUnit="Item">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <ContentPresenter/>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <!-- Click anywhere on the row to open the hit's conversation. -->
+                                    <Border Padding="10,7"
+                                            Margin="0,1"
+                                            CornerRadius="4"
+                                            Background="Transparent"
+                                            Cursor="Hand">
+                                        <Border.InputBindings>
+                                            <MouseBinding Gesture="LeftClick" Command="{Binding DataContext.OpenDmSearchResultCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" CommandParameter="{Binding}"/>
+                                        </Border.InputBindings>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Platform logo -->
+                                            <Image Grid.Column="0"
+                                                   Style="{StaticResource PlatformLogoStyle}"
+                                                   Margin="0,0,10,0"/>
+
+                                            <!-- Username + matched snippet -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Username}"
+                                                           FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Snippet}"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Margin="0,2,0,0"/>
+                                            </StackPanel>
+
+                                            <!-- Message time -->
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding TimeText}"
+                                                       FontSize="10"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Right"
+                                                       Margin="8,0,0,0"/>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>

@@ -820,6 +820,7 @@ public class FakeDataService : IDataService
     public Task SaveDiscordDmMessageAsync(DiscordDmMessage message) => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<DiscordDmMessage>> GetDiscordDmHistoryAsync(string username) => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<(string Username, string? BotUsername, DateTime LastAt, int Total)>> GetDiscordDmConversationsAsync() => throw new NotImplementedException(NotImplemented);
+    public Task<IEnumerable<DiscordDmMessage>> SearchDiscordDmMessagesAsync(string query) => throw new NotImplementedException(NotImplemented);
     public Task ClearDiscordDmHistoryAsync(string? username) => throw new NotImplementedException(NotImplemented);
     public Task SaveLinkCodeAsync(LinkCode code) => throw new NotImplementedException(NotImplemented);
     public Task InvalidateLinkCodesForViewerAsync(string viewerId) => throw new NotImplementedException(NotImplemented);
