@@ -702,12 +702,15 @@
                         <!-- Inbox list: one row per DM conversation (username bold,
                              muted single-line preview, short time right-aligned,
                              unread badge when > 0). Clicking a row opens the thread
-                             (SelectedItem binds TwoWay to SelectedDmConversation). -->
+                             (SelectedItem binds TwoWay to SelectedDmConversation).
+                             Shares the thread's grid cell, so it hides while a
+                             thread is open too (ShowDmInboxList) — otherwise it
+                             bleeds through the transparent thread background. -->
                         <ListBox x:Name="DmConversationsList"
                                  Grid.Row="1"
                                  ItemsSource="{Binding DmConversations}"
                                  SelectedItem="{Binding SelectedDmConversation, Mode=TwoWay}"
-                                 Visibility="{Binding IsDmInboxIdle, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                 Visibility="{Binding ShowDmInboxList, Converter={StaticResource BooleanToVisibilityConverter}}"
                                  Background="Transparent"
                                  BorderThickness="0"
                                  Padding="6"

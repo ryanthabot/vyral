@@ -951,6 +951,12 @@ public class DapperDataService : IDataService
 
     public async Task<IEnumerable<DiscordDmMessage>> GetDiscordDmHistoryAsync(string username)
     {
+        // Guard: a missing participant name must return an EMPTY thread, never
+        // a degenerate query result — conversations are keyed by username.
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            return Enumerable.Empty<DiscordDmMessage>();
+        }
         using var conn = CreateConnection();
         return await conn.QueryAsync<DiscordDmMessage>(
             "SELECT * FROM DiscordDmMessages WHERE Username = @Username COLLATE NOCASE ORDER BY Timestamp",

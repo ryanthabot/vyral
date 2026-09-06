@@ -610,6 +610,7 @@ public class ChatViewModel : ViewModelBase
 				OnPropertyChanged("DmSearchQuery");
 				OnPropertyChanged("IsDmSearching");
 				OnPropertyChanged("IsDmInboxIdle");
+				OnPropertyChanged("ShowDmInboxList");
 				_ = ApplyDmSearchAsync();
 			}
 		}
@@ -620,6 +621,15 @@ public class ChatViewModel : ViewModelBase
 
 	/// <summary>True while NO DM search query is active (normal conversation list is shown).</summary>
 	public bool IsDmInboxIdle => string.IsNullOrWhiteSpace(DmSearchQuery);
+
+	/// <summary>
+	/// True when the inbox conversation list may render: no active search AND
+	/// no open thread. The inbox list and the thread list share the same grid
+	/// cell, so the inbox must also hide while a conversation is selected —
+	/// otherwise it bleeds through the thread's transparent background and a
+	/// new (empty) thread shows every other conversation's rows beneath it.
+	/// </summary>
+	public bool ShowDmInboxList => IsDmInboxIdle && !HasSelectedDmConversation;
 
 	/// <summary>Search hits (username/id matches + saved-history content matches) shown while searching.</summary>
 	public ObservableCollection<DmSearchResult> DmSearchResults => _dmSearchResults;
@@ -6503,6 +6513,7 @@ public class ChatViewModel : ViewModelBase
 	private void OnSelectedDmConversationChanged(DmConversation? value)
 	{
 		OnPropertyChanged("HasSelectedDmConversation");
+		OnPropertyChanged("ShowDmInboxList");
 		// Unified reply box: DM mode on exactly while a thread is open.
 		IsDmReplyMode = value != null;
 		if (value != null && value.UnreadCount > 0)
