@@ -109,6 +109,14 @@ public interface ICurrencyService
     /// viewer has fewer than two linked accounts.
     /// </summary>
     Task ConsolidateViewerBalancesAsync(string viewerId);
+
+    /// <summary>
+    /// W2T5: per-platform points ledger for a unified viewer — total points
+    /// earned and spent on each platform, ordered by platform name
+    /// (case-insensitive). Linked viewers keep these totals even though
+    /// unified balances zero the per-platform UserCurrency rows.
+    /// </summary>
+    Task<IReadOnlyList<(string Platform, long Earned, long Spent)>> GetPerPlatformEarningsAsync(string viewerId);
 }
 
 public record EconomyStats(long TotalInCirculation, long TotalEarnedToday, long TotalSpentToday, int ActiveUsers, double AverageBalance);

@@ -231,6 +231,12 @@ public class CurrencyService : ICurrencyService
                 viewerId, canonicalRow.Balance, canonical.Username, canonical.Platform);
         }
 
+        // W2T5: the per-platform PlatformEarnings ledger is keyed by
+        // (ViewerId, Platform) and is NOT stored in UserCurrency, so merging and
+        // zeroing UserCurrency rows above never touches it — per-platform
+        // earned/spent history survives consolidation unchanged. Nothing to
+        // aggregate here; only the unified-target cache needs invalidating in
+        // case the canonical row moved.
         _unifiedCache.Clear();
     }
 
@@ -250,6 +256,12 @@ public class CurrencyService : ICurrencyService
 
     public async Task<bool> AddCurrencyAsync(string username, string platform, int amount, string reason, string transactionType = "Earn")
     {
+        // W2T5: capture where this award actually happened BEFORE unified-balance
+        // redirection moves the balance write to the canonical account — the
+        // per-platform ledger must record the caller's platform.
+        var earnedOnPlatform = platform;
+        var earnedByUsername = username;
+
         var unified = await ResolveUnifiedTargetAsync(username, platform);
         if (unified != null)
         {
@@ -301,6 +313,13 @@ public class CurrencyService : ICurrencyService
             };
             await _dataService.SaveCurrencyTransactionAsync(transaction);
 
+            // W2T5: append the per-platform ledger delta under the canonical
+            // (pool-owner) viewer identity, tagged with the ORIGINAL earn
+            // platform so per-platform history survives unified-balance row
+            // zeroing. Never throws (see RecordPlatformLedgerDeltaAsync).
+            await RecordPlatformLedgerDeltaAsync(username, platform, earnedOnPlatform,
+                earned: amount, spent: 0, originalUsername: earnedByUsername);
+
             _logger.LogInformation("Added {Amount} currency to {Username} ({Platform}): {Reason}",
                 amount, username, platform, reason);
 
@@ -315,6 +334,12 @@ public class CurrencyService : ICurrencyService
 
     public async Task<bool> RemoveCurrencyAsync(string username, string platform, int amount, string reason, string transactionType = "Spend")
     {
+        // W2T5: capture where this spend actually happened BEFORE unified-balance
+        // redirection moves the balance write to the canonical account — the
+        // per-platform ledger must record the caller's platform.
+        var spentOnPlatform = platform;
+        var spentByUsername = username;
+
         var unified = await ResolveUnifiedTargetAsync(username, platform);
         if (unified != null)
         {
@@ -363,6 +388,13 @@ public class CurrencyService : ICurrencyService
             };
             await _dataService.SaveCurrencyTransactionAsync(transaction);
 
+            // W2T5: append the per-platform ledger delta under the canonical
+            // (pool-owner) viewer identity, tagged with the ORIGINAL spend
+            // platform so per-platform history survives unified-balance row
+            // zeroing. Never throws (see RecordPlatformLedgerDeltaAsync).
+            await RecordPlatformLedgerDeltaAsync(username, platform, spentOnPlatform,
+                earned: 0, spent: amount, originalUsername: spentByUsername);
+
             _logger.LogInformation("Removed {Amount} currency from {Username} ({Platform}): {Reason}",
                 amount, username, platform, reason);
 
@@ -372,6 +404,86 @@ public class CurrencyService : ICurrencyService
         {
             _logger.LogError(ex, "Failed to remove currency from {Username} ({Platform})", username, platform);
             return false;
+        }
+    }
+
+    // ===== Per-platform earnings ledger (W2T5) =====
+    // Unified balances route all earn/spend to ONE canonical UserCurrency row
+    // and zero the others, which would silently destroy per-platform history.
+    // The PlatformEarnings ledger (keyed by (ViewerId, Platform), owned by the
+    // data layer) records earned/spent per platform alongside the unified pool.
+
+    /// <summary>
+    /// Appends a per-platform ledger delta for the viewer who owns the canonical
+    /// (post-redirect) balance row. The delta is tagged with the ORIGINAL
+    /// platform (captured before redirection) so the ledger shows where the
+    /// points were actually earned or spent. Unlinked viewers have no viewerId
+    /// and therefore no ledger — their single UserCurrency row is the record.
+    /// Never throws: this runs AFTER the balance save succeeded, and a ledger
+    /// failure must never break earning or spending.
+    /// </summary>
+    private async Task RecordPlatformLedgerDeltaAsync(string canonicalUsername, string canonicalPlatform,
+        string originalPlatform, long earned, long spent, string originalUsername)
+    {
+        try
+        {
+            var viewerId = await _dataService.GetViewerIdAsync(canonicalUsername, canonicalPlatform);
+            if (viewerId == null)
+            {
+                _logger.LogDebug(
+                    "No viewer id for {Username}/{Platform} — skipping platform earnings ledger",
+                    canonicalUsername, canonicalPlatform);
+                return;
+            }
+
+            await _dataService.AddPlatformEarningsAsync(viewerId, originalPlatform, earned, spent);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Platform earnings ledger update failed for {OriginalUsername} on {Platform} (earned: {Earned}, spent: {Spent}) — the balance was already saved",
+                originalUsername, originalPlatform, earned, spent);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<(string Platform, long Earned, long Spent)>> GetPerPlatformEarningsAsync(string viewerId)
+    {
+        if (string.IsNullOrEmpty(viewerId))
+        {
+            return Array.Empty<(string Platform, long Earned, long Spent)>();
+        }
+
+        var rows = await _dataService.GetPlatformEarningsAsync(viewerId);
+        return rows
+            .Select(r => (r.Platform, r.Earned, r.Spent))
+            .OrderBy(t => t.Platform, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>
+    /// W2T5 pure ledger math (unit-tested in PlatformEarningsTests): applies an
+    /// (earned, spent) delta to the running per-platform counters. Counters are
+    /// monotonic per component — negative deltas are ignored, never subtracted —
+    /// and accumulate as long so lifetime totals can exceed int range.
+    /// DapperDataService.AddPlatformEarningsAsync performs this exact
+    /// read-add-write atomically in SQL; this helper is the shared, testable
+    /// specification of that math. Public (like IsDiscordChannelAllowed)
+    /// because VyralBot.Core does not grant InternalsVisibleTo to the tests.
+    /// </summary>
+    public static class PlatformLedgerMath
+    {
+        public static void Apply(long earnedDelta, long spentDelta, ref long currentEarned, ref long currentSpent)
+        {
+            if (earnedDelta > 0)
+            {
+                currentEarned += earnedDelta;
+            }
+
+            if (spentDelta > 0)
+            {
+                currentSpent += spentDelta;
+            }
         }
     }
 
