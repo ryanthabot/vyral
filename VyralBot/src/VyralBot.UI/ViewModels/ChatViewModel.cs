@@ -371,6 +371,25 @@ public class ChatViewModel : ViewModelBase
 	[GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.RelayCommandGenerator", "8.4.0.0")]
 	private RelayCommand? toggleAutoScrollCommand;
 
+	private readonly HashSet<string> _routedDmMessageIds = new HashSet<string>();
+	private readonly object _routedDmMessageIdsLock = new object();
+
+	private bool WasDmAlreadyRouted(string messageId)
+	{
+		lock (_routedDmMessageIdsLock)
+		{
+			return _routedDmMessageIds.Contains(messageId);
+		}
+	}
+
+	private void RememberRoutedDm(string messageId)
+	{
+		lock (_routedDmMessageIdsLock)
+		{
+			_routedDmMessageIds.Add(messageId);
+		}
+	}
+
 	private static readonly ConcurrentDictionary<string, DateTime> DmHintLastSent = new ConcurrentDictionary<string, DateTime>();
 
 	private static readonly TimeSpan DmHintThrottle = TimeSpan.FromMinutes(5.0);
@@ -1157,9 +1176,19 @@ public class ChatViewModel : ViewModelBase
 				}
 			}
 		}
+		// Dedupe: the same DM can arrive through more than one event path.
+		if (!string.IsNullOrEmpty(evt.MessageId))
+		{
+			if (_routedDmMessageIds.Contains(evt.MessageId))
+			{
+				return;
+			}
+			_routedDmMessageIds.Add(evt.MessageId);
+		}
 		dmConversation.Messages.Add(chatMessage);
 		_ = _dataService?.SaveDiscordDmMessageAsync(new DiscordDmMessage
 		{
+			Id = (evt.MessageId ?? Guid.NewGuid().ToString()),
 			BotId = dmConversation.BotId ?? string.Empty,
 			ChannelId = dmConversation.ChannelId ?? string.Empty,
 			Username = username,
@@ -1169,15 +1198,6 @@ public class ChatViewModel : ViewModelBase
 		});
 		dmConversation.LastPreview = chatMessage.Message;
 		dmConversation.LastAt = chatMessage.Timestamp;
-		_dataService?.SaveDiscordDmMessageAsync(new DiscordDmMessage
-		{
-			BotId = (dmConversation.BotId ?? string.Empty),
-			ChannelId = (dmConversation.ChannelId ?? string.Empty),
-			Username = username,
-			Direction = "Incoming",
-			Content = (chatMessage.Message ?? string.Empty),
-			Timestamp = DateTime.UtcNow
-		});
 		if (dmConversation != SelectedDmConversation)
 		{
 			dmConversation.UnreadCount++;
@@ -1254,7 +1274,7 @@ public class ChatViewModel : ViewModelBase
 					bool flag = item.Direction.Equals("Outgoing", StringComparison.OrdinalIgnoreCase);
 					ChatMessage chatMessage = new ChatMessage
 					{
-						Platform = "Vyral",
+						Platform = (flag ? "Vyral" : "Discord"),
 						Username = (flag ? (item.BotUsername ?? "Bot") : item.Username),
 						Message = item.Content,
 						Timestamp = item.Timestamp.ToLocalTime(),
