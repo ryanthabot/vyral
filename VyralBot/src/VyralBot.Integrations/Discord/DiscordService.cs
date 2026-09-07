@@ -2786,6 +2786,12 @@ public class DiscordService : IDiscordService, IDisposable
             _logger.LogInformation("✅ Sent a workflow DM to {Username}", username);
             return true;
         }
+        catch (HttpException httpEx)
+        {
+            _logger.LogError(httpEx, "❌ Failed to send a workflow DM to {Username} (Discord code {DiscordCode}, HTTP {HttpCode})",
+                username, httpEx.DiscordCode, (int?)httpEx.HttpCode);
+            return false;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ Failed to send a workflow DM to {Username}", username);
@@ -2935,6 +2941,12 @@ public class DiscordService : IDiscordService, IDisposable
             _logger.LogInformation("✅ Sent a DM to Discord channel {ChannelId}", channelId);
             return true;
         }
+        catch (HttpException httpEx)
+        {
+            _logger.LogWarning(httpEx, "❌ Failed to send a DM to Discord channel {ChannelId} (Discord code {DiscordCode}, HTTP {HttpCode})",
+                channelId, httpEx.DiscordCode, (int?)httpEx.HttpCode);
+            return false;
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "❌ Failed to send a DM to Discord channel {ChannelId}", channelId);
@@ -3036,11 +3048,56 @@ public class DiscordService : IDiscordService, IDisposable
                 query, messageChannel.Id, BotId);
             return (true, null);
         }
+        catch (HttpException httpEx)
+        {
+            // Surface the REAL Discord rejection (JSON error code + HTTP status)
+            // instead of a bare exception message: 50007 = the user's privacy
+            // settings (or no shared server) block bot DMs. The fix hint is
+            // appended so the thread message carries the remedy.
+            string friendly = DescribeDmSendError(httpEx);
+            if (httpEx.DiscordCode == (DiscordErrorCode)50007)
+            {
+                friendly += " Try having them message the bot once, or share a server with them.";
+            }
+
+            _logger.LogError(httpEx, "❌ Failed to send a DM to user {UserId} on bot {BotId} (Discord code {DiscordCode}, HTTP {HttpCode}): {Error}",
+                query, BotId, httpEx.DiscordCode, (int?)httpEx.HttpCode, friendly);
+            return (false, friendly);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ Failed to send a DM to user {UserId} on bot {BotId}", query, BotId);
             return (false, ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Maps a DM-send failure to a human-readable error: Discord JSON error
+    /// 50007 = the user doesn't accept DMs from the bot (no shared server, or
+    /// privacy settings block it), HTTP 403/404 get their own text, anything
+    /// else surfaces the raw exception message.
+    /// </summary>
+    private static string DescribeDmSendError(Exception ex)
+    {
+        if (ex is HttpException httpEx)
+        {
+            if (httpEx.DiscordCode == (DiscordErrorCode)50007)
+            {
+                return "This user doesn't accept DMs from the bot (no shared server, or their privacy settings block it).";
+            }
+
+            if ((int?)httpEx.HttpCode == 403)
+            {
+                return "Discord forbade the message (missing permissions or blocked).";
+            }
+
+            if ((int?)httpEx.HttpCode == 404)
+            {
+                return "User or DM channel not found.";
+            }
+        }
+
+        return ex.Message;
     }
 
     /// <summary>

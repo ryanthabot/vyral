@@ -1526,9 +1526,11 @@ public class ChatViewModel : ViewModelBase
 		if (bot == null || !bot.IsConnected)
 		{
 			_logger.LogWarning("DM reply to {Username} skipped: no connected Discord bot", conversation.Username);
+			await InsertDmDeliveryFailureAsync(conversation, "No connected Discord bot.");
 			return false;
 		}
 		bool delivered = false;
+		string? dmError = null;
 		try
 		{
 			if (!string.IsNullOrEmpty(conversation.ChannelId))
@@ -1541,6 +1543,7 @@ public class ChatViewModel : ViewModelBase
 				delivered = byUserId;
 				if (!byUserId)
 				{
+					dmError = userIdError;
 					_logger.LogWarning("DM reply by user id {UserId} failed: {Error}", conversation.UserId, userIdError ?? "unknown error");
 				}
 			}
@@ -1557,6 +1560,10 @@ public class ChatViewModel : ViewModelBase
 		if (!delivered)
 		{
 			_logger.LogWarning("Failed to deliver DM reply to {Username} (channel {ChannelId})", conversation.Username, conversation.ChannelId);
+			// Make the failure VISIBLE in the open thread so the streamer sees
+			// exactly why Discord refused the send (privacy settings, missing
+			// shared server, ...) instead of a silent drop.
+			await InsertDmDeliveryFailureAsync(conversation, dmError);
 			return false;
 		}
 		await ((DispatcherObject)Application.Current).Dispatcher.InvokeAsync((Action)delegate
@@ -1593,6 +1600,39 @@ public class ChatViewModel : ViewModelBase
 			ScrollDmThreadToBottom();
 		});
 		return true;
+	}
+
+	/// <summary>
+	/// Surfaces a failed DM reply INSIDE the open conversation's thread as a
+	/// red SYSTEM message ("⚠️ Couldn't deliver: ...") so the streamer sees the
+	/// real Discord rejection — e.g. "can't message this user (no shared
+	/// server / privacy settings)". Same styling pattern as the outgoing echo;
+	/// not persisted (it is a UI note, not a chat message). In-memory only.
+	/// </summary>
+	private async Task InsertDmDeliveryFailureAsync(DmConversation conversation, string? error)
+	{
+		string errorText = string.IsNullOrWhiteSpace(error) ? "Discord refused the message." : error.Trim();
+		string failureText = "⚠️ Couldn't deliver: " + errorText;
+		await ((DispatcherObject)Application.Current).Dispatcher.InvokeAsync((Action)delegate
+		{
+			ChatMessage chatMessage = new ChatMessage
+			{
+				Platform = "Vyral",
+				Username = "System",
+				Message = failureText,
+				Timestamp = DateTime.Now,
+				Color = "#E53935",
+				IsModerator = false,
+				IsSubscriber = false,
+				IsVip = false,
+				IsBroadcaster = false,
+				IsSystemMessage = true,
+				Badges = new Dictionary<string, string>()
+			};
+			chatMessage.InitializeBadges();
+			conversation.Messages.Add(chatMessage);
+			ScrollDmThreadToBottom();
+		});
 	}
 
 	private void BackToDmInbox()
