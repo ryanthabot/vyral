@@ -36,8 +36,6 @@ public class ObsAcquisitionServiceTests
         }
         """;
 
-    private const string InstallerFileName = "obs-studio-installer.exe";
-
     [Fact]
     public async Task ReleaseFeed_PicksWindowsInstallerAsset_AndSendsUserAgent()
     {
@@ -73,9 +71,9 @@ public class ObsAcquisitionServiceTests
     [Fact]
     public async Task DownloadAndInstall_InstallerSucceeds_YieldsDownloadingInstallingDone()
     {
-        string installerPath = Path.Combine(Path.GetTempPath(), InstallerFileName);
         string installRoot = NewFakeInstallRoot(withObsDll: true);
         using var server = new LocalByteServer(4096);
+        string? installerPath = null;
         try
         {
             var service = new ObsAcquisitionService(new ObsInstallLocator(installRoot));
@@ -96,18 +94,21 @@ public class ObsAcquisitionServiceTests
                 progress.Add(p);
             }
 
+            installerPath = runnerPath;
             Assert.NotEmpty(progress);
             Assert.Equal(ObsAcquirePhase.Downloading, progress[0].Phase);
             Assert.Contains(progress, p => p.Phase == ObsAcquirePhase.Downloading && p.Percent == 100);
             Assert.Equal(ObsAcquirePhase.Installing, progress[^2].Phase);
             Assert.Equal(ObsAcquirePhase.Done, progress[^1].Phase);
             Assert.Equal("OBS Studio installed", progress[^1].Detail);
-            Assert.Equal(installerPath, runnerPath);
+            Assert.NotNull(runnerPath);
+            Assert.Equal(Path.GetTempPath(), Path.GetDirectoryName(runnerPath) + Path.DirectorySeparatorChar);
+            Assert.StartsWith("obs-studio-installer-", Path.GetFileName(runnerPath), StringComparison.Ordinal);
             Assert.True(fileExistedAtRun);
         }
         finally
         {
-            SafeDelete(installerPath);
+            SafeDelete(installerPath!);
             SafeDeleteDir(installRoot);
         }
     }
@@ -115,24 +116,30 @@ public class ObsAcquisitionServiceTests
     [Fact]
     public async Task DownloadAndInstall_InstallerExitNonzero_YieldsFailed()
     {
-        string installerPath = Path.Combine(Path.GetTempPath(), InstallerFileName);
         // Override root without obs.dll — the locator is authoritative, so the
         // post-install detection must fail.
         string installRoot = NewFakeInstallRoot(withObsDll: false);
         using var server = new LocalByteServer(512);
+        string? installerPath = null;
         try
         {
             var service = new ObsAcquisitionService(new ObsInstallLocator(installRoot));
+            string? runnerPath = null;
             var progress = new List<ObsAcquireProgress>();
 
             await foreach (ObsAcquireProgress p in service.DownloadAndInstallAsync(
                                CancellationToken.None,
                                new StubFeed(server.Url, server.PayloadLength),
-                               _ => Task.FromResult(3)))
+                               path =>
+                               {
+                                   runnerPath = path;
+                                   return Task.FromResult(3);
+                               }))
             {
                 progress.Add(p);
             }
 
+            installerPath = runnerPath;
             Assert.Contains(progress, p => p.Phase == ObsAcquirePhase.Installing);
             Assert.DoesNotContain(progress, p => p.Phase == ObsAcquirePhase.Done);
             Assert.Equal(ObsAcquirePhase.Failed, progress[^1].Phase);
@@ -140,7 +147,57 @@ public class ObsAcquisitionServiceTests
         }
         finally
         {
-            SafeDelete(installerPath);
+            SafeDelete(installerPath!);
+            SafeDeleteDir(installRoot);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadAndInstall_TempInstallerPath_IsUniquePerRun()
+    {
+        string installRoot = NewFakeInstallRoot(withObsDll: true);
+        using var server = new LocalByteServer(512);
+        string? firstPath = null;
+        string? secondPath = null;
+        try
+        {
+            for (int run = 0; run < 2; run++)
+            {
+                var service = new ObsAcquisitionService(new ObsInstallLocator(installRoot));
+                string? runnerPath = null;
+                await foreach (ObsAcquireProgress p in service.DownloadAndInstallAsync(
+                                   CancellationToken.None,
+                                   new StubFeed(server.Url, server.PayloadLength),
+                                   path =>
+                                   {
+                                       runnerPath = path;
+                                       return Task.FromResult(0);
+                                   }))
+                {
+                    // Drain the progress sequence.
+                }
+
+                if (run == 0)
+                {
+                    firstPath = runnerPath;
+                }
+                else
+                {
+                    secondPath = runnerPath;
+                }
+            }
+
+            Assert.NotNull(firstPath);
+            Assert.NotNull(secondPath);
+            Assert.Equal(Path.GetTempPath(), Path.GetDirectoryName(firstPath) + Path.DirectorySeparatorChar);
+            Assert.StartsWith("obs-studio-installer-", Path.GetFileName(firstPath), StringComparison.Ordinal);
+            Assert.EndsWith(".exe", Path.GetFileName(firstPath), StringComparison.Ordinal);
+            Assert.NotEqual(firstPath, secondPath); // no cross-run collision in %TEMP%
+        }
+        finally
+        {
+            SafeDelete(firstPath!);
+            SafeDelete(secondPath!);
             SafeDeleteDir(installRoot);
         }
     }
@@ -162,8 +219,13 @@ public class ObsAcquisitionServiceTests
         return root;
     }
 
-    private static void SafeDelete(string path)
+    private static void SafeDelete(string? path)
     {
+        if (path is null)
+        {
+            return;
+        }
+
         try
         {
             File.Delete(path);

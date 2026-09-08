@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -115,13 +116,13 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // The pre-launch snapshot tells the enable-note whether OBS is already
-        // up: ServerEnabled is only read at OBS startup, so a flip while obs64
-        // runs needs a restart to take effect.
-        ObsHostStatus preStatus = _host.GetStatus();
-        EnableRemoteControlIfNeeded(preStatus);
+        // The enable path probes for a live obs64 itself: ServerEnabled is
+        // only read at OBS startup, so the flag is written only while no
+        // obs64 runs — a flip under a live OBS can't take effect and would be
+        // overwritten when OBS exits.
+        EnableRemoteControlIfNeeded();
 
-        if (preStatus.State is ObsHostState.Parked or ObsHostState.Embedded or ObsHostState.ReadyToEmbed)
+        if (_host.GetStatus().State is ObsHostState.Parked or ObsHostState.Embedded or ObsHostState.ReadyToEmbed)
         {
             // OBS already lives (parked by the embed control on the last
             // navigation) — EnsureRunningAsync would ADOPT the process and
@@ -216,8 +217,10 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
 
                 if (progress.Phase == ObsAcquirePhase.Done)
                 {
-                    IsObsInstalled = true;
                     StatusNote = "OBS Studio installed.";
+                    // IsObsInstalled is not set here — InitializeAsync re-probes
+                    // the locator and ApplyHostStatus owns the flag (same path
+                    // as every other status).
                     _initialized = false; // install done → run the launch/embed path
                     await InitializeAsync();
                 }
@@ -255,7 +258,7 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
     // Remote control (obs-websocket)
     // ------------------------------------------------------------------
 
-    private void EnableRemoteControlIfNeeded(ObsHostStatus preStatus)
+    private void EnableRemoteControlIfNeeded()
     {
         try
         {
@@ -272,21 +275,45 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
                 return;
             }
 
+            if (IsObs64Running())
+            {
+                // The flip can't take effect under a running OBS (the flag is
+                // read once at startup) and OBS may overwrite the file with
+                // the old value on exit — never write under it.
+                StatusNote = "OBS is running with remote control off — enable it in "
+                    + "OBS → Tools → WebSocket Server Settings, or close OBS and relaunch from this tab.";
+                return;
+            }
+
             if (!ObsWebSocketConfigEditor.EnableServer(install.ConfigDir))
             {
                 return;
             }
 
-            bool obsAlreadyRunning = preStatus.State
-                is ObsHostState.Launching or ObsHostState.WaitingForWindow
-                or ObsHostState.ReadyToEmbed or ObsHostState.Embedded or ObsHostState.Parked;
-            StatusNote = obsAlreadyRunning
-                ? "Enabled OBS remote control — restart OBS to turn it on."
-                : "Enabled OBS remote control so Vyral bot features can drive this OBS (takes effect on OBS launch).";
+            // No obs64 was running, so our launch below picks the flag up.
+            StatusNote = "Enabled OBS remote control so Vyral bot features can drive this OBS (takes effect on OBS launch).";
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Reading/enabling the obs-websocket config failed");
+        }
+    }
+
+    private static bool IsObs64Running()
+    {
+        try
+        {
+            Process[] running = Process.GetProcessesByName("obs64");
+            foreach (Process process in running)
+            {
+                process.Dispose();
+            }
+
+            return running.Length > 0;
+        }
+        catch (Exception)
+        {
+            return false; // probe failed — behave as if OBS were not running
         }
     }
 

@@ -116,8 +116,6 @@ public sealed class GitHubReleaseFeed(HttpClient? http = null) : IReleaseFeed
 /// </summary>
 public sealed class ObsAcquisitionService
 {
-    private const string InstallerFileName = "obs-studio-installer.exe";
-
     private const int DownloadChunkBytes = 10 * 1024 * 1024;
 
     private static readonly HttpClient DownloadHttp = CreateDownloadClient();
@@ -180,8 +178,10 @@ public sealed class ObsAcquisitionService
         }
 
         // 2. Stream it to %TEMP%. Content-Length drives the percent; without
-        //    one the progress is indeterminate (-1).
-        string installerPath = Path.Combine(Path.GetTempPath(), InstallerFileName);
+        //    one the progress is indeterminate (-1). The GUID suffix keeps a
+        //    crashed earlier run's installer from colliding with this one.
+        string installerPath = Path.Combine(
+            Path.GetTempPath(), $"obs-studio-installer-{Guid.NewGuid():N}.exe");
         string? downloadFailure = null;
 
         yield return new(ObsAcquirePhase.Downloading, 0, "downloading the OBS Studio installer…");

@@ -1,5 +1,7 @@
 using System.IO;
 using System.Text.Json;
+using System.Threading;
+using VyralBot.Integrations.Obs.Engine;
 using VyralBot.Integrations.Obs.Hosting;
 using Xunit;
 
@@ -142,8 +144,112 @@ public class ObsWindowHostTests
     }
 
     // ---------------------------------------------------------------------
+    // ObsWindowHostService single-instance guard (named host mutex)
+    // ---------------------------------------------------------------------
+
+    // NOTE: a named Mutex is reentrant for the OWNING THREAD, so the guard can
+    // only be simulated from a different thread — which is precisely what it
+    // models (another Vyral instance).
+
+    [Fact]
+    public void EnsureRunningAsync_ObsHostedByAnotherInstance_FailsWithDetail()
+    {
+        using var held = new Mutex(false, HostMutexName);
+        var owned = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseNow = new ManualResetEventSlim();
+        Task holder = Task.Run(() =>
+        {
+            try
+            {
+                held.WaitOne(TimeSpan.FromSeconds(10));
+                owned.SetResult();
+                releaseNow.Wait(TimeSpan.FromSeconds(10));
+                held.ReleaseMutex();
+            }
+            catch (AbandonedMutexException)
+            {
+                owned.TrySetResult(); // abandoned by a crashed holder — ours now
+            }
+            catch (Exception)
+            {
+                owned.TrySetResult();
+            }
+        });
+
+        try
+        {
+            Assert.True(owned.Task.Wait(TimeSpan.FromSeconds(10)));
+
+            using var service = NewHostService();
+            bool started = service.EnsureRunningAsync().GetAwaiter().GetResult();
+
+            Assert.False(started);
+            ObsHostStatus status = service.GetStatus();
+            Assert.Equal(ObsHostState.Failed, status.State);
+            Assert.Equal("OBS is already hosted by another Vyral window", status.Detail);
+        }
+        finally
+        {
+            releaseNow.Set();
+            Assert.True(holder.Wait(TimeSpan.FromSeconds(10)));
+        }
+    }
+
+    [Fact]
+    public void Dispose_ReleasesTheHostMutex_ForTheNextInstance()
+    {
+        string locatorRoot = NewEmptyLocatorRoot();
+        var service = new ObsWindowHostService(new ObsInstallLocator(locatorRoot));
+        using var probe = new Mutex(false, HostMutexName);
+        try
+        {
+            // Acquire on a worker thread and keep it there until released:
+            // Mutex release is thread-affine, so the clean-release path needs
+            // acquirer and releaser on one thread. The probe below runs on
+            // THIS thread, so it cannot hit the per-thread reentrancy.
+            var acquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var releaseNow = new ManualResetEventSlim();
+            Task worker = Task.Run(() =>
+            {
+                _ = service.EnsureRunningAsync().GetAwaiter().GetResult(); // guard is its first act
+                acquired.SetResult();
+                releaseNow.Wait(TimeSpan.FromSeconds(10));
+                service.Dispose();
+            });
+
+            try
+            {
+                Assert.True(acquired.Task.Wait(TimeSpan.FromSeconds(10)));
+                Assert.False(probe.WaitOne(TimeSpan.Zero)); // held by the worker
+
+                releaseNow.Set();
+                Assert.True(worker.Wait(TimeSpan.FromSeconds(10)));
+                Assert.True(probe.WaitOne(TimeSpan.Zero)); // released for the next instance
+                probe.ReleaseMutex();
+            }
+            finally
+            {
+                releaseNow.Set();
+            }
+        }
+        finally
+        {
+            service.Dispose(); // idempotent safety net
+        }
+    }
+
+    // ---------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------
+
+    private const string HostMutexName = @"Local\VyralBot.ObsWindowHost";
+
+    /// <summary>Host service pointed at a directory that is never an OBS install.</summary>
+    private static ObsWindowHostService NewHostService() =>
+        new(new ObsInstallLocator(NewEmptyLocatorRoot()));
+
+    private static string NewEmptyLocatorRoot() => Directory.CreateDirectory(
+        Path.Combine(Path.GetTempPath(), "vyralbot-obs-host-" + Guid.NewGuid().ToString("N"))).FullName;
 
     private static string NewTempDir() =>
         Directory.CreateDirectory(

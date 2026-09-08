@@ -26,7 +26,7 @@ public enum ObsHostState
     /// <summary>The OBS window is parented into a caller-provided host HWND.</summary>
     Embedded,
 
-    /// <summary>The OBS window is hidden against the service-owned parking HWND.</summary>
+    /// <summary>The OBS window sits minimized on the desktop (unparented) — still reachable via its taskbar button even if Vyral crashes.</summary>
     Parked,
 
     /// <summary>obs64 exited — or (Detail "detached — OBS still running") the window was unembedded while OBS keeps running and can be adopted again.</summary>
@@ -44,9 +44,14 @@ public sealed record ObsHostStatus(ObsHostState State, string? Detail, int ObsPr
 /// OBS, discovers the Qt top-level window by PID, reparents it into a WPF
 /// HwndHost HWND, parks/restores it, and restores it to the desktop on exit.
 /// OBS is a separate process by design — Dispose never kills it, and a crash
-/// there can never take VyralBot down. Polling (window discovery, process
-/// exit) runs on the threadpool; <see cref="StatusChanged"/> subscribers must
-/// marshal to their own context.
+/// there can never take VyralBot down. Park UNPARENTS the window to the
+/// desktop minimized (a minimized top-level window keeps its taskbar button),
+/// so even a Vyral crash leaves a running, recoverable OBS — the previous
+/// reparent-to-hidden-parking-window scheme orphaned it. A named mutex
+/// (<c>Local\VyralBot.ObsWindowHost</c>) keeps a second Vyral instance from
+/// stealing the hosted window. Polling (window discovery, process exit) runs
+/// on the threadpool; <see cref="StatusChanged"/> subscribers must marshal to
+/// their own context.
 /// </summary>
 public sealed class ObsWindowHostService : IDisposable
 {
@@ -61,11 +66,19 @@ public sealed class ObsWindowHostService : IDisposable
     private const string QtClassPrefix = "Qt";
     private const string ObsProcessName = "obs64";
 
+    // Same session by design (Local\): two Vyral instances in one session
+    // adopting/embedding the same obs64 would steal the window from each other.
+    private const string HostMutexName = @"Local\VyralBot.ObsWindowHost";
+    private static readonly TimeSpan hostMutexTimeout = TimeSpan.FromSeconds(2);
+
+    // UIPI silently no-ops the embed when OBS runs elevated and Vyral does not.
+    private const string EmbedUipiFailureDetail =
+        "Could not embed the OBS window (UIPI). If OBS is running as administrator, restart Vyral as administrator too.";
+
     private readonly ObsInstallLocator locator;
     private readonly ILogger<ObsWindowHostService> logger;
     private readonly object stateLock = new();
-
-    private readonly IntPtr parkingHwnd;
+    private readonly object hostMutexGate = new();
 
     private ObsHostState state = ObsHostState.NotInstalled;
     private string? detail;
@@ -74,8 +87,8 @@ public sealed class ObsWindowHostService : IDisposable
     private IntPtr obsHwnd;
     private nint? originalStyle;
     private IntPtr embeddedHostHwnd;
-    private bool processExitedFired;
-    private bool exitPollStarted;
+    private Mutex? hostMutex;
+    private int hostMutexOwnerThreadId = -1;
     private CancellationTokenSource? exitPollCts;
     private bool disposed;
 
@@ -83,16 +96,7 @@ public sealed class ObsWindowHostService : IDisposable
     {
         this.locator = locator ?? throw new ArgumentNullException(nameof(locator));
         this.logger = logger ?? NullLogger<ObsWindowHostService>.Instance;
-
-        parkingHwnd = Win32WindowHost.CreateParkingWindow(out int error);
-        if (parkingHwnd == IntPtr.Zero)
-        {
-            this.logger.LogWarning("OBS host: parking window creation failed (win32 error {Error})", error);
-        }
     }
-
-    /// <summary>The hidden parking HWND the OBS window is parented to while parked. Created in the constructor.</summary>
-    public IntPtr ParkingHwnd => parkingHwnd;
 
     /// <summary>Raised on a threadpool thread after every state change; subscribers marshal to their own context.</summary>
     public event Action<ObsHostStatus>? StatusChanged;
@@ -118,6 +122,12 @@ public sealed class ObsWindowHostService : IDisposable
     public Task<bool> EnsureRunningAsync()
     {
         ThrowIfDisposed();
+
+        if (!TryAcquireHostMutex())
+        {
+            SetState(ObsHostState.Failed, "OBS is already hosted by another Vyral window");
+            return Task.FromResult(false);
+        }
 
         Process? adopted = FindRunningObs();
         if (adopted is not null)
@@ -164,14 +174,13 @@ public sealed class ObsWindowHostService : IDisposable
                 process = launched;
                 processId = launched.Id;
                 ResetWindowLocked();
-                processExitedFired = false;
                 state = ObsHostState.Launching;
                 detail = $"launched {exePath}";
                 snapshot = SnapshotLocked();
             }
 
             logger.LogInformation("OBS host: launched obs64 (pid {Pid})", processId);
-            StartExitPoll();
+            RestartExitPoll();
             StatusChanged?.Invoke(snapshot);
             return Task.FromResult(true);
         }
@@ -250,6 +259,7 @@ public sealed class ObsWindowHostService : IDisposable
         }
 
         ObsHostStatus snapshot;
+        bool failed;
         lock (stateLock)
         {
             if (obsHwnd == IntPtr.Zero)
@@ -274,9 +284,10 @@ public sealed class ObsWindowHostService : IDisposable
 
             // Fill the host's client area; the caller fine-tunes via ResizeTo
             // once WPF layout has settled.
+            bool moved = true;
             if (Win32WindowHost.GetWindowRect(hostHwnd, out Win32WindowHost.RECT hostRect))
             {
-                _ = Win32WindowHost.MoveWindow(
+                moved = Win32WindowHost.MoveWindow(
                     obsHwnd, 0, 0, hostRect.Right - hostRect.Left, hostRect.Bottom - hostRect.Top, repaint: true);
             }
 
@@ -286,10 +297,38 @@ public sealed class ObsWindowHostService : IDisposable
                 obsHwnd, IntPtr.Zero, 0, 0, 0, 0,
                 Win32WindowHost.SwpNoSize | Win32WindowHost.SwpNoMove | Win32WindowHost.SwpNoActivate);
 
-            embeddedHostHwnd = hostHwnd;
-            state = ObsHostState.Embedded;
-            detail = null;
+            // UIPI silently no-ops all of the above when OBS runs elevated and
+            // Vyral does not, and the raw return values cannot be trusted
+            // (SetParent hands back the previous parent, SetWindowLongPtrW the
+            // previous style — both can legitimately be NULL/0) — so verify
+            // the observable effects instead.
+            bool reparented = Win32WindowHost.GetParent(obsHwnd) == hostHwnd;
+            nint styleNow = Win32WindowHost.GetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlStyle);
+            failed = !reparented
+                || (styleNow & ObsWindowStyle.TopLevelChromeMask) != 0
+                || !moved;
+
+            if (failed)
+            {
+                embeddedHostHwnd = IntPtr.Zero;
+                state = ObsHostState.Failed;
+                detail = EmbedUipiFailureDetail;
+            }
+            else
+            {
+                embeddedHostHwnd = hostHwnd;
+                state = ObsHostState.Embedded;
+                detail = null;
+            }
+
             snapshot = SnapshotLocked();
+        }
+
+        if (failed)
+        {
+            logger.LogWarning("OBS host: embedding into host HWND 0x{HostHwnd:X} failed (UIPI?)", hostHwnd.ToInt64());
+            StatusChanged?.Invoke(snapshot);
+            throw new InvalidOperationException(EmbedUipiFailureDetail);
         }
 
         logger.LogInformation("OBS host: embedded into host HWND 0x{HostHwnd:X}", hostHwnd.ToInt64());
@@ -314,9 +353,13 @@ public sealed class ObsWindowHostService : IDisposable
     }
 
     /// <summary>
-    /// Hides the OBS window against the service-owned parking HWND so it
-    /// survives view teardown (tab switches, navigation). The process and the
-    /// window stay alive; <see cref="RestoreInto"/> brings it back.
+    /// Unparents the OBS window back to the desktop and minimizes it so it
+    /// survives view teardown (tab switches, navigation). A minimized
+    /// top-level window keeps its taskbar button — even if Vyral crashes
+    /// right here, OBS stays running and recoverable (the previous
+    /// reparent-to-hidden-parking scheme left it hidden and unreachable).
+    /// The window keeps its chrome-stripped style; <see cref="RestoreInto"/>
+    /// re-strips on re-embed. The process and the window stay alive.
     /// </summary>
     public void Park()
     {
@@ -325,14 +368,15 @@ public sealed class ObsWindowHostService : IDisposable
         ObsHostStatus snapshot;
         lock (stateLock)
         {
-            if (obsHwnd == IntPtr.Zero || parkingHwnd == IntPtr.Zero)
+            if (!Win32WindowHost.IsWindow(obsHwnd))
             {
-                logger.LogWarning("OBS host: park skipped (window {HasWindow}, parking {HasParking})", obsHwnd != IntPtr.Zero, parkingHwnd != IntPtr.Zero);
+                // Dead handle — user32 calls would act on garbage.
+                logger.LogWarning("OBS host: park skipped — window handle 0x{Hwnd:X} is not alive", obsHwnd.ToInt64());
                 return;
             }
 
-            _ = Win32WindowHost.SetParent(obsHwnd, parkingHwnd);
-            _ = Win32WindowHost.ShowWindow(obsHwnd, Win32WindowHost.SwHide);
+            _ = Win32WindowHost.SetParent(obsHwnd, Win32WindowHost.GetDesktopWindow());
+            _ = Win32WindowHost.ShowWindow(obsHwnd, Win32WindowHost.SwMinimize);
             embeddedHostHwnd = IntPtr.Zero;
             state = ObsHostState.Parked;
             detail = null;
@@ -342,23 +386,29 @@ public sealed class ObsWindowHostService : IDisposable
         StatusChanged?.Invoke(snapshot);
     }
 
-    /// <summary>Restores a parked OBS window into the given host HWND.</summary>
+    /// <summary>
+    /// Restores a parked OBS window into the given host HWND: undo Park's
+    /// minimize, then re-embed (reparent, re-strip the chrome, size to fill).
+    /// </summary>
     public void RestoreInto(IntPtr hostHwnd)
     {
-        // Embed first (reparent while hidden), then show — the reverse order
-        // would flash the chrome-stripped window on the desktop for a frame.
-        EmbedInto(hostHwnd);
-
         IntPtr hwnd;
         lock (stateLock)
         {
             hwnd = obsHwnd;
         }
 
-        if (hwnd != IntPtr.Zero)
+        if (!Win32WindowHost.IsWindow(hwnd))
         {
-            _ = Win32WindowHost.ShowWindow(hwnd, Win32WindowHost.SwShow);
+            // Dead handle — user32 calls would act on garbage.
+            logger.LogWarning("OBS host: restore skipped — window handle 0x{Hwnd:X} is not alive", hwnd.ToInt64());
+            return;
         }
+
+        // Undo the minimize first — a minimized child would render nothing
+        // inside the host. EmbedInto then reparents, re-strips and fills.
+        _ = Win32WindowHost.ShowWindow(hwnd, Win32WindowHost.SwRestore);
+        EmbedInto(hostHwnd);
     }
 
     /// <summary>
@@ -369,14 +419,28 @@ public sealed class ObsWindowHostService : IDisposable
     /// </summary>
     public void UnembedToDesktop()
     {
+        IntPtr hwnd;
+        lock (stateLock)
+        {
+            hwnd = obsHwnd;
+        }
+
+        if (!Win32WindowHost.IsWindow(hwnd))
+        {
+            if (hwnd != IntPtr.Zero)
+            {
+                // Stale handle (OBS closed its own window): user32 calls would
+                // act on garbage — skip them, and do not claim a live detach.
+                logger.LogInformation(
+                    "OBS host: unembed skipped — window handle 0x{Hwnd:X} is no longer alive", hwnd.ToInt64());
+            }
+
+            return;
+        }
+
         ObsHostStatus snapshot;
         lock (stateLock)
         {
-            if (obsHwnd == IntPtr.Zero)
-            {
-                return; // nothing ever embedded
-            }
-
             _ = Win32WindowHost.SetParent(obsHwnd, Win32WindowHost.GetDesktopWindow());
 
             if (originalStyle is { } savedStyle)
@@ -404,11 +468,12 @@ public sealed class ObsWindowHostService : IDisposable
 
         logger.LogInformation("OBS host: window detached to the desktop (OBS pid {Pid} keeps running)", processId);
         StatusChanged?.Invoke(snapshot);
+        ReleaseHostMutex();
     }
 
     /// <summary>
     /// Detaches the OBS window (Embedded/Parked) back to the desktop and
-    /// destroys the parking HWND. Never kills obs64 — the user's OBS session
+    /// releases the host mutex. Never kills obs64 — the user's OBS session
     /// must outlive VyralBot.
     /// </summary>
     public void Dispose()
@@ -445,13 +510,7 @@ public sealed class ObsWindowHostService : IDisposable
             logger.LogWarning(ex, "OBS host: unembed during dispose failed");
         }
 
-        if (parkingHwnd != IntPtr.Zero && !Win32WindowHost.DestroyWindow(parkingHwnd))
-        {
-            // DestroyWindow is thread-affine: when Dispose runs on another
-            // thread than the constructor, the OS reclaims the window at
-            // process exit — harmless for a 10x10 hidden STATIC.
-            logger.LogInformation("OBS host: parking window destroy failed (thread-affine); reclaimed at process exit");
-        }
+        ReleaseHostMutex();
 
         Process? current;
         lock (stateLock)
@@ -482,14 +541,13 @@ public sealed class ObsWindowHostService : IDisposable
             process = adopted;
             processId = adopted.Id;
             ResetWindowLocked();
-            processExitedFired = false;
             state = ObsHostState.WaitingForWindow;
             detail = $"adopted running obs64 (pid {processId})";
             snapshot = SnapshotLocked();
         }
 
         logger.LogInformation("OBS host: adopted running obs64 (pid {Pid})", processId);
-        StartExitPoll();
+        RestartExitPoll();
         StatusChanged?.Invoke(snapshot);
     }
 
@@ -602,24 +660,33 @@ public sealed class ObsWindowHostService : IDisposable
         return Win32WindowHost.GetWindowTextW(hwnd, buffer, buffer.Capacity) > 0;
     }
 
-    private void StartExitPoll()
+    /// <summary>
+    /// Starts a fresh exit poll for the CURRENT process. Called whenever the
+    /// process reference is replaced (adopt or relaunch): the previous poll's
+    /// generation is cancelled, so a relaunched obs64 is monitored by a new
+    /// loop instead of nobody.
+    /// </summary>
+    private void RestartExitPoll()
     {
+        Process? target;
         CancellationTokenSource cts;
         lock (stateLock)
         {
-            if (exitPollStarted)
-            {
-                return;
-            }
-
-            exitPollStarted = true;
+            exitPollCts?.Cancel();
+            exitPollCts?.Dispose();
+            target = process;
             cts = exitPollCts = new CancellationTokenSource();
         }
 
-        _ = Task.Run(() => PollProcessExit(cts));
+        if (target is null)
+        {
+            return;
+        }
+
+        _ = Task.Run(() => PollProcessExit(target, cts));
     }
 
-    private async Task PollProcessExit(CancellationTokenSource cts)
+    private async Task PollProcessExit(Process target, CancellationTokenSource cts)
     {
         try
         {
@@ -627,21 +694,10 @@ public sealed class ObsWindowHostService : IDisposable
             {
                 await Task.Delay(exitPollInterval, cts.Token).ConfigureAwait(false);
 
-                Process? current;
-                lock (stateLock)
-                {
-                    current = process;
-                }
-
-                if (current is null)
-                {
-                    continue;
-                }
-
                 bool exited;
                 try
                 {
-                    exited = current.HasExited;
+                    exited = target.HasExited;
                 }
                 catch (Exception)
                 {
@@ -654,30 +710,33 @@ public sealed class ObsWindowHostService : IDisposable
                     continue;
                 }
 
-                bool raiseProcessExited;
                 ObsHostStatus snapshot;
                 lock (stateLock)
                 {
-                    raiseProcessExited = !processExitedFired;
-                    processExitedFired = true;
+                    // A newer process replaced this poll's target — its own
+                    // generation reports the exit.
+                    if (!ReferenceEquals(process, target))
+                    {
+                        return;
+                    }
+
+                    process = null;
                     state = ObsHostState.ObsExited;
                     detail = "obs64 process has exited";
                     snapshot = SnapshotLocked();
                 }
 
                 logger.LogInformation("OBS host: obs64 (pid {Pid}) has exited", processId);
-                if (raiseProcessExited)
-                {
-                    ObsProcessExited?.Invoke();
-                }
-
+                target.Dispose(); // the exited process's handle only — never a kill
+                ReleaseHostMutex();
+                ObsProcessExited?.Invoke();
                 StatusChanged?.Invoke(snapshot);
                 return;
             }
         }
         catch (OperationCanceledException)
         {
-            // Disposed — expected shutdown of the poll loop.
+            // Disposed or replaced — expected shutdown of the poll loop.
         }
     }
 
@@ -691,6 +750,97 @@ public sealed class ObsWindowHostService : IDisposable
     }
 
     private ObsHostStatus SnapshotLocked() => new(state, detail, processId, obsHwnd);
+
+    /// <summary>
+    /// Takes the cross-instance host mutex (a short wait — the other instance
+    /// answers within it). An <see cref="AbandonedMutexException"/> means the
+    /// previous holder crashed while hosting; ownership passes to us, which is
+    /// exactly the recovery we want.
+    /// </summary>
+    private bool TryAcquireHostMutex()
+    {
+        lock (hostMutexGate)
+        {
+            if (hostMutex is not null)
+            {
+                return true; // this instance already hosts
+            }
+
+            var mutex = new Mutex(initiallyOwned: false, HostMutexName);
+            bool acquired;
+            try
+            {
+                try
+                {
+                    acquired = mutex.WaitOne(hostMutexTimeout);
+                }
+                catch (AbandonedMutexException)
+                {
+                    acquired = true;
+                }
+            }
+            catch (Exception)
+            {
+                // The mutex was disposed concurrently (release from the exit
+                // poll) — treat as not acquired this round.
+                mutex.Dispose();
+                return false;
+            }
+
+            if (!acquired)
+            {
+                mutex.Dispose();
+                return false;
+            }
+
+            hostMutex = mutex;
+            hostMutexOwnerThreadId = Environment.CurrentManagedThreadId;
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Releases and disposes the host mutex. ReleaseMutex is thread-affine —
+    /// from any other thread the disposed handle simply abandons the mutex,
+    /// which the next acquirer recovers from explicitly.
+    /// </summary>
+    private void ReleaseHostMutex()
+    {
+        Mutex? mutex;
+        int ownerThreadId;
+        lock (hostMutexGate)
+        {
+            mutex = hostMutex;
+            hostMutex = null;
+            ownerThreadId = hostMutexOwnerThreadId;
+            hostMutexOwnerThreadId = -1;
+        }
+
+        if (mutex is null)
+        {
+            return;
+        }
+
+        if (ownerThreadId == Environment.CurrentManagedThreadId)
+        {
+            try
+            {
+                mutex.ReleaseMutex();
+            }
+            catch (ApplicationException)
+            {
+                // Already released — the dispose below still applies.
+            }
+        }
+
+        try
+        {
+            mutex.Dispose();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
 
     private void SetState(ObsHostState newState, string? detail)
     {

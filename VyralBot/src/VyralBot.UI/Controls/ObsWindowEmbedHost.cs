@@ -9,13 +9,14 @@ namespace VyralBot.UI.Controls;
 /// <summary>
 /// Hosts the real obs64.exe window inside WPF: <see cref="HwndHost"/> builds a
 /// STATIC child HWND and the <see cref="ObsWindowHostService"/> reparents the
-/// OBS main window into it. Detach and HWND teardown PARK the OBS window
-/// against the service-owned parking HWND (hidden, process kept alive) — that
-/// is what makes tab switches and navigation safe; a later Attach on a fresh
-/// child HWND restores it. <see cref="StatusChanged"/> arrives on threadpool
-/// threads: service calls are lock-protected user32 only and run inline, but
-/// the <see cref="IsActive"/> dependency property is written through a
-/// dispatcher guard.
+/// OBS main window into it. Detach and HWND teardown PARK the OBS window —
+/// unparented back to the desktop, minimized (taskbar button kept) — so the
+/// process and window survive navigation, and even a Vyral crash leaves a
+/// recoverable OBS; a later Attach on a fresh child HWND restores it.
+/// <see cref="StatusChanged"/> arrives on threadpool threads: service calls
+/// are lock-protected user32 only and run inline, but the
+/// <see cref="IsActive"/> dependency property is written through a dispatcher
+/// guard.
 /// </summary>
 public sealed class ObsWindowEmbedHost : HwndHost
 {
@@ -63,8 +64,9 @@ public sealed class ObsWindowEmbedHost : HwndHost
     }
 
     /// <summary>
-    /// Parks the OBS window (hidden at the service's parking HWND — the process
-    /// and window stay alive) and drops the badge. The next Attach restores it.
+    /// Parks the OBS window (unparented to the desktop, minimized — the
+    /// process and window stay alive and reachable via the taskbar) and drops
+    /// the badge. The next Attach restores it.
     /// </summary>
     public void Detach()
     {
@@ -94,8 +96,9 @@ public sealed class ObsWindowEmbedHost : HwndHost
     protected override void DestroyWindowCore(HandleRef hwnd)
     {
         disposed = true;
-        // Park BEFORE destroying the child — OBS is parented to it, and letting
-        // the parent die would orphan the OBS window onto the desktop.
+        // Park BEFORE destroying the child — unparents OBS to the desktop
+        // (minimized) first, so it survives teardown reachable from the
+        // taskbar instead of dangling while its parent HWND dies.
         ParkIfEmbedded(service);
         if (childHwnd != IntPtr.Zero)
         {
@@ -177,8 +180,8 @@ public sealed class ObsWindowEmbedHost : HwndHost
                     break;
 
                 case ObsHostState.Parked:
-                    // RestoreInto = EmbedInto + show (embed reparents while
-                    // hidden so the chrome-stripped window never flashes).
+                    // RestoreInto = undo the minimize, then EmbedInto
+                    // (reparent, re-strip the chrome, fill the host).
                     current.RestoreInto(childHwnd);
                     current.ResizeTo((int)ActualWidth, (int)ActualHeight);
                     SetIsActive(true);

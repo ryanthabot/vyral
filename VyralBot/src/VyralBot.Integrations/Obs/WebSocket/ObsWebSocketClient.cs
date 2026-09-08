@@ -64,6 +64,20 @@ public sealed class ObsWebSocketClient : IDisposable
         receivedCloseStatus = null;
         closingByUser = false;
 
+        // A previous generation's socket (e.g. after a 4009 close) must not
+        // linger: its receive loop would fire into the fresh handshake.
+        if (Interlocked.Exchange(ref socket, null) is { } stale)
+        {
+            try
+            {
+                stale.Dispose();
+            }
+            catch (Exception)
+            {
+                // Best-effort — the new connection does not depend on it.
+            }
+        }
+
         var ws = new ClientWebSocket();
         try
         {
