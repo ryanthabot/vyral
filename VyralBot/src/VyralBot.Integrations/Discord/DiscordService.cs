@@ -3623,6 +3623,77 @@ public class DiscordService : IDiscordService, IDisposable
     }
 
     /// <inheritdoc />
+    public Task<List<DiscordRoleInfo>> GetGuildRolesAsync(string guildId)
+    {
+        var roles = new List<DiscordRoleInfo>();
+        var client = GetConnectedClient();
+        if (client == null || !ulong.TryParse(guildId, out var guildSnowflake))
+        {
+            return Task.FromResult(roles);
+        }
+
+        var guild = client.GetGuild(guildSnowflake);
+        if (guild == null)
+        {
+            return Task.FromResult(roles);
+        }
+
+        try
+        {
+            roles.AddRange(guild.Roles
+                .OrderByDescending(r => r.Position)
+                .Select(r => new DiscordRoleInfo(
+                    r.Id.ToString(),
+                    r.Name,
+                    r.Position,
+                    (uint)r.Color.RawValue,
+                    r.IsManaged)));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "❌ Failed to list roles of guild {GuildId} (bot {BotId})", guildId, BotId);
+        }
+
+        return Task.FromResult(roles);
+    }
+
+    /// <inheritdoc />
+    public async Task<List<string>> GetMemberRoleIdsAsync(string guildId, string userId)
+    {
+        var roleIds = new List<string>();
+        var client = GetConnectedClient();
+        if (client == null || !ulong.TryParse(guildId, out var guildSnowflake))
+        {
+            return roleIds;
+        }
+
+        var guild = client.GetGuild(guildSnowflake);
+        if (guild == null)
+        {
+            return roleIds;
+        }
+
+        try
+        {
+            // The client runs without the GuildMembers intent, so the REST
+            // fallback inside ResolveGuildMemberAsync may still fail — an
+            // empty list is an acceptable answer (best-effort lookup).
+            var member = await ResolveGuildMemberAsync(guild, userId).ConfigureAwait(false);
+            if (member != null)
+            {
+                roleIds.AddRange(member.RoleIds.Select(id => id.ToString()));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "❌ Failed to resolve the roles of member '{UserId}' in guild {GuildId} (bot {BotId})",
+                userId, guildId, BotId);
+        }
+
+        return roleIds;
+    }
+
+    /// <inheritdoc />
     public async Task<bool> UserHasPermissionAsync(string username, string permission, string? guildName = null)
     {
         var client = GetConnectedClient();

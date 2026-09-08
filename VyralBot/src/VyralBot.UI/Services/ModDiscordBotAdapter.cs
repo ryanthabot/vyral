@@ -27,4 +27,8 @@ public sealed class ModDiscordBotAdapter : IModDiscordBot
     /// <inheritdoc />
     public Task<bool> AddRoleToUserAsync(string username, string roleIdOrName, string? reason, string? guildName = null)
         => _bot.AddRoleToUserAsync(username, roleIdOrName, reason, guildName);
+
+    /// <inheritdoc />
+    public Task<List<string>> GetMemberRoleIdsAsync(string guildId, string userId)
+        => _bot.GetMemberRoleIdsAsync(guildId, userId);
 }

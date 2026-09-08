@@ -29,4 +29,11 @@ public interface IModRoleService
 
     /// <summary>Every current mod assignment.</summary>
     Task<IReadOnlyList<ModRoleAssignment>> GetAllAsync();
+
+    /// <summary>
+    /// Highest-rank tier granted to the user via any of these Discord role
+    /// IDs, according to the bot's DiscordRoleTierAssignment mappings, or null
+    /// when none of the roles maps to a tier.
+    /// </summary>
+    Task<string?> GetTierFromRolesAsync(string botId, IReadOnlyList<string> discordRoleIds);
 }

@@ -9,9 +9,11 @@ namespace VyralBot.Core.Services.Moderation;
 
 /// <summary>
 /// Default <see cref="IModCommandEngine"/>. Gates messages to the configured
-/// mod channel, resolves the caller's tier via <see cref="IModRoleService"/>,
-/// enforces the <see cref="ModTiers"/> ladder, executes the action and audits
-/// every executed action through <see cref="IDataService.SaveModActionAsync"/>.
+/// mod channel, resolves the caller's effective tier via
+/// <see cref="IModTierResolver"/> (explicit assignment or the highest
+/// Discord-role→tier mapping), enforces the <see cref="ModTiers"/> ladder,
+/// executes the action and audits every executed action through
+/// <see cref="IDataService.SaveModActionAsync"/>.
 /// Every reply goes back into the mod channel through the bot resolved by
 /// <see cref="BotResolver"/>.
 ///
@@ -33,6 +35,7 @@ public class ModCommandEngine : IModCommandEngine
     };
 
     private readonly IModRoleService _modRoles;
+    private readonly IModTierResolver _tierResolver;
     private readonly IDataService _dataService;
     private readonly ICurrencyService _currency;
     private readonly GiveawayService _giveaways;
@@ -45,6 +48,7 @@ public class ModCommandEngine : IModCommandEngine
 
     public ModCommandEngine(
         IModRoleService modRoles,
+        IModTierResolver tierResolver,
         IDataService dataService,
         ICurrencyService currency,
         GiveawayService giveaways,
@@ -53,6 +57,7 @@ public class ModCommandEngine : IModCommandEngine
         ILogger<ModCommandEngine>? logger = null)
     {
         _modRoles = modRoles ?? throw new ArgumentNullException(nameof(modRoles));
+        _tierResolver = tierResolver ?? throw new ArgumentNullException(nameof(tierResolver));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _currency = currency ?? throw new ArgumentNullException(nameof(currency));
         _giveaways = giveaways ?? throw new ArgumentNullException(nameof(giveaways));
@@ -225,7 +230,11 @@ public class ModCommandEngine : IModCommandEngine
             return;
         }
 
-        var tier = await _modRoles.GetTierAsync(message.SenderUserId ?? "").ConfigureAwait(false);
+        var tier = await _tierResolver.ResolveTierAsync(
+            message.BotId ?? "",
+            message.GuildId,
+            message.SenderUserId ?? "",
+            message.Username).ConfigureAwait(false);
         if (string.IsNullOrEmpty(tier))
         {
             await ReplyAsync(bot, modChannelId, "❌ You are not a moderator.").ConfigureAwait(false);

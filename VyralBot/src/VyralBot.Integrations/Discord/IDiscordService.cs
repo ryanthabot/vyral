@@ -399,6 +399,25 @@ public interface IDiscordService
     Task<bool> UserHasRoleAsync(string username, string roleIdOrName, string? guildName = null);
 
     /// <summary>
+    /// Guild roles of one guild (mod role→tier mapping picker), highest
+    /// position first. Includes managed roles — a mapping may legitimately
+    /// target an integration role. Empty list when the bot is not connected,
+    /// the id is invalid or the guild is unknown (never throws).
+    /// </summary>
+    /// <param name="guildId">Snowflake ID of the guild.</param>
+    Task<List<DiscordRoleInfo>> GetGuildRolesAsync(string guildId);
+
+    /// <summary>
+    /// Snowflake IDs of the roles a guild member holds (mod role→tier
+    /// resolution). Best-effort: the client runs without the GuildMembers
+    /// intent, so the REST member fallback may fail — an empty list is
+    /// returned then (never throws).
+    /// </summary>
+    /// <param name="guildId">Snowflake ID of the guild.</param>
+    /// <param name="userId">Snowflake ID (or username) of the member.</param>
+    Task<List<string>> GetMemberRoleIdsAsync(string guildId, string userId);
+
+    /// <summary>
     /// Role names in the origin/first guild (editor role pickers): managed
     /// roles and @everyone are skipped. Empty list when no guild is available.
     /// </summary>

@@ -321,6 +321,16 @@ public partial class App : Application
                             ? new VyralBot.UI.Services.ModDiscordBotAdapter(primaryDiscord)
                             : null,
                         sp.GetRequiredService<ILogger<VyralBot.Core.Services.Moderation.ModRoleService>>()));
+                // Effective tier resolver: the explicit assignment OR the highest
+                // Discord-role→tier mapping, whichever ranks higher. Role lookups
+                // run best-effort on the primary bot; without one the stored
+                // assignment answers alone.
+                services.AddSingleton<VyralBot.Core.Services.Moderation.IModTierResolver>(sp =>
+                    new VyralBot.UI.Services.ModTierResolver(
+                        sp.GetRequiredService<VyralBot.Core.Services.Moderation.IModRoleService>(),
+                        sp.GetService<IDiscordService>() is { } tierDiscord
+                            ? new VyralBot.UI.Services.ModDiscordBotAdapter(tierDiscord)
+                            : null));
                 // The !mod engine: register the concrete type too so the startup
                 // wiring can set its seams on the SAME instance the interface
                 // consumers resolve.

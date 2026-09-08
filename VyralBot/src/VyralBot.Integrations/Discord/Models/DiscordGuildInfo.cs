@@ -5,6 +5,9 @@ namespace VyralBot.Integrations.Discord;
 /// </summary>
 public record DiscordChannelInfo(string Id, string Name);
 
+/// <summary>A guild role for the mod role→tier mapping picker.</summary>
+public record DiscordRoleInfo(string Id, string Name, int Position, uint ColorRaw, bool Managed);
+
 /// <summary>
 /// Snapshot of a Discord guild (server) the bot is currently connected to.
 /// <see cref="MemberCount"/> is approximate (Discord reports it with the

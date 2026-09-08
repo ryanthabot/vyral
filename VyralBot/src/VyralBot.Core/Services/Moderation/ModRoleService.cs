@@ -108,4 +108,29 @@ public class ModRoleService : IModRoleService
         var assignments = await _dataService.GetModRoleAssignmentsAsync().ConfigureAwait(false);
         return assignments.ToList();
     }
+
+    /// <inheritdoc />
+    public async Task<string?> GetTierFromRolesAsync(string botId, IReadOnlyList<string> discordRoleIds)
+    {
+        var mappings = await _dataService.GetRoleTierAssignmentsAsync(botId).ConfigureAwait(false);
+
+        string? best = null;
+        var bestRank = -1;
+        foreach (var mapping in mappings)
+        {
+            if (!discordRoleIds.Contains(mapping.DiscordRoleId))
+            {
+                continue;
+            }
+
+            var rank = ModTiers.Rank(mapping.Tier);
+            if (rank > bestRank)
+            {
+                bestRank = rank;
+                best = ModTiers.NormalizeTier(mapping.Tier);
+            }
+        }
+
+        return best;
+    }
 }

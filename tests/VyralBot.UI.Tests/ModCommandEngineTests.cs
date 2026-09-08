@@ -7,6 +7,7 @@ using VyralBot.Core.Services.Linking;
 using VyralBot.Core.Services.Moderation;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
+using VyralBot.UI.Services;
 using Xunit;
 // The real Integrations event, referenced the way App.xaml.cs will wire it
 // (the test project reaches VyralBot.Integrations transitively via VyralBot.UI).
@@ -619,7 +620,7 @@ public class ModCommandEngineTests
                 NullLogger<GiveawayService>.Instance);
             Polls = new PollService(Data, NullLogger<PollService>.Instance);
             Engine = new ModCommandEngine(
-                Roles, Data, Currency, Giveaways, Polls, Bus,
+                Roles, new ModTierResolver(Roles, Bot), Data, Currency, Giveaways, Polls, Bus,
                 NullLogger<ModCommandEngine>.Instance)
             {
                 ModChannelIdProvider = modChannel ?? (() => ModChannelId),
@@ -1019,6 +1020,10 @@ public class FakeModRoleService : IModRoleService
 
     public Task<IReadOnlyList<ModRoleAssignment>> GetAllAsync()
         => Task.FromResult<IReadOnlyList<ModRoleAssignment>>(new List<ModRoleAssignment>());
+
+    // Engine tests never carry a GuildId, so the role→tier mapping is unreachable.
+    public Task<string?> GetTierFromRolesAsync(string botId, IReadOnlyList<string> discordRoleIds)
+        => Task.FromResult<string?>(null);
 }
 
 /// <summary>Captures everything an <see cref="IModDiscordBot"/> would send to Discord.</summary>
@@ -1045,6 +1050,9 @@ public class FakeDiscordBot : IModDiscordBot
         GrantedRoles.Add((username, roleIdOrName, reason));
         return Task.FromResult(true);
     }
+
+    public Task<List<string>> GetMemberRoleIdsAsync(string guildId, string userId)
+        => Task.FromResult(new List<string>());
 }
 
 /// <summary>A bot whose role grants always fail (Discord outage simulation).</summary>
@@ -1058,6 +1066,9 @@ public class ThrowingDiscordBot : IModDiscordBot
 
     public Task<bool> AddRoleToUserAsync(string username, string roleIdOrName, string? reason, string? guildName = null)
         => throw new InvalidOperationException("Discord is down");
+
+    public Task<List<string>> GetMemberRoleIdsAsync(string guildId, string userId)
+        => Task.FromResult(new List<string>());
 }
 
 /// <summary>GiveawayService dependency — unused by the tested code paths.</summary>

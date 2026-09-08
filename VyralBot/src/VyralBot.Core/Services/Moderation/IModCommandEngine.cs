@@ -47,7 +47,15 @@ public sealed record ModChannelMessage(
     string? SenderUserId,
     string Username,
     string Message,
-    string? BotId);
+    string? BotId)
+{
+    /// <summary>
+    /// Snowflake id of the guild the message was posted in; null when unknown.
+    /// Null (the default) skips the Discord-role→tier resolution and answers
+    /// with the stored assignment alone.
+    /// </summary>
+    public string? GuildId { get; init; }
+}
 
 /// <summary>
 /// Core-side mirror of the per-bot Discord surface the engine needs — the
@@ -65,4 +73,12 @@ public interface IModDiscordBot
 
     /// <summary>Grants a role (name or snowflake id) to a user in the origin/first guild.</summary>
     Task<bool> AddRoleToUserAsync(string username, string roleIdOrName, string? reason, string? guildName = null);
+
+    /// <summary>
+    /// Snowflake IDs of the roles a member holds in the given guild (the
+    /// role→tier mapping lookup). Best-effort and empty on failure — the
+    /// client runs without the GuildMembers intent, so the member may not be
+    /// resolvable.
+    /// </summary>
+    Task<List<string>> GetMemberRoleIdsAsync(string guildId, string userId);
 }
