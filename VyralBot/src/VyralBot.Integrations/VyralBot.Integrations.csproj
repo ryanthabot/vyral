@@ -1,6 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="VyralBot.UI.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\VyralBot.Core\VyralBot.Core.csproj" />
     <!-- WorkflowParameter (typed slash options) is a Workflows model consumed
          by IDiscordService.RegisterWorkflowSlashCommandAsync. -->
