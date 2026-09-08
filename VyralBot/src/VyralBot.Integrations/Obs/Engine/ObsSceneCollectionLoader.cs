@@ -3,13 +3,12 @@ using VyralBot.Integrations.Obs.Native;
 namespace VyralBot.Integrations.Obs.Engine;
 
 /// <summary>
-/// Minimal surface the loader needs from the engine gate. ObsEngine (parallel
-/// task, not yet in the tree when this was written) exposes exactly
-/// <c>bool IsReady</c> + <c>Task&lt;T&gt; RunNativeAsync&lt;T&gt;(Func&lt;T&gt;)</c>;
-/// Task 5 reconciles by having ObsEngine implement this interface so the
-/// loader can take the engine directly.
+/// Minimal surface consumers need from the engine gate. Implemented by
+/// <see cref="ObsEngine"/>: native work queued through it runs on a background
+/// thread while the engine's lifecycle gate is held, and faults when the engine
+/// is not Ready.
 /// </summary>
-internal interface IObsNativeGate
+public interface IObsNativeGate
 {
     bool IsReady { get; }
 
@@ -36,11 +35,9 @@ public sealed class ObsSceneCollectionLoader
 {
     private readonly IObsNativeGate engine;
 
-    // Internal while the gate is internal; Task 5 swaps this for a public
-    // ObsEngine-taking constructor once the engine type exists.
-    internal ObsSceneCollectionLoader(IObsNativeGate engine)
+    public ObsSceneCollectionLoader(IObsNativeGate engine)
     {
-        this.engine = engine;
+        this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
     }
 
     public Task<ObsLoadResult> LoadAsync(string collectionJson)
@@ -183,8 +180,19 @@ public sealed class ObsSceneCollectionLoader
             ObsNative.ObsSourceSetFlags(source, flags);
         }
 
-        // DeinterlaceMode/DeinterlaceFieldOrder are carried on the plan but
-        // skipped here: ObsNative (32.1.1 layer) exposes no deinterlace setters.
+        // Deinterlace settings: the collection strings ("yadif_2x", "top")
+        // map onto the 32.1.1 int enums; unknown values are skipped rather
+        // than passed through, so a newer collection can't inject an enum
+        // value libobs would index arrays with.
+        if (ObsDeinterlace.ParseMode(plan.DeinterlaceMode) is { } deinterlaceMode)
+        {
+            ObsNative.ObsSourceSetDeinterlaceMode(source, deinterlaceMode);
+        }
+
+        if (ObsDeinterlace.ParseFieldOrder(plan.DeinterlaceFieldOrder) is { } fieldOrder)
+        {
+            ObsNative.ObsSourceSetDeinterlaceFieldOrder(source, fieldOrder);
+        }
 
         foreach (ObsFilterPlan filter in plan.Filters)
         {

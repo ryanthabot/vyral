@@ -312,6 +312,9 @@ public partial class App : Application
                 // serializes every call through its gate.
                 services.AddSingleton<VyralBot.Integrations.Obs.Engine.ObsInstallLocator>();
                 services.AddSingleton<VyralBot.Integrations.Obs.Engine.ObsEngine>();
+                // Task 5: the loader (engine-gated) and the studio facade over both.
+                services.AddSingleton<VyralBot.Integrations.Obs.Engine.ObsSceneCollectionLoader>();
+                services.AddSingleton<VyralBot.Integrations.Obs.Engine.ObsStudioService>();
                 services.AddSingleton<ObsViewModel>();
                 services.AddSingleton<DocumentationViewModel>();
                 services.AddSingleton<AutomationViewModel>(); // Automation page (structured workflow builder)

@@ -55,9 +55,19 @@ internal static class ObsNative
     [DllImport(Lib, EntryPoint = "obs_get_version", CallingConvention = Cdecl)]
     internal static extern uint ObsGetVersion();
 
+    // Returns a borrowed pointer to a static string (obs.c: `return OBS_VERSION;`
+    // — a compile-time literal in .rdata). Marshaling it as a LPUTF8Str return
+    // makes the interop CoTaskMemFree memory libobs does NOT own → heap
+    // corruption (0xC0000374). Copy manually, never free.
     [DllImport(Lib, EntryPoint = "obs_get_version_string", CallingConvention = Cdecl)]
-    [return: MarshalAs(UnmanagedType.LPUTF8Str)]
-    internal static extern string ObsGetVersionString();
+    internal static extern IntPtr ObsGetVersionString();
+
+    /// <summary><see cref="ObsGetVersionString"/> copied to a managed string.</summary>
+    internal static string GetVersionString()
+    {
+        IntPtr native = ObsGetVersionString();
+        return native == IntPtr.Zero ? string.Empty : Marshal.PtrToStringUTF8(native);
+    }
 
     /// <summary>Returns an OBS_VIDEO_* code (obs-defs.h: SUCCESS=0, FAIL=-1, NOT_SUPPORTED=-2, INVALID_PARAM=-3, CURRENTLY_ACTIVE=-4, MODULE_NOT_FOUND=-5).</summary>
     [DllImport(Lib, EntryPoint = "obs_reset_video", CallingConvention = Cdecl)]
@@ -73,8 +83,47 @@ internal static class ObsNative
         [MarshalAs(UnmanagedType.LPUTF8Str)] string binPath,
         [MarshalAs(UnmanagedType.LPUTF8Str)] string dataPath);
 
-    [DllImport(Lib, EntryPoint = "obs_load_all_modules", CallingConvention = Cdecl)]
-    internal static extern void ObsLoadAllModules();
+    // Verified: `EXPORT void obs_add_data_path(const char *path);` — appends a
+    // search path for obs_find_data_file (libobs's own effect/config files).
+    // Checked only AFTER the CWD-relative "../../data/libobs/" probe
+    // (obs-windows.c find_libobs_data_file) misses, so this is how a host whose
+    // CWD is not the OBS bin dir gets its data dir found. Path must end with a
+    // separator: check_path concatenates the file name onto it verbatim.
+    [DllImport(Lib, EntryPoint = "obs_add_data_path", CallingConvention = Cdecl)]
+    internal static extern void ObsAddDataPath([MarshalAs(UnmanagedType.LPUTF8Str)] string path);
+
+    // NOTE: obs_load_all_modules is deliberately NOT imported. It loads every
+    // DLL in the registered paths — including UI/CEF/Qt-hostile modules that
+    // access-violate a non-OBS host (2026-09-07 selftest) — with no chance to
+    // skip or log per module. The engine uses the open/init pair below instead.
+
+    // Verified: `EXPORT int obs_open_module(obs_module_t **module,
+    // const char *path, const char *data_path);` — returns a MODULE_* code
+    // (obs-defs.h, see <see cref="ObsNativeConstants"/> Module* constants), NOT
+    // bool. `path` is the module library path — the module NAME derives from
+    // the file stem — and `data_path` is copied verbatim (a missing data dir
+    // only matters to modules that fetch their locale/assets during load).
+    // A DLL without obs_module_load fails here with MODULE_MISSING_EXPORTS.
+    [DllImport(Lib, EntryPoint = "obs_open_module", CallingConvention = Cdecl)]
+    internal static extern int ObsOpenModule(
+        out IntPtr module,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string path,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string dataPath);
+
+    // Verified: `EXPORT bool obs_init_module(obs_module_t *module);` — invokes
+    // the module's obs_module_load (this is where plugin entry code runs).
+    [DllImport(Lib, EntryPoint = "obs_init_module", CallingConvention = Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    internal static extern bool ObsInitModule(IntPtr module);
+
+    // Verified: `EXPORT obs_module_t *obs_get_module(const char *name);` —
+    // name is mod_name (the file stem).
+    [DllImport(Lib, EntryPoint = "obs_get_module", CallingConvention = Cdecl)]
+    internal static extern IntPtr ObsGetModule([MarshalAs(UnmanagedType.LPUTF8Str)] string name);
+
+    // Verified: `EXPORT void obs_enum_modules(obs_enum_module_callback_t callback, void *param);`
+    [DllImport(Lib, EntryPoint = "obs_enum_modules", CallingConvention = Cdecl)]
+    internal static extern void ObsEnumModules(ObsEnumModuleCallback callback, IntPtr param);
 
     [DllImport(Lib, EntryPoint = "obs_post_load_modules", CallingConvention = Cdecl)]
     internal static extern void ObsPostLoadModules();
@@ -105,13 +154,26 @@ internal static class ObsNative
     [DllImport(Lib, EntryPoint = "obs_source_release", CallingConvention = Cdecl)]
     internal static extern void ObsSourceRelease(IntPtr source);
 
+    // Both getters below return BORROWED pointers (source->name / source->id —
+    // owned by the source). Same rule as <see cref="ObsGetVersionString"/>:
+    // copy via the helpers, never let the marshaler free them.
     [DllImport(Lib, EntryPoint = "obs_source_get_name", CallingConvention = Cdecl)]
-    [return: MarshalAs(UnmanagedType.LPUTF8Str)]
-    internal static extern string ObsSourceGetName(IntPtr source);
+    internal static extern IntPtr ObsSourceGetName(IntPtr source);
+
+    internal static string SourceGetName(IntPtr source)
+    {
+        IntPtr native = ObsSourceGetName(source);
+        return native == IntPtr.Zero ? string.Empty : Marshal.PtrToStringUTF8(native);
+    }
 
     [DllImport(Lib, EntryPoint = "obs_source_get_id", CallingConvention = Cdecl)]
-    [return: MarshalAs(UnmanagedType.LPUTF8Str)]
-    internal static extern string ObsSourceGetId(IntPtr source);
+    internal static extern IntPtr ObsSourceGetId(IntPtr source);
+
+    internal static string SourceGetId(IntPtr source)
+    {
+        IntPtr native = ObsSourceGetId(source);
+        return native == IntPtr.Zero ? string.Empty : Marshal.PtrToStringUTF8(native);
+    }
 
     // Verified: `EXPORT void obs_set_output_source(uint32_t channel, obs_source_t *source)` — uint32, not size_t.
     [DllImport(Lib, EntryPoint = "obs_set_output_source", CallingConvention = Cdecl)]
@@ -154,12 +216,25 @@ internal static class ObsNative
     [DllImport(Lib, EntryPoint = "obs_scene_enum_items", CallingConvention = Cdecl)]
     internal static extern void ObsSceneEnumItems(IntPtr scene, ObsEnumSceneItemsCallback callback, IntPtr param);
 
+    // Verified: `EXPORT obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source);`
+    [DllImport(Lib, EntryPoint = "obs_scene_add", CallingConvention = Cdecl)]
+    internal static extern IntPtr ObsSceneAdd(IntPtr scene, IntPtr source);
+
+    // Verified: `EXPORT obs_sceneitem_t *obs_scene_find_source(obs_scene_t *scene, const char *name);`
+    [DllImport(Lib, EntryPoint = "obs_scene_find_source", CallingConvention = Cdecl)]
+    internal static extern IntPtr ObsSceneFindSource(IntPtr scene, [MarshalAs(UnmanagedType.LPUTF8Str)] string name);
+
     [DllImport(Lib, EntryPoint = "obs_sceneitem_get_source", CallingConvention = Cdecl)]
     internal static extern IntPtr ObsSceneItemGetSource(IntPtr sceneItem);
 
     [DllImport(Lib, EntryPoint = "obs_sceneitem_set_locked", CallingConvention = Cdecl)]
     [return: MarshalAs(UnmanagedType.I1)]
     internal static extern bool ObsSceneItemSetLocked(IntPtr sceneItem, [MarshalAs(UnmanagedType.I1)] bool locked);
+
+    // Verified: `EXPORT bool obs_sceneitem_locked(const obs_sceneitem_t *item);`
+    [DllImport(Lib, EntryPoint = "obs_sceneitem_locked", CallingConvention = Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    internal static extern bool ObsSceneItemLocked(IntPtr sceneItem);
 
     [DllImport(Lib, EntryPoint = "obs_sceneitem_set_visible", CallingConvention = Cdecl)]
     [return: MarshalAs(UnmanagedType.I1)]
@@ -172,6 +247,19 @@ internal static class ObsNative
     // Verified: `EXPORT void obs_enum_sources(bool (*enum_proc)(void *, obs_source_t *), void *param)` — void return.
     [DllImport(Lib, EntryPoint = "obs_enum_sources", CallingConvention = Cdecl)]
     internal static extern void ObsEnumSources(ObsEnumSourcesCallback enumProc, IntPtr param);
+
+    // Verified: `EXPORT void obs_enum_scenes(bool (*enum_proc)(void *, obs_source_t *), void *param);` —
+    // void return, same callback shape as obs_enum_sources, scenes only.
+    [DllImport(Lib, EntryPoint = "obs_enum_scenes", CallingConvention = Cdecl)]
+    internal static extern void ObsEnumScenes(ObsEnumSourcesCallback enumProc, IntPtr param);
+
+    // Verified: `EXPORT void obs_source_set_deinterlace_mode(obs_source_t *source, enum obs_deinterlace_mode mode);`
+    [DllImport(Lib, EntryPoint = "obs_source_set_deinterlace_mode", CallingConvention = Cdecl)]
+    internal static extern void ObsSourceSetDeinterlaceMode(IntPtr source, int mode);
+
+    // Verified: `EXPORT void obs_source_set_deinterlace_field_order(obs_source_t *source, enum obs_deinterlace_field_order field_order);`
+    [DllImport(Lib, EntryPoint = "obs_source_set_deinterlace_field_order", CallingConvention = Cdecl)]
+    internal static extern void ObsSourceSetDeinterlaceFieldOrder(IntPtr source, int fieldOrder);
 
     // ----- display (obs.h @ 32.1.1, lines 995-1024 + 814) -----
 
@@ -318,11 +406,22 @@ internal static class ObsNativeConstants
     /// <summary>audio-io.h line 69 — enum speaker_layout: UNKNOWN=0, MONO=1, STEREO=2.</summary>
     public const int SpeakersStereo = 2;
 
-    /// <summary>graphics.h line 60 — enum gs_color_format: UNKNOWN=0, A8=1, R8=2, RGBA=3.</summary>
+    /// <summary>graphics.h line 56 — enum gs_color_format: UNKNOWN=0, A8=1, R8=2, RGBA=3, BGRX=4, BGRA=5.</summary>
     public const int ColorFormatRgba = 3;
+
+    /// <summary>Same enum — GS_BGRA is what the OBS frontend passes to obs_display_create (OBSQTDisplay::CreateDisplay).</summary>
+    public const int ColorFormatBgra = 5;
 
     /// <summary>graphics.h line 90 — enum gs_zstencil_format: GS_ZS_NONE = 0.</summary>
     public const int ZStencilNone = 0;
+
+    /// <summary>obs-defs.h line 41 — obs_open_module result codes (0 on success, negative failures).</summary>
+    public const int ModuleSuccess = 0;
+    public const int ModuleError = -1;
+    public const int ModuleFailedToOpen = -2;
+    public const int ModuleMissingExports = -3;
+    public const int ModuleIncompatibleVersion = -4;
+    public const int ModuleHardcodedSkip = -5;
 }
 
 /// <summary>
@@ -380,14 +479,21 @@ internal struct ObsInitData
 
 /// <summary>
 /// obs_display_add_draw_callback draw: `void (*)(void *param, uint32_t cx, uint32_t cy)`.
+/// Public because <see cref="ObsDisplayInterop"/> exposes draw-callback wiring;
+/// instances MUST be kept alive by the caller (a collected delegate frees the
+/// native thunk while libobs still calls it).
 /// </summary>
 [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-internal delegate void ObsDrawCallback(IntPtr param, uint cx, uint cy);
+public delegate void ObsDrawCallback(IntPtr param, uint cx, uint cy);
 
 /// <summary>obs_enum_sources callback: `bool (*)(void *param, obs_source_t *source)`. Return true to keep enumerating.</summary>
 [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
 [return: MarshalAs(UnmanagedType.I1)]
 internal delegate bool ObsEnumSourcesCallback(IntPtr param, IntPtr source);
+
+/// <summary>obs_enum_modules callback: `void (*)(void *param, obs_module_t *module)`.</summary>
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+internal delegate void ObsEnumModuleCallback(IntPtr param, IntPtr module);
 
 /// <summary>obs_scene_enum_items callback: `bool (*)(obs_scene_t *scene, obs_sceneitem_t *item, void *param)`. Return true to keep enumerating.</summary>
 [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
