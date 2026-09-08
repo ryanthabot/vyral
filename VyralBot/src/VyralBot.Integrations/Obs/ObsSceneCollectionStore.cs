@@ -29,7 +29,7 @@ public sealed class ObsSceneCollectionStore
 
         try
         {
-            byte[] bytes = await File.ReadAllBytesAsync(filePath);
+            byte[] bytes = await File.ReadAllBytesAsync(filePath).ConfigureAwait(false);
             ObsSceneCollectionDocument document = ObsSceneCollectionDocument.Parse(Encoding.UTF8.GetString(bytes));
             ObsSceneCollection entity = new()
             {
@@ -39,7 +39,7 @@ public sealed class ObsSceneCollectionStore
                 SceneCount = document.Scenes.Count,
                 SourceCount = document.SourceCount,
             };
-            ObsSceneCollection saved = await data.SaveObsSceneCollectionAsync(entity);
+            ObsSceneCollection saved = await data.SaveObsSceneCollectionAsync(entity).ConfigureAwait(false);
             return new ObsImportResult(
                 true,
                 $"Imported '{entity.Name}' — {document.Scenes.Count} scene(s), {document.SourceCount} source(s).",
@@ -58,7 +58,7 @@ public sealed class ObsSceneCollectionStore
 
     public async Task<(bool Success, string Message)> ExportToFileAsync(int id, string destinationPath)
     {
-        ObsSceneCollection? entity = await data.GetObsSceneCollectionAsync(id);
+        ObsSceneCollection? entity = await data.GetObsSceneCollectionAsync(id).ConfigureAwait(false);
         if (entity is null)
         {
             return (false, "Collection not found.");
@@ -66,7 +66,7 @@ public sealed class ObsSceneCollectionStore
 
         try
         {
-            await File.WriteAllBytesAsync(destinationPath, entity.RawJsonBytes);
+            await File.WriteAllBytesAsync(destinationPath, entity.RawJsonBytes).ConfigureAwait(false);
             return (true, $"Exported to {destinationPath}");
         }
         catch (Exception ex)
@@ -77,7 +77,7 @@ public sealed class ObsSceneCollectionStore
 
     public async Task<(ObsSceneCollectionDocument? Document, string? Error)> LoadDocumentAsync(int id)
     {
-        ObsSceneCollection? entity = await data.GetObsSceneCollectionAsync(id);
+        ObsSceneCollection? entity = await data.GetObsSceneCollectionAsync(id).ConfigureAwait(false);
         if (entity is null)
         {
             return (null, "Collection not found.");

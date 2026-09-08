@@ -1,4 +1,3 @@
-using System.Text.Json;
 using VyralBot.Core.Services.EventBus;
 using VyralBot.Core.Services.Moderation;
 using VyralBot.Data;
@@ -31,7 +30,7 @@ public sealed record StreamEffectCommandContext(
 public sealed class StreamEffectCommandRouter
 {
     /// <summary>The stream-effect command verbs, matched case-insensitively.</summary>
-    public static readonly string[] Verbs = { "flashlights", "lightson", "lightsoff", "streamdeck" };
+    public static readonly string[] Verbs = StreamEffectPayloads.Verbs;
 
     private const string AuditPrefix = "streamfx:";
 
@@ -69,7 +68,13 @@ public sealed class StreamEffectCommandRouter
             return $"⛔ {ctx.SenderUsername}, '{verb}' requires {ModTiers.MinimumTier(verb)} tier or higher.";
         }
 
-        var (effectType, payload) = BuildEffect(verb, tokens);
+        var (effectType, payload) = StreamEffectPayloads.Build(verb, tokens);
+        var reply = $"✨ '{verb}' triggered by {ctx.SenderUsername}.";
+
+        // Audit BEFORE publishing so an audit failure can never produce a fired
+        // effect with no audit row (the exception propagates like any other).
+        await AuditAsync(ctx, verb, reply).ConfigureAwait(false);
+
         await _eventBus.PublishAsync(new StreamEffectEvent
         {
             Source = "Discord",
@@ -79,29 +84,7 @@ public sealed class StreamEffectCommandRouter
             ChannelId = ctx.ChannelId
         }).ConfigureAwait(false);
 
-        var reply = $"✨ '{verb}' triggered by {ctx.SenderUsername}.";
-        await AuditAsync(ctx, verb, reply).ConfigureAwait(false);
         return reply;
-    }
-
-    private static (string EffectType, string Payload) BuildEffect(string verb, string[] tokens)
-    {
-        switch (verb)
-        {
-            case "flashlights":
-                return ("LightFlash", JsonSerializer.Serialize(new
-                {
-                    color = tokens.Length > 1 && tokens[1].StartsWith('#') ? tokens[1] : null,
-                    times = tokens.Length > 2 && int.TryParse(tokens[2], out var times) && times is >= 1 and <= 20
-                        ? times
-                        : (int?)null
-                }));
-            case "lightson":
-            case "lightsoff":
-                return ("LightScene", JsonSerializer.Serialize(new { state = verb == "lightson" ? "on" : "off" }));
-            default: // "streamdeck" (the only remaining verb in Verbs)
-                return ("StreamDeckAction", JsonSerializer.Serialize(new { action = string.Join(' ', tokens.Skip(1)) }));
-        }
     }
 
     private async Task AuditAsync(StreamEffectCommandContext ctx, string verb, string reply)

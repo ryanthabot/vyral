@@ -47,10 +47,25 @@ public sealed class HueLightsClient(
                     await Task.Delay(intervalMs, ct).ConfigureAwait(false);
             }
 
+            // Best-effort per light: one failed restore must not leave the
+            // remaining lights stuck flashing.
+            var restoreFailures = new List<string>();
             foreach (var (id, state) in originals)
-                await PutStateAsync(bridgeIp!, appKey!, id, RestoreBody(state), ct).ConfigureAwait(false);
+            {
+                try
+                {
+                    await PutStateAsync(bridgeIp!, appKey!, id, RestoreBody(state), ct).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    restoreFailures.Add($"{id}: {ex.Message}");
+                }
+            }
 
-            return $"💡 Flashed {targets.Count} light(s) {times}x.";
+            var message = $"💡 Flashed {targets.Count} light(s) {times}x.";
+            return restoreFailures.Count > 0
+                ? $"{message} ({restoreFailures.Count} restore(s) failed)"
+                : message;
         }
         catch (FormatException)
         {

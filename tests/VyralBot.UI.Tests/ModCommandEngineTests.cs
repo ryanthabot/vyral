@@ -5,6 +5,7 @@ using VyralBot.Core.Services.Currency;
 using VyralBot.Core.Services.EventBus;
 using VyralBot.Core.Services.Linking;
 using VyralBot.Core.Services.Moderation;
+using VyralBot.Core.Services.StreamEffects;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
 using VyralBot.UI.Services;
@@ -526,6 +527,35 @@ public class ModCommandEngineTests
     }
 
     // ------------------------------------------------------------------
+    // Rule 3: stream-effect verbs (publish StreamEffectEvent + audit + reply)
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public async Task Flashlights_Mod_Command_Publishes_Stream_Effect_And_Audits()
+    {
+        var bus = new RecordingEventBus();
+        var t = MakeEngine(bus: bus);
+        t.Roles.Store[ModSender] = "Mod";
+
+        await t.Engine.HandleMessageAsync(Msg("!mod flashlights #00FFAA 3", senderId: ModSender, username: "lamps"));
+
+        var evt = Assert.Single(bus.Published.OfType<StreamEffectEvent>());
+        Assert.Equal("LightFlash", evt.EffectType);
+        Assert.Contains("#00FFAA", evt.Payload);
+        Assert.Contains("3", evt.Payload);
+        Assert.Equal("Discord", evt.Source);
+        Assert.Equal("lamps", evt.RequestedBy);
+        Assert.Equal(ModChannelId, evt.ChannelId);
+
+        var reply = Assert.Single(t.Bot.SentMessages);
+        Assert.Contains("✨", reply.Content);
+        var audit = Assert.Single(t.Data.ModActions);
+        Assert.Equal("flashlights", audit.Action);
+        Assert.Equal("lamps", audit.ModUsername);
+        Assert.Equal(ModSender, audit.ModUserId);
+    }
+
+    // ------------------------------------------------------------------
     // Rule 5: replies route through the resolved bot into the mod channel
     // ------------------------------------------------------------------
 
@@ -608,13 +638,13 @@ public class ModCommandEngineTests
 
     private sealed class Harness
     {
-        public Harness(Func<string?>? modChannel = null)
+        public Harness(Func<string?>? modChannel = null, IEventBus? bus = null)
         {
             Data = new FakeDataService();
             Currency = new FakeCurrencyService();
             Roles = new FakeModRoleService();
             Bot = new FakeDiscordBot();
-            Bus = new EventBus(NullLogger<EventBus>.Instance);
+            Bus = bus ?? new EventBus(NullLogger<EventBus>.Instance);
             Giveaways = new GiveawayService(
                 Data, Bus, new FakeLinkedAccounts(), new FakeViewerStatus(),
                 NullLogger<GiveawayService>.Instance);
@@ -632,13 +662,14 @@ public class ModCommandEngineTests
         public FakeCurrencyService Currency { get; }
         public FakeModRoleService Roles { get; }
         public FakeDiscordBot Bot { get; }
-        public EventBus Bus { get; }
+        public IEventBus Bus { get; }
         public GiveawayService Giveaways { get; }
         public PollService Polls { get; }
         public ModCommandEngine Engine { get; }
     }
 
-    private static Harness MakeEngine(Func<string?>? modChannel = null) => new(modChannel);
+    private static Harness MakeEngine(Func<string?>? modChannel = null, IEventBus? bus = null)
+        => new(modChannel, bus);
 
     private static void PromoteAdmin(Harness t) => t.Roles.Store[AdminSender] = "Admin";
 
@@ -1069,6 +1100,31 @@ public class ThrowingDiscordBot : IModDiscordBot
 
     public Task<List<string>> GetMemberRoleIdsAsync(string guildId, string userId)
         => Task.FromResult(new List<string>());
+}
+
+/// <summary>
+/// IEventBus fake that records published events synchronously (the real
+/// EventBus fans out through a background channel, which would make "was it
+/// published?" assertions racy).
+/// </summary>
+public sealed class RecordingEventBus : IEventBus
+{
+    public List<object> Published { get; } = new();
+
+    public Task PublishAsync<TEvent>(TEvent @event, CancellationToken cancellationToken = default)
+        where TEvent : IEvent
+    {
+        Published.Add(@event!);
+        return Task.CompletedTask;
+    }
+
+    public Task<Guid> SubscribeAsync<TEvent>(Func<TEvent, Task> handler, CancellationToken cancellationToken = default)
+        where TEvent : IEvent
+        => Task.FromResult(Guid.NewGuid());
+
+    public void Unsubscribe(Guid subscriptionId) { }
+
+    public int SubscriptionCount => 0;
 }
 
 /// <summary>GiveawayService dependency — unused by the tested code paths.</summary>

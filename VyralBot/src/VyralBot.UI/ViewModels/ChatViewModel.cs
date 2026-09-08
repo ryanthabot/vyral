@@ -2576,8 +2576,18 @@ public class ChatViewModel : ViewModelBase
 		{
 			return false;
 		}
+		// Stream effects are guild-only: a DM must neither fire an effect nor
+		// produce a tier-denial reply into the bot's selected public channel.
+		if (string.IsNullOrEmpty(evt.GuildId))
+		{
+			return false;
+		}
 		try
 		{
+			if (!await IsStreamEffectChannelAsync(evt.BotId, evt.ChannelId))
+			{
+				return false;
+			}
 			string? reply = await _streamEffectRouter.TryHandleAsync(new StreamEffectCommandContext(
 				evt.BotId ?? "", evt.GuildId, evt.ChannelId ?? "", evt.SenderUserId ?? "", evt.Username, evt.Message));
 			if (reply == null)
@@ -2593,6 +2603,60 @@ public class ChatViewModel : ViewModelBase
 			_logger.LogError(exception, "Error processing in-Discord stream-effect command: {Command}", evt.Message);
 		}
 		return false;
+	}
+
+	/// <summary>
+	/// True when stream-effect commands may run in this channel: a channel that
+	/// accepts tier-gated commands (channels tagged Mod/Admin; legacy: every
+	/// channel while nothing is configured), or the bot's configured mod
+	/// channel — resolved the same way the !mod engine's channel provider
+	/// resolves it (Config "Mod.ChannelId", falling back to the bot's
+	/// DiscordBots.ModChannelId row).
+	/// </summary>
+	private async Task<bool> IsStreamEffectChannelAsync(string? botId, string? channelId)
+	{
+		if (string.IsNullOrWhiteSpace(channelId))
+		{
+			return false;
+		}
+
+		if (_connectedChannels == null ||
+			await _connectedChannels.AcceptsCommandsAsync(botId ?? "", channelId))
+		{
+			return true;
+		}
+
+		var modChannelId = await ResolveModChannelIdAsync();
+		return !string.IsNullOrWhiteSpace(modChannelId) &&
+			string.Equals(channelId.Trim(), modChannelId!.Trim(), StringComparison.OrdinalIgnoreCase);
+	}
+
+	private async Task<string?> ResolveModChannelIdAsync()
+	{
+		if (_dataService == null)
+		{
+			return null;
+		}
+
+		try
+		{
+			string? configured = await _dataService.GetConfigValueAsync("Mod.ChannelId");
+			if (!string.IsNullOrWhiteSpace(configured))
+			{
+				return configured;
+			}
+
+			string? primaryBotId = _discordBotManager.Primary?.BotId;
+			IEnumerable<DiscordBot> botRows = await _dataService.GetDiscordBotsAsync();
+			return (!string.IsNullOrWhiteSpace(primaryBotId)
+				? botRows.FirstOrDefault(b => string.Equals(b.Id, primaryBotId, StringComparison.Ordinal))
+				: botRows.FirstOrDefault(b => !string.IsNullOrWhiteSpace(b.ModChannelId)))?.ModChannelId;
+		}
+		catch (Exception exception)
+		{
+			_logger.LogDebug(exception, "Could not resolve the mod channel id for stream-effect gating");
+			return null;
+		}
 	}
 
 	private void RememberDiscordBotOrigin(string? messageId, string? botId)

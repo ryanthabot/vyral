@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using VyralBot.Core.Services.Currency;
 using VyralBot.Core.Services.EventBus;
+using VyralBot.Core.Services.StreamEffects;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
 
@@ -298,6 +299,11 @@ public class ModCommandEngine : IModCommandEngine
                 return await HandleEndPollAsync().ConfigureAwait(false);
             case "assignmod":
                 return await HandleAssignModAsync(args, message).ConfigureAwait(false);
+            case "flashlights":
+            case "lightson":
+            case "lightsoff":
+            case "streamdeck":
+                return await HandleStreamEffectAsync(action, args, message).ConfigureAwait(false);
             default:
                 return await HandleDelegatedModerationAsync(action, args, message).ConfigureAwait(false);
         }
@@ -554,6 +560,30 @@ public class ModCommandEngine : IModCommandEngine
             _logger.LogError(ex, "Failed to assign mod tier '{Tier}' to {Target}", canonicalTier, target);
             return ("❌ Failed to assign the mod tier.", target, false);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // stream effects (flashlights/lightson/lightsoff/streamdeck)
+    // ------------------------------------------------------------------
+
+    private async Task<(string? Reply, string? TargetUsername, bool Executed)> HandleStreamEffectAsync(
+        string verb, string[] args, ModChannelMessage message)
+    {
+        // StreamEffectPayloads.Build expects tokens[0] to be the verb — the
+        // same tokenization shape the !/.-prefixed router messages have.
+        var tokens = new[] { verb }.Concat(args).ToArray();
+        var (effectType, payload) = StreamEffectPayloads.Build(verb, tokens);
+
+        await _eventBus.PublishAsync(new StreamEffectEvent
+        {
+            Source = DiscordPlatform,
+            EffectType = effectType,
+            Payload = payload,
+            RequestedBy = message.Username,
+            ChannelId = message.ChannelId ?? ""
+        }).ConfigureAwait(false);
+
+        return ($"✨ '{verb}' triggered by {message.Username}.", null, true);
     }
 
     // ------------------------------------------------------------------

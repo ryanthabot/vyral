@@ -1482,15 +1482,19 @@ public partial class SettingsViewModel : ViewModelBase
 
         try
         {
-            // LightsManager re-reads the config per call and routes by provider, so the
-            // bridge settings (and provider=Hue) must be persisted before GetLightsAsync.
-            await _streamEffectsConfigService.SetAsync(StreamEffectsConfigService.HueBridgeIpKey, ip);
-            await _streamEffectsConfigService.SetAsync(StreamEffectsConfigService.HueAppKeyKey, appKey);
-            await _streamEffectsConfigService.SetAsync(StreamEffectsConfigService.LightsProviderKey, "Hue");
+            // Enumerate against a throwaway client built from the CURRENT UI
+            // values — Save stays the only writer of the provider/bridge
+            // config, so a Webhook-configured user browsing lights here is not
+            // silently flipped to Hue.
+            var enabledIds = (IReadOnlyList<string>)HueLights
+                .Where(l => l.Enabled)
+                .Select(l => l.Id)
+                .ToList();
+            var enumerationClient = new HueLightsClient(
+                () => Task.FromResult<(string?, string?, IReadOnlyList<string>)>((ip, appKey, enabledIds)));
+            var lights = await enumerationClient.GetLightsAsync();
 
             var storedIds = _streamFxSnapshot?.LightIds ?? [];
-            var lights = await _lightsClient.GetLightsAsync();
-
             HueLights.Clear();
             foreach (var light in lights)
             {
