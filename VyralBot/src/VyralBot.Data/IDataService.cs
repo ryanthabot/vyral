@@ -411,6 +411,24 @@ public interface IDataService
     Task<IEnumerable<PlatformEarnings>> GetPlatformEarningsAsync(string viewerId);    // one row per platform
     Task AddPlatformEarningsAsync(string viewerId, string platform, long earned, long spent); // atomic read-add-write upsert
 
+    // ===== Discord multi-bot: monitored channels (UNIQUE(BotId, ChannelId)) =====
+    /// <summary>Channels a bot monitors, tagged with purpose CSV ("Moderation,Support,Logging").</summary>
+    Task<List<ConnectedChannel>> GetConnectedChannelsAsync(string botId);
+    Task<ConnectedChannel> UpsertConnectedChannelAsync(ConnectedChannel channel);
+    Task DeleteConnectedChannelAsync(string botId, string channelId);
+    Task<int> CountConnectedChannelsAsync(string botId);
+
+    // ===== Discord multi-bot: role → mod-tier mapping (UNIQUE(BotId, DiscordRoleId)) =====
+    Task<List<DiscordRoleTierAssignment>> GetRoleTierAssignmentsAsync(string botId);
+    Task UpsertRoleTierAssignmentAsync(DiscordRoleTierAssignment assignment);
+    Task DeleteRoleTierAssignmentAsync(string botId, string discordRoleId);
+
+    // ===== Imported OBS scene collections (RawJsonBytes is the verbatim canonical store) =====
+    Task<List<ObsSceneCollection>> GetObsSceneCollectionsAsync();
+    Task<ObsSceneCollection?> GetObsSceneCollectionAsync(int id);
+    Task<ObsSceneCollection> SaveObsSceneCollectionAsync(ObsSceneCollection collection); // insert when Id==0, else update
+    Task DeleteObsSceneCollectionAsync(int id);
+
     // Variables
     Task<Variable?> GetVariableAsync(string id);
     Task<Variable?> GetVariableByNameAsync(string name);

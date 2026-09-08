@@ -320,4 +320,17 @@ public class ProfileAwareDataService : IDataService
     public Task SavePlatformEarningsAsync(PlatformEarnings earnings) => GetCurrentService().SavePlatformEarningsAsync(earnings);
     public Task<IEnumerable<PlatformEarnings>> GetPlatformEarningsAsync(string viewerId) => GetCurrentService().GetPlatformEarningsAsync(viewerId);
     public Task AddPlatformEarningsAsync(string viewerId, string platform, long earned, long spent) => GetCurrentService().AddPlatformEarningsAsync(viewerId, platform, earned, spent);
+
+    // ===== Discord multi-bot: monitored channels, role→mod-tier mapping, OBS scene collections =====
+    public Task<List<ConnectedChannel>> GetConnectedChannelsAsync(string botId) => GetCurrentService().GetConnectedChannelsAsync(botId);
+    public Task<ConnectedChannel> UpsertConnectedChannelAsync(ConnectedChannel channel) => GetCurrentService().UpsertConnectedChannelAsync(channel);
+    public Task DeleteConnectedChannelAsync(string botId, string channelId) => GetCurrentService().DeleteConnectedChannelAsync(botId, channelId);
+    public Task<int> CountConnectedChannelsAsync(string botId) => GetCurrentService().CountConnectedChannelsAsync(botId);
+    public Task<List<DiscordRoleTierAssignment>> GetRoleTierAssignmentsAsync(string botId) => GetCurrentService().GetRoleTierAssignmentsAsync(botId);
+    public Task UpsertRoleTierAssignmentAsync(DiscordRoleTierAssignment assignment) => GetCurrentService().UpsertRoleTierAssignmentAsync(assignment);
+    public Task DeleteRoleTierAssignmentAsync(string botId, string discordRoleId) => GetCurrentService().DeleteRoleTierAssignmentAsync(botId, discordRoleId);
+    public Task<List<ObsSceneCollection>> GetObsSceneCollectionsAsync() => GetCurrentService().GetObsSceneCollectionsAsync();
+    public Task<ObsSceneCollection?> GetObsSceneCollectionAsync(int id) => GetCurrentService().GetObsSceneCollectionAsync(id);
+    public Task<ObsSceneCollection> SaveObsSceneCollectionAsync(ObsSceneCollection collection) => GetCurrentService().SaveObsSceneCollectionAsync(collection);
+    public Task DeleteObsSceneCollectionAsync(int id) => GetCurrentService().DeleteObsSceneCollectionAsync(id);
 }

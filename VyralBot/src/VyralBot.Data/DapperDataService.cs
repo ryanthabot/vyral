@@ -2869,6 +2869,128 @@ public class DapperDataService : IDataService
             new { DiscordUserId = discordUserId });
     }
 
+    public async Task<List<ConnectedChannel>> GetConnectedChannelsAsync(string botId)
+    {
+        using var conn = CreateConnection();
+        return (await conn.QueryAsync<ConnectedChannel>(
+            "SELECT * FROM ConnectedChannels WHERE BotId = @BotId ORDER BY AddedAtUtc",
+            new { BotId = botId })).ToList();
+    }
+
+    public async Task<ConnectedChannel> UpsertConnectedChannelAsync(ConnectedChannel channel)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync(@"
+            INSERT INTO ConnectedChannels (BotId, ChannelId, ChannelName, GuildId, GuildName, Purposes, MonitoringEnabled, AddedAtUtc)
+            VALUES (@BotId, @ChannelId, @ChannelName, @GuildId, @GuildName, @Purposes, @MonitoringEnabled, @AddedAtUtc)
+            ON CONFLICT(BotId, ChannelId) DO UPDATE SET
+                ChannelName = excluded.ChannelName,
+                GuildId = excluded.GuildId,
+                GuildName = excluded.GuildName,
+                Purposes = excluded.Purposes,
+                MonitoringEnabled = excluded.MonitoringEnabled", channel);
+
+        // Re-select so the caller gets the canonical row (stable Id, AddedAtUtc)
+        return await conn.QuerySingleAsync<ConnectedChannel>(
+            "SELECT * FROM ConnectedChannels WHERE BotId = @BotId AND ChannelId = @ChannelId",
+            new { channel.BotId, channel.ChannelId });
+    }
+
+    public async Task DeleteConnectedChannelAsync(string botId, string channelId)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync(
+            "DELETE FROM ConnectedChannels WHERE BotId = @BotId AND ChannelId = @ChannelId",
+            new { BotId = botId, ChannelId = channelId });
+    }
+
+    public async Task<int> CountConnectedChannelsAsync(string botId)
+    {
+        using var conn = CreateConnection();
+        return await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM ConnectedChannels WHERE BotId = @BotId",
+            new { BotId = botId });
+    }
+
+    public async Task<List<DiscordRoleTierAssignment>> GetRoleTierAssignmentsAsync(string botId)
+    {
+        using var conn = CreateConnection();
+        return (await conn.QueryAsync<DiscordRoleTierAssignment>(
+            "SELECT * FROM DiscordRoleTierAssignments WHERE BotId = @BotId ORDER BY AssignedAtUtc",
+            new { BotId = botId })).ToList();
+    }
+
+    public async Task UpsertRoleTierAssignmentAsync(DiscordRoleTierAssignment assignment)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync(@"
+            INSERT INTO DiscordRoleTierAssignments (BotId, GuildId, DiscordRoleId, RoleName, Tier, AssignedAtUtc)
+            VALUES (@BotId, @GuildId, @DiscordRoleId, @RoleName, @Tier, @AssignedAtUtc)
+            ON CONFLICT(BotId, DiscordRoleId) DO UPDATE SET
+                GuildId = excluded.GuildId,
+                RoleName = excluded.RoleName,
+                Tier = excluded.Tier", assignment);
+    }
+
+    public async Task DeleteRoleTierAssignmentAsync(string botId, string discordRoleId)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync(
+            "DELETE FROM DiscordRoleTierAssignments WHERE BotId = @BotId AND DiscordRoleId = @DiscordRoleId",
+            new { BotId = botId, DiscordRoleId = discordRoleId });
+    }
+
+    public async Task<List<ObsSceneCollection>> GetObsSceneCollectionsAsync()
+    {
+        using var conn = CreateConnection();
+        return (await conn.QueryAsync<ObsSceneCollection>(
+            "SELECT * FROM ObsSceneCollections ORDER BY ImportedAtUtc DESC")).ToList();
+    }
+
+    public async Task<ObsSceneCollection?> GetObsSceneCollectionAsync(int id)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<ObsSceneCollection>(
+            "SELECT * FROM ObsSceneCollections WHERE Id = @Id",
+            new { Id = id });
+    }
+
+    public async Task<ObsSceneCollection> SaveObsSceneCollectionAsync(ObsSceneCollection collection)
+    {
+        using var conn = CreateConnection();
+
+        if (collection.Id == 0)
+        {
+            await conn.ExecuteAsync(@"
+                INSERT INTO ObsSceneCollections (Name, RawJsonBytes, SourcePath, SceneCount, SourceCount, ImportedAtUtc)
+                VALUES (@Name, @RawJsonBytes, @SourcePath, @SceneCount, @SourceCount, @ImportedAtUtc)", collection);
+
+            collection.Id = (int)conn.QuerySingle<long>("SELECT last_insert_rowid()");
+        }
+        else
+        {
+            await conn.ExecuteAsync(@"
+                UPDATE ObsSceneCollections SET
+                    Name = @Name,
+                    RawJsonBytes = @RawJsonBytes,
+                    SourcePath = @SourcePath,
+                    SceneCount = @SceneCount,
+                    SourceCount = @SourceCount,
+                    ImportedAtUtc = @ImportedAtUtc
+                WHERE Id = @Id", collection);
+        }
+
+        return collection;
+    }
+
+    public async Task DeleteObsSceneCollectionAsync(int id)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync(
+            "DELETE FROM ObsSceneCollections WHERE Id = @Id",
+            new { Id = id });
+    }
+
     public async Task SavePlatformEarningsAsync(PlatformEarnings earnings)
     {
         using var conn = CreateConnection();
@@ -4136,6 +4258,33 @@ public class DapperDataService : IDataService
             );
             CREATE INDEX IF NOT EXISTS IX_WorkflowExecutions_WorkflowId ON WorkflowExecutions(WorkflowId);
             CREATE INDEX IF NOT EXISTS IX_WorkflowExecutions_StartedAt ON WorkflowExecutions(StartedAt);
+        ");
+
+        // Discord multi-bot: channels each bot monitors, tagged with purpose CSV ("Moderation,Support,Logging")
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS ConnectedChannels (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                BotId TEXT NOT NULL, ChannelId TEXT NOT NULL, ChannelName TEXT NOT NULL DEFAULT '',
+                GuildId TEXT NOT NULL DEFAULT '', GuildName TEXT NOT NULL DEFAULT '',
+                Purposes TEXT NOT NULL DEFAULT '', MonitoringEnabled INTEGER NOT NULL DEFAULT 1, AddedAtUtc TEXT NOT NULL);
+            CREATE UNIQUE INDEX IF NOT EXISTS IX_ConnectedChannels_Bot_Channel ON ConnectedChannels(BotId, ChannelId);
+        ");
+
+        // Discord multi-bot: role → mod-tier mapping ("TrialMod"|"Mod"|"SeniorMod"|"Admin")
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS DiscordRoleTierAssignments (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                BotId TEXT NOT NULL, GuildId TEXT NOT NULL DEFAULT '',
+                DiscordRoleId TEXT NOT NULL, RoleName TEXT NOT NULL DEFAULT '', Tier TEXT NOT NULL, AssignedAtUtc TEXT NOT NULL);
+            CREATE UNIQUE INDEX IF NOT EXISTS IX_RoleTier_Bot_Role ON DiscordRoleTierAssignments(BotId, DiscordRoleId);
+        ");
+
+        // Imported OBS scene collections (RawJsonBytes BLOB is the verbatim canonical store)
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS ObsSceneCollections (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Name TEXT NOT NULL, RawJsonBytes BLOB NOT NULL, SourcePath TEXT NOT NULL DEFAULT '',
+                SceneCount INTEGER NOT NULL DEFAULT 0, SourceCount INTEGER NOT NULL DEFAULT 0, ImportedAtUtc TEXT NOT NULL);
         ");
 
         // Migration: per-bot command scoping (NULL = visible to every bot)

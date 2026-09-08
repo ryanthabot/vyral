@@ -713,6 +713,20 @@ public class FakeDataService : IDataService
     public Task<IEnumerable<ModRoleAssignment>> GetModRoleAssignmentsAsync()
         => Task.FromResult<IEnumerable<ModRoleAssignment>>(ModRoleAssignments.Values.ToList());
 
+    // ----- Connected channels / role tiers / OBS scene collections (not needed here) -----
+
+    public Task<List<ConnectedChannel>> GetConnectedChannelsAsync(string botId) => throw new NotImplementedException(NotImplemented);
+    public Task<ConnectedChannel> UpsertConnectedChannelAsync(ConnectedChannel channel) => throw new NotImplementedException(NotImplemented);
+    public Task DeleteConnectedChannelAsync(string botId, string channelId) => throw new NotImplementedException(NotImplemented);
+    public Task<int> CountConnectedChannelsAsync(string botId) => throw new NotImplementedException(NotImplemented);
+    public Task<List<DiscordRoleTierAssignment>> GetRoleTierAssignmentsAsync(string botId) => throw new NotImplementedException(NotImplemented);
+    public Task UpsertRoleTierAssignmentAsync(DiscordRoleTierAssignment assignment) => throw new NotImplementedException(NotImplemented);
+    public Task DeleteRoleTierAssignmentAsync(string botId, string discordRoleId) => throw new NotImplementedException(NotImplemented);
+    public Task<List<ObsSceneCollection>> GetObsSceneCollectionsAsync() => throw new NotImplementedException(NotImplemented);
+    public Task<ObsSceneCollection?> GetObsSceneCollectionAsync(int id) => throw new NotImplementedException(NotImplemented);
+    public Task<ObsSceneCollection> SaveObsSceneCollectionAsync(ObsSceneCollection collection) => throw new NotImplementedException(NotImplemented);
+    public Task DeleteObsSceneCollectionAsync(int id) => throw new NotImplementedException(NotImplemented);
+
     // ----- Giveaways / polls (real behavior; real GiveawayService/PollService run on top) -----
 
     public Task<Giveaway?> GetGiveawayAsync(Guid id)
