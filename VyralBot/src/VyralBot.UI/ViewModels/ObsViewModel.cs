@@ -10,14 +10,25 @@ using VyralBot.Integrations.Obs;
 namespace VyralBot.UI.ViewModels;
 
 /// <summary>
-/// OBS page: imports OBS scene-collection JSON verbatim, browses the imported
-/// documents as a tree and exports byte-identical copies.
+/// OBS page host: the embedded studio tab plus the original Collections tab
+/// (imports OBS scene-collection JSON verbatim, browses the imported
+/// documents as a tree and exports byte-identical copies).
 /// </summary>
 public partial class ObsViewModel : ViewModelBase
 {
     private readonly ObsSceneCollectionStore _store;
     private readonly IDataService _dataService;
     private readonly ILogger<ObsViewModel> _logger;
+
+    /// <summary>The embedded studio (own view model, resolved via DI).</summary>
+    public ObsStudioViewModel Studio { get; }
+
+    // Studio is the default tab.
+    [ObservableProperty]
+    private bool _isStudioTabSelected = true;
+
+    [ObservableProperty]
+    private bool _isCollectionsTabSelected;
 
     [ObservableProperty]
     private ObservableCollection<ObsCollectionRow> _collections = new();
@@ -37,9 +48,10 @@ public partial class ObsViewModel : ViewModelBase
     [ObservableProperty]
     private string? _sceneSummary;
 
-    public ObsViewModel(ObsSceneCollectionStore store, IDataService dataService, ILogger<ObsViewModel> logger)
+    public ObsViewModel(ObsSceneCollectionStore store, ObsStudioViewModel studio, IDataService dataService, ILogger<ObsViewModel> logger)
     {
         _store = store;
+        Studio = studio;
         _dataService = dataService;
         _logger = logger;
     }
@@ -49,6 +61,15 @@ public partial class ObsViewModel : ViewModelBase
     {
         _logger.LogInformation("Initializing OBS view");
         await LoadAsync();
+        await Studio.InitializeAsync();
+    }
+
+    /// <summary>Mutually exclusive tab switcher for the Studio | Collections pair.</summary>
+    [RelayCommand]
+    private void SelectTab(string tab)
+    {
+        IsStudioTabSelected = tab == "Studio";
+        IsCollectionsTabSelected = tab == "Collections";
     }
 
     [RelayCommand]

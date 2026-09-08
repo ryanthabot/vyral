@@ -317,6 +317,8 @@ public partial class App : Application
                 services.AddSingleton<VyralBot.Integrations.Obs.Engine.ObsStudioService>();
                 // Task 6: stream/record/replay outputs driven from the OBS profile.
                 services.AddSingleton<VyralBot.Integrations.Obs.Engine.ObsOutputService>();
+                // Task 7: embedded studio page view model (consumed by ObsViewModel's Studio tab).
+                services.AddSingleton<ObsStudioViewModel>();
                 services.AddSingleton<ObsViewModel>();
                 services.AddSingleton<DocumentationViewModel>();
                 services.AddSingleton<AutomationViewModel>(); // Automation page (structured workflow builder)
@@ -933,6 +935,23 @@ public partial class App : Application
                 catch (Exception ex)
                 {
                     Log.Warning(ex, "Error stopping the stream effect subscriber");
+                }
+            }
+
+            // Shut the embedded OBS engine down (obs_shutdown) BEFORE the host
+            // disposes its services — the preview/loader may still hold native
+            // state, and the engine parks itself in Shutdown after this.
+            var obsEngine = _host.Services.GetService<VyralBot.Integrations.Obs.Engine.ObsEngine>();
+            if (obsEngine != null)
+            {
+                try
+                {
+                    obsEngine.ShutdownAsync().GetAwaiter().GetResult();
+                    Log.Information("OBS engine shut down");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Error shutting down the OBS engine");
                 }
             }
 

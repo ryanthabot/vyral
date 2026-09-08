@@ -164,6 +164,19 @@
                         </StackPanel>
                     </Button>
 
+                    <!-- OBS -->
+                    <Button Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="48"
+                            HorizontalContentAlignment="Left"
+                            Padding="16,0"
+                            Command="{Binding NavigateToObsCommand}"
+                            ToolTip="Embedded OBS studio and scene collections">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Video" Width="20" Height="20" VerticalAlignment="Center"/>
+                            <TextBlock Text="OBS" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
                     <!-- Platforms Dropdown -->
                     <StackPanel>
                         <!-- Platforms Header Button -->
@@ -473,19 +486,6 @@
                                 <StackPanel Orientation="Horizontal">
                                     <materialDesign:PackIcon Kind="ClockOutline" Width="18" Height="18" VerticalAlignment="Center"/>
                                     <TextBlock Text="Watchtime" Margin="12,0,0,0" VerticalAlignment="Center" FontSize="13"/>
-                                </StackPanel>
-                            </Button>
-
-                            <!-- OBS Scene Collections -->
-                            <Button Style="{StaticResource MaterialDesignFlatButton}"
-                                    Height="40"
-                                    HorizontalContentAlignment="Left"
-                                    Padding="48,0,16,0"
-                                    Command="{Binding NavigateToObsCommand}"
-                                    ToolTip="Import, browse and export OBS scene collections">
-                                <StackPanel Orientation="Horizontal">
-                                    <materialDesign:PackIcon Kind="Video" Width="18" Height="18" VerticalAlignment="Center"/>
-                                    <TextBlock Text="OBS" Margin="12,0,0,0" VerticalAlignment="Center" FontSize="13"/>
                                 </StackPanel>
                             </Button>
                         </StackPanel>

@@ -93,6 +93,14 @@ public sealed class ObsEngine : IDisposable, IObsNativeGate
     /// <summary>Raised on the threadpool after every state change; subscribers marshal to their own context.</summary>
     public event Action<ObsEngineStatus>? StatusChanged;
 
+    /// <summary>
+    /// Average frame time in nanoseconds as libobs measured it over the last
+    /// second (obs_get_average_frame_time_ns), sampled under the engine gate.
+    /// 0 when the engine is not Ready or libobs has not rendered yet.
+    /// </summary>
+    public Task<ulong> GetAverageFrameTimeNsAsync() =>
+        IsReady ? RunNativeAsync(ObsNative.ObsGetAverageFrameTimeNs) : Task.FromResult(0UL);
+
     /// <summary>Consistent snapshot of the current state. Blocks while init/shutdown is in flight.</summary>
     public ObsEngineStatus GetStatus()
     {
