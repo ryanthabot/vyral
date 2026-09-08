@@ -28,6 +28,23 @@ public sealed class ObsPreviewHost : HwndHost
     private IntPtr display;
     private int creating;
 
+    /// <summary>
+    /// True while an obs display is alive on the child HWND. The studio view
+    /// binds this so a dead render path is diagnosable at a glance (display
+    /// creation can legitimately lag the engine reaching Ready — the host
+    /// retries on Loaded and on every size change until it sticks).
+    /// </summary>
+    public static readonly DependencyProperty IsPreviewActiveProperty =
+        DependencyProperty.Register(
+            nameof(IsPreviewActive), typeof(bool), typeof(ObsPreviewHost),
+            new PropertyMetadata(false));
+
+    public bool IsPreviewActive
+    {
+        get => (bool)GetValue(IsPreviewActiveProperty);
+        private set => SetValue(IsPreviewActiveProperty, value);
+    }
+
     // Field-pinned: libobs keeps the raw pointer, so the delegate (and the
     // native thunk it marshals to) must outlive every registered callback.
     private readonly ObsDrawCallback drawCallback;
@@ -85,7 +102,17 @@ public sealed class ObsPreviewHost : HwndHost
     protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
     {
         base.OnRenderSizeChanged(sizeInfo);
-        ResizeDisplay();
+        // Resize keeps an existing display in step with the layout; before one
+        // exists, every size change is also a retry chance (the display may
+        // have been requested before the host was sized or the engine ready).
+        if (display != IntPtr.Zero)
+        {
+            ResizeDisplay();
+        }
+        else
+        {
+            CreateDisplayBestEffort();
+        }
     }
 
     private void CreateDisplayBestEffort()
@@ -126,6 +153,7 @@ public sealed class ObsPreviewHost : HwndHost
             }).ConfigureAwait(true); // resume on the dispatcher — display field is UI-thread state
 
             display = created;
+            IsPreviewActive = created != IntPtr.Zero;
         }
         catch (Exception)
         {
@@ -159,6 +187,7 @@ public sealed class ObsPreviewHost : HwndHost
     {
         IntPtr stale = display;
         display = IntPtr.Zero;
+        IsPreviewActive = false;
         IObsNativeGate? gate = engine;
         if (stale == IntPtr.Zero || gate is null || !gate.IsReady)
         {

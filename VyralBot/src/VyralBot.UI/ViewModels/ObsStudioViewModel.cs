@@ -353,6 +353,7 @@ public partial class ObsStudioViewModel : ViewModelBase
 
             await RefreshItemsAsync();
             StatusText = $"Scene '{row.Name}' is live.";
+            _logger.LogInformation("OBS studio: program scene switched to {Scene}", row.Name);
         }
         catch (Exception ex)
         {
@@ -372,6 +373,9 @@ public partial class ObsStudioViewModel : ViewModelBase
         try
         {
             var items = await _studio.GetSceneItemsAsync(_currentSceneName);
+            // Defensive count — an empty native enumeration is invisible to the
+            // user (blank Sources panel) otherwise.
+            _logger.LogInformation("OBS studio: scene {Scene} exposes {Count} source(s)", _currentSceneName, items.Count);
             SceneSources.Clear();
             foreach (var item in items)
             {

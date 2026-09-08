@@ -181,6 +181,9 @@
                                                  Foreground="{DynamicResource PrimaryBrush}"/>
                         <TextBlock Text="Program Preview" FontSize="15" FontWeight="SemiBold" Margin="8,0,0,0"
                                    VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <TextBlock Text="preview active" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Visibility="{Binding ElementName=Preview, Path=IsPreviewActive, Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
                     <Border Background="#FF101010" Margin="12,0,12,12" MinHeight="240">
                         <controls:ObsPreviewHost x:Name="Preview"/>
