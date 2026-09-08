@@ -307,6 +307,11 @@ public partial class App : Application
                 services.AddSingleton<IntegrationsViewModel>();
                 // OBS page: verbatim scene-collection store + its ViewModel.
                 services.AddSingleton<VyralBot.Integrations.Obs.ObsSceneCollectionStore>();
+                // Embedded OBS studio: install locator + libobs engine lifecycle.
+                // Singletons — the engine owns the process-wide native state and
+                // serializes every call through its gate.
+                services.AddSingleton<VyralBot.Integrations.Obs.Engine.ObsInstallLocator>();
+                services.AddSingleton<VyralBot.Integrations.Obs.Engine.ObsEngine>();
                 services.AddSingleton<ObsViewModel>();
                 services.AddSingleton<DocumentationViewModel>();
                 services.AddSingleton<AutomationViewModel>(); // Automation page (structured workflow builder)
@@ -408,6 +413,17 @@ public partial class App : Application
     {
         try
         {
+            // --obs-selftest: headless embedded-OBS engine boot validation (run
+            // by the verification wave). Must happen BEFORE any host/window
+            // work; runs synchronously and exits the process with 0 (ok),
+            // 1 (OBS not found) or 2 (failure). A WinExe has no console, so the
+            // durable output is the report file (--obs-selftest-report=<path>).
+            if (e.Args.Any(a => a.Equals(Services.ObsSelftest.Flag, StringComparison.OrdinalIgnoreCase)))
+            {
+                Environment.Exit(Services.ObsSelftest.Run(e.Args));
+                return; // Environment.Exit never returns; here for the compiler
+            }
+
             // Kill leftover WebView2 processes from previous runs FIRST.
             // Scoped to processes whose command line references VyralBot's WebView2
             // temp user-data folder — other applications' WebView2 processes are untouched (KI-23).
