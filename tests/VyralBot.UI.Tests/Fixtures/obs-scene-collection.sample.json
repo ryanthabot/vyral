@@ -1,0 +1,53 @@
+{
+  "current_scene": "Starting Soon",
+  "current_program_scene": "Starting Soon",
+  "scene_order": [ { "name": "Starting Soon" }, { "name": "Just Chatting" } ],
+  "name": "TestCollection",
+  "sources": [
+    {
+      "prev_ver": 503316480, "name": "Display Capture", "uuid": "a1b2", "id": "dshow_input",
+      "versioned_id": "dshow_input", "settings": { "device": "0x0", "device_name": "LG HDR 4K" },
+      "mixers": 255, "sync": 0, "flags": 0, "volume": 1.0, "balance": 0.5,
+      "hotkeys": { "OBSBasic.SelectScene": [] }, "deinterlace_mode": 0, "deinterlace_field_order": 0,
+      "monitoring_type": 0, "private_settings": {}
+    },
+    {
+      "prev_ver": 503316480, "name": "Chat Overlay", "uuid": "c3d4", "id": "browser_source",
+      "versioned_id": "browser_source",
+      "settings": { "url": "http://localhost:8085/audio.html", "width": 1920, "height": 1080, "css": "body { background: rgba(0,0,0,0); }", "reroute_audio": true },
+      "mixers": 2, "sync": 0, "flags": 0, "volume": 0.75, "balance": 0.5, "hotkeys": {}, "private_settings": {}
+    },
+    {
+      "prev_ver": 503316480, "name": "Just Chatting", "uuid": "e5f6", "id": "scene", "versioned_id": "scene",
+      "settings": {
+        "custom_size": false, "id_counter": 2,
+        "items": [
+          { "name": "Display Capture", "source_uuid": "a1b2", "visible": true, "locked": true, "rot": 0.0,
+            "pos": { "x": 0.0, "y": 0.0 }, "scale": { "x": 1.0, "y": 1.0 }, "align": 5,
+            "bounds_type": 0, "bounds_alignment": 0, "bounds": { "x": 0.0, "y": 0.0 }, "id": 1,
+            "group_item_backup": false, "scale_filter": "disable", "blend_method": "default", "blend_type": "normal", "show_transition": { "duration": 0 } },
+          { "name": "Chat Overlay", "source_uuid": "c3d4", "visible": true, "locked": false, "rot": 12.5,
+            "pos": { "x": 1400.0, "y": 240.0 }, "scale": { "x": 0.85, "y": 0.85 }, "align": 5,
+            "bounds_type": 2, "bounds_alignment": 0, "bounds": { "x": 400.0, "y": 300.0 }, "id": 2,
+            "group_item_backup": false, "scale_filter": "lanczos", "blend_method": "default", "blend_type": "normal", "show_transition": { "duration": 0 } }
+        ]
+      },
+      "mixers": 0, "sync": 0, "flags": 0, "volume": 1.0, "balance": 0.5, "hotkeys": {}, "private_settings": {}
+    },
+    {
+      "prev_ver": 503316480, "name": "Starting Soon", "uuid": "a7b8", "id": "scene", "versioned_id": "scene",
+      "settings": { "custom_size": false, "id_counter": 1, "items": [] },
+      "mixers": 0, "sync": 0, "flags": 0, "volume": 1.0, "balance": 0.5, "hotkeys": {}, "private_settings": {}
+    },
+    {
+      "prev_ver": 503316480, "name": "Desktop Audio", "uuid": "z9", "id": "wasapi_output_capture",
+      "settings": { "device_id": "default" }, "mixers": 255, "sync": 0, "flags": 0, "volume": 0.6, "balance": 0.5, "hotkeys": {}, "private_settings": {}
+    }
+  ],
+  "transitions": [ { "prev_ver": 503316480, "name": "Fade", "uuid": "t1", "id": "fade_transition", "versioned_id": "fade_transition", "settings": { "duration": 300 }, "mixers": 0, "sync": 0, "flags": 0, "volume": 0.0, "balance": 0.5, "hotkeys": {}, "private_settings": {} } ],
+  "current_transition": "Fade",
+  "resolution": { "x": 1920, "y": 1080 },
+  "DesktopAudioDevice1": { "prev_ver": 503316480, "name": "Desktop Audio", "uuid": "d1", "id": "wasapi_output_capture", "versioned_id": "wasapi_output_capture", "settings": { "device_id": "default" }, "mixers": 255, "sync": 0, "flags": 0, "volume": 0.6, "balance": 0.5, "hotkeys": {}, "private_settings": {} },
+  "AuxAudioDevice1": { "prev_ver": 503316480, "name": "Mic/Aux", "uuid": "d2", "id": "wasapi_input_capture", "versioned_id": "wasapi_input_capture", "settings": { "device_id": "default" }, "mixers": 255, "sync": 0, "flags": 0, "volume": 0.8, "balance": 0.5, "hotkeys": {}, "private_settings": {} },
+  "modules": { "scripts-tool": [] }
+}
