@@ -239,7 +239,145 @@
             </materialDesign:Card>
 
             <!-- ============================================================ -->
-            <!-- Section 3: Action Log                                         -->
+            <!-- Section 3: Command Channels                                   -->
+            <!-- ============================================================ -->
+            <materialDesign:Card Padding="20" Margin="0,0,0,16"
+                                 Background="{DynamicResource CardBackgroundBrush}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Pound" Width="20" Height="20"
+                                                         Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Text="Command Channels"
+                                           FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="8,0,0,0"/>
+                            </StackPanel>
+                            <TextBlock Text="Channels where !mod commands are accepted (Moderation or Admin purpose). None configured means every channel."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Command="{Binding LoadCommandChannelsCommand}"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                VerticalAlignment="Center"
+                                ToolTip="Reloads the monitored channels tagged Moderation or Admin">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Refresh" Width="16" Height="16" VerticalAlignment="Center"/>
+                                <TextBlock Text="Refresh" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding CommandChannels}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           Margin="0,0,0,6"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- ============================================================ -->
+            <!-- Section 4: Discord Role Tiers                                 -->
+            <!-- ============================================================ -->
+            <materialDesign:Card Padding="20" Margin="0,0,0,16"
+                                 Background="{DynamicResource CardBackgroundBrush}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="ShieldAccount" Width="20" Height="20"
+                                                         Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Text="Discord Role Tiers"
+                                           FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="8,0,0,0"/>
+                            </StackPanel>
+                            <TextBlock Text="Map Discord roles to mod tiers — members holding a mapped role gain that tier. Pick a role and change its tier to save."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Command="{Binding LoadRolesCommand}"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                VerticalAlignment="Center"
+                                ToolTip="Loads the primary bot's guild roles and the stored tier mappings">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Refresh" Width="16" Height="16" VerticalAlignment="Center"/>
+                                <TextBlock Text="Load roles" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <ListBox ItemsSource="{Binding RoleTiers}"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             Padding="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                        CornerRadius="4"
+                                        Padding="12,8"
+                                        Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="180"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding RoleName}"
+                                                       FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding DiscordRoleId}"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="8,0,0,0"/>
+                                        </StackPanel>
+
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding DataContext.RoleTierOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                  SelectedItem="{Binding SelectedTier, Mode=TwoWay}"
+                                                  Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                                                  VerticalAlignment="Center"
+                                                  ToolTip="Tier granted to members holding this role — None removes the mapping"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <TextBlock Text="{Binding RoleTierStatus}"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,8,0,0"
+                               Visibility="{Binding RoleTierStatus, Converter={StaticResource StringNullOrEmptyToVisibilityConverter}}"/>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- ============================================================ -->
+            <!-- Section 5: Action Log                                         -->
             <!-- ============================================================ -->
             <materialDesign:Card Padding="20" Margin="0,0,0,16"
                                  Background="{DynamicResource CardBackgroundBrush}">
@@ -328,7 +466,7 @@
             </materialDesign:Card>
 
             <!-- ============================================================ -->
-            <!-- Section 4: Command Builder                                    -->
+            <!-- Section 6: Command Builder                                    -->
             <!-- ============================================================ -->
             <materialDesign:Card Padding="20" Margin="0,0,0,16"
                                  Background="{DynamicResource CardBackgroundBrush}">

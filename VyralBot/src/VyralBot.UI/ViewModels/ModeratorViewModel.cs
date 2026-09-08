@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using System.Text.Json;
+using VyralBot.Core.Services.Channels;
 using VyralBot.Core.Services.Moderation;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
@@ -43,8 +44,34 @@ public sealed class ModCommandTemplate
 }
 
 /// <summary>
+/// One Discord role of the role→tier mapping editor: the immutable role
+/// identity plus the tier selected in the row's ComboBox.
+/// </summary>
+public partial class RoleTierRow : ObservableObject
+{
+    public string DiscordRoleId { get; init; } = "";
+    public string RoleName { get; init; } = "";
+    public uint ColorRaw { get; init; }
+    public int Position { get; init; }
+
+    /// <summary>null = unmapped (no tier).</summary>
+    [ObservableProperty]
+    private string? _selectedTier;
+
+    /// <summary>
+    /// Wired by the VM AFTER the stored tier is applied, so persistence stays
+    /// in the VM (rows hold no services) and the load-time overlay never
+    /// writes back — only later user changes raise it.
+    /// </summary>
+    public Action<RoleTierRow>? SaveRequested { get; set; }
+
+    partial void OnSelectedTierChanged(string? value) => SaveRequested?.Invoke(this);
+}
+
+/// <summary>
 /// Moderator dashboard: mod channel setup (create + config), mod role
-/// assignments, the moderation action log and the interactive !mod command
+/// assignments, the command-channel list, the Discord role→tier mapping
+/// editor, the moderation action log and the interactive !mod command
 /// builder (compose → preview → send to the configured mod channel, with
 /// save-as-favorite persistence in Config key "Mod.FavoriteCommands").
 /// </summary>
@@ -62,6 +89,7 @@ public partial class ModeratorViewModel : ViewModelBase
     private readonly IDataService _dataService;
     private readonly IDiscordBotManager _botManager;
     private readonly IModRoleService _modRoleService;
+    private readonly IConnectedChannelService _connectedChannelService;
 
     private bool _loaded;
 
@@ -69,12 +97,14 @@ public partial class ModeratorViewModel : ViewModelBase
         ILogger<ModeratorViewModel> logger,
         IDataService dataService,
         IDiscordBotManager botManager,
-        IModRoleService modRoleService)
+        IModRoleService modRoleService,
+        IConnectedChannelService connectedChannelService)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _botManager = botManager ?? throw new ArgumentNullException(nameof(botManager));
         _modRoleService = modRoleService ?? throw new ArgumentNullException(nameof(modRoleService));
+        _connectedChannelService = connectedChannelService ?? throw new ArgumentNullException(nameof(connectedChannelService));
     }
 
     // ======================================================================
@@ -246,7 +276,194 @@ public partial class ModeratorViewModel : ViewModelBase
     }
 
     // ======================================================================
-    // Section 3 — Action log
+    // Section 3 — Command channels + Discord role tiers
+    // ======================================================================
+
+    public ObservableCollection<RoleTierRow> RoleTiers { get; } = new();
+
+    /// <summary>Tier options for the role→tier ComboBox; "None" = unmapped.</summary>
+    public IReadOnlyList<string> RoleTierOptions { get; } =
+        new[] { "None" }.Concat(ModTiers.TierNames).ToArray();
+
+    public ObservableCollection<string> CommandChannels { get; } = new();
+
+    private const string NoCommandChannelsPlaceholder =
+        "No command channels configured — commands work in every channel (legacy mode)";
+
+    [ObservableProperty]
+    private string? _roleTierStatus;
+
+    /// <summary>
+    /// Loads the primary bot's first guild's roles and overlays the stored
+    /// role→tier assignments. Needs a connected bot inside a guild.
+    /// </summary>
+    [RelayCommand]
+    private async Task LoadRolesAsync()
+    {
+        var bot = _botManager.Primary;
+        var guild = bot?.ConnectedGuilds.FirstOrDefault();
+        if (bot is null || guild is null)
+        {
+            RunOnUi(RoleTiers.Clear);
+            RoleTierStatus = "Connect the bot to load roles";
+            return;
+        }
+
+        try
+        {
+            IsBusy = true;
+            RoleTierStatus = "Loading Discord roles…";
+
+            var roles = await bot.GetGuildRolesAsync(guild.Id);
+            var stored = await _dataService.GetRoleTierAssignmentsAsync(bot.BotId);
+
+            RunOnUi(() =>
+            {
+                RoleTiers.Clear();
+                foreach (var role in roles)
+                {
+                    // @everyone carries the guild id as its role id — not mappable.
+                    if (string.Equals(role.Id, guild.Id, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    // SelectedTier is applied BEFORE SaveRequested is wired so
+                    // the overlay itself never writes a row back.
+                    var row = new RoleTierRow
+                    {
+                        DiscordRoleId = role.Id,
+                        RoleName = role.Name,
+                        ColorRaw = role.ColorRaw,
+                        Position = role.Position,
+                        SelectedTier = stored.FirstOrDefault(a => string.Equals(a.DiscordRoleId, role.Id, StringComparison.Ordinal))?.Tier
+                    };
+                    row.SaveRequested = OnRoleTierSaveRequested;
+                    RoleTiers.Add(row);
+                }
+
+                // Inside the marshaled lambda so the count is the populated one.
+                RoleTierStatus = $"Loaded {RoleTiers.Count} roles from {guild.Name}.";
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading Discord roles for the role-tier editor");
+            RoleTierStatus = $"Error loading roles: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Persists one row's tier selection: a known tier is upserted, "None" or
+    /// empty deletes the mapping, an unknown string is skipped with a status.
+    /// </summary>
+    [RelayCommand]
+    private async Task SaveRoleTierAsync(RoleTierRow? row)
+    {
+        if (row is null || string.IsNullOrWhiteSpace(row.DiscordRoleId))
+        {
+            return;
+        }
+
+        var bot = _botManager.Primary;
+        if (bot is null)
+        {
+            RoleTierStatus = "Connect the bot to save role tiers.";
+            return;
+        }
+
+        try
+        {
+            var selected = row.SelectedTier;
+            if (string.IsNullOrWhiteSpace(selected) || selected.Trim().Equals("None", StringComparison.OrdinalIgnoreCase))
+            {
+                await _dataService.DeleteRoleTierAssignmentAsync(bot.BotId, row.DiscordRoleId);
+                RoleTierStatus = $"{row.RoleName}: unmapped.";
+                return;
+            }
+
+            var tier = ModTiers.NormalizeTier(selected);
+            if (tier is null)
+            {
+                RoleTierStatus = $"'{selected.Trim()}' is not a mod tier — nothing saved.";
+                return;
+            }
+
+            await _dataService.UpsertRoleTierAssignmentAsync(new DiscordRoleTierAssignment
+            {
+                BotId = bot.BotId,
+                GuildId = bot.ConnectedGuilds.FirstOrDefault()?.Id ?? "",
+                DiscordRoleId = row.DiscordRoleId,
+                RoleName = row.RoleName,
+                Tier = tier
+            });
+            RoleTierStatus = $"{row.RoleName}: {tier}.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving role tier for {DiscordRoleId}", row.DiscordRoleId);
+            RoleTierStatus = $"Error saving role tier: {ex.Message}";
+        }
+    }
+
+    private void OnRoleTierSaveRequested(RoleTierRow row) => _ = SaveRoleTierAsync(row);
+
+    /// <summary>
+    /// Fills the command-channel list from the monitored channels tagged
+    /// Moderation/Admin; a single placeholder line when none are configured
+    /// (the legacy "commands work in every channel" mode).
+    /// </summary>
+    [RelayCommand]
+    private async Task LoadCommandChannelsAsync()
+    {
+        var bot = _botManager.Primary;
+        if (bot is null)
+        {
+            RunOnUi(() =>
+            {
+                CommandChannels.Clear();
+                CommandChannels.Add(NoCommandChannelsPlaceholder);
+            });
+            return;
+        }
+
+        try
+        {
+            var moderation = await _connectedChannelService.GetByPurposeAsync(bot.BotId, ChannelPurposes.Moderation);
+            var admin = await _connectedChannelService.GetByPurposeAsync(bot.BotId, ChannelPurposes.Admin);
+
+            RunOnUi(() =>
+            {
+                CommandChannels.Clear();
+                foreach (var channel in moderation)
+                {
+                    CommandChannels.Add($"#{channel.ChannelName} — {ChannelPurposes.Moderation} ({channel.GuildName})");
+                }
+
+                foreach (var channel in admin)
+                {
+                    CommandChannels.Add($"#{channel.ChannelName} — {ChannelPurposes.Admin} ({channel.GuildName})");
+                }
+
+                if (CommandChannels.Count == 0)
+                {
+                    CommandChannels.Add(NoCommandChannelsPlaceholder);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading command channels for bot {BotId}", bot.BotId);
+            StatusMessage = $"Error loading command channels: {ex.Message}";
+        }
+    }
+
+    // ======================================================================
+    // Section 4 — Action log
     // ======================================================================
 
     public ObservableCollection<ModAction> ModActions { get; } = new();
@@ -277,7 +494,7 @@ public partial class ModeratorViewModel : ViewModelBase
     }
 
     // ======================================================================
-    // Section 4 — Command builder
+    // Section 5 — Command builder
     // ======================================================================
 
     public IReadOnlyList<ModCommandTemplate> ActionTemplates { get; } = new[]
@@ -294,6 +511,10 @@ public partial class ModeratorViewModel : ViewModelBase
         new ModCommandTemplate("Kick", "kick", needsTarget: true, needsAmount: false, needsReason: true),
         new ModCommandTemplate("Ban", "ban", needsTarget: true, needsAmount: false, needsReason: true),
         new ModCommandTemplate("Purge", "purge", needsTarget: false, needsAmount: true, needsReason: false, amountLabel: "Messages (1-100)"),
+        new ModCommandTemplate("Flash stream lights", "flashlights", needsTarget: false, needsAmount: true, needsReason: false, amountLabel: "Hex color + times (1-20)"),
+        new ModCommandTemplate("Stream lights on", "lightson", needsTarget: false, needsAmount: false, needsReason: false),
+        new ModCommandTemplate("Stream lights off", "lightsoff", needsTarget: false, needsAmount: false, needsReason: false),
+        new ModCommandTemplate("Stream Deck action", "streamdeck", needsTarget: false, needsAmount: true, needsReason: false, amountLabel: "Action name"),
     };
 
     [ObservableProperty]
@@ -524,6 +745,7 @@ public partial class ModeratorViewModel : ViewModelBase
             await LoadAssignmentsAsync();
             await RefreshModActionsCommand.ExecuteAsync(null);
             await LoadFavoritesAsync();
+            await LoadCommandChannelsCommand.ExecuteAsync(null);
 
             _loaded = true;
             _logger.LogInformation("Moderator view initialized");
