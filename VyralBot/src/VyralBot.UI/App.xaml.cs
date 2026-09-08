@@ -315,6 +315,8 @@ public partial class App : Application
                 // Task 5: the loader (engine-gated) and the studio facade over both.
                 services.AddSingleton<VyralBot.Integrations.Obs.Engine.ObsSceneCollectionLoader>();
                 services.AddSingleton<VyralBot.Integrations.Obs.Engine.ObsStudioService>();
+                // Task 6: stream/record/replay outputs driven from the OBS profile.
+                services.AddSingleton<VyralBot.Integrations.Obs.Engine.ObsOutputService>();
                 services.AddSingleton<ObsViewModel>();
                 services.AddSingleton<DocumentationViewModel>();
                 services.AddSingleton<AutomationViewModel>(); // Automation page (structured workflow builder)

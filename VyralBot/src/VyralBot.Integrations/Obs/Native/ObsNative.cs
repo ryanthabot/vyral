@@ -344,6 +344,11 @@ internal static class ObsNative
     [DllImport(Lib, EntryPoint = "obs_output_get_signal_handler", CallingConvention = Cdecl)]
     internal static extern IntPtr ObsOutputGetSignalHandler(IntPtr output);
 
+    // Verified: `EXPORT proc_handler_t *obs_output_get_proc_handler(const obs_output_t *output);` —
+    // borrowed pointer to the output's proc handler (output-owned; never released).
+    [DllImport(Lib, EntryPoint = "obs_output_get_proc_handler", CallingConvention = Cdecl)]
+    internal static extern IntPtr ObsOutputGetProcHandler(IntPtr output);
+
     // ----- encoders / service (obs.h + obs-data.h @ 32.1.1) -----
 
     [DllImport(Lib, EntryPoint = "obs_video_encoder_create", CallingConvention = Cdecl)]
@@ -381,6 +386,21 @@ internal static class ObsNative
     internal static extern void SignalHandlerSignal(
         IntPtr handler,
         [MarshalAs(UnmanagedType.LPUTF8Str)] string signal,
+        IntPtr parameters);
+
+    // ----- proc handlers (callback/proc.h @ 32.1.1, line 48) -----
+
+    // Verified: `EXPORT bool proc_handler_call(proc_handler_t *handler,
+    // const char *name, calldata_t *params);` — false when the proc does not
+    // exist. This is how a replay-buffer save is triggered: the output
+    // registers a `void save()` proc (obs-ffmpeg-mux.c replay_buffer_create),
+    // while the "saved" signal is EMITTED by the output after a replay file
+    // finishes muxing — firing it from the host would not save anything.
+    [DllImport(Lib, EntryPoint = "proc_handler_call", CallingConvention = Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    internal static extern bool ProcHandlerCall(
+        IntPtr handler,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string procName,
         IntPtr parameters);
 }
 
@@ -422,6 +442,13 @@ internal static class ObsNativeConstants
     public const int ModuleMissingExports = -3;
     public const int ModuleIncompatibleVersion = -4;
     public const int ModuleHardcodedSkip = -5;
+
+    // obs_output_info flag defines (libobs/obs-output.h @ 32.1.1) — the same
+    // bits obs_output_can_begin_data_capture / obs_output_initialize_encoders
+    // take. NOTE the polarity: VIDEO is bit 0, AUDIO is bit 1.
+    public const uint OutputFlagVideo = 1u << 0;      // OBS_OUTPUT_VIDEO  = 1
+    public const uint OutputFlagAudio = 1u << 1;      // OBS_OUTPUT_AUDIO  = 2
+    public const uint OutputFlagsAv = OutputFlagVideo | OutputFlagAudio; // OBS_OUTPUT_AV = 3
 }
 
 /// <summary>
