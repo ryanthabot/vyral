@@ -240,6 +240,29 @@ public class ModTierTests
         Assert.Null(VyralBot.Core.Services.Moderation.ModTiers.MinimumTier("nuke"));
         Assert.Null(VyralBot.Core.Services.Moderation.ModTiers.MinimumTier(""));
     }
+
+    // ------------------------------------------------------------------
+    // Stream-effect verbs (tier-gated smart lights / Stream Deck commands)
+    // ------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("Mod", "flashlights", true)]
+    [InlineData("TrialMod", "flashlights", false)]
+    [InlineData("SeniorMod", "lightson", true)]
+    [InlineData("SeniorMod", "lightsoff", true)]
+    [InlineData("Mod", "lightson", false)]
+    [InlineData("Admin", "streamdeck", true)]
+    [InlineData("SeniorMod", "streamdeck", false)]
+    public void CanRun_StreamEffectVerbs_AreTierGated(string tier, string command, bool expected)
+        => Assert.Equal(expected, VyralBot.Core.Services.Moderation.ModTiers.CanRun(tier, command));
+
+    [Fact]
+    public void MinimumTier_NewVerbs_Reported()
+    {
+        Assert.Equal("Mod", VyralBot.Core.Services.Moderation.ModTiers.MinimumTier("flashlights"));
+        Assert.Equal("SeniorMod", VyralBot.Core.Services.Moderation.ModTiers.MinimumTier("lightsoff"));
+        Assert.Equal("Admin", VyralBot.Core.Services.Moderation.ModTiers.MinimumTier("streamdeck"));
+    }
 }
 
 /// <summary>

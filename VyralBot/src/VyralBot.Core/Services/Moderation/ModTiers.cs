@@ -5,9 +5,9 @@ namespace VyralBot.Core.Services.Moderation;
 /// each mod tier may run.
 ///
 ///   TrialMod  (rank 0): kick, timeout, purge
-///   Mod       (rank 1): + unban, mute, addcurrency, removecurrency
-///   SeniorMod (rank 2): + ban, startgiveaway, cancelgiveaway, draw, startpoll, endpoll
-///   Admin     (rank 3): + setbalance, assignmod (the ceiling — Admin only)
+///   Mod       (rank 1): + unban, mute, addcurrency, removecurrency, flashlights
+///   SeniorMod (rank 2): + ban, startgiveaway, cancelgiveaway, draw, startpoll, endpoll, lightson, lightsoff
+///   Admin     (rank 3): + setbalance, assignmod, streamdeck (the ceiling — Admin only)
 ///
 /// Every tier inherits every lower tier's commands, so each tier array below is
 /// CUMULATIVE. Command names are matched case-insensitively and lowercased;
@@ -25,15 +25,15 @@ public static class ModTiers
 
     /// <summary>Commands a Mod may run (includes every TrialMod command).</summary>
     public static readonly string[] Mod =
-        TrialMod.Concat(new[] { "unban", "mute", "addcurrency", "removecurrency" }).ToArray();
+        TrialMod.Concat(new[] { "unban", "mute", "addcurrency", "removecurrency", "flashlights" }).ToArray();
 
     /// <summary>Commands a SeniorMod may run (includes every Mod command).</summary>
     public static readonly string[] SeniorMod =
-        Mod.Concat(new[] { "ban", "startgiveaway", "cancelgiveaway", "draw", "startpoll", "endpoll" }).ToArray();
+        Mod.Concat(new[] { "ban", "startgiveaway", "cancelgiveaway", "draw", "startpoll", "endpoll", "lightson", "lightsoff" }).ToArray();
 
     /// <summary>Commands an Admin may run — the full set (Admin is the highest tier).</summary>
     public static readonly string[] Admin =
-        SeniorMod.Concat(new[] { "setbalance", "assignmod" }).ToArray();
+        SeniorMod.Concat(new[] { "setbalance", "assignmod", "streamdeck" }).ToArray();
 
     /// <summary>command (lowercase) -> minimum tier rank required to run it.</summary>
     private static readonly Dictionary<string, int> RequiredRank = BuildRequiredRank();
