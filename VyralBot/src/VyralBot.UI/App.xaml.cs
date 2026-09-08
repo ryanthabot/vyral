@@ -941,16 +941,50 @@ public partial class App : Application
                 }
             }
 
-            // Shut the embedded OBS engine down (obs_shutdown) BEFORE the host
-            // disposes its services — the preview/loader may still hold native
-            // state, and the engine parks itself in Shutdown after this.
+            // Embedded-OBS exit sequence (BEFORE the host disposes its
+            // services): 1) stop every output gracefully, 2) clear the output
+            // channels (no obs_shutdown yet), 3) call obs_shutdown ONLY when
+            // no native state was loaded — shutdown on a loaded instance is
+            // known to access-violate, so a loaded engine is left for process
+            // teardown to reclaim.
             var obsEngine = _host.Services.GetService<VyralBot.Integrations.Obs.Engine.ObsEngine>();
             if (obsEngine != null)
             {
+                var obsOutputs = _host.Services.GetService<VyralBot.Integrations.Obs.Engine.ObsOutputService>();
+                if (obsOutputs != null)
+                {
+                    try
+                    {
+                        obsOutputs.StopAllAsync().GetAwaiter().GetResult();
+                        Log.Information("OBS outputs stopped for exit");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Error stopping the OBS outputs on exit");
+                    }
+                }
+
                 try
                 {
-                    obsEngine.ShutdownAsync().GetAwaiter().GetResult();
-                    Log.Information("OBS engine shut down");
+                    obsEngine.PrepareExitAsync().GetAwaiter().GetResult();
+                    Log.Information("OBS engine prepared for exit");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Error preparing the OBS engine for exit");
+                }
+
+                try
+                {
+                    if (!obsEngine.HasLoadedNativeState)
+                    {
+                        obsEngine.ShutdownAsync().GetAwaiter().GetResult();
+                        Log.Information("OBS engine shut down (no native state was loaded)");
+                    }
+                    else
+                    {
+                        Log.Information("OBS engine: native state was loaded; letting process teardown reclaim to avoid the known obs_shutdown AV");
+                    }
                 }
                 catch (Exception ex)
                 {

@@ -197,6 +197,25 @@ public class ObsOutputServiceTests
     }
 
     [Fact]
+    public async Task StopAllAsync_WhenEngineNotReady_CompletesWithoutThrowing()
+    {
+        // App exit calls StopAllAsync unconditionally — with the engine never
+        // booted every gate call faults, and StopAllAsync must swallow that
+        // instead of blocking or breaking the shutdown sequence.
+        var root = CreateEmptyTempRoot();
+        try
+        {
+            using var engine = await CreateFailedEngineAsync(root);
+            var service = new ObsOutputService(engine, new ObsInstallLocator(root));
+
+            await service.StopAllAsync();
+
+            Assert.False((await service.StopStreamAsync()).Success);
+        }
+        finally { try { Directory.Delete(root, recursive: true); } catch { /* best-effort */ } }
+    }
+
+    [Fact]
     public async Task GetStates_WhenEngineNotReady_AllInactive()
     {
         var root = CreateEmptyTempRoot();

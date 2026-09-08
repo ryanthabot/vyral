@@ -14,7 +14,7 @@ namespace VyralBot.UI.ViewModels;
 /// (imports OBS scene-collection JSON verbatim, browses the imported
 /// documents as a tree and exports byte-identical copies).
 /// </summary>
-public partial class ObsViewModel : ViewModelBase
+public partial class ObsViewModel : ViewModelBase, IDisposable
 {
     private readonly ObsSceneCollectionStore _store;
     private readonly IDataService _dataService;
@@ -63,6 +63,12 @@ public partial class ObsViewModel : ViewModelBase
         await LoadAsync();
         await Studio.InitializeAsync();
     }
+
+    /// <summary>
+    /// MainViewModel drops the OBS page on navigation away — chain to the
+    /// embedded studio so its 1 Hz stats timer stops polling the native gate.
+    /// </summary>
+    public void Dispose() => Studio.Dispose();
 
     /// <summary>Mutually exclusive tab switcher for the Studio | Collections pair.</summary>
     [RelayCommand]

@@ -2533,6 +2533,10 @@ public partial class MainViewModel : ViewModelBase
         // Dispose OBS (re-initializes on each navigation)
         if (_obsViewModel != null && _obsViewModel != excludeViewModel)
         {
+            // Singleton VMs: the scope below holds singletons, so its Dispose
+            // never runs theirs — dispose explicitly or the studio's 1 Hz
+            // stats timer keeps polling the native gate after navigation away.
+            _obsViewModel.Dispose();
             _obsScope?.Dispose();
             _obsScope = null;
             _obsViewModel = null;

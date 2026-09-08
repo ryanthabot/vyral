@@ -76,7 +76,25 @@
                         Style="{StaticResource MaterialDesignRaisedButton}" Margin="0,0,8,0">
                     <StackPanel Orientation="Horizontal">
                         <materialDesign:PackIcon Kind="CircleMedium" Width="16" Height="16" VerticalAlignment="Center"/>
-                        <TextBlock Text="Record" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        <TextBlock Margin="6,0,0,0" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                    <Setter Property="Text" Value="Record"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding RecordStarting}" Value="True">
+                                            <Setter Property="Text" Value="Starting…"/>
+                                        </DataTrigger>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding RecordActive}" Value="True"/>
+                                                <Condition Binding="{Binding RecordStarting}" Value="False"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Text" Value="Stop Record"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
                 </Button>
 

@@ -78,6 +78,29 @@ public sealed class ObsOutputService
     public Task<ObsOutputActionResult> StopReplayBufferAsync() => StopOutputAsync(ObsOutputKind.ReplayBuffer);
 
     /// <summary>
+    /// App-exit funnel (App.OnExit): gracefully stops every live or starting
+    /// output, drains OUTSIDE the engine gate (5 s graceful, 2 s after a force
+    /// stop), releases the native references, and never throws — a wedged
+    /// output must not block the process from exiting.
+    /// </summary>
+    public async Task StopAllAsync()
+    {
+        foreach (ObsOutputKind kind in (ObsOutputKind[])ObsOutputKind.GetValues(typeof(ObsOutputKind)))
+        {
+            try
+            {
+                await StopCoreAsync(kind).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                // Includes the not-ready fault from RunNativeAsync when the
+                // engine never booted — nothing to stop in that case.
+                logger.LogWarning(ex, "OBS output: {Kind} could not be stopped on exit", kind);
+            }
+        }
+    }
+
+    /// <summary>
     /// Triggers the replay buffer's save proc (obs-ffmpeg-mux.c @ 32.1.1
     /// registers <c>void save()</c> on the output's proc handler; the
     /// "saved" signal is emitted BY the output after muxing, so firing that
@@ -422,12 +445,17 @@ public sealed class ObsOutputService
         return encoder;
     }
 
-    /// <summary>Gate held. obs_output_create + release of the settings object (create takes its own reference).</summary>
+    /// <summary>Gate held. obs_output_create + release of the settings object (create takes its own reference). Flags native state as loaded (R3 exit policy).</summary>
     private IntPtr CreateOutput(string id, string name, string settingsJson)
     {
         IntPtr data = ObsNative.ObsDataCreateFromJson(settingsJson);
         IntPtr output = ObsNative.ObsOutputCreate(id, name, data, IntPtr.Zero);
         ObsNative.ObsDataRelease(data);
+        if (output != IntPtr.Zero)
+        {
+            engine.MarkNativeStateLoaded();
+        }
+
         return output;
     }
 
@@ -435,25 +463,44 @@ public sealed class ObsOutputService
     // Stop
     // ------------------------------------------------------------------
 
-    private async Task<ObsOutputActionResult> StopOutputAsync(ObsOutputKind kind)
+    private Task<ObsOutputActionResult> StopOutputAsync(ObsOutputKind kind)
     {
         if (!engine.IsReady)
         {
-            return Fail($"{Label(kind)} cannot stop: OBS engine is not initialized.");
+            return Task.FromResult(Fail($"{Label(kind)} cannot stop: OBS engine is not initialized."));
         }
 
+        return StopCoreAsync(kind);
+    }
+
+    /// <summary>
+    /// Shared stop path for <see cref="StopOutputAsync"/> (user command) and
+    /// <see cref="StopAllAsync"/> (app exit): graceful <c>obs_output_stop</c>
+    /// under the gate, bounded drain outside it, <c>obs_output_force_stop</c>
+    /// when the output is still active, then release of this kind's native
+    /// references. Faults when the engine is not Ready (the caller decides
+    /// whether that is a user-facing error or an exit-time swallow).
+    /// </summary>
+    private async Task<ObsOutputActionResult> StopCoreAsync(ObsOutputKind kind)
+    {
         // Gate held only for the stop call itself; the drain loop below sleeps
         // between short gate-held probes so nothing else is blocked.
         IntPtr output = await engine.RunNativeAsync(() =>
         {
             IntPtr ptr = RefsOf(kind)?.Output ?? IntPtr.Zero;
-            if (ptr == IntPtr.Zero || !ObsNative.ObsOutputActive(ptr))
+            bool active = ptr != IntPtr.Zero && ObsNative.ObsOutputActive(ptr);
+            bool starting = ptr != IntPtr.Zero && StartingFlagOf(kind);
+            if (!active && !starting)
             {
                 return IntPtr.Zero;
             }
 
             ClearStartingFlag(kind);
-            ObsNative.ObsOutputStop(ptr);
+            if (active)
+            {
+                ObsNative.ObsOutputStop(ptr);
+            }
+
             return ptr;
         }).ConfigureAwait(false);
 

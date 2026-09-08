@@ -14,6 +14,14 @@ public interface IObsNativeGate
 
     /// <summary>Runs native work on a background thread under the engine gate.</summary>
     Task<T> RunNativeAsync<T>(Func<T> nativeWork);
+
+    /// <summary>
+    /// Flags that native state now exists in this process (a collection load
+    /// created sources, an output was created). Called from inside gate-held
+    /// work; App exit consults the engine's <c>HasLoadedNativeState</c> to
+    /// decide whether <c>obs_shutdown</c> is safe to run.
+    /// </summary>
+    void MarkNativeStateLoaded();
 }
 
 public sealed record ObsLoadResult(
@@ -27,13 +35,22 @@ public sealed record ObsLoadResult(
 /// Recreates a scene collection inside a running libobs instance from its
 /// JSON document: creates sources, applies properties + filters, loads scenes
 /// (which resolve their items by name), then wires audio channels and the
-/// program scene. Kept source/filter references are intentionally never
-/// released — the engine holds them for the app lifetime and
-/// <c>obs_shutdown</c> frees everything on teardown.
+/// program scene. Each load keeps its created source/filter references only
+/// until the NEXT load, which first clears output channels 0–6 and releases
+/// them — so repeated loads neither leak nor leave stale scenes/audio behind.
 /// </summary>
 public sealed class ObsSceneCollectionLoader
 {
     private readonly IObsNativeGate engine;
+
+    // References created by the LAST load (written and read only inside
+    // gate-held work — the engine gate serializes all access). The running
+    // instance needs the current collection's sources alive; releasing them
+    // at the start of the next load replaces kept-forever semantics that
+    // leaked every historical load and surfaced stale scenes in
+    // obs_enum_scenes / duplicate-named sources.
+    private List<IntPtr> keptSourceRefs = [];
+    private List<IntPtr> keptFilterRefs = [];
 
     public ObsSceneCollectionLoader(IObsNativeGate engine)
     {
@@ -51,11 +68,20 @@ public sealed class ObsSceneCollectionLoader
                 false, "OBS engine is not ready.", 0, [], null));
         }
 
-        return engine.RunNativeAsync(() => Execute(plan));
+        return engine.RunNativeAsync(() =>
+        {
+            // The load attempt creates native state from here on — flag it
+            // under the gate so App exit knows obs_shutdown is unsafe.
+            engine.MarkNativeStateLoaded();
+            return Execute(plan);
+        });
     }
 
-    private static ObsLoadResult Execute(ObsLoadPlan plan)
+    /// <summary>Gate held. Runs one load: resets the previous load's native footprint first, then rebuilds.</summary>
+    private ObsLoadResult Execute(ObsLoadPlan plan)
     {
+        ResetPreviousLoad();
+
         List<string> missing = [];
         // Creation order is the load order; byName is only for lookups
         // (scene items, audio channels) where the last entry wins.
@@ -95,6 +121,10 @@ public sealed class ObsSceneCollectionLoader
         {
             ApplyProperties(ptr, source, filterRefs);
         }
+
+        // This load's references are kept until the next load resets them.
+        keptSourceRefs.AddRange(created.Select(entry => entry.Source));
+        keptFilterRefs.AddRange(filterRefs);
 
         // Pass 3 — load: scenes resolve their items by name here, so every
         // referenced source must already exist (pass 1 guarantees that).
@@ -151,6 +181,36 @@ public sealed class ObsSceneCollectionLoader
             CreatedCount: created.Count,
             missing,
             currentScene);
+    }
+
+    /// <summary>
+    /// Gate held. Wipes the previous load's native footprint before the new
+    /// collection rebuilds on top of it: the output channels first (a stale
+    /// program scene or audio source would keep the released sources alive and
+    /// keep playing audio), then the previous load's kept source and filter
+    /// references.
+    /// </summary>
+    private void ResetPreviousLoad()
+    {
+        for (uint channel = 0; channel <= 6; channel++)
+        {
+            ObsNative.ObsSetOutputSource(channel, IntPtr.Zero);
+        }
+
+        List<IntPtr> sources = keptSourceRefs;
+        List<IntPtr> filters = keptFilterRefs;
+        keptSourceRefs = [];
+        keptFilterRefs = [];
+
+        foreach (IntPtr source in sources)
+        {
+            ObsNative.ObsSourceRelease(source);
+        }
+
+        foreach (IntPtr filter in filters)
+        {
+            ObsNative.ObsSourceRelease(filter);
+        }
     }
 
     private static void ApplyProperties(IntPtr source, ObsSourcePlan plan, List<IntPtr> filterRefs)

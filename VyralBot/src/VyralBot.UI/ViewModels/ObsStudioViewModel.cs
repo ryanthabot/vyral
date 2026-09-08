@@ -17,7 +17,7 @@ namespace VyralBot.UI.ViewModels;
 /// strip. Every service call is wrapped so a native fault degrades to a
 /// status message instead of taking the app down.
 /// </summary>
-public partial class ObsStudioViewModel : ViewModelBase
+public partial class ObsStudioViewModel : ViewModelBase, IDisposable
 {
     private const string AutoInitKey = "Obs.AutoInit";
     private const string LastCollectionPathKey = "Obs.LastCollectionPath";
@@ -601,6 +601,17 @@ public partial class ObsStudioViewModel : ViewModelBase
             // Stats are decorative — a native hiccup must not disturb the poll loop.
             _logger.LogDebug(ex, "OBS studio: fps probe failed");
         }
+    }
+
+    /// <summary>
+    /// MainViewModel drops the OBS page on every navigation away. Without this
+    /// the 1 Hz stats timer kept polling the native engine gate for the whole
+    /// process lifetime. The Tick subscription stays (Dispose only stops the
+    /// timer) so a later OBS navigation re-arms it via <see cref="OnBecameReady"/>.
+    /// </summary>
+    public void Dispose()
+    {
+        _statsTimer.Stop();
     }
 }
 

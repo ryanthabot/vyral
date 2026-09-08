@@ -27,6 +27,7 @@ public sealed class ObsPreviewHost : HwndHost
     private IntPtr childHwnd;
     private IntPtr display;
     private int creating;
+    private bool _disposed;
 
     /// <summary>
     /// True while an obs display is alive on the child HWND. The studio view
@@ -69,8 +70,12 @@ public sealed class ObsPreviewHost : HwndHost
     /// <summary>Destroys the display (idempotent). The child HWND itself lives until WPF tears the HwndHost down.</summary>
     public void Detach()
     {
+        // Capture the gate BEFORE nulling the field — DestroyDisplay reads it,
+        // and a detached host must still route the destroy through the (still
+        // live) engine gate or the display leaks.
+        IObsNativeGate? gate = engine;
         engine = null;
-        DestroyDisplay();
+        DestroyDisplay(display, gate);
     }
 
     private static void OnDrawFrame(IntPtr param, uint cx, uint cy) =>
@@ -91,6 +96,7 @@ public sealed class ObsPreviewHost : HwndHost
 
     protected override void DestroyWindowCore(HandleRef hwnd)
     {
+        _disposed = true;
         DestroyDisplay();
         if (childHwnd != IntPtr.Zero)
         {
@@ -152,6 +158,16 @@ public sealed class ObsPreviewHost : HwndHost
                 return d;
             }).ConfigureAwait(true); // resume on the dispatcher — display field is UI-thread state
 
+            // The gate await took time: the host/HWND may have been torn down
+            // in the meantime (navigation away, window close). Destroy the
+            // just-created display immediately instead of assigning it to a
+            // dead window.
+            if (created != IntPtr.Zero && (_disposed || childHwnd == IntPtr.Zero))
+            {
+                DestroyDisplay(created, gate);
+                return;
+            }
+
             display = created;
             IsPreviewActive = created != IntPtr.Zero;
         }
@@ -183,12 +199,16 @@ public sealed class ObsPreviewHost : HwndHost
         });
     }
 
-    private void DestroyDisplay()
+    private void DestroyDisplay() => DestroyDisplay(display, engine);
+
+    private void DestroyDisplay(IntPtr stale, IObsNativeGate? gate)
     {
-        IntPtr stale = display;
-        display = IntPtr.Zero;
-        IsPreviewActive = false;
-        IObsNativeGate? gate = engine;
+        if (stale == display)
+        {
+            display = IntPtr.Zero;
+            IsPreviewActive = false;
+        }
+
         if (stale == IntPtr.Zero || gate is null || !gate.IsReady)
         {
             // Not ready (or already shutting down): obs_shutdown frees every

@@ -28,9 +28,25 @@ public sealed class ObsStudioService
         this.loader = loader ?? throw new ArgumentNullException(nameof(loader));
     }
 
-    /// <summary>Recreates a scene collection inside the running libobs instance.</summary>
-    public Task<ObsLoadResult> LoadCollectionAsync(string collectionJson) =>
-        loader.LoadAsync(collectionJson);
+    /// <summary>
+    /// Recreates a scene collection inside the running libobs instance. On
+    /// success the (scene, source) → item cache is dropped explicitly: the
+    /// native scene graph was rebuilt, so cached pointers belong to the
+    /// previous load (the next enumeration repopulates the cache).
+    /// </summary>
+    public async Task<ObsLoadResult> LoadCollectionAsync(string collectionJson)
+    {
+        ObsLoadResult result = await loader.LoadAsync(collectionJson).ConfigureAwait(false);
+        if (result.Success)
+        {
+            lock (cacheLock)
+            {
+                itemCache.Clear();
+            }
+        }
+
+        return result;
+    }
 
     /// <summary>All scenes, in libobs enumeration order (creation order for a fresh load).</summary>
     public Task<IReadOnlyList<ObsSceneInfo>> GetScenesAsync() => engine.RunNativeAsync(() =>

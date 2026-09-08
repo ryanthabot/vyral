@@ -54,6 +54,10 @@ public sealed class ObsEngine : IDisposable, IObsNativeGate
     private string? version;
     private string? installRoot;
 
+    // Written under the gate inside InitializeCore (after obs_startup
+    // succeeded), read under the gate in InitializeAsync.
+    private bool startupSucceeded;
+
     /// <summary>
     /// Plugin DLL stems that are never opened into this process. The installed
     /// OBS ships UI-hostile modules (CEF, VST, the OBS frontend glue, Qt dock
@@ -89,6 +93,22 @@ public sealed class ObsEngine : IDisposable, IObsNativeGate
 
     /// <summary>Lock-free readiness probe (safe from any thread, never blocks on the gate).</summary>
     public bool IsReady => state == ObsEngineState.Ready;
+
+    /// <summary>
+    /// True once native state was created in this process — the scene
+    /// collection loader flags the first (attempted) load and the output
+    /// service the first output create, both under the gate. App exit skips
+    /// <c>obs_shutdown</c> when this is set: shutdown on a loaded instance is
+    /// known to access-violate, so a loaded engine is left for process
+    /// teardown to reclaim instead.
+    /// </summary>
+    public bool HasLoadedNativeState { get; private set; }
+
+    /// <summary>
+    /// Gate-held native-state marker (<see cref="IObsNativeGate"/>). The flag
+    /// only ever flips false→true, so no further synchronization is needed.
+    /// </summary>
+    public void MarkNativeStateLoaded() => HasLoadedNativeState = true;
 
     /// <summary>Raised on the threadpool after every state change; subscribers marshal to their own context.</summary>
     public event Action<ObsEngineStatus>? StatusChanged;
@@ -210,6 +230,20 @@ public sealed class ObsEngine : IDisposable, IObsNativeGate
                 return Snapshot();
             }
 
+            if (state == ObsEngineState.Failed && startupSucceeded)
+            {
+                // A prior attempt got past obs_startup and then died — native
+                // state is wedged in ways a re-attempt cannot clean up (and
+                // may corrupt the heap). Fail fast with the actionable reason
+                // instead of the misleading "obs_startup failed" a retry
+                // would produce.
+                error = "OBS engine previously failed to initialize — restart Vyral to retry";
+                logger.LogError("OBS engine: {Error}", error);
+                status = Snapshot();
+                RaiseStatus(status);
+                return status;
+            }
+
             // The whole native boot off the caller thread — obs.dll load, module
             // scan and the D3D11 device creation all block for seconds. Both
             // raises dispatch from this one boot thread so subscribers observe
@@ -244,7 +278,52 @@ public sealed class ObsEngine : IDisposable, IObsNativeGate
         return status;
     }
 
-    /// <summary>Tears libobs down (no-op when it never reached Ready) and parks the engine in Shutdown.</summary>
+    /// <summary>
+    /// App-exit prep: releases the output-channel references (channels 0–6)
+    /// so no scene/audio source stays pinned by the global mix, but does NOT
+    /// call <c>obs_shutdown</c>. Whether shutdown is safe is the caller's
+    /// decision via <see cref="HasLoadedNativeState"/> — see
+    /// <see cref="ShutdownAsync"/> for the loaded-instance caveat. No-op when
+    /// the engine never reached Ready.
+    /// </summary>
+    public async Task PrepareExitAsync()
+    {
+        await gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (state != ObsEngineState.Ready)
+            {
+                return;
+            }
+
+            // Native teardown work off the caller thread, on the same
+            // apartment as the boot (see RunOnStaThread).
+            await RunOnStaThread<object?>(() =>
+            {
+                for (uint channel = 0; channel <= 6; channel++)
+                {
+                    ObsNative.ObsSetOutputSource(channel, IntPtr.Zero);
+                }
+
+                return null;
+            }).ConfigureAwait(false);
+            logger.LogInformation("OBS engine: exit prep done (output channels cleared, obs_shutdown skipped by design)");
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Tears libobs down (no-op when it never reached Ready) and parks the
+    /// engine in Shutdown. Safe to call directly ONLY when no native state
+    /// was loaded (<see cref="HasLoadedNativeState"/> is false — clean
+    /// selftest-style boots): with a loaded scene collection, obs_shutdown is
+    /// known to access-violate, so the App.OnExit path calls
+    /// <see cref="PrepareExitAsync"/> and lets process teardown reclaim
+    /// instead.
+    /// </summary>
     public async Task ShutdownAsync()
     {
         await gate.WaitAsync().ConfigureAwait(false);
@@ -341,6 +420,11 @@ public sealed class ObsEngine : IDisposable, IObsNativeGate
         {
             return Fail("obs_startup failed");
         }
+
+        // From here on a failed attempt leaves live native state behind —
+        // subsequent InitializeAsync attempts must fail fast (see
+        // InitializeAsync), not re-boot on top of it.
+        startupSucceeded = true;
 
         logger.LogInformation("OBS engine: registering module paths ({PluginsDir})", install.PluginsBinDir);
         ObsNative.ObsAddModulePath(install.PluginsBinDir, install.PluginsDataDir);
