@@ -27,6 +27,12 @@ public record DiscordChatMessageEvent : EventBase
     public string? GuildName { get; init; }
 
     /// <summary>
+    /// Snowflake ID of the guild (server) the message was posted in.
+    /// Null for direct messages. Feeds the Discord-role→tier resolution.
+    /// </summary>
+    public string? GuildId { get; init; }
+
+    /// <summary>
     /// Channel name the message was posted in ("DirectMessage" fallback for DMs).
     /// </summary>
     public required string Channel { get; init; }

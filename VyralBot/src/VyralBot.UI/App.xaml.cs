@@ -331,6 +331,13 @@ public partial class App : Application
                         sp.GetService<IDiscordService>() is { } tierDiscord
                             ? new VyralBot.UI.Services.ModDiscordBotAdapter(tierDiscord)
                             : null));
+                // Connected-channel registry: gates tier-gated bot commands to
+                // channels tagged Moderation/Admin (legacy: all channels while
+                // nothing is configured — see ConnectedChannelService).
+                services.AddSingleton<VyralBot.Core.Services.Channels.IConnectedChannelService, VyralBot.Core.Services.Channels.ConnectedChannelService>();
+                // Stream-effect command router ("!flashlights", "!lightson",
+                // "!lightsoff", "!streamdeck") — used by ChatViewModel.
+                services.AddSingleton<VyralBot.Core.Services.StreamEffects.StreamEffectCommandRouter>();
                 // The !mod engine: register the concrete type too so the startup
                 // wiring can set its seams on the SAME instance the interface
                 // consumers resolve.
@@ -452,6 +459,7 @@ public partial class App : Application
                 var modData = _host.Services.GetRequiredService<IDataService>();
                 var modBotManager = _host.Services.GetRequiredService<IDiscordBotManager>();
                 var modEventBus = _host.Services.GetRequiredService<IEventBus>();
+                var modChannels = _host.Services.GetRequiredService<VyralBot.Core.Services.Channels.IConnectedChannelService>();
                 var modHandler = new DiscordModCommandHandler(); // stateless, no DI needed
 
                 modEngine.ModChannelIdProvider = () =>
@@ -475,14 +483,31 @@ public partial class App : Application
                     return svc == null ? null : new VyralBot.UI.Services.ModDiscordBotAdapter(svc);
                 };
 
-                // Feed the engine every Discord chat message, projected onto the
-                // Core-side ModChannelMessage record (the event type is not
-                // nameable from Core). The returned Guid lets StopAsync
-                // unsubscribe via the engine's own IEventBus.
+                // Feed the engine every Discord chat message posted in the
+                // configured mod channel or in any channel that accepts
+                // tier-gated commands, projected onto the Core-side
+                // ModChannelMessage record (the event type is not nameable from
+                // Core; GuildId feeds the Discord-role→tier resolution). The
+                // returned Guid lets StopAsync unsubscribe via the engine's own
+                // IEventBus.
                 modEngine.DiscordChatSubscriber = handler =>
-                    modEventBus.SubscribeAsync<VyralBot.Integrations.Discord.Events.DiscordChatMessageEvent>(
-                        e => handler(new VyralBot.Core.Services.Moderation.ModChannelMessage(
-                            e.ChannelId, e.SenderUserId, e.Username, e.Message, e.BotId)));
+                    modEventBus.SubscribeAsync<VyralBot.Integrations.Discord.Events.DiscordChatMessageEvent>(async e =>
+                    {
+                        var modChannelId = modEngine.ModChannelIdProvider?.Invoke();
+                        var isModChannel = !string.IsNullOrWhiteSpace(e.ChannelId) &&
+                            string.Equals(e.ChannelId.Trim(), modChannelId?.Trim(), StringComparison.OrdinalIgnoreCase);
+                        if (!isModChannel &&
+                            !await modChannels.AcceptsCommandsAsync(e.BotId ?? "", e.ChannelId ?? "").ConfigureAwait(false))
+                        {
+                            return;
+                        }
+
+                        await handler(new VyralBot.Core.Services.Moderation.ModChannelMessage(
+                            e.ChannelId, e.SenderUserId, e.Username, e.Message, e.BotId)
+                        {
+                            GuildId = e.GuildId
+                        }).ConfigureAwait(false);
+                    });
 
                 // Delegated moderation ("!kick @user" …) runs through the same
                 // command handler the bot's own chat uses, as a moderator.

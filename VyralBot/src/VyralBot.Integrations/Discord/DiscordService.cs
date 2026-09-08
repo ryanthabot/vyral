@@ -1750,6 +1750,7 @@ public class DiscordService : IDiscordService, IDisposable
                 Source = "Discord",
                 BotId = BotId,
                 GuildName = guildName,
+                GuildId = guild?.Id.ToString(),
                 Channel = channelName,
                 ChannelId = channelId,
                 Username = username,

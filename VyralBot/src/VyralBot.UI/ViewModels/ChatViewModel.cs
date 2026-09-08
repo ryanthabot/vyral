@@ -18,12 +18,14 @@ using Microsoft.Extensions.Logging;
 using VyralBot.Core.Models;
 using VyralBot.Core.Services;
 using VyralBot.Core.Services.Audio;
+using VyralBot.Core.Services.Channels;
 using VyralBot.Core.Services.Chat;
 using VyralBot.Core.Services.Commands;
 using VyralBot.Core.Services.Currency;
 using VyralBot.Core.Services.EventBus;
 using VyralBot.Core.Services.EventBus.Events;
 using VyralBot.Core.Services.Linking;
+using VyralBot.Core.Services.StreamEffects;
 using VyralBot.Core.Services.Variables;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
@@ -58,6 +60,10 @@ public class ChatViewModel : ViewModelBase
 	private readonly IDiscordBotManager _discordBotManager;
 
 	private readonly IDiscordCommandHandler? _discordCommandHandler;
+
+	private readonly StreamEffectCommandRouter? _streamEffectRouter;
+
+	private readonly IConnectedChannelService? _connectedChannels;
 
 	private readonly KickSettingsViewModel _kickSettings;
 
@@ -1851,7 +1857,7 @@ public class ChatViewModel : ViewModelBase
 		return Task.CompletedTask;
 	}
 
-	public ChatViewModel(ILogger<ChatViewModel> logger, IEventBus eventBus, ITwitchService twitchService, IKickService kickService, IYouTubeService youtubeService, IDiscordService discordService, IDiscordBotManager discordBotManager, KickSettingsViewModel kickSettings, IChatMessageStore chatStore, IChatEventSettingsService eventSettingsService, IAutoReplyService autoReplyService, IDiscordCommandHandler? discordCommandHandler = null, ICurrencyService? currencyService = null, ICurrencyCommandService? currencyCommandService = null, ICommandService? commandService = null, ISoundService? soundService = null, IAlertService? alertService = null, GiveawayCommandService? giveawayCommandService = null, PollCommandService? pollCommandService = null, WatchtimeService? watchtimeService = null, WatchtimeCommandService? watchtimeCommandService = null, IVariableReplacementService? variableReplacementService = null, IDataService? dataService = null, CommandActionRunner? commandActionRunner = null, WorkflowTriggerService? workflowTriggerService = null, IResponseWaiterRegistry? responseWaiters = null, ILinkCodeService? linkCodeService = null, IViewerStatusService? viewerStatusService = null, ISocialGoalService? socialGoalService = null)
+	public ChatViewModel(ILogger<ChatViewModel> logger, IEventBus eventBus, ITwitchService twitchService, IKickService kickService, IYouTubeService youtubeService, IDiscordService discordService, IDiscordBotManager discordBotManager, KickSettingsViewModel kickSettings, IChatMessageStore chatStore, IChatEventSettingsService eventSettingsService, IAutoReplyService autoReplyService, IDiscordCommandHandler? discordCommandHandler = null, ICurrencyService? currencyService = null, ICurrencyCommandService? currencyCommandService = null, ICommandService? commandService = null, ISoundService? soundService = null, IAlertService? alertService = null, GiveawayCommandService? giveawayCommandService = null, PollCommandService? pollCommandService = null, WatchtimeService? watchtimeService = null, WatchtimeCommandService? watchtimeCommandService = null, IVariableReplacementService? variableReplacementService = null, IDataService? dataService = null, CommandActionRunner? commandActionRunner = null, WorkflowTriggerService? workflowTriggerService = null, IResponseWaiterRegistry? responseWaiters = null, ILinkCodeService? linkCodeService = null, IViewerStatusService? viewerStatusService = null, ISocialGoalService? socialGoalService = null, StreamEffectCommandRouter? streamEffectRouter = null, IConnectedChannelService? connectedChannels = null)
 	{
 		_logger = logger ?? throw new ArgumentNullException("logger");
 		_eventBus = eventBus ?? throw new ArgumentNullException("eventBus");
@@ -1882,6 +1888,8 @@ public class ChatViewModel : ViewModelBase
 		_linkCodeService = linkCodeService;
 		_viewerStatusService = viewerStatusService;
 		_socialGoalService = socialGoalService;
+		_streamEffectRouter = streamEffectRouter;
+		_connectedChannels = connectedChannels;
 		_currencyService = currencyService;
 		_currencyCommandService = currencyCommandService;
 		_commandService = commandService;
@@ -2454,6 +2462,14 @@ public class ChatViewModel : ViewModelBase
 			{
 				_logger.LogDebug(exception, "Could not check disabled built-ins for bot {BotId}", evt.BotId);
 			}
+			// Engine A channel gating: when connected channels are configured,
+			// only Moderation/Admin-tagged ones run the built-in commands
+			// (legacy rule: nothing configured → every channel is allowed).
+			if (_connectedChannels != null &&
+				!await _connectedChannels.AcceptsCommandsAsync(evt.BotId ?? "", evt.ChannelId ?? ""))
+			{
+				return false;
+			}
 			DiscordCommandResult result = await _discordCommandHandler.HandleAsync(originBot, evt.Message, evt.IsModerator, evt.IsBroadcaster, evt.ChannelId);
 			if (result.Handled)
 			{
@@ -2465,6 +2481,37 @@ public class ChatViewModel : ViewModelBase
 		catch (Exception exception2)
 		{
 			_logger.LogError(exception2, "Error processing in-Discord moderation command: {Command}", evt.Message);
+		}
+		return false;
+	}
+
+	/// <summary>
+	/// Runs the stream-effect router ("!flashlights", "!lightson",
+	/// "!lightsoff", "!streamdeck") first; a non-null reply is sent through the
+	/// same Discord reply path the mod-command results use and the message is
+	/// consumed (other handlers never see it).
+	/// </summary>
+	private async Task<bool> TryHandleStreamEffectCommandAsync(DiscordChatMessageEvent evt)
+	{
+		if (_streamEffectRouter == null || string.IsNullOrEmpty(evt.Message))
+		{
+			return false;
+		}
+		try
+		{
+			string? reply = await _streamEffectRouter.TryHandleAsync(new StreamEffectCommandContext(
+				evt.BotId ?? "", evt.GuildId, evt.ChannelId ?? "", evt.SenderUserId ?? "", evt.Username, evt.Message));
+			if (reply == null)
+			{
+				return false;
+			}
+			await SendDiscordReplyAsync(reply, evt.BotId);
+			_logger.LogInformation("Processed in-Discord stream-effect command from {Username}: {Command} -> {Response}", evt.Username, evt.Message, reply);
+			return true;
+		}
+		catch (Exception exception)
+		{
+			_logger.LogError(exception, "Error processing in-Discord stream-effect command: {Command}", evt.Message);
 		}
 		return false;
 	}
@@ -5161,6 +5208,12 @@ public class ChatViewModel : ViewModelBase
 		if (!DiscordFilterEnabled)
 		{
 			_logger.LogDebug("Discord messages filtered out (DiscordFilterEnabled=false)");
+			return;
+		}
+		// Stream effects first: a recognized (and tier-allowed) "!flashlights" /
+		// "!lightson" / "!lightsoff" / "!streamdeck" command is consumed here.
+		if (await TryHandleStreamEffectCommandAsync(evt))
+		{
 			return;
 		}
 		await TryHandleDiscordModCommandAsync(evt);
