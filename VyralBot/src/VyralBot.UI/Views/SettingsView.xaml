@@ -274,6 +274,27 @@
                             </StackPanel>
                         </Button>
 
+                        <!-- Stream FX Category -->
+                        <Button Command="{Binding SelectCategoryCommand}"
+                                CommandParameter="StreamFx"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                Margin="0,2">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Flash"
+                                                         Width="20"
+                                                         Height="20"
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Stream FX"
+                                           FontSize="14"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Button>
+
                         <!-- API & Webhooks Category -->
                         <Button Command="{Binding SelectCategoryCommand}"
                                 CommandParameter="API"
@@ -1937,6 +1958,305 @@
                             <TextBlock Text="Mod roles, the action log and the !mod command builder are on the Moderator page (Home &#8594; Moderator)."
                                        FontSize="11"
                                        Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <!-- Stream FX Panel -->
+                        <StackPanel Visibility="{Binding SelectedCategory, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=StreamFx}">
+                            <TextBlock Text="Stream FX"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,0,0,16"/>
+
+                            <!-- Lights -->
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Lights"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,4"/>
+                                    <TextBlock Text="The flash and lights commands run through the provider chosen here. Changes apply on Save — no restart needed."
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,12"/>
+
+                                    <ComboBox ItemsSource="{Binding LightProviderOptions}"
+                                              SelectedItem="{Binding SelectedLightProvider, Mode=TwoWay}"
+                                              Width="180"
+                                              HorizontalAlignment="Left"
+                                              Margin="0,0,0,12"/>
+
+                                    <!-- Hue group (visible when provider = Hue) -->
+                                    <StackPanel Margin="0,0,0,12"
+                                                Visibility="{Binding SelectedLightProvider, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Hue}">
+                                        <TextBlock Text="Philips Hue"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBox Text="{Binding HueBridgeIp, UpdateSourceTrigger=PropertyChanged}"
+                                                 materialDesign:HintAssist.Hint="Bridge IP (e.g. 192.168.1.42)"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 Margin="0,0,0,8"/>
+                                        <WrapPanel Margin="0,0,0,8">
+                                            <Button Content="Discover"
+                                                    Command="{Binding DiscoverHueBridgeCommand}"
+                                                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                                                    Padding="12,6"
+                                                    Margin="0,0,8,0"
+                                                    ToolTip="Find the bridge on this network via https://discovery.meethue.com"/>
+                                            <Button Content="Pair"
+                                                    Command="{Binding PairHueBridgeCommand}"
+                                                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                                                    Padding="12,6"
+                                                    ToolTip="Register VyralBot on the bridge and store the app key"/>
+                                        </WrapPanel>
+                                        <TextBlock Text="Press the link button on your Hue bridge before pairing."
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,0,0,8"/>
+                                        <TextBox Text="{Binding HueAppKey, UpdateSourceTrigger=PropertyChanged}"
+                                                 materialDesign:HintAssist.Hint="App key (username)"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 Margin="0,0,0,8"/>
+                                        <Button Content="Load lights"
+                                                Command="{Binding LoadHueLightsCommand}"
+                                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                                Background="{DynamicResource PrimaryBrush}"
+                                                HorizontalAlignment="Left"
+                                                Margin="0,0,0,8"/>
+                                        <ItemsControl ItemsSource="{Binding HueLights}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox Content="{Binding Name}"
+                                                              IsChecked="{Binding Enabled, Mode=TwoWay}"
+                                                              ToolTip="{Binding Id}"
+                                                              Margin="0,0,0,4">
+                                                        <CheckBox.Style>
+                                                            <Style TargetType="CheckBox">
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Reachable}" Value="False">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </CheckBox.Style>
+                                                    </CheckBox>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+
+                                    <!-- Webhook group (visible when provider = Webhook) -->
+                                    <StackPanel Margin="0,0,0,12"
+                                                Visibility="{Binding SelectedLightProvider, Converter={StaticResource EqualsToVisibilityConverter}, ConverterParameter=Webhook}">
+                                        <TextBlock Text="Webhook"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBox Text="{Binding WebhookUrl, UpdateSourceTrigger=PropertyChanged}"
+                                                 materialDesign:HintAssist.Hint="https://example.com/hook"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 Margin="0,0,0,8"/>
+                                        <TextBox Text="{Binding WebhookToken, UpdateSourceTrigger=PropertyChanged}"
+                                                 materialDesign:HintAssist.Hint="Bearer token (optional)"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 Margin="0,0,0,8"/>
+                                        <TextBlock Text="POSTs {action, color, times, intervalMs} JSON with an optional Bearer token — point it at Home Assistant, SmartThings, LIFX cloud, etc."
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+
+                                    <!-- Flash defaults -->
+                                    <TextBlock Text="Flash defaults"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,4"/>
+                                    <WrapPanel Margin="0,0,0,12">
+                                        <TextBox Text="{Binding FlashColor, UpdateSourceTrigger=PropertyChanged}"
+                                                 materialDesign:HintAssist.Hint="Color (#RRGGBB)"
+                                                 Width="150"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 Margin="0,0,8,0"/>
+                                        <TextBox Text="{Binding FlashTimes}"
+                                                 materialDesign:HintAssist.Hint="Times"
+                                                 Width="100"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 Margin="0,0,8,0"/>
+                                        <TextBox Text="{Binding FlashIntervalMs}"
+                                                 materialDesign:HintAssist.Hint="Interval (ms)"
+                                                 Width="120"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"/>
+                                    </WrapPanel>
+                                    <WrapPanel>
+                                        <Button Content="Test flash"
+                                                Command="{Binding TestFlashCommand}"
+                                                Style="{StaticResource MaterialDesignOutlinedButton}"
+                                                Padding="12,6"
+                                                Margin="0,0,8,0"
+                                                ToolTip="Flashes the configured lights with the settings above"/>
+                                        <Button Content="Save Stream FX Settings"
+                                                Command="{Binding SaveStreamFxSettingsCommand}"
+                                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                                Background="{DynamicResource PrimaryBrush}"
+                                                Padding="14,6"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <!-- Stream Deck -->
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Stream Deck"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,4"/>
+                                    <TextBlock Text="Requires the Stream Deck app 6.4+. Paste an action link — it looks like streamdeck://plugins/&lt;plugin-id&gt;/&lt;action-id&gt;?&lt;params&gt;"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,12"/>
+                                    <WrapPanel Margin="0,0,0,12">
+                                        <TextBox Text="{Binding NewDeckActionName, UpdateSourceTrigger=PropertyChanged}"
+                                                 materialDesign:HintAssist.Hint="Action name"
+                                                 Width="200"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 Margin="0,0,8,8"/>
+                                        <TextBox Text="{Binding NewDeckActionUri, UpdateSourceTrigger=PropertyChanged}"
+                                                 materialDesign:HintAssist.Hint="streamdeck://plugins/…"
+                                                 Width="360"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 Margin="0,0,8,8"/>
+                                        <Button Content="Add"
+                                                Command="{Binding AddDeckActionCommand}"
+                                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                                Background="{DynamicResource PrimaryBrush}"
+                                                Padding="14,6"
+                                                VerticalAlignment="Stretch"
+                                                Margin="0,8,0,0"/>
+                                    </WrapPanel>
+                                    <ItemsControl ItemsSource="{Binding DeckActions}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        Padding="12,8"
+                                                        Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0">
+                                                            <TextBlock Text="{Binding Name}"
+                                                                       FontSize="14"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                            <TextBlock Text="{Binding Uri}"
+                                                                       FontSize="11"
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                       TextWrapping="Wrap"
+                                                                       Margin="0,2,0,0"/>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1"
+                                                                    Orientation="Horizontal"
+                                                                    VerticalAlignment="Center"
+                                                                    Margin="12,0,0,0">
+                                                            <Button Content="Test"
+                                                                    Command="{Binding DataContext.TestDeckActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                                                    Padding="8,4"
+                                                                    Margin="0,0,8,0"/>
+                                                            <Button Content="Remove"
+                                                                    Command="{Binding DataContext.RemoveDeckActionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                                                    Padding="8,4"
+                                                                    Foreground="{DynamicResource ErrorBrush}"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <!-- Mod commands reference -->
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Mod commands"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,8"/>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="230"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="!flashlights [#hex] [times]"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="Flash the configured lights — Mod tier and above"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   TextWrapping="Wrap"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="230"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="!lightson  /  !lightsoff"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="Turn the configured lights on or off — SeniorMod tier and above"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   TextWrapping="Wrap"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="230"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="!streamdeck &lt;action name&gt;"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="Fire a saved Stream Deck action — Admin only"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   TextWrapping="Wrap"/>
+                                    </Grid>
+                                    <TextBlock Text="These commands run in channels tagged Mod/Admin (Chat → Channels), or in the mod channel."
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </materialDesign:Card>
+
+                            <TextBlock Text="{Binding StreamFxStatus}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
 

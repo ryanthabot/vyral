@@ -5,11 +5,16 @@ using Microsoft.Extensions.Logging;
 using VyralBot.Core.Services.Profiles;
 using VyralBot.Core.Models;
 using VyralBot.Data;
+using VyralBot.Integrations.Lights;
+using VyralBot.Integrations.StreamDeck;
 using VyralBot.UI.Models;
 using VyralBot.UI.Services;
 using VyralBot.UI.Views;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
 
 namespace VyralBot.UI.ViewModels;
 
@@ -29,6 +34,9 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly DataManagementViewModel _dataManagementViewModel;
     private readonly Core.Services.Commands.ICommandService _commandService;
     private readonly WorkflowTriggerService _workflowTriggerService;
+    private readonly StreamEffectsConfigService _streamEffectsConfigService;
+    private readonly ILightsClient _lightsClient;
+    private readonly IStreamDeckService _streamDeckService;
     private bool _categorySettingsLoaded;
 
     public WebServerSettingsViewModel WebServerSettingsViewModel => _webServerSettingsViewModel;
@@ -338,6 +346,9 @@ public partial class SettingsViewModel : ViewModelBase
         DataManagementViewModel dataManagementViewModel,
         Core.Services.Commands.ICommandService commandService,
         WorkflowTriggerService workflowTriggerService,
+        StreamEffectsConfigService streamEffectsConfigService,
+        ILightsClient lightsClient,
+        IStreamDeckService streamDeckService,
         IServiceProvider serviceProvider)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -351,6 +362,9 @@ public partial class SettingsViewModel : ViewModelBase
         _dataManagementViewModel = dataManagementViewModel ?? throw new ArgumentNullException(nameof(dataManagementViewModel));
         _commandService = commandService ?? throw new ArgumentNullException(nameof(commandService));
         _workflowTriggerService = workflowTriggerService ?? throw new ArgumentNullException(nameof(workflowTriggerService));
+        _streamEffectsConfigService = streamEffectsConfigService ?? throw new ArgumentNullException(nameof(streamEffectsConfigService));
+        _lightsClient = lightsClient ?? throw new ArgumentNullException(nameof(lightsClient));
+        _streamDeckService = streamDeckService ?? throw new ArgumentNullException(nameof(streamDeckService));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
 
@@ -1160,6 +1174,10 @@ public partial class SettingsViewModel : ViewModelBase
             var current = await _profileService.GetCurrentProfileAsync();
             CurrentProfileHasPin = current is not null && !string.IsNullOrEmpty(current.PinCode);
 
+            // Stream FX has its own config store (StreamEffectsConfigService); load it
+            // alongside the other config-backed categories (own try/catch, cannot break the rest).
+            await LoadStreamFxSettingsAsync();
+
             _categorySettingsLoaded = true;
         }
         catch (Exception ex)
@@ -1234,6 +1252,370 @@ public partial class SettingsViewModel : ViewModelBase
         "Twitch tokens are encrypted with Windows DPAPI for your user account; Kick tokens are managed by KickLib; " +
         "YouTube and Discord bot tokens are stored as-is in the profile database. " +
         "Anyone with access to this PC's user account can use them — protect the PC, not just the app.";
+
+    // ======================================================================
+    // Stream FX (lights providers, flash defaults, Stream Deck actions)
+    // (config KV backed via StreamEffectsConfigService; explicit Save button)
+    // ======================================================================
+
+    private static readonly JsonSerializerOptions StreamFxJsonOpts = new(JsonSerializerDefaults.Web);
+
+    /// <summary>Sidebar ComboBox options for the lights provider (matches LightsManager routing).</summary>
+    public IReadOnlyList<string> LightProviderOptions { get; } = new[]
+    {
+        StreamEffectsConfigService.DefaultProvider, "Hue", "Webhook"
+    };
+
+    [ObservableProperty]
+    private string? _streamFxStatus;
+
+    [ObservableProperty]
+    private string _selectedLightProvider = StreamEffectsConfigService.DefaultProvider;
+
+    [ObservableProperty]
+    private string _hueBridgeIp = string.Empty;
+
+    [ObservableProperty]
+    private string _hueAppKey = string.Empty;
+
+    [ObservableProperty]
+    private string _webhookUrl = string.Empty;
+
+    [ObservableProperty]
+    private string _webhookToken = string.Empty;
+
+    [ObservableProperty]
+    private string _flashColor = StreamEffectsConfigService.DefaultFlashColor;
+
+    [ObservableProperty]
+    private int _flashTimes = StreamEffectsConfigService.DefaultFlashTimes;
+
+    [ObservableProperty]
+    private int _flashIntervalMs = StreamEffectsConfigService.DefaultFlashIntervalMs;
+
+    [ObservableProperty]
+    private string _newDeckActionName = string.Empty;
+
+    [ObservableProperty]
+    private string _newDeckActionUri = string.Empty;
+
+    public ObservableCollection<HueLightRow> HueLights { get; } = new();
+
+    public ObservableCollection<DeckActionRow> DeckActions { get; } = new();
+
+    // Only overwrite the stored light-selection CSV once the rows actually came
+    // from the bridge; before that a Save must preserve the stored selection.
+    private bool _hueLightsLoaded;
+
+    // Snapshot read at load time; Save preserves its LightIds while lights are
+    // not loaded, and it supplies the stored CSV when re-ticking loaded rows.
+    private StreamEffectsSnapshot? _streamFxSnapshot;
+
+    [RelayCommand]
+    private async Task LoadStreamFxSettingsAsync()
+    {
+        try
+        {
+            var snapshot = await _streamEffectsConfigService.GetSnapshotAsync();
+            _streamFxSnapshot = snapshot;
+
+            SelectedLightProvider = snapshot.Provider;
+            HueBridgeIp = snapshot.BridgeIp ?? string.Empty;
+            HueAppKey = snapshot.AppKey ?? string.Empty;
+            WebhookUrl = snapshot.WebhookUrl;
+            WebhookToken = snapshot.WebhookToken ?? string.Empty;
+            FlashColor = snapshot.FlashColor;
+            FlashTimes = snapshot.FlashTimes;
+            FlashIntervalMs = snapshot.FlashIntervalMs;
+
+            DeckActions.Clear();
+            foreach (var action in ParseDeckActionsJson(snapshot.DeckActionsJson))
+            {
+                DeckActions.Add(new DeckActionRow { Id = action.Id, Name = action.Name, Uri = action.Uri });
+            }
+
+            // Re-tick loaded rows from the stored CSV (no-op until lights were loaded).
+            foreach (var row in HueLights)
+            {
+                row.Enabled = snapshot.LightIds.Contains(row.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading Stream FX settings");
+            StreamFxStatus = $"Error loading Stream FX settings: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task SaveStreamFxSettingsAsync()
+    {
+        try
+        {
+            var lightIds = _hueLightsLoaded
+                ? (IReadOnlyList<string>)HueLights.Where(l => l.Enabled).Select(l => l.Id).ToList()
+                : _streamFxSnapshot?.LightIds ?? [];
+
+            var toSave = new StreamEffectsSnapshot(
+                SelectedLightProvider,
+                NullIfWhitespace(HueBridgeIp),
+                NullIfWhitespace(HueAppKey),
+                lightIds,
+                WebhookUrl?.Trim() ?? string.Empty,
+                NullIfWhitespace(WebhookToken),
+                FlashTimes,
+                FlashIntervalMs,
+                string.IsNullOrWhiteSpace(FlashColor) ? StreamEffectsConfigService.DefaultFlashColor : FlashColor.Trim(),
+                JsonSerializer.Serialize(
+                    DeckActions.Select(d => new StreamDeckAction(d.Id, d.Name, d.Uri)).ToList(),
+                    StreamFxJsonOpts));
+
+            await _streamEffectsConfigService.SaveSnapshotCoreSettingsAsync(toSave);
+            _streamFxSnapshot = toSave;
+
+            StreamFxStatus = "Stream FX settings saved.";
+            _logger.LogInformation(
+                "Stream FX settings saved (provider={Provider}, lights={LightCount}, deckActions={DeckCount})",
+                SelectedLightProvider, lightIds.Count, DeckActions.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving Stream FX settings");
+            StreamFxStatus = $"Error saving Stream FX settings: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task DiscoverHueBridgeAsync()
+    {
+        try
+        {
+            using var http = CreateStreamFxHttpClient();
+            var json = await http.GetStringAsync("https://discovery.meethue.com");
+            var bridges = JsonSerializer.Deserialize<List<HueBridgeDiscovery>>(json, StreamFxJsonOpts);
+            var ip = bridges?.FirstOrDefault()?.InternalIpAddress;
+
+            if (string.IsNullOrWhiteSpace(ip))
+            {
+                StreamFxStatus = "No Hue bridge responded — enter the IP manually.";
+                return;
+            }
+
+            HueBridgeIp = ip;
+            StreamFxStatus = $"Bridge found at {ip}.";
+            _logger.LogInformation("Hue bridge discovered at {BridgeIp}", ip);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Hue bridge discovery failed");
+            StreamFxStatus = "Could not discover a Hue bridge (check network) — enter the IP manually.";
+        }
+    }
+
+    [RelayCommand]
+    private async Task PairHueBridgeAsync()
+    {
+        var ip = HueBridgeIp?.Trim();
+        if (string.IsNullOrWhiteSpace(ip))
+        {
+            StreamFxStatus = "Enter the bridge IP (or press Discover) before pairing.";
+            return;
+        }
+
+        try
+        {
+            using var http = CreateStreamFxHttpClient();
+            var body = JsonSerializer.Serialize(new { devicetype = "vyralbot#streamfx", generateclientkey = true });
+            var response = await http.PostAsync(
+                $"http://{ip}/api",
+                new StringContent(body, Encoding.UTF8, "application/json"));
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+            // Response is [{"success":{"username":"...","clientkey":"..."}}] or
+            // [{"error":{"type":101,...}}] (101 = link button not pressed).
+            var first = doc.RootElement.ValueKind == JsonValueKind.Array
+                ? doc.RootElement.EnumerateArray().FirstOrDefault()
+                : default;
+
+            if (first.ValueKind == JsonValueKind.Object && first.TryGetProperty("success", out var success))
+            {
+                var username = success.TryGetProperty("username", out var usernameProp) ? usernameProp.GetString() : null;
+                if (!string.IsNullOrWhiteSpace(username))
+                {
+                    HueAppKey = username;
+                    StreamFxStatus = "Bridge paired.";
+                    _logger.LogInformation("Hue bridge paired (ip={BridgeIp})", ip);
+                    return;
+                }
+            }
+
+            if (first.ValueKind == JsonValueKind.Object && first.TryGetProperty("error", out var error))
+            {
+                var type = error.TryGetProperty("type", out var typeProp) && typeProp.TryGetInt32(out var parsed)
+                    ? parsed
+                    : 0;
+                StreamFxStatus = type == 101
+                    ? "Press the link button on your Hue bridge, then Pair again."
+                    : $"Bridge rejected pairing (error {type}).";
+                return;
+            }
+
+            StreamFxStatus = "Unexpected bridge response — try pairing again.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Hue bridge pairing failed (ip={BridgeIp})", ip);
+            StreamFxStatus = $"Could not pair with the bridge: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task LoadHueLightsAsync()
+    {
+        var ip = HueBridgeIp?.Trim();
+        var appKey = HueAppKey?.Trim();
+        if (string.IsNullOrWhiteSpace(ip) || string.IsNullOrWhiteSpace(appKey))
+        {
+            StreamFxStatus = "Enter the bridge IP and app key (Discover + Pair) before loading lights.";
+            return;
+        }
+
+        try
+        {
+            // LightsManager re-reads the config per call and routes by provider, so the
+            // bridge settings (and provider=Hue) must be persisted before GetLightsAsync.
+            await _streamEffectsConfigService.SetAsync(StreamEffectsConfigService.HueBridgeIpKey, ip);
+            await _streamEffectsConfigService.SetAsync(StreamEffectsConfigService.HueAppKeyKey, appKey);
+            await _streamEffectsConfigService.SetAsync(StreamEffectsConfigService.LightsProviderKey, "Hue");
+
+            var storedIds = _streamFxSnapshot?.LightIds ?? [];
+            var lights = await _lightsClient.GetLightsAsync();
+
+            HueLights.Clear();
+            foreach (var light in lights)
+            {
+                HueLights.Add(new HueLightRow
+                {
+                    Id = light.Id,
+                    Name = light.Name,
+                    Reachable = light.Reachable,
+                    Enabled = storedIds.Contains(light.Id)
+                });
+            }
+            _hueLightsLoaded = true;
+
+            StreamFxStatus = $"Loaded {HueLights.Count} light(s) — tick the flash targets, then press Save.";
+            _logger.LogInformation("Loaded {Count} Hue lights", HueLights.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading Hue lights");
+            StreamFxStatus = $"Could not load lights: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task AddDeckActionAsync()
+    {
+        try
+        {
+            var result = await _streamDeckService.SaveActionAsync(NewDeckActionName, NewDeckActionUri);
+            StreamFxStatus = result.Message;
+            if (!result.Success)
+            {
+                return;
+            }
+
+            NewDeckActionName = string.Empty;
+            NewDeckActionUri = string.Empty;
+            await RefreshDeckRowsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving Stream Deck action");
+            StreamFxStatus = $"Error saving Stream Deck action: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task RemoveDeckActionAsync(DeckActionRow? row)
+    {
+        if (row is null) return;
+
+        try
+        {
+            await _streamDeckService.DeleteActionAsync(row.Id);
+            DeckActions.Remove(row);
+            StreamFxStatus = $"Removed Stream Deck action '{row.Name}'.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing Stream Deck action '{Name}'", row.Name);
+            StreamFxStatus = $"Error removing action: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task TestDeckActionAsync(DeckActionRow? row)
+    {
+        if (row is null) return;
+
+        try
+        {
+            StreamFxStatus = await _streamDeckService.TriggerAsync(row.Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error triggering Stream Deck action '{Name}'", row.Name);
+            StreamFxStatus = $"Error triggering action: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task TestFlashAsync()
+    {
+        try
+        {
+            StreamFxStatus = await _lightsClient.FlashAsync(FlashColor?.Trim(), FlashTimes, FlashIntervalMs);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error running test flash");
+            StreamFxStatus = $"Test flash failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>Re-reads saved actions so row Ids match the store (SaveActionAsync assigns new Guid ids).</summary>
+    private async Task RefreshDeckRowsAsync()
+    {
+        var actions = await _streamDeckService.GetActionsAsync();
+        DeckActions.Clear();
+        foreach (var action in actions)
+        {
+            DeckActions.Add(new DeckActionRow { Id = action.Id, Name = action.Name, Uri = action.Uri });
+        }
+    }
+
+    private static List<StreamDeckAction> ParseDeckActionsJson(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        try
+        {
+            return JsonSerializer.Deserialize<List<StreamDeckAction>>(json, StreamFxJsonOpts) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static HttpClient CreateStreamFxHttpClient() => new() { Timeout = TimeSpan.FromSeconds(5) };
+
+    private static string? NullIfWhitespace(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <summary>Discovery response entry: [{"id":"...","internalipaddress":"x.x.x.x"}].</summary>
+    private sealed record HueBridgeDiscovery(string? Id, string? InternalIpAddress);
 
     // ----- Advanced -----
 
