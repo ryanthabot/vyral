@@ -322,6 +322,14 @@ public partial class App : Application
                 services.AddSingleton<VyralBot.Integrations.Obs.Engine.ObsOutputService>();
                 // Task 7: embedded studio page view model (consumed by ObsViewModel's Studio tab).
                 services.AddSingleton<ObsStudioViewModel>();
+                // Full OBS tab: real obs64.exe window hosting + silent acquisition.
+                // Singletons — the host owns the parking HWND and the adopted
+                // process for the whole app lifetime; App.OnExit detaches the
+                // window to the desktop.
+                services.AddSingleton<VyralBot.Integrations.Obs.Hosting.ObsWindowHostService>();
+                services.AddSingleton<VyralBot.Integrations.Obs.Hosting.ObsAcquisitionService>();
+                // Registered before ObsViewModel — the OBS page injects it as its default tab.
+                services.AddSingleton<ObsHostViewModel>();
                 services.AddSingleton<ObsViewModel>();
                 services.AddSingleton<DocumentationViewModel>();
                 services.AddSingleton<AutomationViewModel>(); // Automation page (structured workflow builder)
@@ -938,6 +946,23 @@ public partial class App : Application
                 catch (Exception ex)
                 {
                     Log.Warning(ex, "Error stopping the stream effect subscriber");
+                }
+            }
+
+            // Full OBS tab: detach the hosted obs64 window back to the desktop
+            // BEFORE the engine sequence — OBS KEEPS RUNNING as a normal window
+            // after VyralBot exits (Dispose never kills it).
+            var obsWindowHost = _host.Services.GetService<VyralBot.Integrations.Obs.Hosting.ObsWindowHostService>();
+            if (obsWindowHost != null)
+            {
+                try
+                {
+                    obsWindowHost.UnembedToDesktop();
+                    Log.Information("OBS host window detached to the desktop on exit");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Error detaching the OBS host window on exit");
                 }
             }
 

@@ -10,8 +10,9 @@ using VyralBot.Integrations.Obs;
 namespace VyralBot.UI.ViewModels;
 
 /// <summary>
-/// OBS page host: the embedded studio tab plus the original Collections tab
-/// (imports OBS scene-collection JSON verbatim, browses the imported
+/// OBS page host: the Full OBS tab (real obs64.exe window hosted in-page),
+/// the Bot Studio tab (embedded libobs studio) and the original Collections
+/// tab (imports OBS scene-collection JSON verbatim, browses the imported
 /// documents as a tree and exports byte-identical copies).
 /// </summary>
 public partial class ObsViewModel : ViewModelBase, IDisposable
@@ -20,12 +21,22 @@ public partial class ObsViewModel : ViewModelBase, IDisposable
     private readonly IDataService _dataService;
     private readonly ILogger<ObsViewModel> _logger;
 
+    /// <summary>The hosted real-OBS tab (own view model, resolved via DI).</summary>
+    public ObsHostViewModel Host { get; }
+
     /// <summary>The embedded studio (own view model, resolved via DI).</summary>
     public ObsStudioViewModel Studio { get; }
 
-    // Studio is the default tab.
+    // The native engine boots only when the Bot Studio tab is first selected —
+    // never on app start or on the default Full OBS tab.
+    private bool _studioInitialized;
+
+    // Full OBS is the default tab.
     [ObservableProperty]
-    private bool _isStudioTabSelected = true;
+    private bool _isFullObsTabSelected = true;
+
+    [ObservableProperty]
+    private bool _isStudioTabSelected;
 
     [ObservableProperty]
     private bool _isCollectionsTabSelected;
@@ -48,10 +59,11 @@ public partial class ObsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string? _sceneSummary;
 
-    public ObsViewModel(ObsSceneCollectionStore store, ObsStudioViewModel studio, IDataService dataService, ILogger<ObsViewModel> logger)
+    public ObsViewModel(ObsSceneCollectionStore store, ObsStudioViewModel studio, ObsHostViewModel host, IDataService dataService, ILogger<ObsViewModel> logger)
     {
         _store = store;
         Studio = studio;
+        Host = host;
         _dataService = dataService;
         _logger = logger;
     }
@@ -61,21 +73,39 @@ public partial class ObsViewModel : ViewModelBase, IDisposable
     {
         _logger.LogInformation("Initializing OBS view");
         await LoadAsync();
-        await Studio.InitializeAsync();
+        // Full OBS is the default tab; the studio engine boots lazily via
+        // SelectTab when Bot Studio is first selected.
+        await Host.InitializeAsync();
     }
 
     /// <summary>
-    /// MainViewModel drops the OBS page on navigation away — chain to the
-    /// embedded studio so its 1 Hz stats timer stops polling the native gate.
+    /// MainViewModel drops the OBS page on navigation away — chain to both
+    /// tabs. The hosted window is parked by its embed control and detached to
+    /// the desktop on app exit; here we only drop the VM wiring (the studio's
+    /// 1 Hz stats timer must stop polling the native gate).
     /// </summary>
-    public void Dispose() => Studio.Dispose();
-
-    /// <summary>Mutually exclusive tab switcher for the Studio | Collections pair.</summary>
-    [RelayCommand]
-    private void SelectTab(string tab)
+    public void Dispose()
     {
-        IsStudioTabSelected = tab == "Studio";
+        Host.Dispose();
+        Studio.Dispose();
+        _studioInitialized = false;
+    }
+
+    /// <summary>Mutually exclusive tab switcher for the Full OBS | Bot Studio | Collections pills.</summary>
+    [RelayCommand]
+    private async Task SelectTab(string tab)
+    {
+        IsFullObsTabSelected = tab == "FullObs";
+        IsStudioTabSelected = tab == "BotStudio";
         IsCollectionsTabSelected = tab == "Collections";
+
+        // Lazy Bot Studio boot: the native engine auto-init happens only on
+        // the first Bot Studio selection, not on page open.
+        if (tab == "BotStudio" && !_studioInitialized)
+        {
+            _studioInitialized = true;
+            await Studio.InitializeAsync();
+        }
     }
 
     [RelayCommand]

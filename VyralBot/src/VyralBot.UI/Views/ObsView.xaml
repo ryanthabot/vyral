@@ -58,19 +58,29 @@
                 <TextBlock Text="OBS" FontSize="24" FontWeight="Bold"
                            Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
             </StackPanel>
-            <TextBlock Text="Run OBS scenes in the embedded studio, or import scene collections, browse and export byte-identical copies"
+            <TextBlock Text="Run the full OBS window inside Vyral, drive scenes in the Bot Studio, or import scene collections, browse and export byte-identical copies"
                        FontSize="13"
                        Foreground="{DynamicResource TextSecondaryBrush}"/>
 
-            <!-- Studio | Collections tabs -->
+            <!-- Full OBS | Bot Studio | Collections tabs -->
             <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                 <RadioButton Style="{StaticResource ObsTab}" GroupName="ObsTab"
+                             IsChecked="{Binding IsFullObsTabSelected, Mode=OneWay}"
+                             Command="{Binding SelectTabCommand}" CommandParameter="FullObs">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="Monitor" Width="18" Height="18" VerticalAlignment="Center"
+                                                 Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <TextBlock Text="Full OBS" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="13"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                    </StackPanel>
+                </RadioButton>
+                <RadioButton Style="{StaticResource ObsTab}" GroupName="ObsTab"
                              IsChecked="{Binding IsStudioTabSelected, Mode=OneWay}"
-                             Command="{Binding SelectTabCommand}" CommandParameter="Studio">
+                             Command="{Binding SelectTabCommand}" CommandParameter="BotStudio">
                     <StackPanel Orientation="Horizontal">
                         <materialDesign:PackIcon Kind="Television" Width="18" Height="18" VerticalAlignment="Center"
                                                  Foreground="{DynamicResource TextPrimaryBrush}"/>
-                        <TextBlock Text="Studio" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="13"
+                        <TextBlock Text="Bot Studio" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="13"
                                    Foreground="{DynamicResource TextPrimaryBrush}"/>
                     </StackPanel>
                 </RadioButton>
@@ -88,7 +98,11 @@
         </StackPanel>
 
         <Grid>
-            <!-- Studio tab: embedded studio ( DataContext = ObsViewModel.Studio ) -->
+            <!-- Full OBS tab: the real obs64.exe window hosted in-page ( DataContext = ObsViewModel.Host ) -->
+            <views:ObsHostView DataContext="{Binding Host}"
+                               Visibility="{Binding IsFullObsTabSelected, Converter={StaticResource BoolToVis}}"/>
+
+            <!-- Bot Studio tab: embedded studio ( DataContext = ObsViewModel.Studio ) -->
             <views:ObsStudioView DataContext="{Binding Studio}"
                                  Visibility="{Binding IsStudioTabSelected, Converter={StaticResource BoolToVis}}"/>
 
