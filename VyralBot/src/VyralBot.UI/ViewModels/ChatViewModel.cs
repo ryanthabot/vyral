@@ -286,6 +286,12 @@ public class ChatViewModel : ViewModelBase
 
 	private bool _showDmPanel;
 
+	// Connected Channels panel (third header toggle): mutually exclusive with
+	// the DM panel, corrected in both directions exactly like DM/Combined.
+	private bool _showChannelsPanel;
+
+	private bool _channelsLoading;
+
 	private bool _combinedView;
 
 	private string _messageInput = "";
@@ -432,9 +438,27 @@ public class ChatViewModel : ViewModelBase
 
 	private AsyncRelayCommand? clearAllDmHistoryCommand;
 
+	private AsyncRelayCommand? refreshChannelsCommand;
+
+	private AsyncRelayCommand<ConnectedChannelItem>? toggleChannelMonitoringCommand;
+
+	private AsyncRelayCommand<ConnectedChannelItem>? toggleModerationPurposeCommand;
+
+	private AsyncRelayCommand<ConnectedChannelItem>? toggleAdminPurposeCommand;
+
+	private AsyncRelayCommand<ConnectedChannelItem>? toggleSupportPurposeCommand;
+
+	private AsyncRelayCommand<ConnectedChannelItem>? toggleLoggingPurposeCommand;
+
+	private AsyncRelayCommand<ConnectedChannelItem>? setAsMainChannelCommand;
+
+	private AsyncRelayCommand<ConnectedChannelItem>? openChannelInChatCommand;
+
 	public bool HasSelectedDmConversation => SelectedDmConversation != null;
 
 	public bool DmOnlyView => ShowDmPanel && !CombinedView;
+
+	public ObservableCollection<ConnectedChannelItem> ConnectedChannels { get; } = new ObservableCollection<ConnectedChannelItem>();
 
 	private bool CanSendDmReply => SelectedDmConversation != null && !string.IsNullOrWhiteSpace(DmReplyInput);
 
@@ -698,6 +722,45 @@ public class ChatViewModel : ViewModelBase
 				_combinedView = value;
 				OnCombinedViewChanged(value);
 				OnPropertyChanged("CombinedView");
+			}
+		}
+	}
+
+	[GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.ObservablePropertyGenerator", "8.4.0.0")]
+	[ExcludeFromCodeCoverage]
+	public bool ShowChannelsPanel
+	{
+		get
+		{
+			return _showChannelsPanel;
+		}
+		set
+		{
+			if (!EqualityComparer<bool>.Default.Equals(_showChannelsPanel, value))
+			{
+				OnPropertyChanging("ShowChannelsPanel");
+				_showChannelsPanel = value;
+				OnShowChannelsPanelChanged(value);
+				OnPropertyChanged("ShowChannelsPanel");
+			}
+		}
+	}
+
+	[GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.ObservablePropertyGenerator", "8.4.0.0")]
+	[ExcludeFromCodeCoverage]
+	public bool ChannelsLoading
+	{
+		get
+		{
+			return _channelsLoading;
+		}
+		set
+		{
+			if (!EqualityComparer<bool>.Default.Equals(_channelsLoading, value))
+			{
+				OnPropertyChanging("ChannelsLoading");
+				_channelsLoading = value;
+				OnPropertyChanged("ChannelsLoading");
 			}
 		}
 	}
@@ -1143,6 +1206,22 @@ public class ChatViewModel : ViewModelBase
 	public IAsyncRelayCommand StartDmByUserIdCommand => startDmByUserIdCommand ?? (startDmByUserIdCommand = new AsyncRelayCommand(StartDmByUserIdAsync));
 
 	public IAsyncRelayCommand OpenDmSearchResultCommand => openDmSearchResultCommand ?? (openDmSearchResultCommand = new AsyncRelayCommand<DmSearchResult>(OpenDmSearchResultAsync));
+
+	public IAsyncRelayCommand RefreshChannelsCommand => refreshChannelsCommand ?? (refreshChannelsCommand = new AsyncRelayCommand(RefreshChannelsAsync));
+
+	public IAsyncRelayCommand ToggleChannelMonitoringCommand => toggleChannelMonitoringCommand ?? (toggleChannelMonitoringCommand = new AsyncRelayCommand<ConnectedChannelItem>(ToggleChannelMonitoringAsync));
+
+	public IAsyncRelayCommand ToggleModerationPurposeCommand => toggleModerationPurposeCommand ?? (toggleModerationPurposeCommand = new AsyncRelayCommand<ConnectedChannelItem>(ToggleModerationPurposeAsync));
+
+	public IAsyncRelayCommand ToggleAdminPurposeCommand => toggleAdminPurposeCommand ?? (toggleAdminPurposeCommand = new AsyncRelayCommand<ConnectedChannelItem>(ToggleAdminPurposeAsync));
+
+	public IAsyncRelayCommand ToggleSupportPurposeCommand => toggleSupportPurposeCommand ?? (toggleSupportPurposeCommand = new AsyncRelayCommand<ConnectedChannelItem>(ToggleSupportPurposeAsync));
+
+	public IAsyncRelayCommand ToggleLoggingPurposeCommand => toggleLoggingPurposeCommand ?? (toggleLoggingPurposeCommand = new AsyncRelayCommand<ConnectedChannelItem>(ToggleLoggingPurposeAsync));
+
+	public IAsyncRelayCommand SetAsMainChannelCommand => setAsMainChannelCommand ?? (setAsMainChannelCommand = new AsyncRelayCommand<ConnectedChannelItem>(SetAsMainChannelAsync));
+
+	public IAsyncRelayCommand OpenChannelInChatCommand => openChannelInChatCommand ?? (openChannelInChatCommand = new AsyncRelayCommand<ConnectedChannelItem>(OpenChannelInChatAsync));
 
 	[GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.RelayCommandGenerator", "8.4.0.0")]
 	[ExcludeFromCodeCoverage]
@@ -6632,6 +6711,12 @@ public class ChatViewModel : ViewModelBase
 	[GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.ObservablePropertyGenerator", "8.4.0.0")]
 	private void OnShowDmPanelChanged(bool value)
 	{
+		// Opening the DM panel closes the Connected Channels panel (the
+		// correction back happens in OnShowChannelsPanelChanged).
+		if (value && ShowChannelsPanel)
+		{
+			ShowChannelsPanel = false;
+		}
 		if (!value && CombinedView)
 		{
 			CombinedView = false;
@@ -6663,5 +6748,247 @@ public class ChatViewModel : ViewModelBase
 		}
 		OnPropertyChanged("DmOnlyView");
 		ScrollDmThreadToBottom();
+	}
+
+	[GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.ObservablePropertyGenerator", "8.4.0.0")]
+	private void OnShowChannelsPanelChanged(bool value)
+	{
+		// Exactly one of {chat, DM panel, channels panel} is visible: opening
+		// the channels panel closes the DM panel (whose handler then drops
+		// CombinedView, which needs the DM panel). The DM panel opening closes
+		// this one back (see OnShowDmPanelChanged).
+		if (value && ShowDmPanel)
+		{
+			ShowDmPanel = false;
+		}
+		if (value)
+		{
+			_ = LoadConnectedChannelsAsync();
+		}
+	}
+
+	private async Task RefreshChannelsAsync()
+	{
+		await LoadConnectedChannelsAsync();
+	}
+
+	/// <summary>
+	/// Rebuilds the Connected Channels rows from the primary bot's guild
+	/// snapshot overlayed with the stored registry rows (the same bot the mod
+	/// command gate keys on — see TryHandleDiscordModCommandAsync). Stored
+	/// channels missing from the snapshot stay listed as stale rows so the
+	/// user can still untick them.
+	/// </summary>
+	private async Task LoadConnectedChannelsAsync()
+	{
+		if (ChannelsLoading)
+		{
+			return;
+		}
+		ChannelsLoading = true;
+		try
+		{
+			IDiscordService? originBot = ResolveDiscordSendTarget(null);
+			string botId = originBot?.BotId ?? "";
+
+			Dictionary<string, ConnectedChannel> storedByChannelId = new Dictionary<string, ConnectedChannel>(StringComparer.Ordinal);
+			if (_connectedChannels != null)
+			{
+				foreach (ConnectedChannel stored in await _connectedChannels.GetChannelsAsync(botId))
+				{
+					storedByChannelId[stored.ChannelId] = stored;
+				}
+			}
+
+			IDiscordService snapshotSource = originBot ?? _discordService;
+			List<ConnectedChannelItem> rows = new List<ConnectedChannelItem>();
+			HashSet<string> seenChannelIds = new HashSet<string>(StringComparer.Ordinal);
+			foreach (DiscordGuildInfo guild in snapshotSource.ConnectedGuilds)
+			{
+				foreach (DiscordChannelInfo channel in guild.TextChannels)
+				{
+					// The same channel id can appear under several guilds on
+					// some backends — keep the first (snapshot order) row.
+					if (!seenChannelIds.Add(channel.Id))
+					{
+						continue;
+					}
+					storedByChannelId.TryGetValue(channel.Id, out ConnectedChannel? stored);
+					rows.Add(new ConnectedChannelItem
+					{
+						BotId = botId,
+						ChannelId = channel.Id,
+						ChannelName = channel.Name,
+						GuildId = guild.Id,
+						GuildName = guild.Name,
+						ExistsInGuild = true,
+						MonitoringEnabled = stored?.MonitoringEnabled ?? false,
+						IsModeration = stored != null && ChannelPurposes.HasPurpose(stored.Purposes, ChannelPurposes.Moderation),
+						IsAdmin = stored != null && ChannelPurposes.HasPurpose(stored.Purposes, ChannelPurposes.Admin),
+						IsSupport = stored != null && ChannelPurposes.HasPurpose(stored.Purposes, ChannelPurposes.Support),
+						IsLogging = stored != null && ChannelPurposes.HasPurpose(stored.Purposes, ChannelPurposes.Logging)
+					});
+				}
+			}
+
+			foreach (ConnectedChannel stored in storedByChannelId.Values)
+			{
+				if (seenChannelIds.Contains(stored.ChannelId))
+				{
+					continue;
+				}
+				rows.Add(new ConnectedChannelItem
+				{
+					BotId = botId,
+					ChannelId = stored.ChannelId,
+					ChannelName = stored.ChannelName,
+					GuildId = stored.GuildId,
+					GuildName = stored.GuildName,
+					ExistsInGuild = false,
+					MonitoringEnabled = stored.MonitoringEnabled,
+					IsModeration = ChannelPurposes.HasPurpose(stored.Purposes, ChannelPurposes.Moderation),
+					IsAdmin = ChannelPurposes.HasPurpose(stored.Purposes, ChannelPurposes.Admin),
+					IsSupport = ChannelPurposes.HasPurpose(stored.Purposes, ChannelPurposes.Support),
+					IsLogging = ChannelPurposes.HasPurpose(stored.Purposes, ChannelPurposes.Logging)
+				});
+			}
+
+			rows.Sort((a, b) =>
+			{
+				int byMonitoring = b.MonitoringEnabled.CompareTo(a.MonitoringEnabled);
+				return byMonitoring != 0 ? byMonitoring : string.Compare(a.ChannelName, b.ChannelName, StringComparison.OrdinalIgnoreCase);
+			});
+
+			await ((DispatcherObject)Application.Current).Dispatcher.InvokeAsync((Action)delegate
+			{
+				ConnectedChannels.Clear();
+				foreach (ConnectedChannelItem row in rows)
+				{
+					ConnectedChannels.Add(row);
+				}
+			});
+		}
+		catch (Exception exception)
+		{
+			_logger.LogError(exception, "Failed to load connected channels");
+		}
+		finally
+		{
+			ChannelsLoading = false;
+		}
+	}
+
+	// The CheckBox flips its bound flag through the TwoWay binding BEFORE the
+	// command runs, so these handlers only refresh the summary and persist the
+	// new state — never flip the bool again here or the UI desyncs (same
+	// trust-the-binding approach as DiscordBotDetailViewModel's toggles).
+	private Task ToggleChannelMonitoringAsync(ConnectedChannelItem? item) => PersistChannelChangeAsync(item);
+
+	private Task ToggleModerationPurposeAsync(ConnectedChannelItem? item) => PersistChannelChangeAsync(item);
+
+	private Task ToggleAdminPurposeAsync(ConnectedChannelItem? item) => PersistChannelChangeAsync(item);
+
+	private Task ToggleSupportPurposeAsync(ConnectedChannelItem? item) => PersistChannelChangeAsync(item);
+
+	private Task ToggleLoggingPurposeAsync(ConnectedChannelItem? item) => PersistChannelChangeAsync(item);
+
+	private async Task PersistChannelChangeAsync(ConnectedChannelItem? item)
+	{
+		if (item == null)
+		{
+			return;
+		}
+		item.RefreshPurposeSummary();
+		await PersistChannelAsync(item);
+	}
+
+	/// <summary>
+	/// Upserts the row while anything is configured; a row left with no state
+	/// is deleted so the registry returns to "zero rows → legacy mode"
+	/// (commands then work in every channel again).
+	/// </summary>
+	private async Task PersistChannelAsync(ConnectedChannelItem item)
+	{
+		if (_connectedChannels == null)
+		{
+			return;
+		}
+		try
+		{
+			if (item.MonitoringEnabled || item.PurposeCsv.Length > 0)
+			{
+				await _connectedChannels.UpsertAsync(new ConnectedChannel
+				{
+					BotId = item.BotId,
+					ChannelId = item.ChannelId,
+					ChannelName = item.ChannelName,
+					GuildId = item.GuildId,
+					GuildName = item.GuildName,
+					Purposes = item.PurposeCsv,
+					MonitoringEnabled = item.MonitoringEnabled
+				});
+			}
+			else
+			{
+				await _connectedChannels.DeleteAsync(item.BotId, item.ChannelId);
+			}
+		}
+		catch (Exception exception)
+		{
+			_logger.LogError(exception, "Failed to persist connected channel {ChannelId}", item.ChannelId);
+		}
+	}
+
+	private async Task SetAsMainChannelAsync(ConnectedChannelItem? item)
+	{
+		if (item == null)
+		{
+			return;
+		}
+		IDiscordService? bot = ResolveDiscordSendTarget(null);
+		if (bot == null)
+		{
+			await AddSystemMessageAsync("Discord", "No Discord bot is connected.");
+			return;
+		}
+		try
+		{
+			await bot.SetSelectedChannelAsync(item.ChannelId);
+			_logger.LogInformation("Discord active channel set to {ChannelId} from the connected-channels panel", item.ChannelId);
+		}
+		catch (Exception exception)
+		{
+			_logger.LogError(exception, "Failed to set the Discord active channel to {ChannelId}", item.ChannelId);
+			await AddSystemMessageAsync("Discord", $"Couldn't set #{item.ChannelName} as the active channel: {exception.Message}");
+		}
+	}
+
+	/// <summary>
+	/// Closes the panel and points the bot's active channel at the row so the
+	/// Discord feed streams it; the chat has no per-channel Discord filter to
+	/// select, so a system note makes the switch visible instead.
+	/// </summary>
+	private async Task OpenChannelInChatAsync(ConnectedChannelItem? item)
+	{
+		if (item == null)
+		{
+			return;
+		}
+		ShowChannelsPanel = false;
+		IDiscordService? bot = ResolveDiscordSendTarget(null);
+		if (bot == null)
+		{
+			await AddSystemMessageAsync("Discord", "No Discord bot is connected.");
+			return;
+		}
+		try
+		{
+			await bot.SetSelectedChannelAsync(item.ChannelId);
+			await AddSystemMessageAsync("Discord", $"Now viewing #{item.ChannelName} in {item.GuildName}.");
+		}
+		catch (Exception exception)
+		{
+			_logger.LogError(exception, "Failed to open Discord channel {ChannelId} in chat", item.ChannelId);
+		}
 	}
 }

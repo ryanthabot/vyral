@@ -307,6 +307,20 @@
                         </StackPanel>
                     </ToggleButton>
 
+                    <!-- Connected Channels: reveals the channel registry panel
+                         (mutually exclusive with the DM panel — see ChatViewModel). -->
+                    <ToggleButton IsChecked="{Binding ShowChannelsPanel, Mode=TwoWay}"
+                                  Style="{StaticResource MaterialDesignIconButton}"
+                                  ToolTip="Connected channels the bot monitors"
+                                  Height="32"
+                                  Margin="0,0,8,0"
+                                  Padding="8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="AccessPoint" Width="16" Height="16" VerticalAlignment="Center"/>
+                            <TextBlock Text="Channels" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                        </StackPanel>
+                    </ToggleButton>
+
                     <ToggleButton Command="{Binding ToggleAutoScrollCommand}"
                           IsChecked="{Binding AutoScroll, Mode=OneWay}"
                           Style="{StaticResource MaterialDesignIconButton}"
@@ -369,6 +383,9 @@
                                 <Setter Property="Grid.ColumnSpan" Value="1"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding DmOnlyView}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShowChannelsPanel}" Value="True">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
                         </Style.Triggers>
@@ -534,6 +551,20 @@
                     Background="{DynamicResource BorderLightBrush}"
                     Visibility="{Binding CombinedView, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
+            <!-- Channels-panel gate: the DM panel below binds Visibility
+                 directly to ShowDmPanel (a local value a style trigger cannot
+                 override), so this plain wrapper collapses the whole DM feed
+                 while the Connected Channels panel is open. -->
+            <Grid>
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowChannelsPanel}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
             <!-- DM inbox: full area on its own (ShowDmPanel only), right half in
                  combined mode. Shows the conversation list (inbox) or, when a
                  conversation is open, its thread + reply bar. The thread
@@ -1006,6 +1037,132 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
 
+                    </Grid>
+                </materialDesign:Card>
+            </Grid>
+            </Grid>
+
+            <!-- Connected Channels panel: the registry of Discord channels the
+                 bot monitors (third header state — exactly one of chat, DMs,
+                 channels is visible). Rows come from the guild snapshot
+                 overlayed with the stored registry (ConnectedChannelItem);
+                 checkboxes persist through ChatViewModel toggle commands. -->
+            <Grid Grid.ColumnSpan="3"
+                  Visibility="{Binding ShowChannelsPanel, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <DockPanel Grid.Row="0" Margin="12,10,12,4">
+                            <Button DockPanel.Dock="Right"
+                                    Command="{Binding RefreshChannelsCommand}"
+                                    Style="{StaticResource MaterialDesignIconButton}"
+                                    Width="32" Height="32"
+                                    ToolTip="Refresh from Discord">
+                                <materialDesign:PackIcon Kind="Refresh" Width="18" Height="18"/>
+                            </Button>
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="AccessPoint" Width="20" Height="20" VerticalAlignment="Center"/>
+                                <TextBlock Text="Connected Channels" FontSize="16" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="{Binding ConnectedChannels.Count, StringFormat='{}{0} channels'}" Margin="12,0,0,0"
+                                           VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </DockPanel>
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="12,0,12,4">
+                            <TextBlock Margin="0,0,12,0" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Text="Channels the bot monitors. Tag a channel as Mod or Admin to allow tier-gated bot commands there. Support and Log mark its purpose. When nothing is configured, commands work in every channel (legacy mode)."/>
+                            <TextBlock VerticalAlignment="Center" FontSize="12" FontStyle="Italic"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Text="Loading…"
+                                       Visibility="{Binding ChannelsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        </StackPanel>
+                        <ListBox Grid.Row="2" Margin="12,0,12,12" ItemsSource="{Binding ConnectedChannels}"
+                                 HorizontalContentAlignment="Stretch" Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="8,6" CornerRadius="6">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <materialDesign:PackIcon Grid.Column="0" Kind="Pound" Width="18" Height="18" VerticalAlignment="Center"
+                                                                     Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <StackPanel Grid.Column="1" Margin="8,0" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding ChannelName}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                    <!-- Stale row: stored but missing from the current guild snapshot -->
+                                                    <TextBlock Text=" (no longer in guild)" FontSize="11" FontStyle="Italic" Margin="6,0,0,0" VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                                               Visibility="{Binding ExistsInGuild, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
+                                                </StackPanel>
+                                                <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}">
+                                                    <Run Text="{Binding GuildName, Mode=OneWay}"/><Run Text=" • "/><Run Text="{Binding PurposeSummary, Mode=OneWay}"/>
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                                                <CheckBox Content="Monitor" Margin="6,0" VerticalAlignment="Center"
+                                                          IsChecked="{Binding MonitoringEnabled, Mode=TwoWay}"
+                                                          Command="{Binding DataContext.ToggleChannelMonitoringCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CommandParameter="{Binding}"/>
+                                                <CheckBox Content="Mod" Margin="6,0" VerticalAlignment="Center"
+                                                          IsChecked="{Binding IsModeration, Mode=TwoWay}"
+                                                          Command="{Binding DataContext.ToggleModerationPurposeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CommandParameter="{Binding}"/>
+                                                <CheckBox Content="Admin" Margin="6,0" VerticalAlignment="Center"
+                                                          IsChecked="{Binding IsAdmin, Mode=TwoWay}"
+                                                          Command="{Binding DataContext.ToggleAdminPurposeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CommandParameter="{Binding}"/>
+                                                <CheckBox Content="Support" Margin="6,0" VerticalAlignment="Center"
+                                                          IsChecked="{Binding IsSupport, Mode=TwoWay}"
+                                                          Command="{Binding DataContext.ToggleSupportPurposeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CommandParameter="{Binding}"/>
+                                                <CheckBox Content="Log" Margin="6,0" VerticalAlignment="Center"
+                                                          IsChecked="{Binding IsLogging, Mode=TwoWay}"
+                                                          Command="{Binding DataContext.ToggleLoggingPurposeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                          CommandParameter="{Binding}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Style="{StaticResource MaterialDesignIconButton}" Margin="0,0,4,0"
+                                                        Width="32" Height="32"
+                                                        ToolTip="Use as the bot's main channel"
+                                                        Command="{Binding DataContext.SetAsMainChannelCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}">
+                                                    <materialDesign:PackIcon Kind="StarOutline" Width="18" Height="18"/>
+                                                </Button>
+                                                <Button Style="{StaticResource MaterialDesignIconButton}"
+                                                        Width="32" Height="32"
+                                                        ToolTip="Open this channel in chat"
+                                                        Command="{Binding DataContext.OpenChannelInChatCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}">
+                                                    <materialDesign:PackIcon Kind="ArrowRight" Width="18" Height="18"/>
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                     </Grid>
                 </materialDesign:Card>
             </Grid>
