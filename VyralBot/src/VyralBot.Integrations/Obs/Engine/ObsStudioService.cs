@@ -48,7 +48,12 @@ public sealed class ObsStudioService
         return result;
     }
 
-    /// <summary>All scenes, in libobs enumeration order (creation order for a fresh load).</summary>
+    /// <summary>
+    /// All scenes, in the loaded collection's <c>scene_order</c> (what OBS
+    /// Studio shows) — <c>obs_enum_scenes</c> itself walks creation order.
+    /// Scenes absent from the last load's order keep enumeration order at the
+    /// end; with no load yet the enumeration order stands.
+    /// </summary>
     public Task<IReadOnlyList<ObsSceneInfo>> GetScenesAsync() => engine.RunNativeAsync(() =>
     {
         List<ObsSceneInfo> scenes = [];
@@ -57,8 +62,41 @@ public sealed class ObsStudioService
             scenes.Add(new ObsSceneInfo(ObsNative.SourceGetName(source)));
             return true;
         }, IntPtr.Zero);
-        return (IReadOnlyList<ObsSceneInfo>)scenes;
+        return (IReadOnlyList<ObsSceneInfo>)OrderScenes(scenes, loader.LastSceneOrder);
     });
+
+    /// <summary>
+    /// Pure: stable-sorts enumerated scenes by their position in the
+    /// collection's scene_order (case-sensitive — OBS names are). Unmatched
+    /// scenes rank after all matched ones, preserving enumeration order;
+    /// duplicate scene_order entries rank at their first occurrence.
+    /// </summary>
+    internal static List<ObsSceneInfo> OrderScenes(List<ObsSceneInfo> enumerated, IReadOnlyList<string> sceneOrder)
+    {
+        if (sceneOrder.Count == 0)
+        {
+            return enumerated;
+        }
+
+        var rank = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (int i = 0; i < sceneOrder.Count; i++)
+        {
+            if (!rank.ContainsKey(sceneOrder[i]))
+            {
+                rank.Add(sceneOrder[i], i);
+            }
+        }
+
+        // OrderBy is stable, so equal keys (unmatched scenes) keep their
+        // enumeration order.
+        return enumerated
+            .Select((scene, index) => (
+                Scene: scene,
+                Key: rank.TryGetValue(scene.Name, out int position) ? position : sceneOrder.Count + index))
+            .OrderBy(entry => entry.Key)
+            .Select(entry => entry.Scene)
+            .ToList();
+    }
 
     /// <summary>Puts the named scene on the program output (channel 0). Throws when it does not exist.</summary>
     public Task SetCurrentSceneAsync(string sceneName) => engine.RunNativeAsync(() =>

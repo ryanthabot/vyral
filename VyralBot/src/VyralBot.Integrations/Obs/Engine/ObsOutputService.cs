@@ -181,7 +181,20 @@ public sealed class ObsOutputService
 
         try
         {
-            return await engine.RunNativeAsync(() => StartCore(kind)).ConfigureAwait(false);
+            ObsOutputActionResult result = await engine.RunNativeAsync(() => StartCore(kind)).ConfigureAwait(false);
+            // The one log line EVERY start path funnels through — the UI only
+            // shows the message, so without this a failed start (encoder,
+            // capture, output_start…) leaves the log silent at the stall point.
+            if (result.Success)
+            {
+                logger.LogInformation("OBS output: {Kind} start outcome: {Message}", kind, result.Message);
+            }
+            else
+            {
+                logger.LogWarning("OBS output: {Kind} start failed: {Message}", kind, result.Message);
+            }
+
+            return result;
         }
         catch (Exception ex)
         {
@@ -272,6 +285,7 @@ public sealed class ObsOutputService
         ObsNative.ObsOutputSetService(output, service);
         ObsNative.ObsOutputSetVideoEncoder(output, videoEncoder);
         ObsNative.ObsOutputSetAudioEncoder(output, audioEncoder, (UIntPtr)0);
+        logger.LogInformation("OBS output: service and audio/video encoders attached to the {OutputId} output", StreamOutputId);
 
         var refs = new NativeRefs(output, videoEncoder, audioEncoder, service);
         ObsOutputActionResult start = BeginDataCapture(output, refs, ObsOutputKind.Stream);
@@ -328,6 +342,7 @@ public sealed class ObsOutputService
 
         ObsNative.ObsOutputSetVideoEncoder(output, videoEncoder);
         ObsNative.ObsOutputSetAudioEncoder(output, audioEncoder, (UIntPtr)0);
+        logger.LogInformation("OBS output: audio/video encoders attached to the {OutputId} output", RecordOutputId);
 
         var refs = new NativeRefs(output, videoEncoder, audioEncoder, IntPtr.Zero);
         ObsOutputActionResult start = BeginDataCapture(output, refs, ObsOutputKind.Record);
@@ -379,6 +394,7 @@ public sealed class ObsOutputService
 
         ObsNative.ObsOutputSetVideoEncoder(output, videoEncoder);
         ObsNative.ObsOutputSetAudioEncoder(output, audioEncoder, (UIntPtr)0);
+        logger.LogInformation("OBS output: audio/video encoders attached to the {OutputId} output", ReplayOutputId);
 
         var refs = new NativeRefs(output, videoEncoder, audioEncoder, IntPtr.Zero);
         ObsOutputActionResult start = BeginDataCapture(output, refs, ObsOutputKind.ReplayBuffer);
@@ -391,32 +407,45 @@ public sealed class ObsOutputService
         return start;
     }
 
-    /// <summary>Gate held. The can-capture → initialize-encoders → start sequence shared by every output.</summary>
+    /// <summary>Gate held. The can-capture → initialize-encoders → start sequence shared by every output. Each step logs its result — the stall point of a dead start must be findable in the log alone.</summary>
     private ObsOutputActionResult BeginDataCapture(IntPtr output, NativeRefs refs, ObsOutputKind kind)
     {
         if (!ObsNative.ObsOutputCanBeginDataCapture(output, ObsNativeConstants.OutputFlagsAv))
         {
+            logger.LogWarning("OBS output: {Kind} can_begin_data_capture = false (flags AV) — aborting the start", kind);
             ReleaseRefs(refs);
             return Fail($"{Label(kind)} cannot start: data capture cannot begin (no matching audio/video capture).");
         }
 
+        logger.LogInformation("OBS output: {Kind} can_begin_data_capture = true", kind);
+
         if (!ObsNative.ObsOutputInitializeEncoders(output, ObsNativeConstants.OutputFlagsAv))
         {
+            logger.LogWarning("OBS output: {Kind} initialize_encoders = false — aborting the start", kind);
             ReleaseRefs(refs);
             return Fail($"{Label(kind)} cannot start: the encoders could not be initialized.");
         }
 
+        logger.LogInformation("OBS output: {Kind} initialize_encoders = true", kind);
+
         if (!ObsNative.ObsOutputStart(output))
         {
+            logger.LogWarning("OBS output: {Kind} output_start = false — aborting the start", kind);
             ReleaseRefs(refs);
             return Fail($"{Label(kind)} could not be started.");
         }
 
+        logger.LogInformation("OBS output: {Kind} output_start = true", kind);
         logger.LogInformation("OBS output: {Kind} started", kind);
         return Pass($"{Label(kind)} started.");
     }
 
-    /// <summary>Gate held. Creates the video encoder from the first candidate id libobs accepts; logs which one won.</summary>
+    /// <summary>
+    /// Gate held. Creates the video encoder from the first candidate id
+    /// libobs accepts. The winning id is logged only when
+    /// obs_video_encoder_create returned a non-null encoder — the logged id
+    /// is always the one libobs actually accepted, never a requested one.
+    /// </summary>
     private IntPtr CreateVideoEncoder(IReadOnlyList<string> candidateIds, string settingsJson, string name)
     {
         foreach (string id in candidateIds)
@@ -426,13 +455,14 @@ public sealed class ObsOutputService
             ObsNative.ObsDataRelease(data);
             if (encoder != IntPtr.Zero)
             {
-                logger.LogInformation("OBS output: video encoder created with id {EncoderId}", id);
+                logger.LogInformation("OBS output: video encoder created with id {EncoderId} (accepted by libobs)", id);
                 return encoder;
             }
 
-            logger.LogInformation("OBS output: video encoder id {EncoderId} not available, trying the next candidate", id);
+            logger.LogInformation("OBS output: video encoder id {EncoderId} rejected by libobs, trying the next candidate", id);
         }
 
+        logger.LogWarning("OBS output: no video encoder candidate was accepted (tried {CandidateIds})", string.Join(", ", candidateIds));
         return IntPtr.Zero;
     }
 
@@ -442,6 +472,15 @@ public sealed class ObsOutputService
         IntPtr data = ObsNative.ObsDataCreateFromJson(settingsJson);
         IntPtr encoder = ObsNative.ObsAudioEncoderCreate(AudioEncoderId, name, data, (UIntPtr)0, IntPtr.Zero);
         ObsNative.ObsDataRelease(data);
+        if (encoder != IntPtr.Zero)
+        {
+            logger.LogInformation("OBS output: audio encoder created with id {EncoderId}", AudioEncoderId);
+        }
+        else
+        {
+            logger.LogWarning("OBS output: audio encoder id {EncoderId} rejected by libobs", AudioEncoderId);
+        }
+
         return encoder;
     }
 
@@ -454,6 +493,11 @@ public sealed class ObsOutputService
         if (output != IntPtr.Zero)
         {
             engine.MarkNativeStateLoaded();
+            logger.LogInformation("OBS output: output created (id {OutputId}, name {OutputName})", id, name);
+        }
+        else
+        {
+            logger.LogWarning("OBS output: output id {OutputId} rejected by libobs", id);
         }
 
         return output;

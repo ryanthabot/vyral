@@ -52,6 +52,17 @@ public sealed class ObsSceneCollectionLoader
     private List<IntPtr> keptSourceRefs = [];
     private List<IntPtr> keptFilterRefs = [];
 
+    /// <summary>
+    /// The loaded collection's <c>scene_order</c>, refreshed at the end of
+    /// every executed load. Written inside gate-held work and read the same
+    /// way (by <see cref="ObsStudioService.GetScenesAsync"/> — obs_enum_scenes
+    /// walks creation order and loses this). Refreshed even on a partial load
+    /// (missing sources): the scenes that DID get created follow this plan, so
+    /// the previous collection's order would be stale. Empty until the first
+    /// load reaches the engine.
+    /// </summary>
+    public IReadOnlyList<string> LastSceneOrder { get; private set; } = [];
+
     public ObsSceneCollectionLoader(IObsNativeGate engine)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
@@ -174,6 +185,8 @@ public sealed class ObsSceneCollectionLoader
         {
             notes.Add($"Scene '{plan.CurrentSceneName}' not found; fell back to '{currentScene}'.");
         }
+
+        LastSceneOrder = plan.SceneOrder;
 
         return new ObsLoadResult(
             Success: missing.Count == 0,
