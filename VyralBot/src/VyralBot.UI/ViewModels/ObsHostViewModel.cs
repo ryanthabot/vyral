@@ -133,8 +133,10 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
         {
             if (!await _host.EnsureRunningAsync())
             {
-                // False = no usable install — the acquisition panel takes over.
-                IsObsInstalled = false;
+                // IsObsInstalled is owned by ApplyHostStatus: NotInstalled (the
+                // locator genuinely failed) already flipped it to false; a mere
+                // launch failure (Failed) must not — the status line and
+                // Relaunch carry that instead of the acquisition panel.
                 return;
             }
 
@@ -162,8 +164,7 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
             StatusNote = null;
             if (!await _host.EnsureRunningAsync())
             {
-                IsObsInstalled = false;
-                return;
+                return; // install flag handled via ApplyHostStatus (see InitializeAsync)
             }
 
             if (!await _host.WaitForWindowAsync())
@@ -345,6 +346,14 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
     private void ApplyHostStatus(ObsHostStatus status)
     {
         _lastState = status.State;
+
+        // The acquisition panel keys off a genuine locate failure only: the
+        // host reports NotInstalled exactly when the locator finds no usable
+        // install. Every other state (ObsExited, Failed, Launching, …) proves
+        // OBS exists or ran — a late status from the singleton's exit poll
+        // must never resurrect "not installed" next to "obs64 has exited".
+        IsObsInstalled = status.State != ObsHostState.NotInstalled;
+
         HostStatusText = status.State switch
         {
             ObsHostState.NotInstalled => "OBS Studio is not installed",

@@ -98,13 +98,18 @@
         </StackPanel>
 
         <Grid>
-            <!-- Full OBS tab: the real obs64.exe window hosted in-page ( DataContext = ObsViewModel.Host ) -->
-            <views:ObsHostView DataContext="{Binding Host}"
-                               Visibility="{Binding IsFullObsTabSelected, Converter={StaticResource BoolToVis}}"/>
+            <!-- Full OBS tab: the real obs64.exe window hosted in-page.
+                 Visibility must sit on this outer Border: the view inside
+                 overrides DataContext to Host, which has no tab flags — a
+                 visibility binding there fails and the panel shows for good. -->
+            <Border Visibility="{Binding IsFullObsTabSelected, Converter={StaticResource BoolToVis}}">
+                <views:ObsHostView DataContext="{Binding Host}"/>
+            </Border>
 
-            <!-- Bot Studio tab: embedded studio ( DataContext = ObsViewModel.Studio ) -->
-            <views:ObsStudioView DataContext="{Binding Studio}"
-                                 Visibility="{Binding IsStudioTabSelected, Converter={StaticResource BoolToVis}}"/>
+            <!-- Bot Studio tab: embedded studio — same DataContext trap, same wrap. -->
+            <Border Visibility="{Binding IsStudioTabSelected, Converter={StaticResource BoolToVis}}">
+                <views:ObsStudioView DataContext="{Binding Studio}"/>
+            </Border>
 
             <!-- Collections tab: the original import / browse / export UI -->
             <DockPanel Visibility="{Binding IsCollectionsTabSelected, Converter={StaticResource BoolToVis}}">

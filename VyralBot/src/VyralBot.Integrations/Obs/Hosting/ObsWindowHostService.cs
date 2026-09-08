@@ -142,7 +142,15 @@ public sealed class ObsWindowHostService : IDisposable
 
         try
         {
-            var startInfo = new ProcessStartInfo(exePath, "--disable-updater") { UseShellExecute = true };
+            // obs64 resolves libobs/ plugin DLLs against its working directory —
+            // launched from anywhere else it exits within seconds, before any
+            // log file is written. UseShellExecute honors WorkingDirectory
+            // (ShellExecuteEx lpDirectory).
+            var startInfo = new ProcessStartInfo(exePath, "--disable-updater")
+            {
+                UseShellExecute = true,
+                WorkingDirectory = install.BinDir,
+            };
             Process? launched = Process.Start(startInfo);
             if (launched is null)
             {
