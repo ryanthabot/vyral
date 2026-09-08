@@ -338,6 +338,27 @@ public partial class App : Application
                 // Stream-effect command router ("!flashlights", "!lightson",
                 // "!lightsoff", "!streamdeck") — used by ChatViewModel.
                 services.AddSingleton<VyralBot.Core.Services.StreamEffects.StreamEffectCommandRouter>();
+                // Stream-effect execution: config KV facade, lights facade
+                // (config re-read per call so Settings changes apply live),
+                // Stream Deck service (actions persisted in the same config KV
+                // via DelegateStreamDeckStore) and the EventBus subscriber.
+                services.AddSingleton<StreamEffectsConfigService>();
+                services.AddSingleton<VyralBot.Integrations.Lights.ILightsClient>(sp =>
+                    new VyralBot.Integrations.Lights.LightsManager(async () =>
+                    {
+                        var s = await sp.GetRequiredService<StreamEffectsConfigService>().GetSnapshotAsync();
+                        return new VyralBot.Integrations.Lights.LightsConfig(
+                            s.Provider, s.BridgeIp, s.AppKey, s.LightIds, s.WebhookUrl, s.WebhookToken);
+                    }));
+                services.AddSingleton<VyralBot.Integrations.StreamDeck.IStreamDeckStore>(sp =>
+                {
+                    var cfg = sp.GetRequiredService<StreamEffectsConfigService>();
+                    return new DelegateStreamDeckStore(
+                        () => cfg.GetAsync(StreamEffectsConfigService.DeckActionsKey),
+                        json => cfg.SetAsync(StreamEffectsConfigService.DeckActionsKey, json));
+                });
+                services.AddSingleton<VyralBot.Integrations.StreamDeck.IStreamDeckService, VyralBot.Integrations.StreamDeck.StreamDeckService>();
+                services.AddSingleton<StreamEffectSubscriber>();
                 // The !mod engine: register the concrete type too so the startup
                 // wiring can set its seams on the SAME instance the interface
                 // consumers resolve.
@@ -531,6 +552,21 @@ public partial class App : Application
             catch (Exception ex)
             {
                 Log.Warning(ex, "Failed to wire the mod command engine");
+            }
+
+            // Stream effects: start the EventBus subscriber that executes
+            // StreamEffectEvents (light flashes/scenes, Stream Deck actions)
+            // on the configured providers. Best-effort — a failure here must
+            // not break startup.
+            try
+            {
+                var streamEffects = _host.Services.GetRequiredService<StreamEffectSubscriber>();
+                await streamEffects.StartAsync();
+                Log.Information("Stream effect subscriber started");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to start the stream effect subscriber");
             }
 
             // Initialize database schema
@@ -857,6 +893,22 @@ public partial class App : Application
                 catch (Exception ex)
                 {
                     Log.Error(ex, "Error stopping webhook infrastructure");
+                }
+            }
+
+            // Stop the stream-effect subscriber (unsubscribes from the shared
+            // EventBus before the host disposes it).
+            var streamEffectSubscriber = _host.Services.GetService<StreamEffectSubscriber>();
+            if (streamEffectSubscriber != null)
+            {
+                try
+                {
+                    streamEffectSubscriber.StopAsync().GetAwaiter().GetResult();
+                    Log.Information("Stream effect subscriber stopped");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Error stopping the stream effect subscriber");
                 }
             }
 
