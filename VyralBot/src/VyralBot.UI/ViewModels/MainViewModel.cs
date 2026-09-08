@@ -89,6 +89,8 @@ public partial class MainViewModel : ViewModelBase
     private AutomationViewModel? _automationViewModel;
     private IServiceScope? _moderatorScope;
     private ModeratorViewModel? _moderatorViewModel;
+    private IServiceScope? _obsScope;
+    private ObsViewModel? _obsViewModel;
 
     // One-shot guard for Discord bot auto-start: CheckPlatformConnectionsAsync
     // also runs on every PlatformConnectionChangedEvent refresh, but the bots
@@ -1880,6 +1882,32 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task NavigateToObsAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to OBS");
+
+        if (!CheckSetupInProgress(out _))
+            return;
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _obsViewModel);
+
+            _obsScope?.Dispose();
+            _obsScope = _serviceProvider.CreateScope();
+            _obsViewModel = _obsScope.ServiceProvider.GetRequiredService<ObsViewModel>();
+            await _obsViewModel.InitializeAsync();
+            CurrentViewModel = _obsViewModel;
+            Title = "Vyral - OBS";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to OBS");
+        }
+    }
+
+    [RelayCommand]
     private Task OpenDiscordLinkAsync() => OpenSupportLinkAsync("Support.DiscordUrl", "Discord");
 
     [RelayCommand]
@@ -2499,6 +2527,16 @@ public partial class MainViewModel : ViewModelBase
             _moderatorScope = null;
             _moderatorViewModel = null;
             _logger.LogInformation("♻️ Disposed ModeratorViewModel to free memory");
+            disposedCount++;
+        }
+
+        // Dispose OBS (re-initializes on each navigation)
+        if (_obsViewModel != null && _obsViewModel != excludeViewModel)
+        {
+            _obsScope?.Dispose();
+            _obsScope = null;
+            _obsViewModel = null;
+            _logger.LogInformation("♻️ Disposed ObsViewModel to free memory");
             disposedCount++;
         }
 

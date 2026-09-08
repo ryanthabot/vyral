@@ -305,6 +305,9 @@ public partial class App : Application
                 services.AddTransient<ViewerProfileViewModel>(); // admin viewer-profile window (one instance per opened window)
                 services.AddSingleton<ToolsViewModel>();
                 services.AddSingleton<IntegrationsViewModel>();
+                // OBS page: verbatim scene-collection store + its ViewModel.
+                services.AddSingleton<VyralBot.Integrations.Obs.ObsSceneCollectionStore>();
+                services.AddSingleton<ObsViewModel>();
                 services.AddSingleton<DocumentationViewModel>();
                 services.AddSingleton<AutomationViewModel>(); // Automation page (structured workflow builder)
                 // Moderation system (Moderator page + Settings → Moderator):
