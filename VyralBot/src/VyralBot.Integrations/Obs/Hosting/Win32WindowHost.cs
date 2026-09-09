@@ -30,6 +30,7 @@ internal static class Win32WindowHost
     internal const long WsChild = 0x4000_0000;
 
     internal const int GwlStyle = -16;
+    internal const uint WsOverlappedWindow = 0x00CF0000; // CAPTION|SYSMENU|THICKFRAME|MINIMIZEBOX|MAXIMIZEBOX
 
     // GWL_HWNDPARENT sets the window's OWNER (not its parent): the target
     // stays a top-level window with an untouched paint/DWM pipeline, it only

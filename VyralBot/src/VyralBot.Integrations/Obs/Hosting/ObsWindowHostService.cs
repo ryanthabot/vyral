@@ -294,6 +294,12 @@ public sealed class ObsWindowHostService : IDisposable
         string failDetail;
         lock (stateLock)
         {
+            if (IsDetachedByUser)
+            {
+                throw new InvalidOperationException(
+                    "OBS is detached — press \"Put back into Vyral\" to embed it again.");
+            }
+
             if (obsHwnd == IntPtr.Zero)
             {
                 throw new InvalidOperationException(
@@ -431,6 +437,7 @@ public sealed class ObsWindowHostService : IDisposable
                 state = ObsHostState.Embedded;
                 detail = null;
                 needsAdminRestart = false;
+                IsDetachedByUser = false;
             }
 
             snapshot = SnapshotLocked();
@@ -625,6 +632,9 @@ public sealed class ObsWindowHostService : IDisposable
         StatusChanged?.Invoke(snapshot);
     }
 
+    /// <summary>True after the user detached OBS via "Open in own window" — automatic embeds are suspended until cleared.</summary>
+    public bool IsDetachedByUser { get; set; }
+
     public void UnembedToDesktop()
     {
         IntPtr hwnd;
@@ -653,10 +663,17 @@ public sealed class ObsWindowHostService : IDisposable
             _ = Win32WindowHost.SetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlHwndParent, IntPtr.Zero);
             ownerHwnd = IntPtr.Zero;
 
-            if (originalStyle is { } savedStyle)
-            {
-                _ = Win32WindowHost.SetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlStyle, savedStyle);
-            }
+            // Guaranteed movable/resizable chrome: the saved "original" style
+            // can itself be chrome-stripped (it is re-captured after OBS
+            // recreates its window mid-embed), which would leave a title-bar-
+            // less window nobody can drag.
+            _ = Win32WindowHost.SetWindowLongPtrW(
+                obsHwnd, Win32WindowHost.GwlStyle,
+                (nint)(Win32WindowHost.WsOverlappedWindow | Win32WindowHost.WsVisible));
+            _ = Win32WindowHost.SetWindowPos(
+                obsHwnd, IntPtr.Zero, 0, 0, 0, 0,
+                Win32WindowHost.SwpNoSize | Win32WindowHost.SwpNoMove
+                | Win32WindowHost.SwpNoActivate | Win32WindowHost.SwpFrameChanged);
 
             // A sane windowed size, centered on the desktop.
             if (Win32WindowHost.GetWindowRect(Win32WindowHost.GetDesktopWindow(), out Win32WindowHost.RECT desktop))
@@ -670,14 +687,17 @@ public sealed class ObsWindowHostService : IDisposable
 
             _ = Win32WindowHost.ShowWindow(obsHwnd, Win32WindowHost.SwRestore);
 
-            state = ObsHostState.ObsExited;
-            detail = "detached — OBS still running";
+            // Detached-but-recoverable: the window is a normal desktop window
+            // and automatic embeds stay suspended (IsDetachedByUser) until the
+            // user presses "Put back into Vyral".
+            IsDetachedByUser = true;
+            state = ObsHostState.ReadyToEmbed;
+            detail = "detached — running in its own window";
             snapshot = SnapshotLocked();
         }
 
         logger.LogInformation("OBS host: window detached to the desktop (OBS pid {Pid} keeps running)", processId);
         StatusChanged?.Invoke(snapshot);
-        ReleaseHostMutex();
     }
 
     /// <summary>

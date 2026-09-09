@@ -59,6 +59,10 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _needsAdminRestart;
 
+    /// <summary>True while OBS runs detached in its own window after "Open in own window".</summary>
+    [ObservableProperty]
+    private bool _isDetached;
+
     /// <summary>Raised when the Full OBS tab becomes visible again — the embed control re-embeds the parked window.</summary>
     public event Action? EmbedRequested;
 
@@ -213,13 +217,25 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
         {
             _host.UnembedToDesktop();
             IsHosted = false;
-            StatusNote = "OBS detached — running in its own window.";
+            IsDetached = true;
+            StatusNote = "OBS detached — running in its own window. Use \"Put back into Vyral\" on the Full OBS tab to re-embed.";
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Detaching the OBS window to the desktop failed");
             StatusNote = $"Detach failed: {ex.Message}";
         }
+    }
+
+    private bool CanReEmbed() => IsDetached && !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanReEmbed))]
+    private void ReEmbedIntoApp()
+    {
+        _host.IsDetachedByUser = false;
+        IsDetached = false;
+        ReEmbedIntoAppCommand.NotifyCanExecuteChanged();
+        EmbedRequested?.Invoke(); // the view re-runs the embed for the current area
     }
 
     private bool CanInstall() => !IsBusy && !IsObsInstalled;
@@ -419,9 +435,15 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
             _ => status.Detail,
         };
         IsHosted = status.State == ObsHostState.Embedded;
+        if (status.State == ObsHostState.ReadyToEmbed && IsDetached)
+        {
+            HostStatusText = "OBS detached — running in its own window";
+        }
+
         RelaunchCommand.NotifyCanExecuteChanged();
         OpenInOwnWindowCommand.NotifyCanExecuteChanged();
         RestartAsAdminCommand.NotifyCanExecuteChanged();
+        ReEmbedIntoAppCommand.NotifyCanExecuteChanged();
     }
 
     private bool CanRestartAsAdmin() => NeedsAdminRestart;
@@ -478,6 +500,11 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
     {
         try
         {
+            if (IsDetached)
+            {
+                return; // user chose own-window mode — leave their window alone
+            }
+
             if (_host.GetStatus().State is ObsHostState.Embedded or ObsHostState.ReadyToEmbed)
             {
                 _host.Park();

@@ -45,6 +45,15 @@
                             <TextBlock Text="Open in own window" Margin="6,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
+                    <Button Command="{Binding ReEmbedIntoAppCommand}"
+                            Style="{StaticResource MaterialDesignRaisedButton}" Margin="8,0,0,0"
+                            ToolTip="Put the OBS window back inside the Full OBS tab"
+                            Visibility="{Binding IsDetached, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="ArrowLeft" Width="16" Height="16" VerticalAlignment="Center"/>
+                            <TextBlock Text="Put back into Vyral" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
                     <Button Command="{Binding RestartAsAdminCommand}"
                             Style="{StaticResource MaterialDesignRaisedButton}" Margin="8,0,0,0"
                             ToolTip="OBS is running as administrator — Vyral must run elevated too to host it inside this tab."

@@ -192,6 +192,14 @@ public sealed class ObsWindowEmbedHost : HwndHost
             return;
         }
 
+        if (current.IsDetachedByUser)
+        {
+            // The user detached OBS to its own window — automatic embeds stay
+            // off until they press "Put back into Vyral".
+            SetIsActive(false);
+            return;
+        }
+
         if (Interlocked.CompareExchange(ref embedding, 1, 0) != 0)
         {
             return;
