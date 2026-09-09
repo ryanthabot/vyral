@@ -7,21 +7,29 @@ using VyralBot.Integrations.Obs.Hosting;
 namespace VyralBot.UI.Controls;
 
 /// <summary>
-/// Hosts the real obs64.exe window inside WPF: <see cref="HwndHost"/> builds a
-/// STATIC child HWND and the <see cref="ObsWindowHostService"/> reparents the
-/// OBS main window into it. Detach and HWND teardown PARK the OBS window —
-/// unparented back to the desktop, minimized (taskbar button kept) — so the
-/// process and window survive navigation, and even a Vyral crash leaves a
-/// recoverable OBS; a later Attach on a fresh child HWND restores it.
-/// <see cref="StatusChanged"/> arrives on threadpool threads: service calls
-/// are lock-protected user32 only and run inline, but the
-/// <see cref="IsActive"/> dependency property is written through a dispatcher
-/// guard.
+/// Hosts the real obs64.exe window inside WPF: the
+/// <see cref="ObsWindowHostService"/> makes Vyral's TOP-LEVEL window the OBS
+/// window's OWNER (never SetParent — cross-process reparenting breaks the
+/// foreign window's DWM paint pipeline) and this control keeps the owned
+/// top-level window positioned exactly over its own area. The HwndHost's
+/// STATIC child HWND stays (the base class requires one) but is only a
+/// placeholder — position sync reads this control's screen rect directly.
+/// Position sync runs on <see cref="LayoutUpdated">LayoutUpdated</see> (every
+/// layout pass) and the host Window's LocationChanged (a window DRAG changes
+/// screen coordinates without changing WPF layout at all); each sync is
+/// change-throttled. Detach and HWND teardown PARK the OBS window — minimized
+/// with ownership cleared (taskbar button kept) — so the process and window
+/// survive navigation, and even a Vyral crash leaves a recoverable OBS; a
+/// later Attach restores it. <see cref="StatusChanged"/> arrives on
+/// threadpool threads: embed attempts marshal to the dispatcher (PointToScreen
+/// is UI-thread-only), and the <see cref="IsActive"/> dependency property is
+/// written through a dispatcher guard.
 /// </summary>
 public sealed class ObsWindowEmbedHost : HwndHost
 {
     private const uint WsChild = 0x4000_0000;
     private const uint WsVisible = 0x1000_0000;
+    private const uint GaRoot = 2;
 
     private ObsWindowHostService? service;
     private IntPtr childHwnd;
@@ -29,7 +37,20 @@ public sealed class ObsWindowEmbedHost : HwndHost
     private bool statusSubscribed;
     private int embedding; // 1 while an embed attempt is in flight (attach, Loaded and StatusChanged can race)
 
-    /// <summary>True while the OBS window lives inside this host's child HWND; bindable for a "hosted" badge.</summary>
+    // The window hooked for LocationChanged (null until first hooked); the
+    // owner HWND itself is re-resolved per embed attempt (cheap, and immune
+    // to window recreation).
+    private Window? hookedWindow;
+    private bool layoutSubscribed;
+
+    // Last rect pushed to the service (screen px) — LayoutUpdated is chatty,
+    // so sync only when something actually changed.
+    private int lastSyncX = -1;
+    private int lastSyncY = -1;
+    private int lastSyncWidth = -1;
+    private int lastSyncHeight = -1;
+
+    /// <summary>True while the OBS window lives (owned and positioned) over this host; bindable for a "hosted" badge.</summary>
     public static readonly DependencyProperty IsActiveProperty =
         DependencyProperty.Register(
             nameof(IsActive), typeof(bool), typeof(ObsWindowEmbedHost),
@@ -64,15 +85,16 @@ public sealed class ObsWindowEmbedHost : HwndHost
     }
 
     /// <summary>
-    /// Parks the OBS window (unparented to the desktop, minimized — the
-    /// process and window stay alive and reachable via the taskbar) and drops
-    /// the badge. The next Attach restores it.
+    /// Parks the OBS window (minimized, ownership cleared — the process and
+    /// window stay alive and reachable via the taskbar) and drops the badge.
+    /// The next Attach restores it.
     /// </summary>
     public void Detach()
     {
         ObsWindowHostService? current = service;
         service = null;
         UnsubscribeStatus(current);
+        UnhookSync();
         SetIsActive(false);
         ParkIfEmbedded(current);
     }
@@ -96,9 +118,10 @@ public sealed class ObsWindowEmbedHost : HwndHost
     protected override void DestroyWindowCore(HandleRef hwnd)
     {
         disposed = true;
-        // Park BEFORE destroying the child — unparents OBS to the desktop
-        // (minimized) first, so it survives teardown reachable from the
-        // taskbar instead of dangling while its parent HWND dies.
+        // Park BEFORE destroying the child — the OBS window must not dangle
+        // while this host tears down; parking minimizes it (owner cleared) so
+        // it survives teardown reachable from the taskbar.
+        UnhookSync();
         ParkIfEmbedded(service);
         if (childHwnd != IntPtr.Zero)
         {
@@ -110,38 +133,40 @@ public sealed class ObsWindowEmbedHost : HwndHost
     protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
     {
         base.OnRenderSizeChanged(sizeInfo);
-        try
+        // Size changes while active are covered by LayoutUpdated (a size change
+        // is a layout pass); this is only the embed retry path — every size
+        // change is a retry chance (the embed may have been requested before
+        // the host was sized or OBS ready).
+        if (service is null || IsActive)
         {
-            ObsWindowHostService? current = service;
-            if (current is null)
-            {
-                return;
-            }
+            return;
+        }
 
-            if (IsActive)
-            {
-                // Keep the embedded OBS window in step with WPF layout.
-                current.ResizeTo((int)ActualWidth, (int)ActualHeight);
-            }
-            else
-            {
-                // Every size change is also a retry chance (the embed may have
-                // been requested before the host was sized or OBS ready).
-                EmbedBestEffort();
-            }
-        }
-        catch (Exception)
-        {
-            // A wedged host state must never fault the UI thread.
-        }
+        EmbedBestEffort();
+    }
+
+    /// <summary>Converts WPF DIPs to this control's physical pixel size.</summary>
+    private (int Width, int Height) ToPhysical(double widthDips, double heightDips)
+    {
+        var source = PresentationSource.FromVisual(this);
+        var matrix = source?.CompositionTarget?.TransformToDevice ?? System.Windows.Media.Matrix.Identity;
+        return ((int)Math.Ceiling(widthDips * matrix.M11), (int)Math.Ceiling(heightDips * matrix.M22));
     }
 
     // ---------------------------------------------------------------------
-    // Internals
+    // Embed
     // ---------------------------------------------------------------------
 
     private void EmbedBestEffort()
     {
+        // PointToScreen and ToPhysical are UI-thread-only, but StatusChanged
+        // fires on threadpool threads — marshal the whole attempt.
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(EmbedBestEffort);
+            return;
+        }
+
         try
         {
             TryEmbed();
@@ -168,24 +193,32 @@ public sealed class ObsWindowEmbedHost : HwndHost
 
         try
         {
+            IntPtr owner = ResolveOwnerHwnd();
+            if (owner == IntPtr.Zero)
+            {
+                return;
+            }
+
+            var (x, y, width, height) = GetEmbedRect();
+            if (width <= 0 || height <= 0)
+            {
+                return;
+            }
+
             ObsHostStatus status = current.GetStatus();
             switch (status.State)
             {
                 case ObsHostState.ReadyToEmbed:
                 case ObsHostState.Embedded:
-                    current.EmbedInto(childHwnd);
-                    current.ResizeTo((int)ActualWidth, (int)ActualHeight);
-                    SetIsActive(true);
-                    UnsubscribeStatus(current);
+                    current.EmbedInto(owner, x, y, width, height);
+                    OnEmbedSucceeded(current, x, y, width, height);
                     break;
 
                 case ObsHostState.Parked:
-                    // RestoreInto = undo the minimize, then EmbedInto
-                    // (reparent, re-strip the chrome, fill the host).
-                    current.RestoreInto(childHwnd);
-                    current.ResizeTo((int)ActualWidth, (int)ActualHeight);
-                    SetIsActive(true);
-                    UnsubscribeStatus(current);
+                    // RestoreInto = undo the minimize, then re-own, re-strip
+                    // the chrome and position over the embed rect.
+                    current.RestoreInto(owner, x, y, width, height);
+                    OnEmbedSucceeded(current, x, y, width, height);
                     break;
 
                 default:
@@ -206,6 +239,128 @@ public sealed class ObsWindowEmbedHost : HwndHost
             Interlocked.Exchange(ref embedding, 0);
         }
     }
+
+    /// <summary>The owner for the OBS window: Vyral's TOP-LEVEL window handle.</summary>
+    private IntPtr ResolveOwnerHwnd()
+    {
+        Window? window = Window.GetWindow(this);
+        if (window is not null)
+        {
+            IntPtr handle = new WindowInteropHelper(window).Handle;
+            if (handle != IntPtr.Zero)
+            {
+                return handle;
+            }
+        }
+
+        // Before the Window's source exists — the root HWND of the child still
+        // IS Vyral's top-level window.
+        return childHwnd != IntPtr.Zero ? GetAncestor(childHwnd, GaRoot) : IntPtr.Zero;
+    }
+
+    /// <summary>The control's area in SCREEN physical pixels — where OBS must sit.</summary>
+    private (int X, int Y, int Width, int Height) GetEmbedRect()
+    {
+        var tl = PointToScreen(new Point(0, 0)); // physical px already (integral values, double-typed)
+        var px = ToPhysical(ActualWidth, ActualHeight);
+        return ((int)tl.X, (int)tl.Y, (int)px.Width, (int)px.Height);
+    }
+
+    private void OnEmbedSucceeded(ObsWindowHostService current, int x, int y, int width, int height)
+    {
+        // EmbedInto already placed the window at this rect — seed the throttle
+        // cache so the first layout pass does not redundantly MoveWindow.
+        lastSyncX = x;
+        lastSyncY = y;
+        lastSyncWidth = width;
+        lastSyncHeight = height;
+        HookSync();
+        SetIsActive(true);
+        UnsubscribeStatus(current);
+    }
+
+    // ---------------------------------------------------------------------
+    // Position sync
+    // ---------------------------------------------------------------------
+
+    private void HookSync()
+    {
+        if (!layoutSubscribed)
+        {
+            LayoutUpdated += OnLayoutUpdated;
+            layoutSubscribed = true;
+        }
+
+        Window? window = Window.GetWindow(this);
+        if (window is not null && !ReferenceEquals(window, hookedWindow))
+        {
+            if (hookedWindow is not null)
+            {
+                hookedWindow.LocationChanged -= OnWindowLocationChanged;
+            }
+
+            hookedWindow = window;
+            window.LocationChanged += OnWindowLocationChanged;
+        }
+    }
+
+    private void UnhookSync()
+    {
+        if (layoutSubscribed)
+        {
+            LayoutUpdated -= OnLayoutUpdated;
+            layoutSubscribed = false;
+        }
+
+        if (hookedWindow is not null)
+        {
+            hookedWindow.LocationChanged -= OnWindowLocationChanged;
+            hookedWindow = null;
+        }
+    }
+
+    private void OnLayoutUpdated(object? sender, EventArgs e) => SyncObsWindow();
+
+    private void OnWindowLocationChanged(object? sender, EventArgs e) => SyncObsWindow();
+
+    /// <summary>
+    /// Keeps the owned OBS window exactly over this control's area. Runs on
+    /// every layout pass and on window moves — throttled to no-op when
+    /// position AND size are unchanged.
+    /// </summary>
+    private void SyncObsWindow()
+    {
+        ObsWindowHostService? current = service;
+        if (current is null || !IsActive || disposed || ActualWidth <= 1)
+        {
+            return;
+        }
+
+        try
+        {
+            var (x, y, width, height) = GetEmbedRect();
+            if (x == lastSyncX && y == lastSyncY && width == lastSyncWidth && height == lastSyncHeight)
+            {
+                return;
+            }
+
+            current.ResizeTo(width, height);
+            current.MoveTo(x, y);
+            lastSyncX = x;
+            lastSyncY = y;
+            lastSyncWidth = width;
+            lastSyncHeight = height;
+        }
+        catch (Exception)
+        {
+            // A wedged host state must never fault the UI thread; the next
+            // layout pass or window move retries.
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Status + teardown
+    // ---------------------------------------------------------------------
 
     private void OnStatusChanged(ObsHostStatus status) => EmbedBestEffort();
 
@@ -271,4 +426,7 @@ public sealed class ObsWindowEmbedHost : HwndHost
     [DllImport("user32.dll", EntryPoint = "DestroyWindow", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool DestroyWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
 }

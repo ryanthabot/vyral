@@ -4,7 +4,7 @@ using System.Text;
 namespace VyralBot.Integrations.Obs.Hosting;
 
 /// <summary>
-/// The user32 surface the OBS window host needs: reparenting (SetParent),
+/// The user32 surface the OBS window host needs: ownership (GWL_HWNDPARENT),
 /// style surgery (GWL_STYLE), window discovery (EnumWindows by PID with a
 /// "Qt"-prefixed class name), and liveness/show-state checks for the
 /// park/restore lifecycle. Exact Win32 names, SetLastError = true. The
@@ -16,6 +16,7 @@ internal static class Win32WindowHost
     internal const int SwShow = 5;
     internal const int SwMinimize = 6;
     internal const int SwRestore = 9;
+    internal const int SwHide = 0;
 
     // Aliases of ObsWindowStyle's public constants — single source of truth
     // for the frozen Win32 style values.
@@ -30,10 +31,34 @@ internal static class Win32WindowHost
 
     internal const int GwlStyle = -16;
 
+    // GWL_HWNDPARENT sets the window's OWNER (not its parent): the target
+    // stays a top-level window with an untouched paint/DWM pipeline, it only
+    // floats above its owner and minimizes/hides with it.
+    internal const int GwlHwndParent = -8;
+
     internal const uint SwpNoSize = 0x0001;
     internal const uint SwpNoMove = 0x0002;
     internal const uint SwpNoZOrder = 0x0004;
     internal const uint SwpNoActivate = 0x0010;
+    internal const uint SwpFrameChanged = 0x0020;
+    internal const uint SwpShowWindow = 0x0040;
+
+    // RedrawWindow flags — full invalidate + erase + children + immediate paint.
+    internal const uint RdwInvalid = 0x0000;
+    internal const uint RdwErase = 0x0004;
+    internal const uint RdwFrame = 0x0400;
+    internal const uint RdwAllChildren = 0x0080;
+    internal const uint RdwNoInternalUpdate = 0x0010;
+    internal const uint RdwUpdateNow = 0x0100;
+    internal const uint RdwEraseNow = 0x0200;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool UpdateWindow(IntPtr hWnd);
 
     internal delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
@@ -45,12 +70,6 @@ internal static class Win32WindowHost
         internal int Right;
         internal int Bottom;
     }
-
-    [DllImport("user32.dll", SetLastError = true)]
-    internal static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    internal static extern IntPtr GetParent(IntPtr hWnd);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

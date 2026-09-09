@@ -20,13 +20,13 @@ public enum ObsHostState
     /// <summary>The process is alive but its main Qt window has not been found (yet).</summary>
     WaitingForWindow,
 
-    /// <summary>The OBS main window was found; it is still parented to the desktop, ready to embed.</summary>
+    /// <summary>The OBS main window was found; it is still an unowned desktop window, ready to embed.</summary>
     ReadyToEmbed,
 
-    /// <summary>The OBS window is parented into a caller-provided host HWND.</summary>
+    /// <summary>The OBS window is an owned top-level window floating exactly over the caller's embed area.</summary>
     Embedded,
 
-    /// <summary>The OBS window sits minimized on the desktop (unparented) — still reachable via its taskbar button even if Vyral crashes.</summary>
+    /// <summary>The OBS window sits minimized on the desktop (owner cleared) — still reachable via its taskbar button even if Vyral crashes.</summary>
     Parked,
 
     /// <summary>obs64 exited — or (Detail "detached — OBS still running") the window was unembedded while OBS keeps running and can be adopted again.</summary>
@@ -41,17 +41,18 @@ public sealed record ObsHostStatus(ObsHostState State, string? Detail, int ObsPr
 
 /// <summary>
 /// Owns the real obs64.exe process and its main window: launches (or adopts)
-/// OBS, discovers the Qt top-level window by PID, reparents it into a WPF
-/// HwndHost HWND, parks/restores it, and restores it to the desktop on exit.
-/// OBS is a separate process by design — Dispose never kills it, and a crash
-/// there can never take VyralBot down. Park UNPARENTS the window to the
-/// desktop minimized (a minimized top-level window keeps its taskbar button),
-/// so even a Vyral crash leaves a running, recoverable OBS — the previous
-/// reparent-to-hidden-parking-window scheme orphaned it. A named mutex
-/// (<c>Local\VyralBot.ObsWindowHost</c>) keeps a second Vyral instance from
-/// stealing the hosted window. Polling (window discovery, process exit) runs
-/// on the threadpool; <see cref="StatusChanged"/> subscribers must marshal to
-/// their own context.
+/// OBS, discovers the Qt top-level window by PID, makes Vyral its OWNER
+/// (GWL_HWNDPARENT — never SetParent: cross-process reparenting breaks the
+/// foreign window's DWM paint pipeline) and positions it exactly over the
+/// caller's embed area, parks/restores it, and restores it to the desktop on
+/// exit. OBS is a separate process by design — Dispose never kills it, and a
+/// crash there can never take VyralBot down. Park MINIMIZES the window and
+/// clears the ownership (a minimized top-level window keeps its taskbar
+/// button), so even a Vyral crash leaves a running, recoverable OBS. A named
+/// mutex (<c>Local\VyralBot.ObsWindowHost</c>) keeps a second Vyral instance
+/// from stealing the hosted window. Polling (window discovery, process exit,
+/// embed health) runs on the threadpool; <see cref="StatusChanged"/>
+/// subscribers must marshal to their own context.
 /// </summary>
 public sealed class ObsWindowHostService : IDisposable
 {
@@ -86,7 +87,17 @@ public sealed class ObsWindowHostService : IDisposable
     private int processId;
     private IntPtr obsHwnd;
     private nint? originalStyle;
-    private IntPtr embeddedHostHwnd;
+
+    // Vyral's TOP-LEVEL window — the OBS window's owner (GWL_HWNDPARENT), not
+    // its parent. Owner-cleared (IntPtr.Zero) while parked/unembedded.
+    private IntPtr ownerHwnd;
+
+    // Last known embed rect in SCREEN pixels — MoveTo/ResizeTo complete each
+    // other's coordinates from it, and the health check restores it verbatim.
+    private int lastEmbedX;
+    private int lastEmbedY;
+    private int lastEmbedWidth;
+    private int lastEmbedHeight;
 
     /// <summary>
     /// Set when the last embed failed because OBS runs elevated and Vyral does
@@ -257,18 +268,25 @@ public sealed class ObsWindowHostService : IDisposable
     }
 
     /// <summary>
-    /// Reparents the OBS window under <paramref name="hostHwnd"/>, strips its
-    /// top-level chrome (keeping WS_POPUP|WS_VISIBLE), sizes it to the host
-    /// rect and raises it to the top of the host's children. Throws when no
-    /// window was found yet. Call <see cref="ResizeTo"/> right after for the
-    /// final WPF layout size.
+    /// Makes the OBS window OWNED by <paramref name="ownerHwnd"/> (Vyral's
+    /// TOP-LEVEL window — an owned window keeps its normal top-level paint and
+    /// DWM behavior but floats above its owner and minimizes with it), strips
+    /// its top-level chrome (keeping WS_POPUP|WS_VISIBLE) and MoveWindows it
+    /// exactly over the given screen-pixel rect. Throws when no window was
+    /// found yet. The control re-syncs position/size on every layout pass via
+    /// <see cref="MoveTo"/>/<see cref="ResizeTo"/>.
     /// </summary>
-    public void EmbedInto(IntPtr hostHwnd)
+    public void EmbedInto(IntPtr ownerHwnd, int x, int y, int width, int height)
     {
         ThrowIfDisposed();
-        if (hostHwnd == IntPtr.Zero)
+        if (ownerHwnd == IntPtr.Zero)
         {
-            throw new ArgumentException("The host HWND must be non-zero.", nameof(hostHwnd));
+            throw new ArgumentException("The owner HWND must be non-zero.", nameof(ownerHwnd));
+        }
+
+        if (width <= 0 || height <= 0)
+        {
+            throw new ArgumentException("The embed rect must be non-empty.", nameof(width));
         }
 
         ObsHostStatus snapshot;
@@ -284,10 +302,11 @@ public sealed class ObsWindowHostService : IDisposable
 
             // OBS can destroy and recreate its Qt main window shortly after
             // startup, which invalidates the handle we captured — and UIPI
-            // (elevated OBS vs non-elevated Vyral) makes SetParent a silent
-            // no-op. Both look identical from the raw return values, so each
-            // attempt validates the handle, captures the Win32 error, and on
-            // failure re-discovers the current window before retrying.
+            // (elevated OBS vs non-elevated Vyral) makes the ownership/style
+            // changes silent no-ops. Both look identical from the raw return
+            // values, so each attempt validates the handle, captures the Win32
+            // error, and on failure re-discovers the current window before
+            // retrying.
             const int maxAttempts = 3;
             int lastError = 0;
             failed = true;
@@ -340,7 +359,11 @@ public sealed class ObsWindowHostService : IDisposable
                     originalStyle = Win32WindowHost.GetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlStyle);
                 }
 
-                _ = Win32WindowHost.SetParent(obsHwnd, hostHwnd);
+                // Ownership, not parenting: GWL_HWNDPARENT leaves the window a
+                // top-level window (its surface, DWM redirection and message
+                // flow are untouched) — only the owner link and Z-order above
+                // the owner change.
+                _ = Win32WindowHost.SetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlHwndParent, ownerHwnd);
                 lastError = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
 
                 // Strip chrome in place — everything but the five chrome bits
@@ -349,29 +372,25 @@ public sealed class ObsWindowHostService : IDisposable
                 _ = Win32WindowHost.SetWindowLongPtrW(
                     obsHwnd, Win32WindowHost.GwlStyle, ObsWindowStyle.StripTopLevelChrome(style));
 
-                // Fill the host's client area; the caller fine-tunes via ResizeTo
-                // once WPF layout has settled.
-                bool moved = true;
-                if (Win32WindowHost.GetWindowRect(hostHwnd, out Win32WindowHost.RECT hostRect))
-                {
-                    moved = Win32WindowHost.MoveWindow(
-                        obsHwnd, 0, 0, hostRect.Right - hostRect.Left, hostRect.Bottom - hostRect.Top, repaint: true);
-                }
+                // Cover the embed area exactly; the control re-syncs on every
+                // layout pass anyway.
+                bool moved = Win32WindowHost.MoveWindow(obsHwnd, x, y, width, height, repaint: true);
 
-                // HWND_TOP among the host's children — an earlier sibling would
-                // otherwise cover OBS.
+                // FRAMECHANGED is mandatory after the style change or the
+                // stale non-client metrics keep painting chrome shadows.
                 _ = Win32WindowHost.SetWindowPos(
                     obsHwnd, IntPtr.Zero, 0, 0, 0, 0,
-                    Win32WindowHost.SwpNoSize | Win32WindowHost.SwpNoMove | Win32WindowHost.SwpNoActivate);
+                    Win32WindowHost.SwpNoSize | Win32WindowHost.SwpNoMove | Win32WindowHost.SwpNoActivate
+                    | Win32WindowHost.SwpFrameChanged);
 
-                // UIPI silently no-ops all of the above when OBS runs elevated and
-                // Vyral does not, and the raw return values cannot be trusted
-                // (SetParent hands back the previous parent, SetWindowLongPtrW the
-                // previous style — both can legitimately be NULL/0) — so verify
-                // the observable effects instead.
-                bool reparented = Win32WindowHost.GetParent(obsHwnd) == hostHwnd;
+                // UIPI silently no-ops all of the above when OBS runs elevated
+                // and Vyral does not, and the raw return values cannot be
+                // trusted (SetWindowLongPtrW hands back the previous value,
+                // which can legitimately be NULL/0) — so verify the observable
+                // effects instead: ownership set, chrome gone, window placed.
+                bool owned = Win32WindowHost.GetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlHwndParent) == ownerHwnd;
                 nint styleNow = Win32WindowHost.GetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlStyle);
-                failed = !reparented
+                failed = !owned
                     || (styleNow & ObsWindowStyle.TopLevelChromeMask) != 0
                     || !moved;
 
@@ -379,18 +398,21 @@ public sealed class ObsWindowHostService : IDisposable
                 {
                     failDetail = $"Could not embed the OBS window (Win32 error {lastError}).";
                     logger.LogWarning(
-                        "OBS host: embed attempt {Attempt}/{Max} failed — win32 error {Error}, reparented={Reparented}",
-                        attempt, maxAttempts, lastError, reparented);
+                        "OBS host: embed attempt {Attempt}/{Max} failed — win32 error {Error}, owned={Owned}",
+                        attempt, maxAttempts, lastError, owned);
                 }
             }
 
             if (failed)
             {
-                embeddedHostHwnd = IntPtr.Zero;
+                // Best-effort: never leave a half-embedded OBS floating above
+                // Vyral in Failed state.
+                _ = Win32WindowHost.SetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlHwndParent, IntPtr.Zero);
+                this.ownerHwnd = IntPtr.Zero;
                 state = ObsHostState.Failed;
 
                 // Distinguish the actionable cause: an elevated OBS cannot be
-                // parented by a non-elevated Vyral.
+                // owned by a non-elevated Vyral.
                 if (Win32WindowHost.IsProcessElevated(processId) && !Win32WindowHost.IsProcessElevated(Environment.ProcessId))
                 {
                     failDetail = EmbedUipiFailureDetail;
@@ -401,7 +423,11 @@ public sealed class ObsWindowHostService : IDisposable
             }
             else
             {
-                embeddedHostHwnd = hostHwnd;
+                this.ownerHwnd = ownerHwnd;
+                lastEmbedX = x;
+                lastEmbedY = y;
+                lastEmbedWidth = width;
+                lastEmbedHeight = height;
                 state = ObsHostState.Embedded;
                 detail = null;
                 needsAdminRestart = false;
@@ -412,19 +438,37 @@ public sealed class ObsWindowHostService : IDisposable
 
         if (failed)
         {
-            logger.LogWarning("OBS host: embedding into host HWND 0x{HostHwnd:X} failed: {Detail}", hostHwnd.ToInt64(), failDetail);
+            logger.LogWarning(
+                "OBS host: embedding (owner HWND 0x{OwnerHwnd:X}) failed: {Detail}", ownerHwnd.ToInt64(), failDetail);
             StatusChanged?.Invoke(snapshot);
             throw new InvalidOperationException(failDetail);
         }
 
-        logger.LogInformation("OBS host: embedded into host HWND 0x{HostHwnd:X}", hostHwnd.ToInt64());
+        logger.LogInformation("OBS host: embedded — owned by HWND 0x{OwnerHwnd:X} at ({X},{Y}) {Width}x{Height}",
+            ownerHwnd.ToInt64(), x, y, width, height);
+
+        // Full invalidate — harmless with untouched paint pipelines and cures
+        // a stale backing store from before a window recreation.
+        _ = Win32WindowHost.RedrawWindow(
+            obsHwnd, IntPtr.Zero, IntPtr.Zero,
+            Win32WindowHost.RdwInvalid | Win32WindowHost.RdwErase | Win32WindowHost.RdwFrame
+            | Win32WindowHost.RdwAllChildren | Win32WindowHost.RdwUpdateNow);
+        _ = Win32WindowHost.UpdateWindow(obsHwnd);
+
         StatusChanged?.Invoke(snapshot);
     }
 
-    /// <summary>Resizes the embedded OBS window to fill the given size (origin 0,0). No-op when not Embedded.</summary>
+    /// <summary>
+    /// Sizes the embedded OBS window to the given size, keeping the last known
+    /// embed position (screen pixels — the window is a top-level one now, its
+    /// origin is the control's embed area, not a host child's 0,0). No-op when
+    /// not Embedded.
+    /// </summary>
     public void ResizeTo(int width, int height)
     {
         IntPtr hwnd;
+        int x;
+        int y;
         lock (stateLock)
         {
             if (state != ObsHostState.Embedded || obsHwnd == IntPtr.Zero)
@@ -433,19 +477,57 @@ public sealed class ObsWindowHostService : IDisposable
             }
 
             hwnd = obsHwnd;
+            x = lastEmbedX;
+            y = lastEmbedY;
+            lastEmbedWidth = width;
+            lastEmbedHeight = height;
         }
 
-        _ = Win32WindowHost.MoveWindow(hwnd, 0, 0, width, height, repaint: true);
+        _ = Win32WindowHost.MoveWindow(hwnd, x, y, width, height, repaint: true);
+        _ = Win32WindowHost.RedrawWindow(
+            hwnd, IntPtr.Zero, IntPtr.Zero,
+            Win32WindowHost.RdwInvalid | Win32WindowHost.RdwErase | Win32WindowHost.RdwAllChildren
+            | Win32WindowHost.RdwUpdateNow);
     }
 
     /// <summary>
-    /// Unparents the OBS window back to the desktop and minimizes it so it
-    /// survives view teardown (tab switches, navigation). A minimized
-    /// top-level window keeps its taskbar button — even if Vyral crashes
-    /// right here, OBS stays running and recoverable (the previous
-    /// reparent-to-hidden-parking scheme left it hidden and unreachable).
-    /// The window keeps its chrome-stripped style; <see cref="RestoreInto"/>
-    /// re-strips on re-embed. The process and the window stay alive.
+    /// Moves the embedded OBS window so its top-left sits at the given SCREEN
+    /// pixel position, at the last known embed size. No-op when not Embedded.
+    /// </summary>
+    public void MoveTo(int x, int y)
+    {
+        IntPtr hwnd;
+        int width;
+        int height;
+        lock (stateLock)
+        {
+            if (state != ObsHostState.Embedded || obsHwnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            hwnd = obsHwnd;
+            width = lastEmbedWidth;
+            height = lastEmbedHeight;
+            lastEmbedX = x;
+            lastEmbedY = y;
+        }
+
+        _ = Win32WindowHost.MoveWindow(hwnd, x, y, width, height, repaint: true);
+        _ = Win32WindowHost.RedrawWindow(
+            hwnd, IntPtr.Zero, IntPtr.Zero,
+            Win32WindowHost.RdwInvalid | Win32WindowHost.RdwErase | Win32WindowHost.RdwAllChildren
+            | Win32WindowHost.RdwUpdateNow);
+    }
+
+    /// <summary>
+    /// Minimizes the OBS window and clears its ownership so it does not float
+    /// above Vyral while minimized — it survives view teardown (tab switches,
+    /// navigation) on the desktop. A minimized top-level window keeps its
+    /// taskbar button — even if Vyral crashes right here, OBS stays running
+    /// and recoverable. The window keeps its chrome-stripped style;
+    /// <see cref="RestoreInto"/> re-owns on re-embed. The process and the
+    /// window stay alive.
     /// </summary>
     public void Park()
     {
@@ -461,9 +543,9 @@ public sealed class ObsWindowHostService : IDisposable
                 return;
             }
 
-            _ = Win32WindowHost.SetParent(obsHwnd, Win32WindowHost.GetDesktopWindow());
             _ = Win32WindowHost.ShowWindow(obsHwnd, Win32WindowHost.SwMinimize);
-            embeddedHostHwnd = IntPtr.Zero;
+            _ = Win32WindowHost.SetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlHwndParent, IntPtr.Zero);
+            ownerHwnd = IntPtr.Zero;
             state = ObsHostState.Parked;
             detail = null;
             snapshot = SnapshotLocked();
@@ -473,10 +555,11 @@ public sealed class ObsWindowHostService : IDisposable
     }
 
     /// <summary>
-    /// Restores a parked OBS window into the given host HWND: undo Park's
-    /// minimize, then re-embed (reparent, re-strip the chrome, size to fill).
+    /// Restores a parked OBS window back under the given owner window: undo
+    /// Park's minimize, then re-embed (re-own, re-strip the chrome, position
+    /// over the given screen-pixel rect).
     /// </summary>
-    public void RestoreInto(IntPtr hostHwnd)
+    public void RestoreInto(IntPtr ownerHwnd, int x, int y, int width, int height)
     {
         IntPtr hwnd;
         lock (stateLock)
@@ -491,10 +574,10 @@ public sealed class ObsWindowHostService : IDisposable
             return;
         }
 
-        // Undo the minimize first — a minimized child would render nothing
-        // inside the host. EmbedInto then reparents, re-strips and fills.
+        // Undo the minimize first — a minimized window would not paint at the
+        // embed rect. EmbedInto then re-owns, re-strips and positions.
         _ = Win32WindowHost.ShowWindow(hwnd, Win32WindowHost.SwRestore);
-        EmbedInto(hostHwnd);
+        EmbedInto(ownerHwnd, x, y, width, height);
     }
 
     /// <summary>
@@ -527,7 +610,9 @@ public sealed class ObsWindowHostService : IDisposable
         ObsHostStatus snapshot;
         lock (stateLock)
         {
-            _ = Win32WindowHost.SetParent(obsHwnd, Win32WindowHost.GetDesktopWindow());
+            // Drop the ownership first — OBS must not float above Vyral.
+            _ = Win32WindowHost.SetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlHwndParent, IntPtr.Zero);
+            ownerHwnd = IntPtr.Zero;
 
             if (originalStyle is { } savedStyle)
             {
@@ -544,9 +629,8 @@ public sealed class ObsWindowHostService : IDisposable
                 _ = Win32WindowHost.MoveWindow(obsHwnd, x, y, width, height, repaint: true);
             }
 
-            _ = Win32WindowHost.ShowWindow(obsHwnd, Win32WindowHost.SwShow);
+            _ = Win32WindowHost.ShowWindow(obsHwnd, Win32WindowHost.SwRestore);
 
-            embeddedHostHwnd = IntPtr.Zero;
             state = ObsHostState.ObsExited;
             detail = "detached — OBS still running";
             snapshot = SnapshotLocked();
@@ -773,43 +857,76 @@ public sealed class ObsWindowHostService : IDisposable
     }
 
     /// <summary>
-    /// 1 Hz self-heal for the embedded window: if OBS recreates its Qt main
-    /// window after we embedded (the handle dies), re-discover the current
-    /// window and re-embed it into the same host. Runs on the poll thread.
+    /// 1 Hz self-heal for the embedded window. OBS is an OWNED top-level
+    /// window now, so health = handle alive + still owned by Vyral + visible.
+    /// When OBS recreated its Qt main window (the handle died), re-discover
+    /// the current one; then re-apply the ownership, show the window and
+    /// MoveWindow it back to the last known rect (idempotent with the
+    /// control's layout-driven re-sync). Runs on the poll thread.
     /// </summary>
     private void CheckEmbedHealth()
     {
         IntPtr hwnd;
-        IntPtr host;
+        IntPtr owner;
+        int x;
+        int y;
+        int width;
+        int height;
         lock (stateLock)
         {
-            if (state != ObsHostState.Embedded || obsHwnd == IntPtr.Zero || embeddedHostHwnd == IntPtr.Zero)
+            if (state != ObsHostState.Embedded || obsHwnd == IntPtr.Zero || ownerHwnd == IntPtr.Zero)
             {
                 return;
             }
 
             hwnd = obsHwnd;
-            host = embeddedHostHwnd;
+            owner = ownerHwnd;
+            x = lastEmbedX;
+            y = lastEmbedY;
+            width = lastEmbedWidth;
+            height = lastEmbedHeight;
         }
 
-        if (Win32WindowHost.IsWindow(hwnd) && Win32WindowHost.GetParent(hwnd) == host)
+        if (!Win32WindowHost.IsWindow(hwnd))
+        {
+            IntPtr fresh = processId != 0 ? FindObsMainWindow(processId) : IntPtr.Zero;
+            if (fresh == IntPtr.Zero || !Win32WindowHost.IsWindow(fresh))
+            {
+                return; // OBS is between windows (scene collection load, etc.) — next tick retries
+            }
+
+            lock (stateLock)
+            {
+                if (obsHwnd != fresh)
+                {
+                    logger.LogInformation(
+                        "OBS host: window handle changed 0x{Old:X} → 0x{New:X} (OBS recreated its window)",
+                        obsHwnd.ToInt64(), fresh.ToInt64());
+                    obsHwnd = fresh;
+                    originalStyle = null; // the recreated window has its own original style
+                    hwnd = fresh;
+                }
+            }
+        }
+        else if (Win32WindowHost.GetWindowLongPtrW(hwnd, Win32WindowHost.GwlHwndParent) == owner
+            && Win32WindowHost.IsWindowVisible(hwnd))
         {
             return; // healthy
         }
-
-        IntPtr fresh = processId != 0 ? FindObsMainWindow(processId) : IntPtr.Zero;
-        if (fresh == IntPtr.Zero || !Win32WindowHost.IsWindow(fresh))
+        else
         {
-            return; // OBS is between windows (scene collection load, etc.) — next tick retries
+            logger.LogInformation(
+                "OBS host: embedded window 0x{Hwnd:X} lost its owner/visibility — re-applying ownership and the last rect",
+                hwnd.ToInt64());
         }
 
-        logger.LogInformation(
-            "OBS host: embedded window 0x{Old:X} no longer parented to 0x{Host:X} — re-embedding the current window 0x{New:X}",
-            hwnd.ToInt64(), host.ToInt64(), fresh.ToInt64());
+        // Show first — a window minimized from outside (taskbar) would not
+        // paint at the rect until restored.
+        _ = Win32WindowHost.ShowWindow(hwnd, Win32WindowHost.SwShow);
 
         try
         {
-            EmbedInto(host);
+            EmbedInto(owner, x, y, width, height);
         }
         catch (Exception ex)
         {
@@ -897,7 +1014,11 @@ public sealed class ObsWindowHostService : IDisposable
         // previous process must not leak into the new state.
         obsHwnd = IntPtr.Zero;
         originalStyle = null;
-        embeddedHostHwnd = IntPtr.Zero;
+        ownerHwnd = IntPtr.Zero;
+        lastEmbedX = 0;
+        lastEmbedY = 0;
+        lastEmbedWidth = 0;
+        lastEmbedHeight = 0;
     }
 
     private ObsHostStatus SnapshotLocked() => new(state, detail, processId, obsHwnd);
