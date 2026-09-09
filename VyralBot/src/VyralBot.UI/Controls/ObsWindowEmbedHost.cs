@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using VyralBot.Integrations.Obs.Hosting;
 
 namespace VyralBot.UI.Controls;
@@ -100,6 +101,7 @@ public sealed class ObsWindowEmbedHost : HwndHost
         UnhookSync();
         SetIsActive(false);
         ParkIfEmbedded(current);
+        ResetSyncCache();
     }
 
     protected override HandleRef BuildWindowCore(HandleRef hwndParent)
@@ -126,6 +128,7 @@ public sealed class ObsWindowEmbedHost : HwndHost
         // it survives teardown reachable from the taskbar.
         UnhookSync();
         ParkIfEmbedded(service);
+        ResetSyncCache();
         if (childHwnd != IntPtr.Zero)
         {
             _ = DestroyWindow(childHwnd);
@@ -222,6 +225,11 @@ public sealed class ObsWindowEmbedHost : HwndHost
                     // the chrome and position over the embed rect.
                     current.RestoreInto(owner, x, y, width, height);
                     OnEmbedSucceeded(current, x, y, width, height);
+                    // The rect measured above predates WPF's re-layout of the
+                    // re-shown tab (ActualHeight can still be the stale
+                    // pre-collapse value) — the throttle cache must not
+                    // swallow the first sync after the restore.
+                    ResetSyncCache();
                     break;
 
                 default:
@@ -266,7 +274,40 @@ public sealed class ObsWindowEmbedHost : HwndHost
     {
         var tl = PointToScreen(new Point(0, 0)); // physical px already (integral values, double-typed)
         var px = ToPhysical(ActualWidth, ActualHeight);
-        return ((int)tl.X, (int)tl.Y, (int)px.Width, (int)px.Height);
+
+        // Guard against stale/unclamped measurements (a restore that ran
+        // before WPF re-laid-out the re-shown tab): the embed area can never
+        // be larger than the owner window's client area.
+        if (TryGetOwnerClientSize(out int clientWidth, out int clientHeight))
+        {
+            px.Width = Math.Min(px.Width, clientWidth);
+            px.Height = Math.Min(px.Height, clientHeight);
+        }
+
+        return ((int)tl.X, (int)tl.Y, px.Width, px.Height);
+    }
+
+    /// <summary>
+    /// The owner window's CLIENT area in physical pixels — the hard ceiling
+    /// for the embed rect. Falls back to the work area (same DIPs→physical
+    /// conversion as the rect) before the window handle exists; false only
+    /// when neither is known.
+    /// </summary>
+    private bool TryGetOwnerClientSize(out int width, out int height)
+    {
+        IntPtr owner = ResolveOwnerHwnd();
+        if (owner != IntPtr.Zero && GetClientRect(owner, out RECT client))
+        {
+            width = client.Right - client.Left;
+            height = client.Bottom - client.Top;
+            return width > 0 && height > 0;
+        }
+
+        // Pre-window fallback — same DIPs→physical conversion as the rect.
+        var work = ToPhysical(SystemParameters.WorkArea.Width, SystemParameters.WorkArea.Height);
+        width = work.Width;
+        height = work.Height;
+        return width > 0 && height > 0;
     }
 
     private void OnEmbedSucceeded(ObsWindowHostService current, int x, int y, int width, int height)
@@ -277,9 +318,33 @@ public sealed class ObsWindowEmbedHost : HwndHost
         lastSyncY = y;
         lastSyncWidth = width;
         lastSyncHeight = height;
+        SchedulePostEmbedResyncs();
         HookSync();
         SetIsActive(true);
         UnsubscribeStatus(current);
+    }
+
+    /// <summary>
+    /// Re-syncs once WPF has re-laid-out the (re-shown) tab and again when the
+    /// dispatcher idles. The rect measured DURING an embed/restore can predate
+    /// that layout — ActualHeight then still reflects the stale/pre-collapse
+    /// arrangement and OBS is placed right but sized wrong. Each deferred sync
+    /// re-reads the settled rect and pushes only what changed, so a wrong
+    /// embed size self-corrects within a frame of the state change.
+    /// </summary>
+    private void SchedulePostEmbedResyncs()
+    {
+        _ = Dispatcher.BeginInvoke(SyncObsWindow, DispatcherPriority.Loaded);
+        _ = Dispatcher.BeginInvoke(SyncObsWindow, DispatcherPriority.ApplicationIdle);
+    }
+
+    /// <summary>Forgets the last pushed rect — the next sync always pushes.</summary>
+    private void ResetSyncCache()
+    {
+        lastSyncX = -1;
+        lastSyncY = -1;
+        lastSyncWidth = -1;
+        lastSyncHeight = -1;
     }
 
     // ---------------------------------------------------------------------
@@ -432,4 +497,17 @@ public sealed class ObsWindowEmbedHost : HwndHost
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetClientRect(IntPtr hwnd, out RECT rect);
 }

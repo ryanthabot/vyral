@@ -950,6 +950,7 @@ public sealed class ObsWindowHostService : IDisposable
         else if (Win32WindowHost.GetWindowLongPtrW(hwnd, Win32WindowHost.GwlHwndParent) == owner
             && Win32WindowHost.IsWindowVisible(hwnd))
         {
+            SelfHealRectIfDrifted(hwnd, x, y, width, height);
             return; // healthy
         }
         else
@@ -971,6 +972,40 @@ public sealed class ObsWindowHostService : IDisposable
         {
             logger.LogWarning(ex, "OBS host: embed self-heal failed — will retry next tick");
         }
+    }
+
+    /// <summary>
+    /// Size half of the 1 Hz self-heal: ownership and visibility can be intact
+    /// while the window rect still drifted (a stale measurement pushed around
+    /// a tab switch, an external mover). When the live rect is off the stored
+    /// embed rect by more than 2 px in width or height, MoveWindow it back to
+    /// the stored rect and redraw — a drift then survives at most one poll
+    /// tick. Runs on the poll thread.
+    /// </summary>
+    private void SelfHealRectIfDrifted(IntPtr hwnd, int x, int y, int width, int height)
+    {
+        if (!Win32WindowHost.GetWindowRect(hwnd, out Win32WindowHost.RECT live))
+        {
+            return;
+        }
+
+        int liveWidth = live.Right - live.Left;
+        int liveHeight = live.Bottom - live.Top;
+        bool sizeDrifted = Math.Abs(liveWidth - width) > 2 || Math.Abs(liveHeight - height) > 2;
+        if (!sizeDrifted)
+        {
+            return;
+        }
+
+        logger.LogInformation(
+            "OBS host: embedded window rect ({Left},{Top}) {LiveWidth}x{LiveHeight} drifted from ({X},{Y}) {Width}x{Height} — restoring",
+            live.Left, live.Top, liveWidth, liveHeight, x, y, width, height);
+
+        _ = Win32WindowHost.MoveWindow(hwnd, x, y, width, height, repaint: true);
+        _ = Win32WindowHost.RedrawWindow(
+            hwnd, IntPtr.Zero, IntPtr.Zero,
+            Win32WindowHost.RdwInvalid | Win32WindowHost.RdwErase | Win32WindowHost.RdwAllChildren
+            | Win32WindowHost.RdwUpdateNow);
     }
 
     private async Task PollProcessExit(Process target, CancellationTokenSource cts)
