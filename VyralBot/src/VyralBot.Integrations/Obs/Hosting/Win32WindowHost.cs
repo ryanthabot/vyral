@@ -115,6 +115,15 @@ internal static class Win32WindowHost
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
 
+    // Containment clip: SetWindowRgn takes ownership of the region (do not
+    // delete it afterwards); a NULL region removes the clipping.
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool redraw);
+
+    [DllImport("gdi32.dll", SetLastError = true)]
+    internal static extern IntPtr CreateRectRgn(int x1, int y1, int x2, int y2);
+
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern IntPtr GetDesktopWindow();
 

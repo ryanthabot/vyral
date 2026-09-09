@@ -277,45 +277,62 @@ public sealed class ObsWindowEmbedHost : HwndHost
         return childHwnd != IntPtr.Zero ? GetAncestor(childHwnd, GaRoot) : IntPtr.Zero;
     }
 
-    /// <summary>The control's area in SCREEN physical pixels — where OBS must sit.</summary>
+    /// <summary>
+    /// The control's area in SCREEN physical pixels — where OBS must sit,
+    /// clamped into the owner (Vyral) window rect. WPF does not clip children
+    /// and a restore can run before WPF re-lays-out the re-shown tab, so the
+    /// raw measurement can be oversized; clamping here (against the same
+    /// GetWindowRect basis the service enforces) keeps the requested rect
+    /// contained even before the service-side clamp runs.
+    /// </summary>
     private (int X, int Y, int Width, int Height) GetEmbedRect()
     {
         var tl = PointToScreen(new Point(0, 0)); // physical px already (integral values, double-typed)
         var px = ToPhysical(ActualWidth, ActualHeight);
 
-        // Guard against stale/unclamped measurements (a restore that ran
-        // before WPF re-laid-out the re-shown tab): the embed area can never
-        // be larger than the owner window's client area.
-        if (TryGetOwnerClientSize(out int clientWidth, out int clientHeight))
+        int x = (int)tl.X;
+        int y = (int)tl.Y;
+        int width = px.Width;
+        int height = px.Height;
+
+        if (TryGetOwnerWindowRect(out RECT owner))
         {
-            px.Width = Math.Min(px.Width, clientWidth);
-            px.Height = Math.Min(px.Height, clientHeight);
+            x = Math.Max(x, owner.Left);
+            y = Math.Max(y, owner.Top);
+            width = Math.Max(1, Math.Min(x + width, owner.Right) - x);
+            height = Math.Max(1, Math.Min(y + height, owner.Bottom) - y);
         }
 
-        return ((int)tl.X, (int)tl.Y, px.Width, px.Height);
+        return (x, y, width, height);
     }
 
     /// <summary>
-    /// The owner window's CLIENT area in physical pixels — the hard ceiling
-    /// for the embed rect. Falls back to the work area (same DIPs→physical
-    /// conversion as the rect) before the window handle exists; false only
-    /// when neither is known.
+    /// The owner (Vyral) window's SCREEN rect in physical pixels — the hard
+    /// containment ceiling for the embed rect, matching the service-side clamp
+    /// (GetWindowRect includes the chrome that GetClientRect lacks, so both
+    /// sides agree on the same bounds). Falls back to the work area (same
+    /// DIPs→physical conversion as the rect) before the window handle exists;
+    /// false only when neither is known.
     /// </summary>
-    private bool TryGetOwnerClientSize(out int width, out int height)
+    private bool TryGetOwnerWindowRect(out RECT rect)
     {
         IntPtr owner = ResolveOwnerHwnd();
-        if (owner != IntPtr.Zero && GetClientRect(owner, out RECT client))
+        if (owner != IntPtr.Zero && GetWindowRect(owner, out rect)
+            && rect.Right - rect.Left > 0 && rect.Bottom - rect.Top > 0)
         {
-            width = client.Right - client.Left;
-            height = client.Bottom - client.Top;
-            return width > 0 && height > 0;
+            return true;
         }
 
         // Pre-window fallback — same DIPs→physical conversion as the rect.
+        rect = default;
         var work = ToPhysical(SystemParameters.WorkArea.Width, SystemParameters.WorkArea.Height);
-        width = work.Width;
-        height = work.Height;
-        return width > 0 && height > 0;
+        if (work.Width > 0 && work.Height > 0)
+        {
+            rect = new RECT { Left = 0, Top = 0, Right = work.Width, Bottom = work.Height };
+            return true;
+        }
+
+        return false;
     }
 
     private void OnEmbedSucceeded(ObsWindowHostService current, int x, int y, int width, int height)
@@ -517,5 +534,5 @@ public sealed class ObsWindowEmbedHost : HwndHost
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetClientRect(IntPtr hwnd, out RECT rect);
+    private static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
 }

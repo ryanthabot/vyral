@@ -67,6 +67,15 @@ public sealed class ObsWindowHostService : IDisposable
     private const string QtClassPrefix = "Qt";
     private const string ObsProcessName = "obs64";
 
+    // Containment floor for ClampToOwner: when the owner is too small at the
+    // requested offset, OBS is anchored at the owner's top-left at this size.
+    private const int MinEmbedWidth = 120;
+    private const int MinEmbedHeight = 120;
+
+    // Containment verification tolerance of the 1 Hz health check — a couple
+    // of pixels of rounding (DPI, chrome metrics) must not trigger a heal.
+    private const int ContainmentTolerancePx = 2;
+
     // Same session by design (Local\): two Vyral instances in one session
     // adopting/embedding the same obs64 would steal the window from each other.
     private readonly string hostMutexName;
@@ -98,6 +107,17 @@ public sealed class ObsWindowHostService : IDisposable
     private int lastEmbedY;
     private int lastEmbedWidth;
     private int lastEmbedHeight;
+
+    // Containment clip state: OBS's Qt enforces a minimum window size and can
+    // therefore REFUSE to shrink to a contained rect (WM_WINDOWPOSCHANGING
+    // clamps the proposed geometry). When that happens the window region is
+    // clipped to the owner intersection instead (see EnsureContained) —
+    // nothing may render outside the Vyral window while embedded.
+    private bool clippedToOwner;
+    private int clipLeft = -1;
+    private int clipTop = -1;
+    private int clipRight = -1;
+    private int clipBottom = -1;
 
     /// <summary>
     /// Set when the last embed failed because OBS runs elevated and Vyral does
@@ -306,6 +326,17 @@ public sealed class ObsWindowHostService : IDisposable
                     "No OBS window to embed — call EnsureRunningAsync and WaitForWindowAsync first.");
             }
 
+            // Stored BEFORE the clamp so ClampToOwner sees this owner (the
+            // failure path below clears it again, as before).
+            this.ownerHwnd = ownerHwnd;
+
+            // Containment is enforced here — the authoritative clamp. The
+            // control's measurement can be stale/oversized (WPF does not clip
+            // children), so the OBS window is intersected with the owner's
+            // window rect before anything is moved or stored: OBS can never
+            // extend past the Vyral window.
+            (x, y, width, height) = ClampToOwner(x, y, width, height);
+
             // OBS can destroy and recreate its Qt main window shortly after
             // startup, which invalidates the handle we captured — and UIPI
             // (elevated OBS vs non-elevated Vyral) makes the ownership/style
@@ -462,6 +493,9 @@ public sealed class ObsWindowHostService : IDisposable
             | Win32WindowHost.RdwAllChildren | Win32WindowHost.RdwUpdateNow);
         _ = Win32WindowHost.UpdateWindow(obsHwnd);
 
+        // Containment last word: if OBS refused the contained size, clip it.
+        EnsureContained(obsHwnd);
+
         StatusChanged?.Invoke(snapshot);
     }
 
@@ -486,6 +520,14 @@ public sealed class ObsWindowHostService : IDisposable
             hwnd = obsHwnd;
             x = lastEmbedX;
             y = lastEmbedY;
+
+            // Containment clamp — the composed rect can overflow an owner
+            // (Vyral) window that shrank since the rect was stored. The
+            // clamped values replace the stored ones, so the health check
+            // restores the contained rect, not the oversized one.
+            (x, y, width, height) = ClampToOwner(x, y, width, height);
+            lastEmbedX = x;
+            lastEmbedY = y;
             lastEmbedWidth = width;
             lastEmbedHeight = height;
         }
@@ -495,6 +537,7 @@ public sealed class ObsWindowHostService : IDisposable
             hwnd, IntPtr.Zero, IntPtr.Zero,
             Win32WindowHost.RdwInvalid | Win32WindowHost.RdwErase | Win32WindowHost.RdwAllChildren
             | Win32WindowHost.RdwUpdateNow);
+        EnsureContained(hwnd);
     }
 
     /// <summary>
@@ -516,8 +559,15 @@ public sealed class ObsWindowHostService : IDisposable
             hwnd = obsHwnd;
             width = lastEmbedWidth;
             height = lastEmbedHeight;
+
+            // Containment clamp — same invariant as ResizeTo: the moved rect
+            // must stay inside the owner window, and the stored rect must be
+            // the clamped one so self-heal cannot restore an oversized rect.
+            (x, y, width, height) = ClampToOwner(x, y, width, height);
             lastEmbedX = x;
             lastEmbedY = y;
+            lastEmbedWidth = width;
+            lastEmbedHeight = height;
         }
 
         _ = Win32WindowHost.MoveWindow(hwnd, x, y, width, height, repaint: true);
@@ -525,6 +575,7 @@ public sealed class ObsWindowHostService : IDisposable
             hwnd, IntPtr.Zero, IntPtr.Zero,
             Win32WindowHost.RdwInvalid | Win32WindowHost.RdwErase | Win32WindowHost.RdwAllChildren
             | Win32WindowHost.RdwUpdateNow);
+        EnsureContained(hwnd);
     }
 
     /// <summary>
@@ -551,6 +602,7 @@ public sealed class ObsWindowHostService : IDisposable
             }
 
             _ = Win32WindowHost.ShowWindow(obsHwnd, Win32WindowHost.SwMinimize);
+            ClearClipRegion(obsHwnd);
             _ = Win32WindowHost.SetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlHwndParent, IntPtr.Zero);
             ownerHwnd = IntPtr.Zero;
             state = ObsHostState.Parked;
@@ -614,6 +666,8 @@ public sealed class ObsWindowHostService : IDisposable
         ObsHostStatus snapshot;
         lock (stateLock)
         {
+            ClearClipRegion(hwnd);
+
             _ = Win32WindowHost.SetWindowLongPtrW(hwnd, Win32WindowHost.GwlHwndParent, IntPtr.Zero);
             ownerHwnd = IntPtr.Zero;
             if (originalStyle is not null)
@@ -659,6 +713,10 @@ public sealed class ObsWindowHostService : IDisposable
         ObsHostStatus snapshot;
         lock (stateLock)
         {
+            // The containment clip must not survive the detach — the freed
+            // window would stay cut.
+            ClearClipRegion(hwnd);
+
             // Drop the ownership first — OBS must not float above Vyral.
             _ = Win32WindowHost.SetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlHwndParent, IntPtr.Zero);
             ownerHwnd = IntPtr.Zero;
@@ -971,6 +1029,7 @@ public sealed class ObsWindowHostService : IDisposable
             && Win32WindowHost.IsWindowVisible(hwnd))
         {
             SelfHealRectIfDrifted(hwnd, x, y, width, height);
+            EnsureContained(hwnd); // a refused resize must never linger unclipped
             return; // healthy
         }
         else
@@ -995,12 +1054,15 @@ public sealed class ObsWindowHostService : IDisposable
     }
 
     /// <summary>
-    /// Size half of the 1 Hz self-heal: ownership and visibility can be intact
-    /// while the window rect still drifted (a stale measurement pushed around
-    /// a tab switch, an external mover). When the live rect is off the stored
-    /// embed rect by more than 2 px in width or height, MoveWindow it back to
-    /// the stored rect and redraw — a drift then survives at most one poll
-    /// tick. Runs on the poll thread.
+    /// Position/size half of the 1 Hz self-heal: ownership and visibility can
+    /// be intact while the window rect still drifted (a stale measurement
+    /// pushed it around) or SPILLED OUTSIDE THE OWNER (WPF does not clip
+    /// children). The stored rect is re-clamped against the CURRENT owner
+    /// rect, and when the live rect is more than
+    /// <see cref="ContainmentTolerancePx"/> px off that target in either
+    /// dimension — or extends past the owner window on any side — MoveWindow
+    /// puts it back and redraws; a spill then survives at most one poll tick.
+    /// Runs on the poll thread.
     /// </summary>
     private void SelfHealRectIfDrifted(IntPtr hwnd, int x, int y, int width, int height)
     {
@@ -1009,23 +1071,215 @@ public sealed class ObsWindowHostService : IDisposable
             return;
         }
 
+        // Re-clamp against the CURRENT owner rect — Vyral may have shrunk
+        // since the rect was stored.
+        (x, y, width, height) = ClampToOwner(x, y, width, height);
+
         int liveWidth = live.Right - live.Left;
         int liveHeight = live.Bottom - live.Top;
         bool sizeDrifted = Math.Abs(liveWidth - width) > 2 || Math.Abs(liveHeight - height) > 2;
-        if (!sizeDrifted)
+        bool spilled = !IsRectInsideOwner(live);
+        if (!sizeDrifted && !spilled)
         {
             return;
         }
 
         logger.LogInformation(
-            "OBS host: embedded window rect ({Left},{Top}) {LiveWidth}x{LiveHeight} drifted from ({X},{Y}) {Width}x{Height} — restoring",
+            "OBS host: embedded window rect ({Left},{Top}) {LiveWidth}x{LiveHeight} drifted/spilled from ({X},{Y}) {Width}x{Height} — restoring",
             live.Left, live.Top, liveWidth, liveHeight, x, y, width, height);
+
+        // Persist the clamped rect — the next tick must compare against the
+        // contained target, not the oversized one.
+        lock (stateLock)
+        {
+            lastEmbedX = x;
+            lastEmbedY = y;
+            lastEmbedWidth = width;
+            lastEmbedHeight = height;
+        }
 
         _ = Win32WindowHost.MoveWindow(hwnd, x, y, width, height, repaint: true);
         _ = Win32WindowHost.RedrawWindow(
             hwnd, IntPtr.Zero, IntPtr.Zero,
             Win32WindowHost.RdwInvalid | Win32WindowHost.RdwErase | Win32WindowHost.RdwAllChildren
             | Win32WindowHost.RdwUpdateNow);
+    }
+
+    /// <summary>
+    /// True when <paramref name="rect"/> lies fully inside the owner (Vyral)
+    /// window rect, within a <see cref="ContainmentTolerancePx"/> px rounding
+    /// tolerance. An unknown owner window answers true — containment cannot
+    /// be judged there and the health check must not fight a rect it cannot
+    /// see.
+    /// </summary>
+    private bool IsRectInsideOwner(Win32WindowHost.RECT rect)
+    {
+        IntPtr owner;
+        lock (stateLock)
+        {
+            owner = ownerHwnd;
+        }
+
+        if (owner == IntPtr.Zero || !Win32WindowHost.IsWindow(owner)
+            || !Win32WindowHost.GetWindowRect(owner, out Win32WindowHost.RECT ownerRect)
+            || IsPhantomRect(ownerRect))
+        {
+            return true;
+        }
+
+        return rect.Left >= ownerRect.Left - ContainmentTolerancePx
+            && rect.Top >= ownerRect.Top - ContainmentTolerancePx
+            && rect.Right <= ownerRect.Right + ContainmentTolerancePx
+            && rect.Bottom <= ownerRect.Bottom + ContainmentTolerancePx;
+    }
+
+    /// <summary>
+    /// Intersects the desired rect with the owner (Vyral) window rect so OBS
+    /// can never extend past the app — the authoritative containment, because
+    /// WPF does not clip children and the control's DIPs measurement can be
+    /// stale. Keeps at least a minimal usable size; when the intersection
+    /// would be smaller, the rect is anchored at the owner's top-left with the
+    /// minimal size. Returns the rect unclamped when the owner is unknown or
+    /// no longer a window.
+    /// </summary>
+    private (int X, int Y, int W, int H) ClampToOwner(int x, int y, int w, int h)
+    {
+        IntPtr owner;
+        lock (stateLock)
+        {
+            owner = ownerHwnd;
+        }
+
+        if (owner == IntPtr.Zero || !Win32WindowHost.IsWindow(owner)
+            || !Win32WindowHost.GetWindowRect(owner, out Win32WindowHost.RECT ownerRect)
+            || IsPhantomRect(ownerRect))
+        {
+            return (x, y, w, h);
+        }
+
+        int left = Math.Max(x, ownerRect.Left);
+        int top = Math.Max(y, ownerRect.Top);
+        int width = Math.Min(x + w, ownerRect.Right) - left;
+        int height = Math.Min(y + h, ownerRect.Bottom) - top;
+
+        if (width < MinEmbedWidth || height < MinEmbedHeight)
+        {
+            // Degenerate intersection (the owner shrank past the rect's
+            // offset) — anchor a minimal rect inside the owner's top-left
+            // corner so OBS stays fully visible and usable.
+            left = ownerRect.Left;
+            top = ownerRect.Top;
+            width = Math.Max(1, Math.Min(MinEmbedWidth, ownerRect.Right - ownerRect.Left));
+            height = Math.Max(1, Math.Min(MinEmbedHeight, ownerRect.Bottom - ownerRect.Top));
+        }
+
+        return (left, top, width, height);
+    }
+
+    /// <summary>
+    /// Minimized windows report the -32000 phantom rect — containment must
+    /// not be enforced against it.
+    /// </summary>
+    private static bool IsPhantomRect(Win32WindowHost.RECT rect) => rect.Left < -30000 || rect.Top < -30000;
+
+    /// <summary>
+    /// Final containment enforcement, run after every move/resize attempt and
+    /// by the 1 Hz health check: reads back the LIVE window rect and, when the
+    /// window still extends past the owner (Vyral) window, clips its window
+    /// region to the intersection. This is needed because OBS's Qt enforces a
+    /// minimum window size in WM_WINDOWPOSCHANGING and can silently refuse
+    /// the contained size MoveWindow just requested — a refused resize would
+    /// otherwise spill outside the app with no recourse. The clip is removed
+    /// as soon as the window is contained without it, and whenever the window
+    /// is detached back to the desktop. Region coordinates are relative to
+    /// the window's client origin, which for the chrome-stripped WS_POPUP
+    /// window is its top-left corner.
+    /// </summary>
+    private void EnsureContained(IntPtr hwnd)
+    {
+        if (!Win32WindowHost.GetWindowRect(hwnd, out Win32WindowHost.RECT live))
+        {
+            return;
+        }
+
+        IntPtr owner;
+        lock (stateLock)
+        {
+            owner = ownerHwnd;
+        }
+
+        if (owner == IntPtr.Zero || !Win32WindowHost.IsWindow(owner)
+            || !Win32WindowHost.GetWindowRect(owner, out Win32WindowHost.RECT ownerRect)
+            || IsPhantomRect(ownerRect))
+        {
+            return; // containment cannot be judged — leave the window alone
+        }
+
+        if (IsRectInsideOwner(live))
+        {
+            if (clippedToOwner)
+            {
+                // Contained again (OBS accepted a smaller size) — no clipping.
+                ClearClipRegion(hwnd);
+            }
+
+            return;
+        }
+
+        int left = Math.Max(ownerRect.Left, live.Left) - live.Left;
+        int top = Math.Max(ownerRect.Top, live.Top) - live.Top;
+        int right = Math.Min(live.Right, ownerRect.Right) - live.Left;
+        int bottom = Math.Min(live.Bottom, ownerRect.Bottom) - live.Top;
+        if (right - left < 1 || bottom - top < 1)
+        {
+            return; // degenerate intersection — keep the current region
+        }
+
+        bool alreadyClipped;
+        lock (stateLock)
+        {
+            alreadyClipped = clippedToOwner
+                && clipLeft == left && clipTop == top
+                && clipRight == right && clipBottom == bottom;
+        }
+
+        if (alreadyClipped)
+        {
+            return; // clip is current — avoid re-applying it every tick
+        }
+
+        IntPtr region = Win32WindowHost.CreateRectRgn(left, top, right, bottom);
+        if (region == IntPtr.Zero || !Win32WindowHost.SetWindowRgn(hwnd, region, redraw: true))
+        {
+            return;
+        }
+
+        lock (stateLock)
+        {
+            clippedToOwner = true;
+            clipLeft = left;
+            clipTop = top;
+            clipRight = right;
+            clipBottom = bottom;
+        }
+
+        logger.LogInformation(
+            "OBS host: window refuses the contained size — clipped its region to ({Left},{Top}) {Width}x{Height}",
+            left, top, right - left, bottom - top);
+    }
+
+    /// <summary>Removes the containment clip region (detach, park, unembed).</summary>
+    private void ClearClipRegion(IntPtr hwnd)
+    {
+        _ = Win32WindowHost.SetWindowRgn(hwnd, IntPtr.Zero, redraw: true);
+        lock (stateLock)
+        {
+            clippedToOwner = false;
+            clipLeft = -1;
+            clipTop = -1;
+            clipRight = -1;
+            clipBottom = -1;
+        }
     }
 
     private async Task PollProcessExit(Process target, CancellationTokenSource cts)
@@ -1113,6 +1367,11 @@ public sealed class ObsWindowHostService : IDisposable
         lastEmbedY = 0;
         lastEmbedWidth = 0;
         lastEmbedHeight = 0;
+        clippedToOwner = false;
+        clipLeft = -1;
+        clipTop = -1;
+        clipRight = -1;
+        clipBottom = -1;
     }
 
     private ObsHostStatus SnapshotLocked() => new(state, detail, processId, obsHwnd);
