@@ -15,6 +15,7 @@
         <converters:NullOrEmptyToVisibilityConverter x:Key="StringNullOrEmptyToVisibilityConverter"/>
     </UserControl.Resources>
 
+    <Grid>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32,24,32,32" IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}">
 
@@ -465,44 +466,121 @@
             </materialDesign:Card>
 
             <!-- ============================================================ -->
-            <!-- Section 6: Moderator Commands (visual builder dialog)         -->
+            <!-- Section 6: Moderator Commands (visual Flow editor workflows)  -->
             <!-- ============================================================ -->
             <materialDesign:Card Padding="20" Margin="0,0,0,16"
                                  Background="{DynamicResource CardBackgroundBrush}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Terminal" Width="20" Height="20"
-                                                     Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"/>
-                            <TextBlock Text="Moderator Commands"
-                                       FontSize="16" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       VerticalAlignment="Center"
-                                       Margin="8,0,0,0"/>
+                <StackPanel>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Terminal" Width="20" Height="20"
+                                                         Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Text="Moderator Commands"
+                                           FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="8,0,0,0"/>
+                            </StackPanel>
+                            <TextBlock Text="Custom !mod verbs as workflows: author them in the visual Flow editor, Discord runs them with mod-tier gating (built-in verbs keep precedence)."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,12,0"/>
                         </StackPanel>
-                        <TextBlock Text="Build a !mod command visually and post it into the mod channel. The Discord-side engine applies its usual moderation gating."
-                                   FontSize="11"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,4,12,0"/>
-                    </StackPanel>
-                    <Button Grid.Column="1"
-                            Command="{Binding OpenCommandBuilderCommand}"
-                            Style="{StaticResource MaterialDesignRaisedButton}"
-                            Background="{DynamicResource PrimaryBrush}"
-                            VerticalAlignment="Center"
-                            ToolTip="Opens the visual !mod command builder">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Plus" Width="16" Height="16" VerticalAlignment="Center"/>
-                            <TextBlock Text="Add moderator command" Margin="6,0,0,0" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                </Grid>
+                        <Button Grid.Column="1"
+                                Command="{Binding OpenModeratorCommandEditorCommand}"
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Background="{DynamicResource PrimaryBrush}"
+                                VerticalAlignment="Center"
+                                ToolTip="Opens the Flow editor on a new moderator command workflow">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Plus" Width="16" Height="16" VerticalAlignment="Center"/>
+                                <TextBlock Text="Add moderator command" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <!-- Existing mod_command workflow rows -->
+                    <ItemsControl ItemsSource="{Binding ModCommandWorkflows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                        CornerRadius="4"
+                                        Padding="12,8"
+                                        Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding CommandLabel}"
+                                                       FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="10,0,0,0"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding StepSummary, StringFormat=· {0}}"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="10,0,0,0"/>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <CheckBox Content="Enabled"
+                                                      IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Command="{Binding DataContext.ToggleModCommandWorkflowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                      CommandParameter="{Binding}"
+                                                      Foreground="{DynamicResource TextPrimaryBrush}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="0,0,16,0"
+                                                      ToolTip="Disabled commands never fire — flip this to arm them"/>
+                                            <Button Content="Edit in visual builder"
+                                                    Click="OnModCommandCanvasClick"
+                                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                                    Padding="8,4"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip="Open this workflow in the visual Flow editor"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="{Binding ModCommandStatus}"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,0"
+                               Visibility="{Binding ModCommandStatus, Converter={StaticResource StringNullOrEmptyToVisibilityConverter}}"/>
+                </StackPanel>
             </materialDesign:Card>
         </StackPanel>
     </ScrollViewer>
+
+        <!-- ============================================================
+             VISUAL EDITOR overlay: full-size host for FlowEditorView
+             (collapsed until "Add moderator command" opens it — same
+             hosting pattern as AutomationView; the editor's own close
+             command hides it again)
+             ============================================================ -->
+        <Border x:Name="FlowEditorOverlay"
+                Panel.ZIndex="100"
+                Background="{DynamicResource BackgroundDarkBrush}"
+                Visibility="Collapsed">
+            <ContentControl x:Name="FlowEditorHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+        </Border>
+    </Grid>
 </UserControl>

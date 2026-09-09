@@ -2,45 +2,58 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
-using System.Text.Json;
 using VyralBot.Core.Services.Channels;
 using VyralBot.Core.Services.Moderation;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
 using VyralBot.Integrations.Discord;
+using VyralBot.Workflows.Models;
+using VyralBot.Workflows.Persistence;
 
 namespace VyralBot.UI.ViewModels;
 
 /// <summary>
-/// One entry of the Moderator page's !mod command builder: which parameters the
-/// template needs and the verb emitted into the composed command line.
+/// One row of the Moderator Commands card: a stored mod_command workflow with
+/// its "!mod verb (tier)" display text and the enable-toggle state.
 /// </summary>
-public sealed class ModCommandTemplate
+public partial class ModCommandWorkflowRow : ObservableObject
 {
-    public ModCommandTemplate(string name, string verb, bool needsTarget, bool needsAmount, bool needsReason, string? amountLabel = null)
+    public ModCommandWorkflowRow(Workflow workflow)
     {
-        Name = name;
-        Verb = verb;
-        NeedsTarget = needsTarget;
-        NeedsAmount = needsAmount;
-        NeedsReason = needsReason;
-        AmountLabel = amountLabel ?? "Amount";
+        Workflow = workflow ?? throw new ArgumentNullException(nameof(workflow));
+        _isEnabled = workflow.Enabled;
     }
 
-    /// <summary>Display name shown in the template ComboBox.</summary>
-    public string Name { get; }
+    public Workflow Workflow { get; }
 
-    /// <summary>Verb after the !mod prefix (e.g. "addcurrency").</summary>
-    public string Verb { get; }
+    public string Id => Workflow.Id;
 
-    public bool NeedsTarget { get; }
-    public bool NeedsAmount { get; }
-    public bool NeedsReason { get; }
+    public string Name => Workflow.Name;
 
-    /// <summary>Label for the amount field (points / minutes / winner count / messages).</summary>
-    public string AmountLabel { get; }
+    /// <summary>"!mod {verb} ({tier})" — same shape as the flow editor's row label.</summary>
+    public string CommandLabel
+    {
+        get
+        {
+            var verb = string.IsNullOrWhiteSpace(Workflow.Trigger.CommandName) ? "?" : Workflow.Trigger.CommandName.Trim();
+            var tier = ModTiers.NormalizeTier(Workflow.Trigger.MinimumTier) ?? "Mod";
+            return $"!mod {verb} ({tier})";
+        }
+    }
 
-    public override string ToString() => Name;
+    /// <summary>Step count of the flow (0 for a still-empty canvas).</summary>
+    public string StepSummary
+    {
+        get
+        {
+            var count = Workflow.Nodes?.Count ?? 0;
+            return $"{count} step{(count == 1 ? string.Empty : "s")}";
+        }
+    }
+
+    /// <summary>Row toggle state (mirrors Workflow.Enabled; persisted by the VM).</summary>
+    [ObservableProperty]
+    private bool _isEnabled;
 }
 
 /// <summary>
@@ -71,25 +84,24 @@ public partial class RoleTierRow : ObservableObject
 /// <summary>
 /// Moderator dashboard: mod channel setup (create + config), mod role
 /// assignments, the command-channel list, the Discord role→tier mapping
-/// editor, the moderation action log and the "Add moderator command"
-/// dialog (compose → preview → send to the configured mod channel, with
-/// save-as-favorite persistence in Config key "Mod.FavoriteCommands").
+/// editor, the moderation action log and the Moderator Commands card — custom
+/// "!mod verb" workflows authored in the visual Flow editor (the page's
+/// "Add moderator command" button opens that editor as an overlay; the host
+/// lives in <see cref="Views.ModeratorView"/>'s code-behind).
 /// </summary>
 public partial class ModeratorViewModel : ViewModelBase
 {
     private const string ChannelIdConfigKey = "Mod.ChannelId";
     private const string AutoCreateConfigKey = "Mod.AutoCreateChannel";
     private const string ModRoleNameConfigKey = "Mod.ModRoleName";
-    private const string FavoriteCommandsConfigKey = "Mod.FavoriteCommands";
     private const string DefaultModRoleName = "Vyral Mod";
-
-    private static readonly JsonSerializerOptions FavoriteJsonOptions = new();
 
     private readonly ILogger<ModeratorViewModel> _logger;
     private readonly IDataService _dataService;
     private readonly IDiscordBotManager _botManager;
     private readonly IModRoleService _modRoleService;
     private readonly IConnectedChannelService _connectedChannelService;
+    private readonly VyralBot.UI.Services.WorkflowTriggerService _triggerService;
 
     private bool _loaded;
 
@@ -98,14 +110,21 @@ public partial class ModeratorViewModel : ViewModelBase
         IDataService dataService,
         IDiscordBotManager botManager,
         IModRoleService modRoleService,
-        IConnectedChannelService connectedChannelService)
+        IConnectedChannelService connectedChannelService,
+        VyralBot.UI.Services.WorkflowTriggerService triggerService,
+        FlowEditorViewModel flowEditor)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _botManager = botManager ?? throw new ArgumentNullException(nameof(botManager));
         _modRoleService = modRoleService ?? throw new ArgumentNullException(nameof(modRoleService));
         _connectedChannelService = connectedChannelService ?? throw new ArgumentNullException(nameof(connectedChannelService));
+        _triggerService = triggerService ?? throw new ArgumentNullException(nameof(triggerService));
+        FlowEditor = flowEditor ?? throw new ArgumentNullException(nameof(flowEditor));
     }
+
+    /// <summary>The singleton visual Flow editor (DI) — the overlay host uses it.</summary>
+    public FlowEditorViewModel FlowEditor { get; }
 
     // ======================================================================
     // Section 1 — Mod channel
@@ -494,150 +513,87 @@ public partial class ModeratorViewModel : ViewModelBase
     }
 
     // ======================================================================
-    // Section 5 — Command builder dialog
+    // Section 5 — Moderator command workflows (Flow editor)
     // ======================================================================
 
-    /// <summary>
-    /// The per-action parameter metadata the builder dialog renders (verbs,
-    /// required target/amount/reason, amount labels). The dialog groups it
-    /// into Moderation / Currency / Engagement / Stream FX categories.
-    /// </summary>
-    public IReadOnlyList<ModCommandTemplate> ActionTemplates { get; } = new[]
-    {
-        new ModCommandTemplate("Add currency", "addcurrency", needsTarget: true, needsAmount: true, needsReason: false, amountLabel: "Amount"),
-        new ModCommandTemplate("Remove currency", "removecurrency", needsTarget: true, needsAmount: true, needsReason: false, amountLabel: "Amount"),
-        new ModCommandTemplate("Set balance", "setbalance", needsTarget: true, needsAmount: true, needsReason: false, amountLabel: "Amount"),
-        new ModCommandTemplate("Start giveaway", "startgiveaway", needsTarget: false, needsAmount: false, needsReason: true),
-        new ModCommandTemplate("Cancel giveaway", "cancelgiveaway", needsTarget: false, needsAmount: false, needsReason: false),
-        new ModCommandTemplate("Draw winners", "drawwinners", needsTarget: false, needsAmount: true, needsReason: false, amountLabel: "Winner count"),
-        new ModCommandTemplate("Start poll", "startpoll", needsTarget: false, needsAmount: false, needsReason: true),
-        new ModCommandTemplate("End poll", "endpoll", needsTarget: false, needsAmount: false, needsReason: false),
-        new ModCommandTemplate("Timeout", "timeout", needsTarget: true, needsAmount: true, needsReason: true, amountLabel: "Minutes"),
-        new ModCommandTemplate("Kick", "kick", needsTarget: true, needsAmount: false, needsReason: true),
-        new ModCommandTemplate("Ban", "ban", needsTarget: true, needsAmount: false, needsReason: true),
-        new ModCommandTemplate("Purge", "purge", needsTarget: false, needsAmount: true, needsReason: false, amountLabel: "Messages (1-100)"),
-        new ModCommandTemplate("Flash stream lights", "flashlights", needsTarget: false, needsAmount: true, needsReason: false, amountLabel: "Hex color + times (1-20)"),
-        new ModCommandTemplate("Stream lights on", "lightson", needsTarget: false, needsAmount: false, needsReason: false),
-        new ModCommandTemplate("Stream lights off", "lightsoff", needsTarget: false, needsAmount: false, needsReason: false),
-        new ModCommandTemplate("Stream Deck action", "streamdeck", needsTarget: false, needsAmount: true, needsReason: false, amountLabel: "Action name"),
-    };
+    /// <summary>Raised when the page should open the Flow editor overlay (the view hosts it).</summary>
+    public event Action? FlowEditorRequested;
+
+    public ObservableCollection<ModCommandWorkflowRow> ModCommandWorkflows { get; } = new();
+
+    [ObservableProperty]
+    private string? _modCommandStatus;
 
     /// <summary>
-    /// Opens the visual !mod command builder. The dialog composes and
-    /// validates the command; Run reuses SendModCommandAsync (the same
-    /// channel/audit path the old inline builder used) and Save reuses the
-    /// favorites persistence below.
+    /// "Add moderator command": asks the view to open the visual Flow editor
+    /// overlay on the mod_command preset (verb + minimum tier pre-filled).
     /// </summary>
     [RelayCommand]
-    private void OpenCommandBuilder()
+    private void OpenModeratorCommandEditor() => FlowEditorRequested?.Invoke();
+
+    /// <summary>
+    /// Reloads the mod_command workflow rows from the Workflows table (page
+    /// init and every editor-overlay close).
+    /// </summary>
+    public async Task LoadModCommandWorkflowsAsync()
     {
-        var dialog = new Views.ModeratorCommandBuilderDialog
+        try
         {
-            Owner = System.Windows.Application.Current.MainWindow,
-            DataContext = new ModeratorCommandBuilderViewModel(this)
-        };
+            var rows = await _dataService.GetWorkflowsAsync();
+            var modCommands = rows
+                .Select(WorkflowJson.FromRow)
+                .Where(w => string.Equals(w.Trigger.Type, WorkflowTriggerTypes.ModCommand, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(w => w.UpdatedAt)
+                .ToList();
 
-        dialog.ShowDialog();
+            RunOnUi(() =>
+            {
+                ModCommandWorkflows.Clear();
+                foreach (var workflow in modCommands)
+                {
+                    ModCommandWorkflows.Add(new ModCommandWorkflowRow(workflow));
+                }
 
-        var command = dialog.Builder.ComposedPreview.Trim();
-        if (!dialog.RunRequested && !dialog.SaveRequested || string.IsNullOrWhiteSpace(command))
-        {
-            return;
+                ModCommandStatus = ModCommandWorkflows.Count == 0
+                    ? "No moderator command workflows yet — add one above (verb, tier and node logic live in the Flow editor)."
+                    : null;
+            });
         }
-
-        if (dialog.SaveRequested)
+        catch (Exception ex)
         {
-            _ = SaveFavoriteAsync(command);
-        }
-
-        if (dialog.RunRequested)
-        {
-            _ = SendModCommandAsync(command);
+            _logger.LogError(ex, "Error loading mod_command workflows");
+            ModCommandStatus = $"Error loading moderator commands: {ex.Message}";
         }
     }
 
     /// <summary>
-    /// Sends a composed !mod command into the configured mod channel via the
-    /// primary running bot's SendToChannelAsync — the Discord-side mod engine's
-    /// moderation gating applies to it exactly like a typed message.
+    /// Row toggle: persists Enabled and reloads the trigger service — the same
+    /// path the Automation page's toggle uses; a failure rolls the box back.
     /// </summary>
-    public async Task SendModCommandAsync(string? command)
+    [RelayCommand]
+    public async Task ToggleModCommandWorkflowAsync(ModCommandWorkflowRow? row)
     {
-        command = command?.Trim();
-        if (string.IsNullOrWhiteSpace(command) || command.Equals("!mod", StringComparison.Ordinal))
+        if (row is null)
         {
-            StatusMessage = "Compose a command first.";
-            return;
-        }
-
-        var bot = _botManager.Primary;
-        if (bot is null)
-        {
-            StatusMessage = "No Discord bot is connected — start a bot on the Discord Bots page first.";
             return;
         }
 
         try
         {
-            IsBusy = true;
-
-            var channelId = await ResolveModChannelIdAsync();
-            if (string.IsNullOrWhiteSpace(channelId))
-            {
-                StatusMessage = "No mod channel configured — create one in the Mod Channel section first.";
-                return;
-            }
-
-            var sent = await bot.SendToChannelAsync(channelId, command, null);
-            StatusMessage = sent
-                ? "Command sent to the mod channel."
-                : "The bot could not post into the mod channel (missing access?).";
+            row.Workflow.Enabled = row.IsEnabled;
+            row.Workflow.UpdatedAt = DateTime.UtcNow;
+            await _dataService.SaveWorkflowAsync(WorkflowJson.ToRow(row.Workflow));
+            await _triggerService.ReloadAsync();
+            StatusMessage = row.IsEnabled
+                ? $"\"{row.Workflow.Name}\" armed — {row.CommandLabel} is live."
+                : $"\"{row.Workflow.Name}\" disarmed — it will not fire until re-enabled.";
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error running mod command '{Command}'", command);
-            StatusMessage = $"Error running command: {ex.Message}";
+            _logger.LogError(ex, "Failed to toggle mod_command workflow {WorkflowId}", row.Id);
+            ModCommandStatus = $"Could not save the toggle: {ex.Message}";
+            row.IsEnabled = !row.IsEnabled; // roll the checkbox back
         }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-
-    public ObservableCollection<string> FavoriteCommands { get; } = new();
-
-    /// <summary>Saves a composed command into the favorites store (Config "Mod.FavoriteCommands").</summary>
-    public async Task SaveFavoriteAsync(string? command)
-    {
-        command = command?.Trim();
-        if (string.IsNullOrWhiteSpace(command) || command.Equals("!mod", StringComparison.Ordinal))
-        {
-            StatusMessage = "Compose a command before saving it as a favorite.";
-            return;
-        }
-
-        if (FavoriteCommands.Contains(command))
-        {
-            StatusMessage = "That command is already saved.";
-            return;
-        }
-
-        FavoriteCommands.Add(command);
-        await PersistFavoritesAsync();
-        StatusMessage = "Favorite saved.";
-    }
-
-    [RelayCommand]
-    private async Task DeleteFavoriteAsync(string? command)
-    {
-        if (string.IsNullOrWhiteSpace(command) || !FavoriteCommands.Contains(command))
-        {
-            return;
-        }
-
-        FavoriteCommands.Remove(command);
-        await PersistFavoritesAsync();
-        StatusMessage = "Favorite removed.";
     }
 
     // ======================================================================
@@ -668,7 +624,7 @@ public partial class ModeratorViewModel : ViewModelBase
 
             await LoadAssignmentsAsync();
             await RefreshModActionsCommand.ExecuteAsync(null);
-            await LoadFavoritesAsync();
+            await LoadModCommandWorkflowsAsync();
             await LoadCommandChannelsCommand.ExecuteAsync(null);
 
             _loaded = true;
@@ -694,61 +650,6 @@ public partial class ModeratorViewModel : ViewModelBase
                 ModAssignments.Add(assignment);
             }
         });
-    }
-
-    private async Task LoadFavoritesAsync()
-    {
-        var raw = await _dataService.GetConfigValueAsync(FavoriteCommandsConfigKey);
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return;
-        }
-
-        try
-        {
-            var favorites = JsonSerializer.Deserialize<List<string>>(raw, FavoriteJsonOptions) ?? new List<string>();
-            RunOnUi(() =>
-            {
-                FavoriteCommands.Clear();
-                foreach (var favorite in favorites.Where(f => !string.IsNullOrWhiteSpace(f)))
-                {
-                    FavoriteCommands.Add(favorite);
-                }
-            });
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogWarning(ex, "Favorite commands config contains invalid JSON — ignoring");
-        }
-    }
-
-    private async Task PersistFavoritesAsync()
-    {
-        var json = JsonSerializer.Serialize(FavoriteCommands.ToList(), FavoriteJsonOptions);
-        await _dataService.SetConfigValueAsync(FavoriteCommandsConfigKey, json, "Mod");
-    }
-
-    /// <summary>
-    /// Resolves the mod channel the builder should post into: Config
-    /// "Mod.ChannelId" first (what the UI creates/saves), falling back to the
-    /// primary bot's DiscordBots row ModChannelId.
-    /// </summary>
-    private async Task<string?> ResolveModChannelIdAsync()
-    {
-        var configured = await _dataService.GetConfigValueAsync(ChannelIdConfigKey);
-        if (!string.IsNullOrWhiteSpace(configured))
-        {
-            return configured;
-        }
-
-        var primaryBotId = _botManager.Primary?.BotId;
-        if (string.IsNullOrWhiteSpace(primaryBotId))
-        {
-            return null;
-        }
-
-        var rows = await _dataService.GetDiscordBotsAsync();
-        return rows.FirstOrDefault(b => string.Equals(b.Id, primaryBotId, StringComparison.Ordinal))?.ModChannelId;
     }
 
     private void UpdateChannelStatus(string? channelId)
