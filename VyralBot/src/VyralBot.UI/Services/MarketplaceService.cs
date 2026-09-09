@@ -503,6 +503,46 @@ public class MarketplaceService
         return await FetchRatingsAsync(settings, sharecode, cancellationToken);
     }
 
+    /// <summary>
+    /// Fetches the GitHub blob SHA of a ratings file (null when it does not
+    /// exist yet). GitHub's update API requires it; the BotGhost rating event
+    /// branches on it (empty → create, otherwise → update).
+    /// </summary>
+    public async Task<string?> FetchRatingShaAsync(string sharecode, CancellationToken cancellationToken = default)
+    {
+        var settings = await MarketplaceSettings.LoadAsync(_dataService);
+        string url = $"https://api.github.com/repos/{settings.GitHubOwner}/{settings.GitHubRepo}/contents/{RatingFilePath(sharecode)}?ref={Uri.EscapeDataString(settings.Branch)}";
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.UserAgent.ParseAdd("VyralBot-Marketplace");
+            using var response = await Http.SendAsync(request, cancellationToken);
+            if ((int)response.StatusCode == 404)
+            {
+                return null; // no ratings file yet — BotGhost creates it
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Rating SHA fetch returned {Status} for {Code}", (int)response.StatusCode, sharecode);
+                return null;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var json = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            return json.RootElement.ValueKind == JsonValueKind.Object &&
+                   json.RootElement.TryGetProperty("sha", out var sha) &&
+                   sha.ValueKind == JsonValueKind.String
+                ? sha.GetString()
+                : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Rating SHA fetch failed for {Code}", sharecode);
+            return null;
+        }
+    }
+
     private async Task<(int Up, int Down)> FetchRatingsAsync(MarketplaceSettings settings, string sharecode, CancellationToken ct)
     {
         try
@@ -556,15 +596,20 @@ public class MarketplaceService
                 ["gh_content"] = Base64UrlEncode(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(document, WebJson)))
             });
 
-    /// <summary>Submits new rating counts for a sharecode through the BotGhost rating event.</summary>
-    public Task<(bool Ok, string Error)> SubmitRatingAsync(string sharecode, int up, int down) =>
+    /// <summary>
+    /// Submits new rating counts for a sharecode through the BotGhost rating
+    /// event. Pass the blob SHA from <see cref="FetchRatingShaAsync"/> (null =
+    /// the file is new and BotGhost should create it).
+    /// </summary>
+    public Task<(bool Ok, string Error)> SubmitRatingAsync(string sharecode, int up, int down, string? sha) =>
         PostToBotGhostAsync(
             settings => settings.RatingWebhookUrl,
             new Dictionary<string, string>
             {
                 ["gh_path"] = RatingFilePath(sharecode),
                 ["gh_message"] = $"marketplace: rate {sharecode} (up {up}, down {down})",
-                ["gh_content"] = Base64UrlEncode(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { up, down }, WebJson)))
+                ["gh_content"] = Base64UrlEncode(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { up, down }, WebJson))),
+                ["gh_sha"] = sha ?? string.Empty
             });
 
     private async Task<(bool Ok, string Error)> PostToBotGhostAsync(

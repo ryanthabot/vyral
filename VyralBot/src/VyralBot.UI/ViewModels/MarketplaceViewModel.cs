@@ -275,7 +275,8 @@ public partial class MarketplaceViewModel : ObservableObject
         try
         {
             var (up, down) = MarketplaceService.ApplyVote(thumbsUp, entry.Up, entry.Down);
-            var (ok, error) = await _marketplace.SubmitRatingAsync(entry.Sharecode, up, down);
+            string? sha = await _marketplace.FetchRatingShaAsync(entry.Sharecode);
+            var (ok, error) = await _marketplace.SubmitRatingAsync(entry.Sharecode, up, down, sha);
             if (!ok)
             {
                 StatusText = $"Vote failed: {error}";

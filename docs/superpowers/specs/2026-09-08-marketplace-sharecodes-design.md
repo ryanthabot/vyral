@@ -54,9 +54,10 @@ profile's SQLite database. We want:
    write on `ryanthabot/vyral` only) is stored as a BotGhost data-storage variable.
    - `share-submit`: body carries `commit_message`, `path`, `content_b64` (app pre-base64s the
      document so BotGhost only forwards it) → PUT new file (no SHA needed for new files).
-   - `rating-submit`: body carries `path`, `content_b64`, and the action sequence is
-     GET file → save `{sha}` from the response → condition → PUT with `sha` (updates require the
-     existing file's SHA; new ratings files PUT without one).
+   - `rating-submit`: body carries `path`, `content_b64`, `sha` (blob SHA of the existing
+     ratings file, empty when it doesn't exist — the app fetches it via a Contents API GET so
+     BotGhost only needs a simple condition) and the action sequence is GET file → condition on
+     status → PUT with `sha` when updating / PUT without `sha` when creating.
    - Verified BotGhost capabilities this relies on: webhook custom events accept external POSTs
      (Authorization: API key), the request builder supports method/URL/headers/raw-JSON-body with
      variable interpolation in all of them ("Replace variables in the URL" toggle), and responses
