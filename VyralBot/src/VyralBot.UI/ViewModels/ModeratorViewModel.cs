@@ -71,8 +71,8 @@ public partial class RoleTierRow : ObservableObject
 /// <summary>
 /// Moderator dashboard: mod channel setup (create + config), mod role
 /// assignments, the command-channel list, the Discord role→tier mapping
-/// editor, the moderation action log and the interactive !mod command
-/// builder (compose → preview → send to the configured mod channel, with
+/// editor, the moderation action log and the "Add moderator command"
+/// dialog (compose → preview → send to the configured mod channel, with
 /// save-as-favorite persistence in Config key "Mod.FavoriteCommands").
 /// </summary>
 public partial class ModeratorViewModel : ViewModelBase
@@ -494,9 +494,14 @@ public partial class ModeratorViewModel : ViewModelBase
     }
 
     // ======================================================================
-    // Section 5 — Command builder
+    // Section 5 — Command builder dialog
     // ======================================================================
 
+    /// <summary>
+    /// The per-action parameter metadata the builder dialog renders (verbs,
+    /// required target/amount/reason, amount labels). The dialog groups it
+    /// into Moderation / Currency / Engagement / Stream FX categories.
+    /// </summary>
     public IReadOnlyList<ModCommandTemplate> ActionTemplates { get; } = new[]
     {
         new ModCommandTemplate("Add currency", "addcurrency", needsTarget: true, needsAmount: true, needsReason: false, amountLabel: "Amount"),
@@ -517,82 +522,48 @@ public partial class ModeratorViewModel : ViewModelBase
         new ModCommandTemplate("Stream Deck action", "streamdeck", needsTarget: false, needsAmount: true, needsReason: false, amountLabel: "Action name"),
     };
 
-    [ObservableProperty]
-    private ModCommandTemplate? _selectedTemplate;
-
-    [ObservableProperty]
-    private string _builderTarget = string.Empty;
-
-    [ObservableProperty]
-    private string _builderAmount = string.Empty;
-
-    [ObservableProperty]
-    private string _builderReason = string.Empty;
-
-    /// <summary>Live-composed !mod command line (read-only preview in the view).</summary>
-    [ObservableProperty]
-    private string _composedPreview = "!mod";
-
-    /// <summary>Whether the builder's target field applies to the selected template.</summary>
-    public bool IsTargetVisible => SelectedTemplate?.NeedsTarget == true;
-
-    public bool IsAmountVisible => SelectedTemplate?.NeedsAmount == true;
-
-    public bool IsReasonVisible => SelectedTemplate?.NeedsReason == true;
-
-    public string AmountLabel => SelectedTemplate?.AmountLabel ?? "Amount";
-
-    partial void OnSelectedTemplateChanged(ModCommandTemplate? value)
+    /// <summary>
+    /// Opens the visual !mod command builder. The dialog composes and
+    /// validates the command; Run reuses SendModCommandAsync (the same
+    /// channel/audit path the old inline builder used) and Save reuses the
+    /// favorites persistence below.
+    /// </summary>
+    [RelayCommand]
+    private void OpenCommandBuilder()
     {
-        OnPropertyChanged(nameof(IsTargetVisible));
-        OnPropertyChanged(nameof(IsAmountVisible));
-        OnPropertyChanged(nameof(IsReasonVisible));
-        OnPropertyChanged(nameof(AmountLabel));
-        UpdateComposedPreview();
-    }
-
-    partial void OnBuilderTargetChanged(string value) => UpdateComposedPreview();
-
-    partial void OnBuilderAmountChanged(string value) => UpdateComposedPreview();
-
-    partial void OnBuilderReasonChanged(string value) => UpdateComposedPreview();
-
-    private void UpdateComposedPreview()
-    {
-        var parts = new List<string> { "!mod" };
-
-        if (SelectedTemplate is not null)
+        var dialog = new Views.ModeratorCommandBuilderDialog
         {
-            parts.Add(SelectedTemplate.Verb);
+            Owner = System.Windows.Application.Current.MainWindow,
+            DataContext = new ModeratorCommandBuilderViewModel(this)
+        };
+
+        dialog.ShowDialog();
+
+        var command = dialog.Builder.ComposedPreview.Trim();
+        if (!dialog.RunRequested && !dialog.SaveRequested || string.IsNullOrWhiteSpace(command))
+        {
+            return;
         }
 
-        if (SelectedTemplate?.NeedsTarget == true && !string.IsNullOrWhiteSpace(BuilderTarget))
+        if (dialog.SaveRequested)
         {
-            parts.Add(BuilderTarget.Trim());
+            _ = SaveFavoriteAsync(command);
         }
 
-        if (SelectedTemplate?.NeedsAmount == true && !string.IsNullOrWhiteSpace(BuilderAmount))
+        if (dialog.RunRequested)
         {
-            parts.Add(BuilderAmount.Trim());
+            _ = SendModCommandAsync(command);
         }
-
-        if (SelectedTemplate?.NeedsReason == true && !string.IsNullOrWhiteSpace(BuilderReason))
-        {
-            parts.Add(BuilderReason.Trim());
-        }
-
-        ComposedPreview = string.Join(' ', parts);
     }
 
     /// <summary>
-    /// Sends the composed !mod command into the configured mod channel via the
+    /// Sends a composed !mod command into the configured mod channel via the
     /// primary running bot's SendToChannelAsync — the Discord-side mod engine's
     /// moderation gating applies to it exactly like a typed message.
     /// </summary>
-    [RelayCommand]
-    private async Task RunModCommandAsync()
+    public async Task SendModCommandAsync(string? command)
     {
-        var command = ComposedPreview?.Trim();
+        command = command?.Trim();
         if (string.IsNullOrWhiteSpace(command) || command.Equals("!mod", StringComparison.Ordinal))
         {
             StatusMessage = "Compose a command first.";
@@ -635,10 +606,10 @@ public partial class ModeratorViewModel : ViewModelBase
 
     public ObservableCollection<string> FavoriteCommands { get; } = new();
 
-    [RelayCommand]
-    private async Task SaveFavoriteAsync()
+    /// <summary>Saves a composed command into the favorites store (Config "Mod.FavoriteCommands").</summary>
+    public async Task SaveFavoriteAsync(string? command)
     {
-        var command = ComposedPreview?.Trim();
+        command = command?.Trim();
         if (string.IsNullOrWhiteSpace(command) || command.Equals("!mod", StringComparison.Ordinal))
         {
             StatusMessage = "Compose a command before saving it as a favorite.";
@@ -654,48 +625,6 @@ public partial class ModeratorViewModel : ViewModelBase
         FavoriteCommands.Add(command);
         await PersistFavoritesAsync();
         StatusMessage = "Favorite saved.";
-    }
-
-    [RelayCommand]
-    private async Task RunFavoriteAsync(string? command)
-    {
-        if (string.IsNullOrWhiteSpace(command))
-        {
-            return;
-        }
-
-        var bot = _botManager.Primary;
-        if (bot is null)
-        {
-            StatusMessage = "No Discord bot is connected — start a bot on the Discord Bots page first.";
-            return;
-        }
-
-        try
-        {
-            IsBusy = true;
-
-            var channelId = await ResolveModChannelIdAsync();
-            if (string.IsNullOrWhiteSpace(channelId))
-            {
-                StatusMessage = "No mod channel configured — create one in the Mod Channel section first.";
-                return;
-            }
-
-            var sent = await bot.SendToChannelAsync(channelId, command, null);
-            StatusMessage = sent
-                ? "Favorite sent to the mod channel."
-                : "The bot could not post into the mod channel (missing access?).";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error running favorite command '{Command}'", command);
-            StatusMessage = $"Error running favorite: {ex.Message}";
-        }
-        finally
-        {
-            IsBusy = false;
-        }
     }
 
     [RelayCommand]
@@ -730,11 +659,6 @@ public partial class ModeratorViewModel : ViewModelBase
         try
         {
             _logger.LogInformation("Initializing Moderator view");
-
-            // SelectedTemplate has no parameterless default — pick the first
-            // template BEFORE _loaded flips so the change handler stays cheap.
-            SelectedTemplate = ActionTemplates[0];
-            UpdateComposedPreview();
 
             var channelId = await _dataService.GetConfigValueAsync(ChannelIdConfigKey);
             UpdateChannelStatus(channelId);

@@ -1,0 +1,236 @@
+<Window x:Class="VyralBot.UI.Views.ModeratorCommandBuilderDialog"
+        Icon="/Resources/Images/vyral-logo.png"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:converters="clr-namespace:VyralBot.UI.Converters"
+        Title="New Moderator Command"
+        Height="740"
+        Width="660"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        Background="Transparent"
+        AllowsTransparency="True">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <converters:NullOrEmptyToVisibilityConverter x:Key="StringNullOrEmptyToVisibilityConverter"/>
+    </Window.Resources>
+
+    <Border Background="{DynamicResource BackgroundDarkBrush}"
+            CornerRadius="8"
+            BorderBrush="{DynamicResource BorderLightBrush}"
+            BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    CornerRadius="8,8,0,0"
+                    Padding="20,16">
+                <StackPanel>
+                    <TextBlock Text="&#129689; New moderator command"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                    <TextBlock Text="Builds a !mod command — the Discord-side engine applies tier gating."
+                               FontSize="11"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,2,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Content -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="24,18">
+
+                    <!-- Category picker -->
+                    <TextBlock Text="Category"
+                               FontSize="13"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,4"/>
+                    <ComboBox ItemsSource="{Binding Categories}"
+                              SelectedItem="{Binding SelectedCategory}"
+                              Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                              Width="220"
+                              HorizontalAlignment="Left"
+                              Margin="0,0,0,12"/>
+
+                    <!-- Action list (per category) -->
+                    <TextBlock Text="Action"
+                               FontSize="13"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,4"/>
+                    <ListBox ItemsSource="{Binding Templates}"
+                             SelectedItem="{Binding SelectedTemplate}"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             Padding="0"
+                             MaxHeight="170"
+                             Margin="0,0,0,12">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- Dynamic parameter fields -->
+                    <TextBox Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}"
+                             materialDesign:HintAssist.Hint="Target (username or Discord user ID)"
+                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             Margin="0,0,0,12"
+                             Visibility="{Binding IsTargetVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                    <TextBox Text="{Binding Amount, UpdateSourceTrigger=PropertyChanged}"
+                             materialDesign:HintAssist.Hint="{Binding AmountLabel}"
+                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             Margin="0,0,0,12"
+                             Visibility="{Binding IsAmountVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                    <TextBox Text="{Binding Reason, UpdateSourceTrigger=PropertyChanged}"
+                             materialDesign:HintAssist.Hint="Reason (optional)"
+                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             Margin="0,0,0,12"
+                             Visibility="{Binding IsReasonVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                    <!-- Tier badge + live preview -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <Border Background="{DynamicResource PrimaryLightBrush}"
+                                CornerRadius="3"
+                                Padding="8,3">
+                            <TextBlock Text="{Binding TierBadge}"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        </Border>
+                    </StackPanel>
+
+                    <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                            BorderBrush="{DynamicResource PrimaryBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="12,8"
+                            Margin="0,0,0,8">
+                        <TextBlock Text="{Binding ComposedPreview}"
+                                   FontFamily="Consolas"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </Border>
+
+                    <TextBlock Text="{Binding ValidationError}"
+                               FontSize="12"
+                               Foreground="{DynamicResource ErrorBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,8"
+                               Visibility="{Binding ValidationError, Converter={StaticResource StringNullOrEmptyToVisibilityConverter}}"/>
+
+                    <!-- Favorites -->
+                    <TextBlock Text="Favorites"
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,8,0,8"/>
+                    <TextBlock Text="No favorites saved yet."
+                               FontSize="12"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               Margin="0,0,0,6">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasItems, ElementName=FavoritesList}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <ItemsControl x:Name="FavoritesList"
+                                  ItemsSource="{Binding FavoriteCommands}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                        CornerRadius="4"
+                                        Padding="12,6"
+                                        Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Clicking a favorite loads it into the builder -->
+                                        <Button Grid.Column="0"
+                                                Command="{Binding DataContext.LoadFavoriteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                HorizontalContentAlignment="Left"
+                                                Padding="4"
+                                                ToolTip="Load this favorite into the builder">
+                                            <TextBlock Text="{Binding}"
+                                                       FontFamily="Consolas"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </Button>
+
+                                        <Button Grid.Column="1"
+                                                Command="{Binding DataContext.DeleteFavoriteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Padding="4"
+                                                ToolTip="Remove this favorite">
+                                            <materialDesign:PackIcon Kind="Delete" Width="16" Height="16"
+                                                                     Foreground="{DynamicResource ErrorBrush}"/>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Buttons -->
+            <Border Grid.Row="2"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderLightBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,8,8"
+                    Padding="20,16">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+                    <Button Content="CANCEL"
+                            Click="Cancel_Click"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            Width="100"
+                            Height="40"
+                            Margin="0,0,12,0"/>
+                    <Button Content="SAVE AS FAVORITE"
+                            Click="Save_Click"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="40"
+                            Margin="0,0,12,0"/>
+                    <Button Content="RUN COMMAND"
+                            Click="Run_Click"
+                            Style="{StaticResource MaterialDesignRaisedButton}"
+                            Background="{DynamicResource PrimaryBrush}"
+                            Foreground="White"
+                            Width="140"
+                            Height="40"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>
