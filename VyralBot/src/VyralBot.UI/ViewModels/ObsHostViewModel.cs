@@ -59,6 +59,9 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _needsAdminRestart;
 
+    /// <summary>Raised when the Full OBS tab becomes visible again — the embed control re-embeds the parked window.</summary>
+    public event Action? EmbedRequested;
+
     [ObservableProperty]
     private string? _remoteStatusText;
 
@@ -453,12 +456,49 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
     // ------------------------------------------------------------------
 
     /// <summary>
-    /// Drops the status/websocket wiring on navigation away. The host service
-    /// itself is an app singleton — the window keeps living (parked by the
-    /// embed control) and App.OnExit detaches it to the desktop.
+    /// Called by ObsViewModel on every Full OBS tab visibility change: leaving
+    /// the tab parks (minimizes) the OBS window — the HwndHost is NOT torn
+    /// down by a mere Visibility collapse, so without this the owned window
+    /// keeps floating above everything; returning to the tab raises
+    /// <see cref="EmbedRequested"/> so the control re-embeds it.
+    /// </summary>
+    public void OnFullObsTabVisibilityChanged(bool visible)
+    {
+        if (visible)
+        {
+            EmbedRequested?.Invoke();
+        }
+        else
+        {
+            ParkHostWindow();
+        }
+    }
+
+    private void ParkHostWindow()
+    {
+        try
+        {
+            if (_host.GetStatus().State is ObsHostState.Embedded or ObsHostState.ReadyToEmbed)
+            {
+                _host.Park();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Parking the OBS window on tab leave failed");
+        }
+    }
+
+    /// <summary>
+    /// Drops the status/websocket wiring on navigation away. The OBS window is
+    /// parked (minimized to the taskbar, ownership cleared) so it cannot float
+    /// above other pages or apps; the host service itself is an app singleton
+    /// and App.OnExit minimizes it for exit.
     /// </summary>
     public void Dispose()
     {
+        ParkHostWindow();
+
         if (_statusSubscribed)
         {
             _host.StatusChanged -= OnHostStatusChanged;

@@ -95,12 +95,26 @@ public partial class ObsViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task SelectTab(string tab)
     {
+        bool fullObsWasSelected = IsFullObsTabSelected;
         IsFullObsTabSelected = tab == "FullObs";
         IsStudioTabSelected = tab == "BotStudio";
         IsCollectionsTabSelected = tab == "Collections";
 
+        // Leaving the Full OBS tab must park the owned OBS window — a
+        // Visibility collapse does not tear down the embed host, and the
+        // window would otherwise keep floating above everything.
+        if (fullObsWasSelected && tab != "FullObs")
+        {
+            Host.OnFullObsTabVisibilityChanged(false);
+        }
+
         // Lazy Bot Studio boot: the native engine auto-init happens only on
         // the first Bot Studio selection, not on page open.
+        if (tab == "FullObs")
+        {
+            Host.OnFullObsTabVisibilityChanged(true);
+        }
+
         if (tab == "BotStudio" && !_studioInitialized)
         {
             _studioInitialized = true;

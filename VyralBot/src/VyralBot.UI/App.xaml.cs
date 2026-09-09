@@ -957,8 +957,8 @@ public partial class App : Application
             {
                 try
                 {
-                    obsWindowHost.UnembedToDesktop();
-                    Log.Information("OBS host window detached to the desktop on exit");
+                    obsWindowHost.MinimizeDetached();
+                    Log.Information("OBS host window minimized (ownership cleared) on exit");
                 }
                 catch (Exception ex)
                 {

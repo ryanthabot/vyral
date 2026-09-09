@@ -73,6 +73,9 @@ public sealed class ObsWindowEmbedHost : HwndHost
     /// it subscribes to <see cref="ObsWindowHostService.StatusChanged"/> and
     /// completes the embed once OBS reaches an embeddable state.
     /// </summary>
+    /// <summary>Re-runs the embed attempt — used when the Full OBS tab becomes visible again.</summary>
+    public void EnsureEmbedded() => EmbedBestEffort();
+
     public void Attach(ObsWindowHostService service)
     {
         if (this.service is { } previous && !ReferenceEquals(previous, service))

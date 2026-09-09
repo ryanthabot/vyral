@@ -586,6 +586,45 @@ public sealed class ObsWindowHostService : IDisposable
     /// ObsExited with Detail "detached — OBS still running" and a later
     /// EnsureRunningAsync adopts the same process again.
     /// </summary>
+    /// <summary>
+    /// App-exit cleanup: clears ownership and minimizes the OBS window
+    /// WITHOUT restoring it — a minimized taskbar entry is the least
+    /// intrusive way to leave a running OBS behind when Vyral closes.
+    /// </summary>
+    public void MinimizeDetached()
+    {
+        IntPtr hwnd;
+        lock (stateLock)
+        {
+            hwnd = obsHwnd;
+        }
+
+        if (!Win32WindowHost.IsWindow(hwnd))
+        {
+            return;
+        }
+
+        ObsHostStatus snapshot;
+        lock (stateLock)
+        {
+            _ = Win32WindowHost.SetWindowLongPtrW(hwnd, Win32WindowHost.GwlHwndParent, IntPtr.Zero);
+            ownerHwnd = IntPtr.Zero;
+            if (originalStyle is not null)
+            {
+                // Give the user back the full chrome — after Vyral closes they
+                // interact with OBS through its own taskbar button.
+                _ = Win32WindowHost.SetWindowLongPtrW(hwnd, Win32WindowHost.GwlStyle, originalStyle.Value);
+            }
+
+            state = ObsHostState.Parked;
+            detail = "detached — OBS still running";
+            snapshot = SnapshotLocked();
+        }
+
+        _ = Win32WindowHost.ShowWindow(hwnd, Win32WindowHost.SwMinimize);
+        StatusChanged?.Invoke(snapshot);
+    }
+
     public void UnembedToDesktop()
     {
         IntPtr hwnd;

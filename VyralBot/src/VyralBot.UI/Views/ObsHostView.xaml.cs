@@ -27,14 +27,22 @@ public partial class ObsHostView : UserControl
         if (e.OldValue is ObsHostViewModel old)
         {
             old.PropertyChanged -= OnViewModelPropertyChanged;
+            old.EmbedRequested -= OnEmbedRequested;
         }
 
         if (e.NewValue is ObsHostViewModel viewModel)
         {
             viewModel.PropertyChanged += OnViewModelPropertyChanged;
+            viewModel.EmbedRequested += OnEmbedRequested;
         }
 
         AttachEmbedIfInstalled();
+    }
+
+    private void OnEmbedRequested()
+    {
+        AttachEmbedIfInstalled();
+        Embed.EnsureEmbedded();
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
