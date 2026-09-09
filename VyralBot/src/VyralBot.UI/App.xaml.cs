@@ -206,9 +206,17 @@ public partial class App : Application
                 services.AddSingleton<VyralBot.Workflows.Abstractions.IDiscordWorkflowBridge>(sp =>
                     sp.GetRequiredService<UI.Services.WorkflowDiscordBridge>());
 
-                // Trigger service consumes the bridge + bot manager via its
-                // optional trailing ctor parameters (DI fills them when present)
+                // Trigger service consumes the bridge + bot manager + the
+                // effective mod-tier resolver via its optional trailing ctor
+                // parameters (DI fills them when present)
                 services.AddSingleton<UI.Services.WorkflowTriggerService>();
+
+                // Custom "!mod <verb>" workflows: the Core !mod engine's
+                // unknown-verb fallback runs them through the trigger service
+                // (tier gate + awaited execution). The ModCommandEngine
+                // singleton below receives this via its optional trailing
+                // IModWorkflowInvoker ctor parameter.
+                services.AddSingleton<VyralBot.Core.Services.Moderation.IModWorkflowInvoker, UI.Services.ModWorkflowInvoker>();
 
                 // Visual flow editor (workflow canvas; pinned ctor signature:
                 // IDataService, WorkflowTriggerService, WorkflowDiscordBridge,

@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Threading;
 using VyralBot.Core.Services.EventBus;
+using VyralBot.Core.Services.Moderation;
 using VyralBot.Data;
 using VyralBot.Integrations.Discord;
 using VyralBot.Integrations.Kick;
@@ -73,6 +74,14 @@ namespace VyralBot.UI.Services;
 ///    with a synthetic context (username "Manual"). Runs regardless of
 ///    Enabled so disabled drafts stay debuggable.
 ///
+///  • MOD-COMMAND triggers ("mod_command") — custom "!mod &lt;verb&gt;" verbs.
+///    ModCommandEngine's unknown-verb fallback (Core's IModWorkflowInvoker,
+///    implemented by ModWorkflowInvoker over this service) resolves the
+///    caller's effective tier via IModTierResolver, gates it against the
+///    trigger's MinimumTier (<see cref="TryHandleModCommandAsync"/>) and
+///    executes the flow AWAITED, returning a confirmation the engine audits.
+///    Built-in engine verbs keep precedence — they never reach this path.
+///
 /// COMMAND OPTIONS (Workflow.Options, authored in the flow editor): cooldowns,
 /// channel restrictions and DM/guild scoping are enforced BEFORE an execution
 /// is built (see <see cref="EvaluateOptions"/>); "Moderator"/role-name
@@ -131,6 +140,10 @@ public class WorkflowTriggerService
     private readonly IDiscordBotManager? _botManager;
     // Optional: live metrics sink for the Settings → Performance tab.
     private readonly VyralBot.Core.Services.Performance.IMetricsRegistry? _metrics;
+    // Optional: effective mod-tier source for mod_command gating. Null-tolerant
+    // (keeps older construction sites compiling); without it no tier can be
+    // resolved, so mod_command workflows are denied rather than run ungated.
+    private readonly IModTierResolver? _tierResolver;
 
     private readonly object _sync = new();
     private readonly List<Guid> _subscriptionIds = new();
@@ -145,6 +158,9 @@ public class WorkflowTriggerService
     // component custom id → enabled component workflow (button/select CHILD
     // workflows materialized by the editor resolve by their exact ComponentKey)
     private readonly Dictionary<string, Workflow> _workflowByComponentKey = new(StringComparer.Ordinal);
+    // mod verb (case-insensitive) → enabled mod_command workflow (last one wins
+    // when two flows claim the same verb — the newest cache entry serves it)
+    private readonly Dictionary<string, Workflow> _modCommandIndex = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Workflow> _timerWorkflows = new();
     // In-memory V1 timer bookkeeping: workflow id → last fire (UTC). See class doc.
     private readonly Dictionary<string, DateTime> _lastTimerRun = new(StringComparer.Ordinal);
@@ -174,7 +190,8 @@ public class WorkflowTriggerService
         // Discord interaction bridge + bot manager for slash/component triggers.
         WorkflowDiscordBridge? discordBridge = null,
         IDiscordBotManager? botManager = null,
-        VyralBot.Core.Services.Performance.IMetricsRegistry? metrics = null)
+        VyralBot.Core.Services.Performance.IMetricsRegistry? metrics = null,
+        IModTierResolver? modTierResolver = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
@@ -186,6 +203,7 @@ public class WorkflowTriggerService
         _discordBridge = discordBridge;
         _botManager = botManager;
         _metrics = metrics;
+        _tierResolver = modTierResolver;
 
         // Slash auto-registration for bots that start AFTER the last cache
         // load: the lifecycle events live on the concrete manager (not the
@@ -276,6 +294,7 @@ public class WorkflowTriggerService
             _slashIndex.Clear();
             _workflowById.Clear();
             _workflowByComponentKey.Clear();
+            _modCommandIndex.Clear();
             _timerWorkflows.Clear();
             _lastTimerRun.Clear();
             _lastOptionRun.Clear();
@@ -508,6 +527,124 @@ public class WorkflowTriggerService
         {
             _logger.LogError(ex, "Workflow command trigger matching failed for message: {Message}", message);
             return false; // never break the existing command pipeline
+        }
+    }
+
+    // ======================================================================
+    // MODERATOR COMMAND TRIGGERS ("!mod <verb>" workflows, reached through
+    // ModCommandEngine's unknown-verb fallback: Core.Services.Moderation
+    // .IModWorkflowInvoker → ModWorkflowInvoker → this service)
+    // ======================================================================
+
+    /// <summary>
+    /// Runs a moderator-command workflow for the given verb. Returns the reply
+    /// string to post (null when no workflow matches the verb — the caller then
+    /// falls through to its own "unknown action" handling).
+    ///
+    /// Gating: the caller's effective tier (<see cref="IModTierResolver"/>,
+    /// Discord snowflake id keyed) must rank at or above the workflow's
+    /// normalized Trigger.MinimumTier (unknown authored values normalize to
+    /// "Mod", the model default); an unresolvable tier denies. Execution is
+    /// AWAITED (unlike the fire-and-forget command triggers) so the Core
+    /// engine can audit the returned confirmation as one action; the
+    /// workflow's own send_message nodes deliver the real content.
+    /// </summary>
+    /// <param name="botId">Id of the bot instance that received the command (routed back on sends).</param>
+    /// <param name="guildId">Discord guild snowflake id, when known.</param>
+    /// <param name="channel">Channel the command was posted in (the mod channel).</param>
+    /// <param name="username">Display name of the calling moderator.</param>
+    /// <param name="userId">Discord snowflake id of the calling moderator (tier lookup key).</param>
+    /// <param name="verb">The "!mod" verb; matched case-insensitively.</param>
+    /// <param name="args">Everything after the verb (seeded as the "args" variable).</param>
+    /// <param name="ct">Reserved for the runtime (WorkflowRuntime.ExecuteAsync takes none yet).</param>
+    public async Task<string?> TryHandleModCommandAsync(
+        string botId, string? guildId, string channel, string username,
+        string userId, string verb, string args, CancellationToken ct = default)
+    {
+        try
+        {
+            var normalizedVerb = (verb ?? string.Empty).Trim().ToLowerInvariant();
+            if (!_started || !_workflowsEnabled || normalizedVerb.Length == 0)
+            {
+                return null;
+            }
+
+            Workflow? workflow;
+            lock (_sync)
+            {
+                _modCommandIndex.TryGetValue(normalizedVerb, out workflow);
+            }
+
+            // No workflow (or one whose platform filter excludes the only
+            // "!mod" origin) → the engine keeps its unknown-action reply.
+            if (workflow == null || !PlatformMatches(workflow.Trigger?.Platform, "Discord"))
+            {
+                return null;
+            }
+
+            var requiredTier = ModTiers.NormalizeTier(workflow.Trigger?.MinimumTier) ?? "Mod";
+            var tier = _tierResolver == null
+                ? null
+                : await _tierResolver.ResolveTierAsync(botId, guildId, userId, username).ConfigureAwait(false);
+            if (tier == null || ModTiers.Rank(tier) < ModTiers.Rank(requiredTier))
+            {
+                _logger.LogInformation(
+                    "Mod-command workflow '{Name}' (verb '{Verb}') denied for {Username}: {Required} tier required (caller: {Caller})",
+                    workflow.Name, normalizedVerb, username, requiredTier, tier ?? "(none)");
+                return $"⛔ {username}, '{normalizedVerb}' requires {requiredTier} tier or higher.";
+            }
+
+            const string platform = "Discord";
+            var message = ("!mod " + normalizedVerb + " " + (args ?? string.Empty)).Trim();
+            var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["verb"] = normalizedVerb,
+                ["args"] = args ?? string.Empty,
+                ["tier"] = tier
+            };
+            var context = BuildContext(
+                workflow, platform, channel, username, message, botId, null, variables,
+                userRoles: null, userId: userId, isBot: false);
+
+            var runtime = ResolveRuntime();
+            if (runtime == null)
+            {
+                _logger.LogWarning("Workflow '{Name}' ({WorkflowId}) skipped: WorkflowRuntime is not available",
+                    workflow.Name, workflow.Id);
+                return null;
+            }
+
+            try
+            {
+                var result = await runtime.ExecuteAsync(workflow, context).ConfigureAwait(false);
+                _metrics?.Increment("Workflows", "runs");
+                if (result is { IsCompleted: false })
+                {
+                    _metrics?.Increment("Workflows", "failed");
+                    _logger.LogWarning("Workflow '{Name}' ({WorkflowId}) execution {ExecutionId} {Status}: {Error}",
+                        workflow.Name, workflow.Id, context.ExecutionId, result.Status, result.Error ?? "(no details)");
+                }
+                else
+                {
+                    _logger.LogInformation("Mod-command workflow '{Name}' (verb '{Verb}') triggered by {Username} completed in {DurationMs}ms",
+                        workflow.Name, normalizedVerb, username, result.DurationMs);
+                }
+            }
+            catch (Exception ex)
+            {
+                _metrics?.Increment("Workflows", "runs");
+                _metrics?.Increment("Workflows", "failed");
+                _logger.LogError(ex, "Mod-command workflow '{Name}' (verb '{Verb}') execution failed for {Username}",
+                    workflow.Name, normalizedVerb, username);
+            }
+
+            return $"✨ '{normalizedVerb}' triggered by {username}.";
+        }
+        catch (Exception ex)
+        {
+            // Never break the engine's own fallback handling with a workflow bug.
+            _logger.LogError(ex, "Mod-command workflow handling failed for verb '{Verb}' from {Username}", verb, username);
+            return null;
         }
     }
 
@@ -1637,6 +1774,7 @@ public class WorkflowTriggerService
         var slashIndex = new Dictionary<string, List<Workflow>>(StringComparer.Ordinal);
         var workflowById = new Dictionary<string, Workflow>(StringComparer.Ordinal);
         var workflowByComponentKey = new Dictionary<string, Workflow>(StringComparer.Ordinal);
+        var modCommandIndex = new Dictionary<string, Workflow>(StringComparer.OrdinalIgnoreCase);
         var timers = new List<Workflow>();
 
         if (rows != null)
@@ -1703,6 +1841,17 @@ public class WorkflowTriggerService
                         }
                         break;
 
+                    // "mod_command" verbs are dispatched by the Core !mod
+                    // engine's unknown-verb fallback (IModWorkflowInvoker →
+                    // TryHandleModCommandAsync below); one workflow per verb.
+                    case "mod_command":
+                        var modVerb = (trigger.CommandName ?? string.Empty).Trim().ToLowerInvariant();
+                        if (modVerb.Length > 0)
+                        {
+                            modCommandIndex[modVerb] = workflow;
+                        }
+                        break;
+
                     // "button_click" / "select_menu" are matched from the
                     // component custom id — BY WORKFLOW ID (workflowById) or,
                     // for child sub-flows, by exact ComponentKey
@@ -1745,6 +1894,9 @@ public class WorkflowTriggerService
 
             _workflowByComponentKey.Clear();
             foreach (var kvp in workflowByComponentKey) _workflowByComponentKey[kvp.Key] = kvp.Value;
+
+            _modCommandIndex.Clear();
+            foreach (var kvp in modCommandIndex) _modCommandIndex[kvp.Key] = kvp.Value;
 
             _timerWorkflows.Clear();
             _timerWorkflows.AddRange(timers);

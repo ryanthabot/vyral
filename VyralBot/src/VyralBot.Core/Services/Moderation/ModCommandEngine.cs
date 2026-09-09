@@ -43,6 +43,9 @@ public class ModCommandEngine : IModCommandEngine
     private readonly PollService _polls;
     private readonly IEventBus _eventBus;
     private readonly ILogger<ModCommandEngine> _logger;
+    // Optional: workflow system fallback for verbs the built-in engine does not
+    // know (custom "!mod <verb>" workflows). Null keeps the classic behavior.
+    private readonly IModWorkflowInvoker? _workflowInvoker;
 
     private Guid _subscriptionId;
     private bool _subscribed;
@@ -55,7 +58,8 @@ public class ModCommandEngine : IModCommandEngine
         GiveawayService giveaways,
         PollService polls,
         IEventBus eventBus,
-        ILogger<ModCommandEngine>? logger = null)
+        ILogger<ModCommandEngine>? logger = null,
+        IModWorkflowInvoker? workflowInvoker = null)
     {
         _modRoles = modRoles ?? throw new ArgumentNullException(nameof(modRoles));
         _tierResolver = tierResolver ?? throw new ArgumentNullException(nameof(tierResolver));
@@ -65,6 +69,7 @@ public class ModCommandEngine : IModCommandEngine
         _polls = polls ?? throw new ArgumentNullException(nameof(polls));
         _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
         _logger = logger ?? NullLogger<ModCommandEngine>.Instance;
+        _workflowInvoker = workflowInvoker;
     }
 
     /// <summary>
@@ -244,6 +249,33 @@ public class ModCommandEngine : IModCommandEngine
 
         if (ModTiers.MinimumTier(action) == null)
         {
+            // Unknown to the built-in engine — offer the verb to the workflow
+            // system first (custom !mod verbs). A matched workflow's reply is
+            // audited + delivered exactly like an executed built-in action;
+            // no match falls through to the classic unknown-action reply.
+            if (_workflowInvoker is not null)
+            {
+                var workflowReply = await _workflowInvoker.TryInvokeAsync(
+                    action, string.Join(" ", args), message.BotId ?? "", message.GuildId,
+                    message.ChannelId ?? "", message.Username ?? "", message.SenderUserId ?? "")
+                    .ConfigureAwait(false);
+                if (workflowReply is not null)
+                {
+                    await _dataService.SaveModActionAsync(new ModAction
+                    {
+                        ModUsername = message.Username ?? "",
+                        ModUserId = message.SenderUserId ?? "",
+                        TargetUsername = "",
+                        TargetUserId = "",
+                        Action = action,
+                        Details = workflowReply
+                    }).ConfigureAwait(false);
+
+                    await ReplyAsync(bot, modChannelId, workflowReply).ConfigureAwait(false);
+                    return;
+                }
+            }
+
             await ReplyAsync(bot, modChannelId, $"❌ Unknown mod action '{action}'. {BuildUsage()}").ConfigureAwait(false);
             return;
         }
