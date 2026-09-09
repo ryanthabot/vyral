@@ -1897,9 +1897,12 @@ public partial class MainViewModel : ViewModelBase
             _obsScope?.Dispose();
             _obsScope = _serviceProvider.CreateScope();
             _obsViewModel = _obsScope.ServiceProvider.GetRequiredService<ObsViewModel>();
-            await _obsViewModel.InitializeAsync();
+            // Show the page immediately — OBS hosting (launch + window
+            // discovery) can take tens of seconds and streams its progress
+            // through the page's own status line.
             CurrentViewModel = _obsViewModel;
             Title = "Vyral - OBS";
+            await _obsViewModel.InitializeAsync();
         }
         catch (Exception ex)
         {

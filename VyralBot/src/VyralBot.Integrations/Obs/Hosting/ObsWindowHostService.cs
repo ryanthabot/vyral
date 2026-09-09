@@ -68,7 +68,7 @@ public sealed class ObsWindowHostService : IDisposable
 
     // Same session by design (Local\): two Vyral instances in one session
     // adopting/embedding the same obs64 would steal the window from each other.
-    private const string HostMutexName = @"Local\VyralBot.ObsWindowHost";
+    private readonly string hostMutexName;
     private static readonly TimeSpan hostMutexTimeout = TimeSpan.FromSeconds(2);
 
     // UIPI silently no-ops the embed when OBS runs elevated and Vyral does not.
@@ -87,15 +87,28 @@ public sealed class ObsWindowHostService : IDisposable
     private IntPtr obsHwnd;
     private nint? originalStyle;
     private IntPtr embeddedHostHwnd;
+
+    /// <summary>
+    /// Set when the last embed failed because OBS runs elevated and Vyral does
+    /// not — the UI offers a "restart as administrator" action in that case.
+    /// Read only after a Failed status.
+    /// </summary>
+    public bool NeedsAdminRestart { get; private set; }
+    private bool needsAdminRestart;
     private Mutex? hostMutex;
     private int hostMutexOwnerThreadId = -1;
     private CancellationTokenSource? exitPollCts;
     private bool disposed;
 
-    public ObsWindowHostService(ObsInstallLocator locator, ILogger<ObsWindowHostService>? logger = null)
+    public ObsWindowHostService(ObsInstallLocator locator, ILogger<ObsWindowHostService>? logger = null, string? hostMutexName = null)
     {
         this.locator = locator ?? throw new ArgumentNullException(nameof(locator));
         this.logger = logger ?? NullLogger<ObsWindowHostService>.Instance;
+        // Injectable so tests can isolate from a live Vyral instance holding
+        // the default mutex.
+        this.hostMutexName = string.IsNullOrWhiteSpace(hostMutexName)
+            ? @"Local\VyralBot.ObsWindowHost"
+            : hostMutexName!;
     }
 
     /// <summary>Raised on a threadpool thread after every state change; subscribers marshal to their own context.</summary>
@@ -260,6 +273,7 @@ public sealed class ObsWindowHostService : IDisposable
 
         ObsHostStatus snapshot;
         bool failed;
+        string failDetail;
         lock (stateLock)
         {
             if (obsHwnd == IntPtr.Zero)
@@ -268,57 +282,129 @@ public sealed class ObsWindowHostService : IDisposable
                     "No OBS window to embed — call EnsureRunningAsync and WaitForWindowAsync first.");
             }
 
-            if (originalStyle is null)
+            // OBS can destroy and recreate its Qt main window shortly after
+            // startup, which invalidates the handle we captured — and UIPI
+            // (elevated OBS vs non-elevated Vyral) makes SetParent a silent
+            // no-op. Both look identical from the raw return values, so each
+            // attempt validates the handle, captures the Win32 error, and on
+            // failure re-discovers the current window before retrying.
+            const int maxAttempts = 3;
+            int lastError = 0;
+            failed = true;
+            failDetail = EmbedUipiFailureDetail;
+
+            for (int attempt = 1; attempt <= maxAttempts && failed; attempt++)
             {
-                // First embed: remember the real top-level style for UnembedToDesktop.
-                originalStyle = Win32WindowHost.GetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlStyle);
+                if (attempt > 1)
+                {
+                    logger.LogInformation(
+                        "OBS host: embed attempt {Attempt}/{Max} — re-discovering the OBS window", attempt, maxAttempts);
+                    Thread.Sleep(1200);
+                    IntPtr fresh = processId != 0 ? FindObsMainWindow(processId) : IntPtr.Zero;
+                    if (fresh == IntPtr.Zero)
+                    {
+                        lock (stateLock)
+                        {
+                            fresh = obsHwnd;
+                        }
+                    }
+
+                    if (fresh == IntPtr.Zero || !Win32WindowHost.IsWindow(fresh))
+                    {
+                        failDetail = "The OBS window disappeared before it could be embedded — press Relaunch.";
+                        break;
+                    }
+
+                    lock (stateLock)
+                    {
+                        if (obsHwnd != fresh)
+                        {
+                            logger.LogInformation(
+                                "OBS host: window handle changed 0x{Old:X} → 0x{New:X} (OBS recreated its window)",
+                                obsHwnd.ToInt64(), fresh.ToInt64());
+                            obsHwnd = fresh;
+                            originalStyle = null; // the recreated window has its own original style
+                        }
+                    }
+                }
+
+                if (!Win32WindowHost.IsWindow(obsHwnd))
+                {
+                    // Handled by the rediscovery pass on the next attempt.
+                    continue;
+                }
+
+                if (originalStyle is null)
+                {
+                    // First embed: remember the real top-level style for UnembedToDesktop.
+                    originalStyle = Win32WindowHost.GetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlStyle);
+                }
+
+                _ = Win32WindowHost.SetParent(obsHwnd, hostHwnd);
+                lastError = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+
+                // Strip chrome in place — everything but the five chrome bits
+                // (WS_POPUP and WS_VISIBLE included) survives the mask untouched.
+                nint style = Win32WindowHost.GetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlStyle);
+                _ = Win32WindowHost.SetWindowLongPtrW(
+                    obsHwnd, Win32WindowHost.GwlStyle, ObsWindowStyle.StripTopLevelChrome(style));
+
+                // Fill the host's client area; the caller fine-tunes via ResizeTo
+                // once WPF layout has settled.
+                bool moved = true;
+                if (Win32WindowHost.GetWindowRect(hostHwnd, out Win32WindowHost.RECT hostRect))
+                {
+                    moved = Win32WindowHost.MoveWindow(
+                        obsHwnd, 0, 0, hostRect.Right - hostRect.Left, hostRect.Bottom - hostRect.Top, repaint: true);
+                }
+
+                // HWND_TOP among the host's children — an earlier sibling would
+                // otherwise cover OBS.
+                _ = Win32WindowHost.SetWindowPos(
+                    obsHwnd, IntPtr.Zero, 0, 0, 0, 0,
+                    Win32WindowHost.SwpNoSize | Win32WindowHost.SwpNoMove | Win32WindowHost.SwpNoActivate);
+
+                // UIPI silently no-ops all of the above when OBS runs elevated and
+                // Vyral does not, and the raw return values cannot be trusted
+                // (SetParent hands back the previous parent, SetWindowLongPtrW the
+                // previous style — both can legitimately be NULL/0) — so verify
+                // the observable effects instead.
+                bool reparented = Win32WindowHost.GetParent(obsHwnd) == hostHwnd;
+                nint styleNow = Win32WindowHost.GetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlStyle);
+                failed = !reparented
+                    || (styleNow & ObsWindowStyle.TopLevelChromeMask) != 0
+                    || !moved;
+
+                if (failed)
+                {
+                    failDetail = $"Could not embed the OBS window (Win32 error {lastError}).";
+                    logger.LogWarning(
+                        "OBS host: embed attempt {Attempt}/{Max} failed — win32 error {Error}, reparented={Reparented}",
+                        attempt, maxAttempts, lastError, reparented);
+                }
             }
-
-            _ = Win32WindowHost.SetParent(obsHwnd, hostHwnd);
-
-            // Strip chrome in place — everything but the five chrome bits
-            // (WS_POPUP and WS_VISIBLE included) survives the mask untouched.
-            nint style = Win32WindowHost.GetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlStyle);
-            _ = Win32WindowHost.SetWindowLongPtrW(
-                obsHwnd, Win32WindowHost.GwlStyle, ObsWindowStyle.StripTopLevelChrome(style));
-
-            // Fill the host's client area; the caller fine-tunes via ResizeTo
-            // once WPF layout has settled.
-            bool moved = true;
-            if (Win32WindowHost.GetWindowRect(hostHwnd, out Win32WindowHost.RECT hostRect))
-            {
-                moved = Win32WindowHost.MoveWindow(
-                    obsHwnd, 0, 0, hostRect.Right - hostRect.Left, hostRect.Bottom - hostRect.Top, repaint: true);
-            }
-
-            // HWND_TOP among the host's children — an earlier sibling would
-            // otherwise cover OBS.
-            _ = Win32WindowHost.SetWindowPos(
-                obsHwnd, IntPtr.Zero, 0, 0, 0, 0,
-                Win32WindowHost.SwpNoSize | Win32WindowHost.SwpNoMove | Win32WindowHost.SwpNoActivate);
-
-            // UIPI silently no-ops all of the above when OBS runs elevated and
-            // Vyral does not, and the raw return values cannot be trusted
-            // (SetParent hands back the previous parent, SetWindowLongPtrW the
-            // previous style — both can legitimately be NULL/0) — so verify
-            // the observable effects instead.
-            bool reparented = Win32WindowHost.GetParent(obsHwnd) == hostHwnd;
-            nint styleNow = Win32WindowHost.GetWindowLongPtrW(obsHwnd, Win32WindowHost.GwlStyle);
-            failed = !reparented
-                || (styleNow & ObsWindowStyle.TopLevelChromeMask) != 0
-                || !moved;
 
             if (failed)
             {
                 embeddedHostHwnd = IntPtr.Zero;
                 state = ObsHostState.Failed;
-                detail = EmbedUipiFailureDetail;
+
+                // Distinguish the actionable cause: an elevated OBS cannot be
+                // parented by a non-elevated Vyral.
+                if (Win32WindowHost.IsProcessElevated(processId) && !Win32WindowHost.IsProcessElevated(Environment.ProcessId))
+                {
+                    failDetail = EmbedUipiFailureDetail;
+                    needsAdminRestart = true;
+                }
+
+                detail = failDetail;
             }
             else
             {
                 embeddedHostHwnd = hostHwnd;
                 state = ObsHostState.Embedded;
                 detail = null;
+                needsAdminRestart = false;
             }
 
             snapshot = SnapshotLocked();
@@ -326,9 +412,9 @@ public sealed class ObsWindowHostService : IDisposable
 
         if (failed)
         {
-            logger.LogWarning("OBS host: embedding into host HWND 0x{HostHwnd:X} failed (UIPI?)", hostHwnd.ToInt64());
+            logger.LogWarning("OBS host: embedding into host HWND 0x{HostHwnd:X} failed: {Detail}", hostHwnd.ToInt64(), failDetail);
             StatusChanged?.Invoke(snapshot);
-            throw new InvalidOperationException(EmbedUipiFailureDetail);
+            throw new InvalidOperationException(failDetail);
         }
 
         logger.LogInformation("OBS host: embedded into host HWND 0x{HostHwnd:X}", hostHwnd.ToInt64());
@@ -686,6 +772,51 @@ public sealed class ObsWindowHostService : IDisposable
         _ = Task.Run(() => PollProcessExit(target, cts));
     }
 
+    /// <summary>
+    /// 1 Hz self-heal for the embedded window: if OBS recreates its Qt main
+    /// window after we embedded (the handle dies), re-discover the current
+    /// window and re-embed it into the same host. Runs on the poll thread.
+    /// </summary>
+    private void CheckEmbedHealth()
+    {
+        IntPtr hwnd;
+        IntPtr host;
+        lock (stateLock)
+        {
+            if (state != ObsHostState.Embedded || obsHwnd == IntPtr.Zero || embeddedHostHwnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            hwnd = obsHwnd;
+            host = embeddedHostHwnd;
+        }
+
+        if (Win32WindowHost.IsWindow(hwnd) && Win32WindowHost.GetParent(hwnd) == host)
+        {
+            return; // healthy
+        }
+
+        IntPtr fresh = processId != 0 ? FindObsMainWindow(processId) : IntPtr.Zero;
+        if (fresh == IntPtr.Zero || !Win32WindowHost.IsWindow(fresh))
+        {
+            return; // OBS is between windows (scene collection load, etc.) — next tick retries
+        }
+
+        logger.LogInformation(
+            "OBS host: embedded window 0x{Old:X} no longer parented to 0x{Host:X} — re-embedding the current window 0x{New:X}",
+            hwnd.ToInt64(), host.ToInt64(), fresh.ToInt64());
+
+        try
+        {
+            EmbedInto(host);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "OBS host: embed self-heal failed — will retry next tick");
+        }
+    }
+
     private async Task PollProcessExit(Process target, CancellationTokenSource cts)
     {
         try
@@ -707,6 +838,26 @@ public sealed class ObsWindowHostService : IDisposable
 
                 if (!exited)
                 {
+                    // OBS with many dock plugins can take longer than the
+                    // caller's WaitForWindowAsync timeout to show its window —
+                    // keep discovering for the life of the process so the
+                    // ReadyToEmbed → embed flow always completes eventually.
+                    bool waiting;
+                    lock (stateLock)
+                    {
+                        waiting = state is ObsHostState.Launching or ObsHostState.WaitingForWindow;
+                    }
+
+                    if (waiting && processId != 0)
+                    {
+                        IntPtr hwnd = FindObsMainWindow(processId);
+                        if (hwnd != IntPtr.Zero)
+                        {
+                            OnWindowFound(hwnd);
+                        }
+                    }
+
+                    CheckEmbedHealth();
                     continue;
                 }
 
@@ -766,7 +917,7 @@ public sealed class ObsWindowHostService : IDisposable
                 return true; // this instance already hosts
             }
 
-            var mutex = new Mutex(initiallyOwned: false, HostMutexName);
+            var mutex = new Mutex(initiallyOwned: false, hostMutexName);
             bool acquired;
             try
             {

@@ -154,7 +154,8 @@ public class ObsWindowHostTests
     [Fact]
     public void EnsureRunningAsync_ObsHostedByAnotherInstance_FailsWithDetail()
     {
-        using var held = new Mutex(false, HostMutexName);
+        string mutexName = UniqueMutexName();
+        using var held = new Mutex(false, mutexName);
         var owned = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseNow = new ManualResetEventSlim();
         Task holder = Task.Run(() =>
@@ -180,7 +181,7 @@ public class ObsWindowHostTests
         {
             Assert.True(owned.Task.Wait(TimeSpan.FromSeconds(10)));
 
-            using var service = NewHostService();
+            using var service = NewHostService(mutexName);
             bool started = service.EnsureRunningAsync().GetAwaiter().GetResult();
 
             Assert.False(started);
@@ -199,8 +200,9 @@ public class ObsWindowHostTests
     public void Dispose_ReleasesTheHostMutex_ForTheNextInstance()
     {
         string locatorRoot = NewEmptyLocatorRoot();
-        var service = new ObsWindowHostService(new ObsInstallLocator(locatorRoot));
-        using var probe = new Mutex(false, HostMutexName);
+        string mutexName = UniqueMutexName();
+        var service = new ObsWindowHostService(new ObsInstallLocator(locatorRoot), hostMutexName: mutexName);
+        using var probe = new Mutex(false, mutexName);
         try
         {
             // Acquire on a worker thread and keep it there until released:
@@ -242,11 +244,11 @@ public class ObsWindowHostTests
     // Helpers
     // ---------------------------------------------------------------------
 
-    private const string HostMutexName = @"Local\VyralBot.ObsWindowHost";
+    private static string UniqueMutexName() => $@"Local\VyralBot.ObsWindowHost.Test.{{Guid.NewGuid():N}}";
 
     /// <summary>Host service pointed at a directory that is never an OBS install.</summary>
-    private static ObsWindowHostService NewHostService() =>
-        new(new ObsInstallLocator(NewEmptyLocatorRoot()));
+    private static ObsWindowHostService NewHostService(string? hostMutexName = null) =>
+        new(new ObsInstallLocator(NewEmptyLocatorRoot()), hostMutexName: hostMutexName);
 
     private static string NewEmptyLocatorRoot() => Directory.CreateDirectory(
         Path.Combine(Path.GetTempPath(), "vyralbot-obs-host-" + Guid.NewGuid().ToString("N"))).FullName;

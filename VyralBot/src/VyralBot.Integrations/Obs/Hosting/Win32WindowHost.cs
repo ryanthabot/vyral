@@ -97,4 +97,60 @@ internal static class Win32WindowHost
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern IntPtr GetDesktopWindow();
+
+    private const int ProcessQueryLimitedInformation = 0x1000;
+    private const int TokenQuery = 0x0008;
+    private const int TokenElevation = 20;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(int desiredAccess, bool inheritHandle, int processId);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool OpenProcessToken(IntPtr processHandle, int desiredAccess, out IntPtr tokenHandle);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetTokenInformation(IntPtr tokenHandle, int tokenInformationClass, out uint tokenInfo, int tokenInfoLength, out int returnLength);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(IntPtr handle);
+
+    /// <summary>
+    /// True when the process with the given id runs with an elevated
+    /// (administrator) token. Returns false when the process is gone or the
+    /// token cannot be queried — the caller treats "obs elevated + Vyral not"
+    /// as the only actionable signal, so both sides must answer.
+    /// </summary>
+    internal static bool IsProcessElevated(int processId)
+    {
+        var process = OpenProcess(ProcessQueryLimitedInformation, inheritHandle: false, processId);
+        if (process == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (!OpenProcessToken(process, TokenQuery, out var token))
+            {
+                return false;
+            }
+
+            try
+            {
+                return GetTokenInformation(token, TokenElevation, out uint elevated, sizeof(uint), out _)
+                    && elevated != 0;
+            }
+            finally
+            {
+                _ = CloseHandle(token);
+            }
+        }
+        finally
+        {
+            _ = CloseHandle(process);
+        }
+    }
 }

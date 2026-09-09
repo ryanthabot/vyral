@@ -45,6 +45,15 @@
                             <TextBlock Text="Open in own window" Margin="6,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
+                    <Button Command="{Binding RestartAsAdminCommand}"
+                            Style="{StaticResource MaterialDesignRaisedButton}" Margin="8,0,0,0"
+                            ToolTip="OBS is running as administrator — Vyral must run elevated too to host it inside this tab."
+                            Visibility="{Binding NeedsAdminRestart, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="ShieldAccount" Width="16" Height="16" VerticalAlignment="Center"/>
+                            <TextBlock Text="Restart Vyral as administrator" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
                 <TextBlock DockPanel.Dock="Right" Text="{Binding RemoteStatusText}" FontSize="11" TextAlignment="Right"
                            VerticalAlignment="Center" TextWrapping="Wrap"

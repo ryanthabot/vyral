@@ -55,6 +55,10 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private int _acquirePercent;
 
+    /// <summary>True when the embed failed because OBS runs elevated — offers a one-click elevated restart of Vyral.</summary>
+    [ObservableProperty]
+    private bool _needsAdminRestart;
+
     [ObservableProperty]
     private string? _remoteStatusText;
 
@@ -141,13 +145,30 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
                 return;
             }
 
+            // The window wait is fire-and-forget on purpose: the host service
+            // keeps discovering for as long as obs64 runs (its poll promotes
+            // Launching/WaitingForWindow → ReadyToEmbed even long after the
+            // caller's timeout), and this page must render immediately with
+            // the live status instead of holding navigation on a blank page.
+            _ = WaitForWindowAndEmbedAsync();
+        }
+
+        await ConnectRemoteControlAsync();
+    }
+
+    private async Task WaitForWindowAndEmbedAsync()
+    {
+        try
+        {
             if (!await _host.WaitForWindowAsync())
             {
                 StatusNote = "OBS did not show its window in time — if a dialog is blocking it, close it and press Relaunch.";
             }
         }
-
-        await ConnectRemoteControlAsync();
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Waiting for the OBS window failed");
+        }
     }
 
     // ------------------------------------------------------------------
@@ -358,8 +379,8 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
                 return; // transient close — the connect result already set a line
             }
 
-            RemoteStatusText = "Remote control: connected — scene "
-                + (status.CurrentScene ?? "?")
+            RemoteStatusText = "Remote control: connected"
+                + (string.IsNullOrWhiteSpace(status.CurrentScene) ? "" : $" — scene {status.CurrentScene}")
                 + (status.StreamActive ? " • stream live" : "");
         });
 
@@ -380,6 +401,7 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
         // OBS exists or ran — a late status from the singleton's exit poll
         // must never resurrect "not installed" next to "obs64 has exited".
         IsObsInstalled = status.State != ObsHostState.NotInstalled;
+        NeedsAdminRestart = status.State == ObsHostState.Failed && _host.NeedsAdminRestart;
 
         HostStatusText = status.State switch
         {
@@ -396,6 +418,34 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
         IsHosted = status.State == ObsHostState.Embedded;
         RelaunchCommand.NotifyCanExecuteChanged();
         OpenInOwnWindowCommand.NotifyCanExecuteChanged();
+        RestartAsAdminCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanRestartAsAdmin() => NeedsAdminRestart;
+
+    [RelayCommand(CanExecute = nameof(CanRestartAsAdmin))]
+    private void RestartAsAdmin()
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(Environment.ProcessPath))
+            {
+                StatusNote = "Could not locate the Vyral executable to restart elevated.";
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo(Environment.ProcessPath)
+            {
+                UseShellExecute = true,
+                Verb = "runas", // triggers the elevation prompt
+            });
+            Environment.Exit(0); // the elevated instance takes over
+        }
+        catch (Exception ex)
+        {
+            // User cancelled the UAC prompt (or elevation was refused).
+            StatusNote = $"Elevation cancelled: {ex.Message}";
+        }
     }
 
     // ------------------------------------------------------------------
