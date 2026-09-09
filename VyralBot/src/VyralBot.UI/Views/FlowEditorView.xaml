@@ -2525,7 +2525,7 @@
                                     <ComboBox ItemsSource="{Binding TriggerTypes}"
                                               SelectedItem="{Binding SelectedTriggerType}"/>
 
-                                    <!-- command / slash: name + prefix -->
+                                    <!-- command / slash / mod: name + prefix -->
                                     <StackPanel Visibility="{Binding IsTriggerNeedsCommandName, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="Command name" Style="{StaticResource FlowFieldLabel}"/>
                                         <TextBox Text="{Binding TriggerCommandName, UpdateSourceTrigger=PropertyChanged}"
@@ -2536,6 +2536,16 @@
                                                  FontFamily="Consolas" Width="70"
                                                  HorizontalAlignment="Left"
                                                  materialDesign:HintAssist.Hint="!"/>
+
+                                        <!-- mod command only: the tier ladder gating who may run it -->
+                                        <StackPanel Visibility="{Binding IsTriggerModCommand, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock Text="Minimum tier" Style="{StaticResource FlowFieldLabel}"/>
+                                            <ComboBox ItemsSource="{Binding TierOptions}"
+                                                      SelectedItem="{Binding TriggerMinimumTier}"
+                                                      MinWidth="140"
+                                                      HorizontalAlignment="Left"
+                                                      ToolTip="Lowest mod tier that may run this command (TrialMod &lt; Mod &lt; SeniorMod &lt; Admin)"/>
+                                        </StackPanel>
                                     </StackPanel>
 
                                     <!-- button / select hint -->

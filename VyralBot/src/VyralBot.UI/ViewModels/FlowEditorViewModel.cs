@@ -10,6 +10,7 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using VyralBot.Core.Services.Moderation;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
 using VyralBot.UI.Controls.FlowCanvas;
@@ -1396,6 +1397,9 @@ public class FlowTriggerDto
     public string? EventType { get; set; }
     public string? Platform { get; set; }
     public string? Description { get; set; }
+
+    /// <summary>Minimum mod tier (mod_command triggers); null for other trigger types.</summary>
+    public string? MinimumTier { get; set; }
 }
 
 /// <summary>One command-option row of an editor snapshot.</summary>
@@ -1936,6 +1940,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     {
         new(WorkflowTriggerTypes.Command, "Prefix command"),
         new(WorkflowTriggerTypes.SlashCommand, "Slash command (Discord)"),
+        new(WorkflowTriggerTypes.ModCommand, "Moderator command"),
         new(WorkflowTriggerTypes.ButtonClick, "Button click"),
         new(WorkflowTriggerTypes.SelectMenu, "Select menu"),
         new(WorkflowTriggerTypes.Event, "Event"),
@@ -1964,7 +1969,14 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     [ObservableProperty]
     private string _triggerIntervalMinutes = "15";
 
+    /// <summary>Minimum mod tier for mod_command triggers (canonical ModTiers spelling).</summary>
+    [ObservableProperty]
+    private string _triggerMinimumTier = "Mod";
+
     public ObservableCollection<string> PlatformOptions { get; } = new(PalettePlatforms);
+
+    /// <summary>Tier ladder for mod_command triggers, lowest rank first (ModTiers.TierNames).</summary>
+    public ObservableCollection<string> TierOptions { get; } = new(ModTiers.TierNames);
 
     /// <summary>
     /// Event types WorkflowTriggerService actually dispatches (Twitch + Kick
@@ -1978,7 +1990,8 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     public bool IsTriggerCommand => SelectedTriggerType?.Key == WorkflowTriggerTypes.Command;
     public bool IsTriggerSlash => SelectedTriggerType?.Key == WorkflowTriggerTypes.SlashCommand;
-    public bool IsTriggerNeedsCommandName => IsTriggerCommand || IsTriggerSlash;
+    public bool IsTriggerModCommand => SelectedTriggerType?.Key == WorkflowTriggerTypes.ModCommand;
+    public bool IsTriggerNeedsCommandName => IsTriggerCommand || IsTriggerSlash || IsTriggerModCommand;
     public bool IsTriggerButtonOrSelect =>
         SelectedTriggerType?.Key is WorkflowTriggerTypes.ButtonClick or WorkflowTriggerTypes.SelectMenu;
     public bool IsTriggerEvent => SelectedTriggerType?.Key == WorkflowTriggerTypes.Event;
@@ -2053,6 +2066,10 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             {
                 return $"When: {prefix}{commandName}";
             }
+            if (IsTriggerModCommand)
+            {
+                return $"When: !mod {commandName} ({TriggerMinimumTier})";
+            }
             if (IsTriggerButtonOrSelect)
             {
                 return IsTriggerButton
@@ -2088,6 +2105,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     {
         OnPropertyChanged(nameof(IsTriggerCommand));
         OnPropertyChanged(nameof(IsTriggerSlash));
+        OnPropertyChanged(nameof(IsTriggerModCommand));
         OnPropertyChanged(nameof(IsTriggerNeedsCommandName));
         OnPropertyChanged(nameof(IsTriggerButtonOrSelect));
         OnPropertyChanged(nameof(IsTriggerEvent));
@@ -2128,6 +2146,11 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         UpdateTriggerCard();
         MarkDirty();
     }
+    partial void OnTriggerMinimumTierChanged(string value)
+    {
+        UpdateTriggerCard();
+        MarkDirty();
+    }
 
     // ======================================================================
     // Command options
@@ -2143,8 +2166,14 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         new(WorkflowOptionTypes.Nsfw, "NSFW flag", "true")
     };
 
-    /// <summary>Instance view of <see cref="OptionTypes"/> for XAML bindings.</summary>
-    public IReadOnlyList<FlowOptionTypeOption> OptionTypeChoices => OptionTypes;
+    /// <summary>Instance view of <see cref="OptionTypes"/> for XAML bindings. The generic
+    /// "Require moderator" row is redundant for mod_command triggers (the trigger's
+    /// MinimumTier already gates the tier), so it is not offered there; existing
+    /// permission rows still load and save untouched.</summary>
+    public IReadOnlyList<FlowOptionTypeOption> OptionTypeChoices =>
+        IsTriggerModCommand
+            ? OptionTypes.Where(t => t.Key != WorkflowOptionTypes.Permission).ToList()
+            : OptionTypes;
 
     [ObservableProperty]
     private ObservableCollection<FlowOptionRowViewModel> _optionRows = new();
@@ -2444,12 +2473,14 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             PlatformOptions.Add(TriggerPlatform);
         }
         TriggerIntervalMinutes = (trigger.IntervalMinutes ?? 15).ToString();
+        TriggerMinimumTier = ModTiers.NormalizeTier(trigger.MinimumTier) ?? "Mod";
     }
 
     private void NotifyTriggerFlagsChanged()
     {
         OnPropertyChanged(nameof(IsTriggerCommand));
         OnPropertyChanged(nameof(IsTriggerSlash));
+        OnPropertyChanged(nameof(IsTriggerModCommand));
         OnPropertyChanged(nameof(IsTriggerNeedsCommandName));
         OnPropertyChanged(nameof(IsTriggerButtonOrSelect));
         OnPropertyChanged(nameof(IsTriggerEvent));
@@ -2465,7 +2496,8 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         IntervalMinutes = trigger?.IntervalMinutes,
         EventType = trigger?.EventType,
         Platform = string.IsNullOrWhiteSpace(trigger?.Platform) ? (string.IsNullOrWhiteSpace(defaultPlatform) ? "Any" : defaultPlatform) : trigger!.Platform,
-        Description = null
+        Description = null,
+        MinimumTier = trigger?.MinimumTier
     };
 
     private void LoadOptionsIntoForm(IEnumerable<WorkflowOption>? options)
@@ -4878,6 +4910,12 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             trigger.IntervalMinutes = minutes;
         }
 
+        if (IsTriggerModCommand)
+        {
+            // Unknown/empty tier spellings fall back to "Mod" on save.
+            trigger.MinimumTier = ModTiers.NormalizeTier(TriggerMinimumTier) ?? "Mod";
+        }
+
         return trigger;
     }
 
@@ -4953,7 +4991,8 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 CommandPrefix = trigger.CommandPrefix,
                 IntervalMinutes = trigger.IntervalMinutes,
                 EventType = trigger.EventType,
-                Platform = trigger.Platform
+                Platform = trigger.Platform,
+                MinimumTier = trigger.MinimumTier ?? "Mod"
             },
             Nodes = workflowNodes,
             Parameters = ParameterRows
@@ -6283,6 +6322,22 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         StatusText = "New timed event — name it, set the interval, then SAVE.";
     }
 
+    /// <summary>"+ New Moderator Command": a fresh flow with a mod_command trigger preset (tier "Mod").</summary>
+    [RelayCommand]
+    public async Task StartNewModCommandAsync()
+    {
+        if (!ConfirmDiscardUnsavedChanges())
+        {
+            return;
+        }
+
+        DeleteDrafts();
+        await InitializeAsync(null, null);
+        SelectedTriggerType = TriggerTypes.First(t => t.Key == WorkflowTriggerTypes.ModCommand);
+        TriggerMinimumTier = "Mod";
+        StatusText = "New moderator command — set the verb and tier, add blocks, then SAVE.";
+    }
+
     /// <summary>Row ✏️: loads that workflow into the editor (with unsaved-changes guard).</summary>
     [RelayCommand]
     public async Task EditPanelWorkflowAsync(FlowWorkflowRowViewModel? row)
@@ -6731,6 +6786,7 @@ public partial class FlowWorkflowRowViewModel : ObservableObject
     {
         WorkflowTriggerTypes.SlashCommand => "slash command",
         WorkflowTriggerTypes.Command => "prefix command",
+        WorkflowTriggerTypes.ModCommand => $"!mod {(string.IsNullOrWhiteSpace(Flow.Trigger.CommandName) ? "?" : Flow.Trigger.CommandName.Trim())} ({ModTiers.NormalizeTier(Flow.Trigger.MinimumTier) ?? "Mod"})",
         WorkflowTriggerTypes.Event => $"event · {(string.IsNullOrWhiteSpace(Flow.Trigger.EventType) ? "any" : Flow.Trigger.EventType)}",
         WorkflowTriggerTypes.Timer => "timer",
         _ => Flow.Trigger.Type

@@ -12,6 +12,9 @@ public static class WorkflowTriggerTypes
     public const string SlashCommand = "slash_command";
     public const string ButtonClick = "button_click";
     public const string SelectMenu = "select_menu";
+
+    /// <summary>Custom moderator verb ("!mod &lt;verb&gt;"), tier-gated via <see cref="WorkflowTrigger.MinimumTier"/>.</summary>
+    public const string ModCommand = "mod_command";
 }
 
 /// <summary>Well-known workflow command-option type strings (command-level constraints).</summary>
@@ -159,6 +162,15 @@ public class WorkflowTrigger
 
     /// <summary>Command prefix (command triggers), e.g. "!". Defaults to "!".</summary>
     public string? CommandPrefix { get; set; }
+
+    /// <summary>
+    /// Minimum mod tier for <see cref="WorkflowTriggerTypes.ModCommand"/> triggers.
+    /// Canonical ladder (lowest first): "TrialMod" &lt; "Mod" &lt; "SeniorMod" &lt; "Admin" —
+    /// every tier inherits the lower tiers' permissions (single source of truth:
+    /// VyralBot.Core.Services.Moderation.ModTiers, which also normalizes unknown
+    /// values back to "Mod"). Serialized inside TriggerJson, so no schema change.
+    /// </summary>
+    public string MinimumTier { get; set; } = "Mod";
 
     /// <summary>Firing interval (timer triggers).</summary>
     public int? IntervalMinutes { get; set; }
