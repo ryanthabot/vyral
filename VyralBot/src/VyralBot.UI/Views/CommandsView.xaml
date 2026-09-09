@@ -193,12 +193,17 @@
                            Margin="0,6,0,0"/>
             </StackPanel>
 
-            <Button Grid.Column="1"
-                    Content="NEW COMMAND"
-                    Click="OnVisualEditorClick"
-                    Style="{StaticResource VyralPlainPrimaryButton}"
-                    VerticalAlignment="Top"
-                    ToolTip="Create a new command flow in the Visual Builder"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                <Button Content="MARKETPLACE"
+                        Click="OnMarketplaceClick"
+                        Style="{StaticResource VyralPlainOutlineButton}"
+                        Margin="0,0,12,0"
+                        ToolTip="Browse shared commands and import them, or configure sharing"/>
+                <Button Content="NEW COMMAND"
+                        Click="OnVisualEditorClick"
+                        Style="{StaticResource VyralPlainPrimaryButton}"
+                        ToolTip="Create a new command flow in the Visual Builder"/>
+            </StackPanel>
         </Grid>
 
         <!-- Bot scope bar: only when Discord bots are configured -->
@@ -848,6 +853,19 @@
                 Background="{DynamicResource BackgroundDarkBrush}"
                 Visibility="Collapsed">
             <ContentControl x:Name="FlowEditorHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+        </Border>
+
+        <!-- ============================================================
+             MARKETPLACE overlay: full-size MarketplaceView host
+             (browse shared commands / settings) — collapsed until opened
+             from the header MARKETPLACE button or a share/import flow
+             ============================================================ -->
+        <Border x:Name="MarketplaceOverlay"
+                Grid.Row="0"
+                Panel.ZIndex="101"
+                Background="{DynamicResource BackgroundDarkBrush}"
+                Visibility="Collapsed">
+            <ContentControl x:Name="MarketplaceHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
         </Border>
     </Grid>
 </UserControl>

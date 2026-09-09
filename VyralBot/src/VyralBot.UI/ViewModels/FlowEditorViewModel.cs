@@ -1474,6 +1474,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private readonly IDataService _dataService;
     private readonly WorkflowTriggerService _triggerService;
     private readonly WorkflowDiscordBridge _discordBridge;
+    private readonly MarketplaceService _marketplace;
 
     /// <summary>The canvas the view attached (null until the view loads).</summary>
     private FlowCanvasControl? _canvas;
@@ -2160,11 +2161,13 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         IDataService dataService,
         WorkflowTriggerService triggerService,
         WorkflowDiscordBridge discordBridge,
+        MarketplaceService marketplaceService,
         ILogger<FlowEditorViewModel> logger)
     {
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _triggerService = triggerService ?? throw new ArgumentNullException(nameof(triggerService));
         _discordBridge = discordBridge ?? throw new ArgumentNullException(nameof(discordBridge));
+        _marketplace = marketplaceService ?? throw new ArgumentNullException(nameof(marketplaceService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _selectedTriggerType = TriggerTypes.First(t => t.Key == WorkflowTriggerTypes.Manual);
@@ -4675,16 +4678,16 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         RedoCommand.NotifyCanExecuteChanged();
     }
 
-    private string SerializeSnapshot()
+    /// <summary>Collects the full editor state into a snapshot DTO (undo, drafts, export, marketplace sharing).</summary>
+    public FlowEditorSnapshotDto BuildSnapshotDto()
     {
-        var trigger = BuildTriggerDto();
-        return JsonSerializer.Serialize(new FlowEditorSnapshotDto
+        return new FlowEditorSnapshotDto
         {
             Id = _workflowId,
             Name = FlowName,
             Description = TriggerDescription,
             Enabled = FlowEnabled,
-            Trigger = trigger,
+            Trigger = BuildTriggerDto(),
             Options = OptionRows.Select(o => new FlowOptionDto { Type = o.Type.Key, Value = o.Value }).ToList(),
             Parameters = ParameterRows.Select(p => new FlowParameterDto
             {
@@ -4696,7 +4699,12 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             EntryNodeId = _entryNodeId,
             ErrorHandlerEntryId = _errorHandlerEntryId,
             Nodes = Nodes.Select(ToNodeDto).ToList()
-        }, JsonOpts.Indented);
+        };
+    }
+
+    private string SerializeSnapshot()
+    {
+        return JsonSerializer.Serialize(BuildSnapshotDto(), JsonOpts.Indented);
     }
 
     private static FlowNodeDto ToNodeDto(FlowCanvasNode node) => new()
@@ -5502,7 +5510,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 return;
             }
 
-            File.WriteAllText(dialog.FileName, BuildExportDocument());
+            File.WriteAllText(dialog.FileName, FlowSnapshotService.BuildDocument(BuildSnapshotDto()));
             StatusText = $"Exported to {Path.GetFileName(dialog.FileName)}.";
             _logger.LogInformation("Exported workflow {WorkflowId} to {Path}", _workflowId, dialog.FileName);
         }
@@ -5511,85 +5519,6 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             _logger.LogError(ex, "Flow export failed for workflow {WorkflowId}", _workflowId);
             StatusText = $"Export failed: {ex.Message}";
         }
-    }
-
-    /// <summary>Builds the export document: nodes + connections + trigger + options + metadata.</summary>
-    private string BuildExportDocument()
-    {
-        var ids = new HashSet<string>(Nodes.Select(n => n.Id), StringComparer.Ordinal);
-        string? Clean(string? id) => id != null && ids.Contains(id) ? id : null;
-
-        var trigger = BuildTriggerDto();
-        var document = new Dictionary<string, object?>
-        {
-            ["id"] = _workflowId,
-            ["name"] = FlowName,
-            ["trigger"] = new Dictionary<string, object?>
-            {
-                ["type"] = trigger.Type,
-                ["commandName"] = trigger.CommandName,
-                ["commandPrefix"] = trigger.CommandPrefix,
-                ["intervalMinutes"] = trigger.IntervalMinutes,
-                ["eventType"] = trigger.EventType,
-                ["platform"] = trigger.Platform,
-                ["description"] = string.IsNullOrWhiteSpace(TriggerDescription) ? null : TriggerDescription.Trim()
-            },
-            ["options"] = OptionRows.Select(o => new Dictionary<string, object?>
-            {
-                ["type"] = o.Type.Key,
-                ["value"] = o.IsFlagOnly ? "true" : o.Value
-            }).ToList(),
-            ["parameters"] = ParameterRows.Select(p => new Dictionary<string, object?>
-            {
-                ["name"] = p.Name,
-                ["type"] = p.Type,
-                ["description"] = p.Description,
-                ["required"] = p.Required
-            }).ToList(),
-            ["entryNodeId"] = _entryNodeId,
-            ["errorHandlerEntryId"] = _errorHandlerEntryId,
-            ["nodes"] = Nodes.Select(n => new Dictionary<string, object?>
-            {
-                ["id"] = n.Id,
-                ["blockType"] = n.BlockType,
-                ["label"] = n.Label,
-                ["position"] = new Dictionary<string, object?> { ["x"] = n.X, ["y"] = n.Y },
-                ["parameters"] = new Dictionary<string, string>(n.Config, StringComparer.Ordinal)
-            }).ToList(),
-            ["connections"] = BuildConnections(Clean),
-            ["metadata"] = new Dictionary<string, object?>
-            {
-                ["version"] = "1.0",
-                ["lastSaved"] = DateTime.UtcNow.ToString("o"),
-                ["author"] = "Vyral"
-            }
-        };
-
-        return JsonSerializer.Serialize(document, JsonOpts.Indented);
-    }
-
-    private List<Dictionary<string, object?>> BuildConnections(Func<string?, string?> clean)
-    {
-        var connections = new List<Dictionary<string, object?>>();
-        foreach (FlowCanvasNode node in Nodes)
-        {
-            foreach (KeyValuePair<string, string?> wire in node.OutgoingWires)
-            {
-                string? target = clean(wire.Value);
-                if (string.IsNullOrEmpty(target))
-                {
-                    continue;
-                }
-
-                connections.Add(new Dictionary<string, object?>
-                {
-                    ["id"] = $"{node.Id}:{wire.Key}->{target}",
-                    ["source"] = $"{node.Id}:{wire.Key}",
-                    ["target"] = $"{target}:in"
-                });
-            }
-        }
-        return connections;
     }
 
     /// <summary>Imports a .flow.json document (tolerates missing fields) and rebuilds the canvas.</summary>
@@ -5609,14 +5538,136 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 return;
             }
 
-            using var stream = new FileStream(dialog.FileName, FileMode.Open, FileAccess.Read);
-            var dto = JsonSerializer.Deserialize<FlowEditorSnapshotDto>(stream, JsonOpts.Indented);
-            if (dto == null)
+            TryImportSnapshot(FlowSnapshotService.ParseDocument(File.ReadAllText(dialog.FileName)), Path.GetFileName(dialog.FileName));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Flow import failed");
+            StatusText = $"Import failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Loads a marketplace-shared command (parsed snapshot) as a fresh working
+    /// copy. Same path as file import — review, then SAVE to persist.
+    /// </summary>
+    public void ImportSharedSnapshot(FlowEditorSnapshotDto snapshot, string sourceLabel)
+    {
+        TryImportSnapshot(snapshot, sourceLabel);
+    }
+
+    // ==================================================================================
+    // Marketplace: share to the cloud + self-contained offline paste-code
+    // ==================================================================================
+
+    /// <summary>Shares the current flow to the marketplace via a BotGhost webhook (code copied on success).</summary>
+    [RelayCommand]
+    private async Task ShareToMarketplaceAsync()
+    {
+        if (Nodes.Count == 0)
+        {
+            StatusText = "Add at least one block before sharing.";
+            return;
+        }
+
+        try
+        {
+            var settings = await _marketplace.LoadSettingsAsync();
+            var dialog = new Views.ShareCommandDialog(
+                FlowName,
+                TriggerDescription,
+                settings.LastAuthor ?? string.Empty)
             {
-                StatusText = "Import failed: the file is not a Vyral flow document.";
+                Owner = Application.Current.MainWindow
+            };
+
+            if (dialog.ShowDialog() != true || dialog.Result == null)
+            {
                 return;
             }
 
+            var share = dialog.Result;
+            StatusText = "Submitting to the marketplace…";
+
+            string sharecode = MarketplaceService.GenerateShareCode();
+            string json = MarketplaceService.BuildShareDocumentJson(
+                BuildSnapshotDto(), sharecode, share.Name, share.Description, share.Category, share.Author);
+            var document = MarketplaceService.ParseShareDocument(json);
+            if (document == null)
+            {
+                StatusText = "Share failed: could not build the command document.";
+                return;
+            }
+
+            var (ok, error) = await _marketplace.SubmitShareAsync(document);
+            if (!ok)
+            {
+                StatusText = $"Share failed: {error}";
+                return;
+            }
+
+            await settings.SaveAsync(_dataService); // remember the author name
+            System.Windows.Clipboard.SetText(sharecode);
+            StatusText = $"Shared as {sharecode} (copied) — waiting for it to appear in the marketplace…";
+
+            _ = ConfirmPublishedAsync(sharecode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Marketplace share failed for workflow {WorkflowId}", _workflowId);
+            StatusText = $"Share failed: {ex.Message}";
+        }
+    }
+
+    private async Task ConfirmPublishedAsync(string sharecode)
+    {
+        try
+        {
+            bool published = await _marketplace.WaitUntilPublishedAsync(sharecode);
+            StatusText = published
+                ? $"Shared as {sharecode} — it is now live in the marketplace."
+                : $"Shared as {sharecode} — not visible yet; check the marketplace in a minute.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Marketplace publish confirmation failed for {Code}", sharecode);
+        }
+    }
+
+    /// <summary>Copies a self-contained offline share code (no internet needed to import).</summary>
+    [RelayCommand]
+    private void CopyOfflineCode()
+    {
+        if (Nodes.Count == 0)
+        {
+            StatusText = "Add at least one block before sharing.";
+            return;
+        }
+
+        try
+        {
+            string code = MarketplaceService.EncodeOfflineCode(FlowSnapshotService.BuildDocument(BuildSnapshotDto()));
+            System.Windows.Clipboard.SetText(code);
+            StatusText = "Offline share code copied — anyone can paste it into IMPORT CODE to load this flow.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Offline code copy failed for workflow {WorkflowId}", _workflowId);
+            StatusText = $"Copy failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>Core import: rebuilds form + canvas from a parsed snapshot as a new working copy.</summary>
+    private bool TryImportSnapshot(FlowEditorSnapshotDto? dto, string sourceLabel)
+    {
+        if (dto == null)
+        {
+            StatusText = $"Import failed: {sourceLabel} is not a Vyral flow document.";
+            return false;
+        }
+
+        try
+        {
             _suppressSnapshot = true;
             try
             {
@@ -5643,9 +5694,6 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 var nodes = dto.Nodes ?? new List<FlowNodeDto>();
                 LoadNodesIntoCanvas(nodes);
 
-                // Rebuild connections from the export shape
-                // ("{nodeId}:{portKey}" → "{targetNodeId}:in").
-                ApplyImportedConnections(dialog.FileName, nodes);
                 SelectedNode = null;
             }
             finally
@@ -5660,95 +5708,15 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             FitCanvasAfterLayout();
             UpdateTriggerCard();
             RefreshParameterCards();
-            StatusText = $"Imported {Path.GetFileName(dialog.FileName)} — review and SAVE to persist it.";
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogWarning(ex, "Flow import parse failure");
-            StatusText = "Import failed: the file is not valid JSON.";
+            StatusText = $"Imported {sourceLabel} — review and SAVE to persist it.";
+            return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Flow import failed");
+            _logger.LogError(ex, "Flow import failed for {Source}", sourceLabel);
             StatusText = $"Import failed: {ex.Message}";
+            return false;
         }
-    }
-
-    /// <summary>Reads the "connections" array back out of the raw file and wires the ports.</summary>
-    private void ApplyImportedConnections(string path, List<FlowNodeDto> nodes)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(File.ReadAllText(path));
-            if (document.RootElement.ValueKind != JsonValueKind.Object ||
-                !document.RootElement.TryGetProperty("connections", out var connections) ||
-                connections.ValueKind != JsonValueKind.Array)
-            {
-                return; // routing fields already came in via the node DTOs when present
-            }
-
-            var byId = nodes.GroupBy(n => n.Id, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
-
-            foreach (var connection in connections.EnumerateArray())
-            {
-                string source = GetString(connection, "source");
-                string target = GetString(connection, "target");
-                if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(target))
-                {
-                    continue;
-                }
-
-                int sourceColon = source.IndexOf(':');
-                if (sourceColon <= 0)
-                {
-                    continue;
-                }
-                string sourceId = source[..sourceColon];
-                string portKey = source[(sourceColon + 1)..];
-
-                int targetColon = target.IndexOf(':');
-                string targetId = targetColon > 0 ? target[..targetColon] : target;
-
-                if (!byId.TryGetValue(sourceId, out FlowNodeDto? sourceNode) || !byId.ContainsKey(targetId))
-                {
-                    continue; // orphan reference — drop
-                }
-
-                switch (portKey)
-                {
-                    case BlockCatalog.PortNext: sourceNode.Next = targetId; break;
-                    case BlockCatalog.PortTrue: sourceNode.BranchTrue = targetId; break;
-                    case BlockCatalog.PortFalse:
-                    case BlockCatalog.PortDefault: sourceNode.BranchFalse = targetId; break;
-                    case BlockCatalog.PortError: sourceNode.BranchError = targetId; break;
-                    default:
-                        if (portKey.StartsWith(BlockCatalog.PortCasePrefix, StringComparison.Ordinal))
-                        {
-                            sourceNode.Branches ??= new Dictionary<string, string>(StringComparer.Ordinal);
-                            sourceNode.Branches[portKey[BlockCatalog.PortCasePrefix.Length..]] = targetId;
-                        }
-                        break;
-                }
-            }
-
-            // Re-load so the freshly-applied routing lands on the canvas nodes.
-            LoadNodesIntoCanvas(nodes);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not apply imported connections for {Path}", path);
-        }
-    }
-
-    private static string GetString(JsonElement element, string property)
-    {
-        if (element.ValueKind == JsonValueKind.Object &&
-            element.TryGetProperty(property, out var value) &&
-            value.ValueKind == JsonValueKind.String)
-        {
-            return value.GetString() ?? string.Empty;
-        }
-        return string.Empty;
     }
 
     /// <summary>Closes the editor (autosaves the draft first, then notifies the host overlay).</summary>

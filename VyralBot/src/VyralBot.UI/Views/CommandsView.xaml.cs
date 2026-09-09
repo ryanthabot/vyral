@@ -29,10 +29,76 @@ public partial class CommandsView : UserControl
     /// <summary>Editor view model resolved from the app's DI host (lazy).</summary>
     private FlowEditorViewModel? _flowEditorViewModel;
 
+    /// <summary>Marketplace view model resolved from the app's DI host (lazy).</summary>
+    private MarketplaceViewModel? _marketplaceViewModel;
+
     public CommandsView()
     {
         InitializeComponent();
         Unloaded += OnUnloaded;
+    }
+
+    /// <summary>Header MARKETPLACE button: opens the marketplace overlay.</summary>
+    private async void OnMarketplaceClick(object sender, RoutedEventArgs e)
+    {
+        var app = Application.Current as App;
+        if (app?.Host == null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_marketplaceViewModel == null)
+            {
+                _marketplaceViewModel = app.Host.Services.GetRequiredService<MarketplaceViewModel>();
+                _marketplaceViewModel.CloseRequested += OnMarketplaceClosed;
+                _marketplaceViewModel.ImportRequested += OnMarketplaceImportRequested;
+            }
+
+            MarketplaceHost.Content = new MarketplaceView { DataContext = _marketplaceViewModel };
+            MarketplaceOverlay.Visibility = Visibility.Visible;
+
+            await _marketplaceViewModel.RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            MarketplaceOverlay.Visibility = Visibility.Collapsed;
+            MarketplaceHost.Content = null;
+            MessageBox.Show($"Could not open the marketplace: {ex.Message}", "Vyral",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void OnMarketplaceClosed(object? sender, EventArgs e)
+    {
+        MarketplaceOverlay.Visibility = Visibility.Collapsed;
+        MarketplaceHost.Content = null;
+    }
+
+    /// <summary>
+    /// A shared command was fetched from the marketplace: drop the marketplace
+    /// overlay and load the command into the flow editor as a working copy.
+    /// </summary>
+    private void OnMarketplaceImportRequested(object? sender, (FlowEditorSnapshotDto Snapshot, string Label) request)
+    {
+        MarketplaceOverlay.Visibility = Visibility.Collapsed;
+        MarketplaceHost.Content = null;
+
+        if (_flowEditorViewModel == null && Application.Current is App app && app.Host != null)
+        {
+            _flowEditorViewModel = app.Host.Services.GetRequiredService<FlowEditorViewModel>();
+            _flowEditorViewModel.EditorClosed += OnFlowEditorClosed;
+        }
+
+        if (_flowEditorViewModel == null)
+        {
+            return;
+        }
+
+        FlowEditorHost.Content = new FlowEditorView { DataContext = _flowEditorViewModel };
+        FlowEditorOverlay.Visibility = Visibility.Visible;
+        _flowEditorViewModel.ImportSharedSnapshot(request.Snapshot, request.Label);
     }
 
     /// <summary>Header / custom-tab button: opens the visual editor on a brand-new flow.</summary>
@@ -199,6 +265,13 @@ public partial class CommandsView : UserControl
         {
             _flowEditorViewModel.EditorClosed -= OnFlowEditorClosed;
             _flowEditorViewModel = null;
+        }
+
+        if (_marketplaceViewModel != null)
+        {
+            _marketplaceViewModel.CloseRequested -= OnMarketplaceClosed;
+            _marketplaceViewModel.ImportRequested -= OnMarketplaceImportRequested;
+            _marketplaceViewModel = null;
         }
     }
 }

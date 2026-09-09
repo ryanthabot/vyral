@@ -212,7 +212,9 @@ public partial class App : Application
 
                 // Visual flow editor (workflow canvas; pinned ctor signature:
                 // IDataService, WorkflowTriggerService, WorkflowDiscordBridge,
-                // ILogger<FlowEditorViewModel>)
+                // MarketplaceService, ILogger<FlowEditorViewModel>)
+                services.AddSingleton<UI.Services.MarketplaceService>();
+                services.AddSingleton<ViewModels.MarketplaceViewModel>();
                 services.AddSingleton<ViewModels.FlowEditorViewModel>();
 
                 // Integration services
