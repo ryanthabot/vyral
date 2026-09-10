@@ -2426,6 +2426,32 @@
                                                Margin="0,8,0,0"/>
                                 </StackPanel>
                             </materialDesign:Card>
+
+                            <materialDesign:Card Padding="20" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Vyral starter scene collection"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               Margin="0,0,0,4"/>
+                                    <TextBlock Text="{Binding VyralCollectionStatus, Mode=OneWay}"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,8"/>
+                                    <Button Content="Re-import into OBS"
+                                            Command="{Binding ReimportVyralCollectionCommand}"
+                                            Style="{StaticResource MaterialDesignRaisedButton}"
+                                            Padding="14,6"
+                                            HorizontalAlignment="Left"
+                                            ToolTip="Copies the bundled Vyral scene collection into your OBS scene collections (adds Vyral.json only)"/>
+                                    <TextBlock Text="Adds the Vyral starter scene collection to your OBS scene collections. Your existing collections are never modified or deleted."
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </materialDesign:Card>
                         </StackPanel>
 
                     </StackPanel>

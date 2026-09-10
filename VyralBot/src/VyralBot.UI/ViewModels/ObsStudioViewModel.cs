@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using VyralBot.Data;
 using VyralBot.Integrations.Obs.Engine;
+using VyralBot.Integrations.Obs.Hosting;
 
 namespace VyralBot.UI.ViewModels;
 
@@ -27,6 +28,7 @@ public partial class ObsStudioViewModel : ViewModelBase, IDisposable
     private readonly ObsStudioService _studio;
     private readonly ObsOutputService _outputs;
     private readonly ObsInstallLocator _locator;
+    private readonly ObsBundledCollectionService _bundledCollection;
     private readonly IDataService _dataService;
     private readonly ILogger<ObsStudioViewModel> _logger;
 
@@ -110,6 +112,7 @@ public partial class ObsStudioViewModel : ViewModelBase, IDisposable
         ObsStudioService studio,
         ObsOutputService outputs,
         ObsInstallLocator locator,
+        ObsBundledCollectionService bundledCollection,
         IDataService dataService,
         ILogger<ObsStudioViewModel> logger)
     {
@@ -117,6 +120,7 @@ public partial class ObsStudioViewModel : ViewModelBase, IDisposable
         _studio = studio;
         _outputs = outputs;
         _locator = locator;
+        _bundledCollection = bundledCollection;
         _dataService = dataService;
         _logger = logger;
         _dispatcher = Dispatcher.CurrentDispatcher;
@@ -244,11 +248,39 @@ public partial class ObsStudioViewModel : ViewModelBase, IDisposable
         }
     }
 
-    /// <summary>Engine Ready: reload the collection imported last (config path), then select its program scene.</summary>
+    /// <summary>Engine Ready: import the bundled Vyral starter collection when pending (first), then reload the collection imported last (config path), and select its program scene.</summary>
     private async Task AutoLoadLastCollectionAsync()
     {
         try
         {
+            // Bundled Vyral starter first: a not-yet-imported version replaces
+            // the in-memory set before any remembered collection. Nothing is
+            // written to the user's OBS config here — the embedded engine is
+            // ephemeral; the file-level import happens on the hosted path /
+            // via Settings → Advanced.
+            if (_locator.Locate() is { } install)
+            {
+                BundledImportState state = await _bundledCollection.DecideAsync(install.SceneCollectionsDir);
+                if (state.ShouldImport && _bundledCollection.GetBundledPath() is { } bundledPath)
+                {
+                    string bundledJson = await File.ReadAllTextAsync(bundledPath, Encoding.UTF8);
+                    ObsLoadResult bundledResult = await _studio.LoadCollectionAsync(bundledJson);
+                    await ApplyLoadResult(
+                        bundledResult,
+                        "Imported the Vyral starter scene collection (replaces the previously loaded set in this studio)");
+
+                    if (bundledResult.Success)
+                    {
+                        await _bundledCollection.MarkImportedAsync(bundledPath);
+                        await _dataService.SetConfigValueAsync(LastCollectionPathKey, bundledPath, ConfigCategory);
+                        return;
+                    }
+
+                    _logger.LogWarning(
+                        "OBS studio: loading the bundled Vyral collection failed — leaving the version unmarked so the next Ready retries");
+                }
+            }
+
             string? path = await _dataService.GetConfigValueAsync(LastCollectionPathKey);
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             {

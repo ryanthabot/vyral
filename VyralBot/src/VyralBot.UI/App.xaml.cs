@@ -336,6 +336,10 @@ public partial class App : Application
                 // Singletons — the host owns the parking HWND and the adopted
                 // process for the whole app lifetime; App.OnExit detaches the
                 // window to the desktop.
+                // Bundled Vyral starter collection: strictly additive one-time
+                // import into the user's OBS scene collections (first run,
+                // version updates, or the Settings → Advanced re-import).
+                services.AddSingleton<VyralBot.Integrations.Obs.Hosting.ObsBundledCollectionService>();
                 services.AddSingleton<VyralBot.Integrations.Obs.Hosting.ObsWindowHostService>();
                 services.AddSingleton<VyralBot.Integrations.Obs.Hosting.ObsAcquisitionService>();
                 // Registered before ObsViewModel — the OBS page injects it as its default tab.

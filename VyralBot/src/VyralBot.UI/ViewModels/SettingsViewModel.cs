@@ -6,6 +6,8 @@ using VyralBot.Core.Services.Profiles;
 using VyralBot.Core.Models;
 using VyralBot.Data;
 using VyralBot.Integrations.Lights;
+using VyralBot.Integrations.Obs.Engine;
+using VyralBot.Integrations.Obs.Hosting;
 using VyralBot.Integrations.StreamDeck;
 using VyralBot.UI.Models;
 using VyralBot.UI.Services;
@@ -37,6 +39,10 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly StreamEffectsConfigService _streamEffectsConfigService;
     private readonly ILightsClient _lightsClient;
     private readonly IStreamDeckService _streamDeckService;
+    private readonly ObsBundledCollectionService _bundledCollectionService;
+    private readonly ObsInstallLocator _obsInstallLocator;
+    private readonly ObsEngine _obsEngine;
+    private readonly ObsStudioService _obsStudioService;
     private bool _categorySettingsLoaded;
 
     public WebServerSettingsViewModel WebServerSettingsViewModel => _webServerSettingsViewModel;
@@ -349,6 +355,10 @@ public partial class SettingsViewModel : ViewModelBase
         StreamEffectsConfigService streamEffectsConfigService,
         ILightsClient lightsClient,
         IStreamDeckService streamDeckService,
+        ObsBundledCollectionService bundledCollectionService,
+        ObsInstallLocator obsInstallLocator,
+        ObsEngine obsEngine,
+        ObsStudioService obsStudioService,
         IServiceProvider serviceProvider)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -365,6 +375,10 @@ public partial class SettingsViewModel : ViewModelBase
         _streamEffectsConfigService = streamEffectsConfigService ?? throw new ArgumentNullException(nameof(streamEffectsConfigService));
         _lightsClient = lightsClient ?? throw new ArgumentNullException(nameof(lightsClient));
         _streamDeckService = streamDeckService ?? throw new ArgumentNullException(nameof(streamDeckService));
+        _bundledCollectionService = bundledCollectionService ?? throw new ArgumentNullException(nameof(bundledCollectionService));
+        _obsInstallLocator = obsInstallLocator ?? throw new ArgumentNullException(nameof(obsInstallLocator));
+        _obsEngine = obsEngine ?? throw new ArgumentNullException(nameof(obsEngine));
+        _obsStudioService = obsStudioService ?? throw new ArgumentNullException(nameof(obsStudioService));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
 
@@ -1178,6 +1192,10 @@ public partial class SettingsViewModel : ViewModelBase
             // alongside the other config-backed categories (own try/catch, cannot break the rest).
             await LoadStreamFxSettingsAsync();
 
+            // Vyral starter collection status (Advanced panel) — own try/catch,
+            // cannot break the rest.
+            await LoadVyralCollectionStatusAsync();
+
             _categorySettingsLoaded = true;
         }
         catch (Exception ex)
@@ -1625,6 +1643,95 @@ public partial class SettingsViewModel : ViewModelBase
 
     public string AppVersion =>
         $"VyralBot {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)} · .NET {Environment.Version}";
+
+    // ===== Vyral starter scene collection =====
+
+    [ObservableProperty]
+    private string? _vyralCollectionStatus;
+
+    /// <summary>Advanced-panel status of the bundled Vyral collection for the user's OBS install.</summary>
+    private async Task LoadVyralCollectionStatusAsync()
+    {
+        try
+        {
+            VyralCollectionStatus = await BuildVyralCollectionStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Loading the Vyral starter collection status failed");
+            VyralCollectionStatus = "Status unavailable.";
+        }
+    }
+
+    private async Task<string> BuildVyralCollectionStatusAsync()
+    {
+        if (_obsInstallLocator.Locate() is not { } install)
+        {
+            return "OBS Studio is not installed — the starter collection imports once OBS is installed.";
+        }
+
+        if (_bundledCollectionService.GetBundledPath() is null)
+        {
+            return "No bundled collection in this build.";
+        }
+
+        BundledImportState state = await _bundledCollectionService.DecideAsync(install.SceneCollectionsDir);
+        string? storedHash = await _bundledCollectionService.GetStoredHashAsync();
+        string targetPath = Path.Combine(
+            install.SceneCollectionsDir, ObsBundledCollectionService.BundledCollectionFileName);
+
+        if (string.IsNullOrEmpty(storedHash))
+        {
+            return File.Exists(targetPath)
+                ? "Not imported yet — a Vyral.json already exists in your OBS (Re-import overwrites it deliberately)."
+                : "Not imported yet";
+        }
+
+        if (state.ImportedFileMissingFromObs)
+        {
+            return "Deleted from OBS — can be re-imported";
+        }
+
+        return state.ShouldImport
+            ? $"Imported (version {storedHash[..8]}) — a new bundled version is ready to import"
+            : $"Imported (version {storedHash[..8]})";
+    }
+
+    [RelayCommand]
+    private async Task ReimportVyralCollectionAsync()
+    {
+        try
+        {
+            if (_obsInstallLocator.Locate() is not { } install)
+            {
+                StatusMessage = "OBS Studio is not installed — install it first.";
+                return;
+            }
+
+            // Additive by contract: writes/overwrites ONLY Vyral.json in the
+            // user's OBS scene collections — every other collection is untouched.
+            await _bundledCollectionService.ImportToObsAsync(install.SceneCollectionsDir);
+            _logger.LogInformation("Settings: re-imported the Vyral starter collection into OBS");
+
+            // Reflect it in the embedded studio immediately when its engine is up.
+            if (_obsEngine.IsReady && _bundledCollectionService.GetBundledPath() is { } bundledPath)
+            {
+                string json = await File.ReadAllTextAsync(bundledPath, Encoding.UTF8);
+                var result = await _obsStudioService.LoadCollectionAsync(json);
+                _logger.LogInformation(
+                    "Settings: loaded the Vyral starter collection into the embedded studio ({Message})", result.Message);
+            }
+
+            await LoadVyralCollectionStatusAsync();
+            StatusMessage = "Vyral starter scene collection imported into OBS";
+            await ClearStatusAfterDelayAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Re-importing the Vyral starter collection failed");
+            StatusMessage = $"Re-import failed: {ex.Message}";
+        }
+    }
 
     private static string WebView2CachePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VyralBot", "WebView2Data");

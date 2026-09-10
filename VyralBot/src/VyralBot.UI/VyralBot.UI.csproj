@@ -43,6 +43,10 @@
     <None Include="..\..\BrowserSource\audio.html" Link="wwwroot\audio.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- Bundled starter scene collection (imported into the user's OBS scene
+         collections on first run). Resolved at runtime via
+         AppContext.BaseDirectory/Content/Vyral.json — same mechanism as BrowserSource. -->
+    <Content Include="Content\Vyral.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

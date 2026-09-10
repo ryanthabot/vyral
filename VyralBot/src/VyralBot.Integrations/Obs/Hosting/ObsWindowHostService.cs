@@ -86,6 +86,7 @@ public sealed class ObsWindowHostService : IDisposable
         "Could not embed the OBS window (UIPI). If OBS is running as administrator, restart Vyral as administrator too.";
 
     private readonly ObsInstallLocator locator;
+    private readonly ObsBundledCollectionService? bundledCollection;
     private readonly ILogger<ObsWindowHostService> logger;
     private readonly object stateLock = new();
     private readonly object hostMutexGate = new();
@@ -120,6 +121,15 @@ public sealed class ObsWindowHostService : IDisposable
     private int clipBottom = -1;
 
     /// <summary>
+    /// Set when obs64 was ADOPTED while a bundled Vyral collection import was
+    /// pending. Writing scene-collection files under a RUNNING OBS is pointless
+    /// (OBS rewrites its collections on exit), so the adopt branch never writes
+    /// — the UI surfaces this hint instead (restart OBS, or import deliberately
+    /// via Settings → Advanced). Cleared again once an import actually happens.
+    /// </summary>
+    public BundledImportState? PendingBundledImport { get; private set; }
+
+    /// <summary>
     /// Set when the last embed failed because OBS runs elevated and Vyral does
     /// not — the UI offers a "restart as administrator" action in that case.
     /// Read only after a Failed status.
@@ -131,9 +141,10 @@ public sealed class ObsWindowHostService : IDisposable
     private CancellationTokenSource? exitPollCts;
     private bool disposed;
 
-    public ObsWindowHostService(ObsInstallLocator locator, ILogger<ObsWindowHostService>? logger = null, string? hostMutexName = null)
+    public ObsWindowHostService(ObsInstallLocator locator, ILogger<ObsWindowHostService>? logger = null, string? hostMutexName = null, ObsBundledCollectionService? bundledCollection = null)
     {
         this.locator = locator ?? throw new ArgumentNullException(nameof(locator));
+        this.bundledCollection = bundledCollection;
         this.logger = logger ?? NullLogger<ObsWindowHostService>.Instance;
         // Injectable so tests can isolate from a live Vyral instance holding
         // the default mutex.
@@ -163,35 +174,63 @@ public sealed class ObsWindowHostService : IDisposable
     /// the config; never <c>--multi</c>). Returns false (state NotInstalled)
     /// when no install is present — acquisition is the UI's job then.
     /// </summary>
-    public Task<bool> EnsureRunningAsync()
+    public async Task<bool> EnsureRunningAsync()
     {
         ThrowIfDisposed();
 
         if (!TryAcquireHostMutex())
         {
             SetState(ObsHostState.Failed, "OBS is already hosted by another Vyral window");
-            return Task.FromResult(false);
+            return false;
         }
 
         Process? adopted = FindRunningObs();
         if (adopted is not null)
         {
             Adopt(adopted);
-            return Task.FromResult(true);
+            await SurfacePendingBundledImportAsync().ConfigureAwait(true);
+            return true;
         }
 
         ObsInstall? install = locator.Locate();
         if (install is null)
         {
             SetState(ObsHostState.NotInstalled, "no OBS Studio installation found");
-            return Task.FromResult(false);
+            return false;
         }
 
         string exePath = Path.Combine(install.BinDir, ObsProcessName + ".exe");
         if (!File.Exists(exePath))
         {
             SetState(ObsHostState.NotInstalled, $"obs64.exe not found under {install.BinDir}");
-            return Task.FromResult(false);
+            return false;
+        }
+
+        // Seed the bundled Vyral starter collection BEFORE the launch so this
+        // boot can start into it. Strictly additive: the service only ever
+        // writes Vyral.json into the scenes directory. A launch failure here
+        // must not block the launch itself.
+        string launchArgs = "--disable-updater";
+        if (bundledCollection is not null)
+        {
+            try
+            {
+                BundledImportState state = await bundledCollection.DecideAsync(install.SceneCollectionsDir).ConfigureAwait(true);
+                if (state.ShouldImport)
+                {
+                    await bundledCollection.ImportToObsAsync(install.SceneCollectionsDir).ConfigureAwait(true);
+                    PendingBundledImport = null;
+                    // OBS resolves --collection against its scene collections
+                    // directory, so the collection NAME is the argument.
+                    launchArgs += $" --collection \"{ObsBundledCollectionService.BundledCollectionName}\"";
+                    logger.LogInformation(
+                        "OBS host: seeded Vyral starter collection into OBS ({Reason})", state.Reason);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "OBS host: bundled collection import failed — launching without it");
+            }
         }
 
         try
@@ -200,7 +239,7 @@ public sealed class ObsWindowHostService : IDisposable
             // launched from anywhere else it exits within seconds, before any
             // log file is written. UseShellExecute honors WorkingDirectory
             // (ShellExecuteEx lpDirectory).
-            var startInfo = new ProcessStartInfo(exePath, "--disable-updater")
+            var startInfo = new ProcessStartInfo(exePath, launchArgs)
             {
                 UseShellExecute = true,
                 WorkingDirectory = install.BinDir,
@@ -209,7 +248,7 @@ public sealed class ObsWindowHostService : IDisposable
             if (launched is null)
             {
                 SetState(ObsHostState.Failed, $"Process.Start returned null for {exePath}");
-                return Task.FromResult(false);
+                return false;
             }
 
             ObsHostStatus snapshot;
@@ -226,13 +265,49 @@ public sealed class ObsWindowHostService : IDisposable
             logger.LogInformation("OBS host: launched obs64 (pid {Pid})", processId);
             RestartExitPoll();
             StatusChanged?.Invoke(snapshot);
-            return Task.FromResult(true);
+            return true;
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "OBS host: launching obs64 failed");
             SetState(ObsHostState.Failed, $"launching obs64 failed: {ex.Message}");
-            return Task.FromResult(false);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Adopt-branch counterpart of the launch-branch seed: Decide only —
+    /// NEVER write scene-collection files under a running OBS (it would
+    /// overwrite them with its in-memory state on exit). A pending import is
+    /// exposed via <see cref="PendingBundledImport"/> for the UI to surface.
+    /// </summary>
+    private async Task SurfacePendingBundledImportAsync()
+    {
+        if (bundledCollection is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (locator.Locate() is not { } install)
+            {
+                return;
+            }
+
+            BundledImportState state = await bundledCollection.DecideAsync(install.SceneCollectionsDir).ConfigureAwait(true);
+            if (state.ShouldImport)
+            {
+                PendingBundledImport = state;
+                logger.LogInformation(
+                    "OBS host: adopted a running OBS with a pending bundled import ({Reason}) — "
+                    + "restart OBS or use Settings → Advanced to import",
+                    state.Reason);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "OBS host: checking the pending bundled import failed");
         }
     }
 
