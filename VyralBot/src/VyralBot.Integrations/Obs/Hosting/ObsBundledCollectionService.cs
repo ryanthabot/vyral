@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using VyralBot.Data;
@@ -62,9 +63,25 @@ public sealed class ObsBundledCollectionService
     /// <summary>The bundled collection's on-disk path, or null when the build ships without it.</summary>
     public string? GetBundledPath()
     {
-        string path = bundledPathOverride
-            ?? Path.Combine(AppContext.BaseDirectory, "Content", "Vyral.json");
+        string path = bundledPathOverride ?? GetDefaultBundledPath();
         return File.Exists(path) ? path : null;
+    }
+
+    /// <summary>
+    /// Resolves the shipped Content\Vyral.json. The exe's OWN directory is
+    /// checked first: in a single-file publish <see cref="AppContext.BaseDirectory"/>
+    /// can resolve to the bundle extraction directory, while loose Content
+    /// files always sit next to the exe (<see cref="Environment.ProcessPath"/>).
+    /// </summary>
+    private static string GetDefaultBundledPath()
+    {
+        string? exeDir = Path.GetDirectoryName(Environment.ProcessPath);
+        if (!string.IsNullOrEmpty(exeDir))
+        {
+            return Path.Combine(exeDir, "Content", BundledCollectionFileName);
+        }
+
+        return Path.Combine(AppContext.BaseDirectory, "Content", BundledCollectionFileName);
     }
 
     /// <summary>SHA256 of the file bytes as lowercase hex.</summary>
@@ -155,6 +172,24 @@ public sealed class ObsBundledCollectionService
     public async Task MarkImportedAsync(string filePath)
     {
         await data.SetConfigValueAsync(StoredHashKey, ComputeHash(filePath), ConfigCategory)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// SHA256 of CONTENT (not a file) — the GitHub update path applies content
+    /// that may never exist as a bundled file, and <see cref="GetStoredHashAsync"/>
+    /// consumers compare against this exactly like an import hash.
+    /// </summary>
+    public string ComputeContentHash(string content)
+    {
+        using var sha = SHA256.Create();
+        return Convert.ToHexString(sha.ComputeHash(Encoding.UTF8.GetBytes(content))).ToLowerInvariant();
+    }
+
+    /// <summary>Stores a content hash directly as the applied version (GitHub update path).</summary>
+    public async Task MarkContentImportedAsync(string contentHash)
+    {
+        await data.SetConfigValueAsync(StoredHashKey, contentHash, ConfigCategory)
             .ConfigureAwait(false);
     }
 

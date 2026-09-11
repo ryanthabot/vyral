@@ -340,6 +340,9 @@ public partial class App : Application
                 // import into the user's OBS scene collections (first run,
                 // version updates, or the Settings → Advanced re-import).
                 services.AddSingleton<VyralBot.Integrations.Obs.Hosting.ObsBundledCollectionService>();
+                // GitHub-backed collection updates (fetch → non-destructive merge →
+                // write back into the user's ACTIVE collection file).
+                services.AddSingleton<VyralBot.Integrations.Obs.Hosting.ObsCollectionUpdateService>();
                 services.AddSingleton<VyralBot.Integrations.Obs.Hosting.ObsWindowHostService>();
                 services.AddSingleton<VyralBot.Integrations.Obs.Hosting.ObsAcquisitionService>();
                 // Registered before ObsViewModel — the OBS page injects it as its default tab.

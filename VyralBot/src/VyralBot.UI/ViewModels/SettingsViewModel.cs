@@ -40,6 +40,7 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly ILightsClient _lightsClient;
     private readonly IStreamDeckService _streamDeckService;
     private readonly ObsBundledCollectionService _bundledCollectionService;
+    private readonly ObsCollectionUpdateService _collectionUpdateService;
     private readonly ObsInstallLocator _obsInstallLocator;
     private readonly ObsEngine _obsEngine;
     private readonly ObsStudioService _obsStudioService;
@@ -356,6 +357,7 @@ public partial class SettingsViewModel : ViewModelBase
         ILightsClient lightsClient,
         IStreamDeckService streamDeckService,
         ObsBundledCollectionService bundledCollectionService,
+        ObsCollectionUpdateService collectionUpdateService,
         ObsInstallLocator obsInstallLocator,
         ObsEngine obsEngine,
         ObsStudioService obsStudioService,
@@ -376,6 +378,7 @@ public partial class SettingsViewModel : ViewModelBase
         _lightsClient = lightsClient ?? throw new ArgumentNullException(nameof(lightsClient));
         _streamDeckService = streamDeckService ?? throw new ArgumentNullException(nameof(streamDeckService));
         _bundledCollectionService = bundledCollectionService ?? throw new ArgumentNullException(nameof(bundledCollectionService));
+        _collectionUpdateService = collectionUpdateService ?? throw new ArgumentNullException(nameof(collectionUpdateService));
         _obsInstallLocator = obsInstallLocator ?? throw new ArgumentNullException(nameof(obsInstallLocator));
         _obsEngine = obsEngine ?? throw new ArgumentNullException(nameof(obsEngine));
         _obsStudioService = obsStudioService ?? throw new ArgumentNullException(nameof(obsStudioService));
@@ -1644,12 +1647,15 @@ public partial class SettingsViewModel : ViewModelBase
     public string AppVersion =>
         $"VyralBot {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)} · .NET {Environment.Version}";
 
-    // ===== Vyral starter scene collection =====
+    // ===== Vyral scene collection (GitHub) =====
 
     [ObservableProperty]
     private string? _vyralCollectionStatus;
 
-    /// <summary>Advanced-panel status of the bundled Vyral collection for the user's OBS install.</summary>
+    /// <summary>
+    /// Advanced-panel status of the Vyral collection for the user's OBS install.
+    /// Always produces a line (problems included) — the card itself is never hidden.
+    /// </summary>
     private async Task LoadVyralCollectionStatusAsync()
     {
         try
@@ -1658,12 +1664,18 @@ public partial class SettingsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Loading the Vyral starter collection status failed");
-            VyralCollectionStatus = "Status unavailable.";
+            _logger.LogWarning(ex, "Loading the Vyral collection status failed");
+            VyralCollectionStatus = "Status unavailable — could not inspect the OBS install.";
         }
     }
 
     private async Task<string> BuildVyralCollectionStatusAsync()
+    {
+        string local = await BuildLocalVyralCollectionStatusAsync();
+        return local + await DescribeGitHubAvailabilityAsync();
+    }
+
+    private async Task<string> BuildLocalVyralCollectionStatusAsync()
     {
         if (_obsInstallLocator.Locate() is not { } install)
         {
@@ -1672,7 +1684,7 @@ public partial class SettingsViewModel : ViewModelBase
 
         if (_bundledCollectionService.GetBundledPath() is null)
         {
-            return "No bundled collection in this build.";
+            return "No bundled collection in this build — updates still work from GitHub.";
         }
 
         BundledImportState state = await _bundledCollectionService.DecideAsync(install.SceneCollectionsDir);
@@ -1697,6 +1709,83 @@ public partial class SettingsViewModel : ViewModelBase
             : $"Imported (version {storedHash[..8]})";
     }
 
+    /// <summary>
+    /// Compares the upstream GitHub file's hash against the applied hash. Runs
+    /// only on category load / button click — never on a timer.
+    /// </summary>
+    private async Task<string> DescribeGitHubAvailabilityAsync()
+    {
+        if (_obsInstallLocator.Locate() is null)
+        {
+            return string.Empty; // the local text already explains the situation
+        }
+
+        try
+        {
+            string? storedHash = await _bundledCollectionService.GetStoredHashAsync();
+            if (string.IsNullOrEmpty(storedHash))
+            {
+                return string.Empty; // nothing applied yet — the local text covers this state
+            }
+
+            string upstream = await _collectionUpdateService.FetchUpstreamAsync();
+            return _bundledCollectionService.ComputeContentHash(upstream) == storedHash
+                ? " Up to date with GitHub."
+                : " A NEW version is available on GitHub — press \"Update from GitHub\" (your settings are preserved).";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "GitHub availability check for the Vyral collection failed");
+            return " (GitHub unreachable — update check skipped)";
+        }
+    }
+
+    /// <summary>Warning appended after a merge while obs64.exe is running: OBS caches
+    /// collections in memory and rewrites the file with its in-memory state on exit.</summary>
+    private const string ObsRunningWarning =
+        " OBS is running — restart OBS (or switch scene collections in OBS) to load the updated collection.";
+
+    [RelayCommand]
+    private async Task UpdateVyralCollectionAsync()
+    {
+        try
+        {
+            VyralCollectionStatus = "Checking GitHub for collection updates…";
+            ObsUpdateResult result = await _collectionUpdateService.UpdateFromGitHubAsync();
+            VyralCollectionStatus = result.Success && ObsCollectionUpdateService.IsObsRunning()
+                ? result.Message + ObsRunningWarning
+                : result.Message;
+
+            if (!result.Success)
+            {
+                return;
+            }
+
+            _logger.LogInformation(
+                "Settings: updated the Vyral collection from GitHub (+{Scenes} scenes, +{Sources} sources, +{Items} scene items)",
+                result.AddedScenes, result.AddedSources, result.AddedSceneItems);
+
+            // Reflect the merged file in the embedded studio immediately when its engine is up.
+            if (_obsEngine.IsReady
+                && _collectionUpdateService.TryGetActiveCollectionPath() is { } activePath
+                && File.Exists(activePath))
+            {
+                string json = await File.ReadAllTextAsync(activePath, Encoding.UTF8);
+                var loadResult = await _obsStudioService.LoadCollectionAsync(json);
+                _logger.LogInformation(
+                    "Settings: loaded the updated collection into the embedded studio ({Message})", loadResult.Message);
+            }
+
+            StatusMessage = "Vyral scene collection updated from GitHub";
+            await ClearStatusAfterDelayAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Updating the Vyral collection from GitHub failed");
+            VyralCollectionStatus = $"Update failed: {ex.Message}";
+        }
+    }
+
     [RelayCommand]
     private async Task ReimportVyralCollectionAsync()
     {
@@ -1708,22 +1797,34 @@ public partial class SettingsViewModel : ViewModelBase
                 return;
             }
 
-            // Additive by contract: writes/overwrites ONLY Vyral.json in the
-            // user's OBS scene collections — every other collection is untouched.
+            // 1) Deliberate restore of OUR Vyral.json — still strictly additive
+            //    (writes/overwrites ONLY Vyral.json; every other collection untouched).
             await _bundledCollectionService.ImportToObsAsync(install.SceneCollectionsDir);
             _logger.LogInformation("Settings: re-imported the Vyral starter collection into OBS");
 
-            // Reflect it in the embedded studio immediately when its engine is up.
-            if (_obsEngine.IsReady && _bundledCollectionService.GetBundledPath() is { } bundledPath)
+            // 2) Bring the (possibly restored) ACTIVE collection up to GitHub:
+            //    a file deleted from OBS comes back as a fresh install, an
+            //    existing one gets the same non-destructive merge as Update.
+            ObsUpdateResult update = await _collectionUpdateService.UpdateFromGitHubAsync();
+            if (!update.Success)
             {
-                string json = await File.ReadAllTextAsync(bundledPath, Encoding.UTF8);
+                _logger.LogInformation(
+                    "Settings: GitHub refresh after re-import skipped ({Message})", update.Message);
+            }
+
+            // Reflect it in the embedded studio immediately when its engine is up.
+            if (_obsEngine.IsReady
+                && _collectionUpdateService.TryGetActiveCollectionPath() is { } activePath
+                && File.Exists(activePath))
+            {
+                string json = await File.ReadAllTextAsync(activePath, Encoding.UTF8);
                 var result = await _obsStudioService.LoadCollectionAsync(json);
                 _logger.LogInformation(
-                    "Settings: loaded the Vyral starter collection into the embedded studio ({Message})", result.Message);
+                    "Settings: loaded the Vyral collection into the embedded studio ({Message})", result.Message);
             }
 
             await LoadVyralCollectionStatusAsync();
-            StatusMessage = "Vyral starter scene collection imported into OBS";
+            StatusMessage = "Vyral scene collection imported into OBS";
             await ClearStatusAfterDelayAsync();
         }
         catch (Exception ex)

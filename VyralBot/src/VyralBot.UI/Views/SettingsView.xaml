@@ -2429,7 +2429,7 @@
 
                             <materialDesign:Card Padding="20" Margin="0,0,0,16">
                                 <StackPanel>
-                                    <TextBlock Text="Vyral starter scene collection"
+                                    <TextBlock Text="Vyral scene collection (GitHub)"
                                                FontSize="16"
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextPrimaryBrush}"
@@ -2439,13 +2439,21 @@
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                TextWrapping="Wrap"
                                                Margin="0,0,0,8"/>
-                                    <Button Content="Re-import into OBS"
-                                            Command="{Binding ReimportVyralCollectionCommand}"
-                                            Style="{StaticResource MaterialDesignRaisedButton}"
-                                            Padding="14,6"
-                                            HorizontalAlignment="Left"
-                                            ToolTip="Copies the bundled Vyral scene collection into your OBS scene collections (adds Vyral.json only)"/>
-                                    <TextBlock Text="Adds the Vyral starter scene collection to your OBS scene collections. Your existing collections are never modified or deleted."
+                                    <WrapPanel>
+                                        <Button Content="Update from GitHub"
+                                                Command="{Binding UpdateVyralCollectionCommand}"
+                                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                                Padding="14,6"
+                                                Margin="0,0,8,8"
+                                                ToolTip="Fetches the latest Vyral scene collection from GitHub and MERGES it into your active OBS collection — new scenes and sources are added, everything you already have is kept."/>
+                                        <Button Content="Re-import into OBS"
+                                                Command="{Binding ReimportVyralCollectionCommand}"
+                                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                                Padding="14,6"
+                                                Margin="0,0,8,8"
+                                                ToolTip="Restores the Vyral scene collection into your OBS scene collections if it was deleted (adds Vyral.json only) and refreshes it from GitHub"/>
+                                    </WrapPanel>
+                                    <TextBlock Text="Updates merge non-destructively: new scenes and sources from GitHub are added, and every scene, source and setting you already have is kept exactly as-is. Your existing collections are never modified or deleted."
                                                FontSize="11"
                                                Foreground="{DynamicResource TextMutedBrush}"
                                                TextWrapping="Wrap"
