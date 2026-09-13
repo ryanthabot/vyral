@@ -91,6 +91,8 @@ public partial class MainViewModel : ViewModelBase
     private ModeratorViewModel? _moderatorViewModel;
     private IServiceScope? _obsScope;
     private ObsViewModel? _obsViewModel;
+    private IServiceScope? _restreamScope;
+    private RestreamViewModel? _restreamViewModel;
 
     // One-shot guard for Discord bot auto-start: CheckPlatformConnectionsAsync
     // also runs on every PlatformConnectionChangedEvent refresh, but the bots
@@ -1911,6 +1913,32 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task NavigateToRestreamAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to Restream");
+
+        if (!CheckSetupInProgress(out _))
+            return;
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _restreamViewModel);
+
+            _restreamScope?.Dispose();
+            _restreamScope = _serviceProvider.CreateScope();
+            _restreamViewModel = _restreamScope.ServiceProvider.GetRequiredService<RestreamViewModel>();
+            CurrentViewModel = _restreamViewModel;
+            Title = "Vyral - Restream";
+            await _restreamViewModel.InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to Restream");
+        }
+    }
+
+    [RelayCommand]
     private Task OpenDiscordLinkAsync() => OpenSupportLinkAsync("Support.DiscordUrl", "Discord");
 
     [RelayCommand]
@@ -2544,6 +2572,19 @@ public partial class MainViewModel : ViewModelBase
             _obsScope = null;
             _obsViewModel = null;
             _logger.LogInformation("♻️ Disposed ObsViewModel to free memory");
+            disposedCount++;
+        }
+
+        if (_restreamViewModel != null && _restreamViewModel != excludeViewModel)
+        {
+            // Same singleton trap as OBS: dispose explicitly so the 1 Hz uptime
+            // ticker stops. The restream ENGINE is a separate singleton — a
+            // live session intentionally keeps streaming after this disposal.
+            _restreamViewModel.Dispose();
+            _restreamScope?.Dispose();
+            _restreamScope = null;
+            _restreamViewModel = null;
+            _logger.LogInformation("♻️ Disposed RestreamViewModel to free memory");
             disposedCount++;
         }
 

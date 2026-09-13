@@ -348,6 +348,13 @@ public partial class App : Application
                 // Registered before ObsViewModel — the OBS page injects it as its default tab.
                 services.AddSingleton<ObsHostViewModel>();
                 services.AddSingleton<ObsViewModel>();
+                // Restream page: FFmpeg-based multi-platform restreaming. The
+                // engine is a singleton — a live session keeps running when the
+                // page is closed; App.OnExit stops it before killing children.
+                services.AddSingleton<VyralBot.Integrations.Restream.RestreamFfmpegLocator>();
+                services.AddSingleton<VyralBot.Integrations.Restream.RestreamFfmpegAcquisitionService>();
+                services.AddSingleton<VyralBot.Integrations.Restream.RestreamEngine>();
+                services.AddSingleton<RestreamViewModel>();
                 services.AddSingleton<DocumentationViewModel>();
                 services.AddSingleton<AutomationViewModel>(); // Automation page (structured workflow builder)
                 // Moderation system (Moderator page + Settings → Moderator):
@@ -1031,6 +1038,22 @@ public partial class App : Application
                 catch (Exception ex)
                 {
                     Log.Warning(ex, "Error shutting down the OBS engine");
+                }
+            }
+
+            // Restream: stop any live session (kills the FFmpeg process tree).
+            // ProcessManager's kill-all below is the orphan backstop.
+            var restreamEngine = _host.Services.GetService<VyralBot.Integrations.Restream.RestreamEngine>();
+            if (restreamEngine != null)
+            {
+                try
+                {
+                    restreamEngine.StopAsync().GetAwaiter().GetResult();
+                    Log.Information("Restream engine stopped for exit");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Error stopping the restream engine on exit");
                 }
             }
 

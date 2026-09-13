@@ -177,6 +177,19 @@
                         </StackPanel>
                     </Button>
 
+                    <!-- Restream -->
+                    <Button Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="48"
+                            HorizontalContentAlignment="Left"
+                            Padding="16,0"
+                            Command="{Binding NavigateToRestreamCommand}"
+                            ToolTip="FFmpeg restream: send one OBS output to multiple platforms">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Cast" Width="20" Height="20" VerticalAlignment="Center"/>
+                            <TextBlock Text="Restream" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
                     <!-- Platforms Dropdown -->
                     <StackPanel>
                         <!-- Platforms Header Button -->
@@ -1060,6 +1073,11 @@
                         <!-- OBS View -->
                         <DataTemplate DataType="{x:Type vm:ObsViewModel}">
                             <local:ObsView/>
+                        </DataTemplate>
+
+                        <!-- Restream View -->
+                        <DataTemplate DataType="{x:Type vm:RestreamViewModel}">
+                            <local:RestreamView/>
                         </DataTemplate>
                     </ContentControl.Resources>
                 </ContentControl>

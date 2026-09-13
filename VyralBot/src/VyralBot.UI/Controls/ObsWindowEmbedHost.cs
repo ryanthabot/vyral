@@ -109,16 +109,102 @@ public sealed class ObsWindowEmbedHost : HwndHost
         // HwndHost rebuilds the child when re-entering the tree — the disposed
         // flag must not survive that.
         disposed = false;
+        // A stock STATIC class paints its area white until the OBS window
+        // covers it — a huge bright rectangle on the dark page. The custom
+        // class below erases with the app's own background color instead.
+        EnsureBackgroundClass();
         childHwnd = CreateWindowExW(
             exStyle: 0,
-            className: "STATIC",
+            className: BackgroundClassName,
             windowName: null,
             style: WsChild | WsVisible,
             x: 0, y: 0, width: 0, height: 0,
             hwndParent: hwndParent.Handle,
-            hMenu: IntPtr.Zero, hInstance: IntPtr.Zero, lpParam: IntPtr.Zero);
+            hMenu: IntPtr.Zero,
+            hInstance: GetModuleHandleW(null),
+            lpParam: IntPtr.Zero);
+        if (childHwnd == IntPtr.Zero)
+        {
+            // Custom class refused (unexpected) — fall back to the stock class
+            // rather than losing the embed pipeline over cosmetics.
+            childHwnd = CreateWindowExW(
+                exStyle: 0,
+                className: "STATIC",
+                windowName: null,
+                style: WsChild | WsVisible,
+                x: 0, y: 0, width: 0, height: 0,
+                hwndParent: hwndParent.Handle,
+                hMenu: IntPtr.Zero, hInstance: IntPtr.Zero, lpParam: IntPtr.Zero);
+        }
         return new HandleRef(this, childHwnd);
     }
+
+    private const string BackgroundClassName = "VyralObsEmbedPlaceholder";
+
+    // 1 once the placeholder window class exists (one per process).
+    private static int backgroundClassRegistered;
+
+    // Rooted so the function pointer handed to RegisterClassW stays valid.
+    private static readonly WndProcDef PlaceholderWndProcHandler = DefWindowProcW;
+
+    /// <summary>
+    /// Registers the placeholder window class once: DefWindowProc + a solid
+    /// brush in the app's BackgroundPrimaryBrush so the un-embedded area blends
+    /// into the page instead of painting white.
+    /// </summary>
+    private static void EnsureBackgroundClass()
+    {
+        if (Interlocked.Exchange(ref backgroundClassRegistered, 1) == 1)
+        {
+            return;
+        }
+
+        var color = 0x00101010u; // #FF101010 fallback (previous host border)
+        if (Application.Current?.TryFindResource("BackgroundPrimaryBrush")
+            is System.Windows.Media.SolidColorBrush themeBrush)
+        {
+            var c = themeBrush.Color; // COLORREF is 0x00BBGGRR
+            color = (uint)(c.R | (c.G << 8) | (c.B << 16));
+        }
+
+        var classDef = new WNDCLASSW
+        {
+            lpfnWndProc = Marshal.GetFunctionPointerForDelegate(PlaceholderWndProcHandler),
+            hInstance = GetModuleHandleW(null),
+            hbrBackground = CreateSolidBrush(color),
+            lpszClassName = BackgroundClassName,
+        };
+        _ = RegisterClassW(ref classDef);
+    }
+
+    [DllImport("user32.dll", EntryPoint = "RegisterClassW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern ushort RegisterClassW(ref WNDCLASSW wndClass);
+
+    [DllImport("user32.dll", EntryPoint = "DefWindowProcW")]
+    private static extern IntPtr DefWindowProcW(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr CreateSolidBrush(uint colorRef); // COLORREF 0x00BBGGRR
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr GetModuleHandleW(string? moduleName);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct WNDCLASSW
+    {
+        public uint style;
+        public IntPtr lpfnWndProc;
+        public int cbClsExtra;
+        public int cbWndExtra;
+        public IntPtr hInstance;
+        public IntPtr hIcon;
+        public IntPtr hCursor;
+        public IntPtr hbrBackground;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpszMenuName;
+        [MarshalAs(UnmanagedType.LPWStr)] public string lpszClassName;
+    }
+
+    private delegate IntPtr WndProcDef(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
 
     protected override void DestroyWindowCore(HandleRef hwnd)
     {

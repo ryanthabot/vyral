@@ -1,0 +1,443 @@
+<UserControl x:Class="VyralBot.UI.Views.RestreamView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:vm="clr-namespace:VyralBot.UI.ViewModels"
+             xmlns:converters="clr-namespace:VyralBot.UI.Converters"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:RestreamViewModel}"
+             Background="{DynamicResource BackgroundPrimaryBrush}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <converters:InvertBooleanToVisibilityConverter x:Key="InvertBoolToVis"/>
+    </UserControl.Resources>
+
+    <DockPanel Margin="24">
+
+        <!-- Header -->
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+            <Button Content="&#8592; BACK TO HOME"
+                    Style="{StaticResource MaterialDesignFlatButton}"
+                    Command="{Binding DataContext.NavigateToHomeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                    HorizontalAlignment="Left"
+                    Foreground="{DynamicResource TextSecondaryBrush}"
+                    Margin="0,0,0,16"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <materialDesign:PackIcon Kind="Cast" Width="28" Height="28"
+                                         Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Text="Restream" FontSize="24" FontWeight="Bold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+            </StackPanel>
+            <TextBlock Text="Send one OBS output to every platform at once — each with its own resolution and bitrate. FFmpeg relays the stream, so a &quot;Source&quot; destination costs almost no CPU."
+                       FontSize="13"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- ================ Live status / control ================ -->
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,15" Padding="20">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Ellipse Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{DynamicResource TextSecondaryBrush}"/>
+                                            <Style.Triggers>
+                                                <!-- Order matters: running/waiting first, streaming last so
+                                                     Live wins while both are true (triggers apply top-down). -->
+                                                <DataTrigger Binding="{Binding IsEngineRunning}" Value="True">
+                                                    <Setter Property="Fill" Value="Orange"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsEngineStreaming}" Value="True">
+                                                    <Setter Property="Fill" Value="LimeGreen"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock Text="{Binding EngineStateText}" FontSize="18" FontWeight="Bold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding EngineMessage, Mode=OneWay}" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
+                                           Margin="12,2,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Command="{Binding StartRestreamCommand}"
+                                        Style="{StaticResource MaterialDesignRaisedButton}"
+                                        Visibility="{Binding IsEngineRunning, Converter={StaticResource InvertBoolToVis}}"
+                                        Margin="0,0,8,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon Kind="Play" Width="18" Height="18" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Start Restream" Margin="6,0,0,0"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button Command="{Binding StopRestreamCommand}"
+                                        Style="{StaticResource MaterialDesignOutlinedButton}"
+                                        Visibility="{Binding IsEngineRunning, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon Kind="Stop" Width="18" Height="18" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Stop Restream" Margin="6,0,0,0"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Live stats -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="UPTIME" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="{Binding UptimeText}" FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="BITRATE" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="{Binding BitrateText}" FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="FPS" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="{Binding FpsText}" FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="3">
+                                <TextBlock Text="SPEED" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="{Binding SpeedText}" FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="{Binding StatusMessage, Mode=OneWay}"
+                                   Foreground="{DynamicResource ErrorRedBrush}"
+                                   Margin="0,10,0,0" TextWrapping="Wrap"/>
+
+                        <!-- FFmpeg log -->
+                        <Expander Header="FFmpeg log" Margin="0,12,0,0" Foreground="{DynamicResource TextSecondaryBrush}">
+                            <ListBox ItemsSource="{Binding LogLines}"
+                                     Background="Transparent" BorderThickness="0"
+                                     MaxHeight="180"
+                                     VirtualizingPanel.IsVirtualizing="True">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   TextWrapping="NoWrap"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Expander>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- ================ Source ================ -->
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,15" Padding="20">
+                    <StackPanel>
+                        <TextBlock Text="Source — where OBS sends the stream"
+                                   Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,0,0,12"/>
+
+                        <!-- 1-PC / 2-PC mode -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Two-PC setup" FontWeight="SemiBold" FontSize="14"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Off: OBS runs on this PC (listens on loopback only). On: a gaming PC sends the stream over your network — VyralBot only needs to run here."
+                                           Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1"
+                                          IsChecked="{Binding IsTwoPcMode}"
+                                          Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                          VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <!-- Ingest URLs -->
+                        <TextBlock Text="Point OBS at this server (Settings → Stream → Custom):"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                        <ItemsControl ItemsSource="{Binding IngestUrls}" Margin="0,0,0,6">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Text="{Binding Mode=OneWay}" IsReadOnly="True"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 Margin="0,0,8,0"/>
+                                        <Button Grid.Column="1" Content="Copy URL"
+                                                Command="{Binding DataContext.CopyIngestUrlCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                Style="{StaticResource MaterialDesignOutlinedButton}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Ingest port + stream key -->
+                        <Grid Margin="0,4,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Ingest port:" VerticalAlignment="Center" Margin="0,0,10,0"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <TextBox Grid.Column="1" Text="{Binding IngestPortText, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     materialDesign:HintAssist.Hint="1935"/>
+                            <TextBlock Grid.Column="2" Text="Stream key (any word):" VerticalAlignment="Center" Margin="16,0,10,0"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <TextBox Grid.Column="3" Text="{Binding IngestStreamKey, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     materialDesign:HintAssist.Hint="vyral"/>
+                            <Button Grid.Column="4" Content="Copy Key" Margin="12,0,0,0"
+                                    Command="{Binding CopyIngestKeyCommand}"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}"/>
+                        </Grid>
+
+                        <!-- Two-PC firewall + ingest-key hints -->
+                        <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                CornerRadius="6" Padding="12,8" Margin="0,12,0,0"
+                                Visibility="{Binding IsTwoPcMode, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <TextBlock Text="Windows Firewall will ask to allow FFmpeg the first time you go live — allow it on private networks, or the gaming PC cannot reach this PC."
+                                           Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" FontSize="12"/>
+                                <TextBlock Text="Also change the ingest stream key above from the default &quot;vyral&quot; to any random word — anyone on your network who guesses it could publish to your restream."
+                                           Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" FontSize="12" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="OBS setup:" FontWeight="SemiBold" Margin="0,14,0,6"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <StackPanel Margin="15,0,0,0">
+                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,4" Foreground="{DynamicResource TextSecondaryBrush}">
+                                <Run Text="1."/>
+                                <Run Text="In OBS: Settings → Stream → Service: Custom…"/>
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,4" Foreground="{DynamicResource TextSecondaryBrush}">
+                                <Run Text="2."/>
+                                <Run Text="Paste the server URL above and use the ingest stream key as the stream key"/>
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}">
+                                <Run Text="3."/>
+                                <Run Text="Keep OBS's auto-reconnect enabled — Vyral re-listens whenever the stream stops"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- ================ Destinations ================ -->
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,15" Padding="20">
+                    <StackPanel>
+                        <TextBlock Text="Destinations"
+                                   Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,0,0,4"/>
+                        <TextBlock Text="Every enabled destination receives the same stream. &quot;Source&quot; relays without re-encoding (≈0 CPU); each scaled resolution adds one light x264 encode."
+                                   Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                        <!-- Add buttons -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <Button Command="{Binding AddDestinationCommand}" CommandParameter="Twitch"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}" Margin="0,0,8,0" Content="+ Twitch"/>
+                            <Button Command="{Binding AddDestinationCommand}" CommandParameter="YouTube"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}" Margin="0,0,8,0" Content="+ YouTube"/>
+                            <Button Command="{Binding AddDestinationCommand}" CommandParameter="Kick"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}" Margin="0,0,8,0" Content="+ Kick"/>
+                            <Button Command="{Binding AddDestinationCommand}" CommandParameter="Custom"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}" Content="+ Custom"/>
+                        </StackPanel>
+
+                        <ItemsControl ItemsSource="{Binding Destinations}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:RestreamDestinationItemViewModel}">
+                                    <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                            BorderBrush="{DynamicResource BorderLightBrush}"
+                                            BorderThickness="1" CornerRadius="8"
+                                            Margin="0,0,0,10" Padding="14">
+                                        <StackPanel>
+                                            <!-- Row 1: name / platform / enabled / delete -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="180"/>
+                                                    <ColumnDefinition Width="140"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Grid.Column="0" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                         Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                         materialDesign:HintAssist.Hint="Name" Margin="0,0,8,0"/>
+                                                <ComboBox Grid.Column="1" ItemsSource="{Binding PlatformChoices}"
+                                                          SelectedItem="{Binding Platform}"
+                                                          Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                                                          materialDesign:HintAssist.Hint="Platform" Margin="0,0,16,0"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding StatusText, Mode=OneWay}"
+                                                           Foreground="{DynamicResource ErrorRedBrush}"
+                                                           VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                                <ToggleButton Grid.Column="3" IsChecked="{Binding Enabled}"
+                                                              Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                              ToolTip="Include this destination in the restream" Margin="0,0,12,0"/>
+                                                <Button Grid.Column="4"
+                                                        Command="{Binding DataContext.DeleteDestinationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource MaterialDesignIconButton}"
+                                                        ToolTip="Remove destination">
+                                                    <materialDesign:PackIcon Kind="Delete" Width="18" Height="18"/>
+                                                </Button>
+                                            </Grid>
+
+                                            <!-- Row 2: server / key -->
+                                            <Grid Margin="0,10,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="260"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Grid.Column="0" Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}"
+                                                         Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                         materialDesign:HintAssist.Hint="RTMP server URL"
+                                                         Margin="0,0,8,0"/>
+                                                <TextBox Grid.Column="1" Text="{Binding StreamKey, UpdateSourceTrigger=PropertyChanged}"
+                                                         Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                         materialDesign:HintAssist.Hint="Stream key"/>
+                                            </Grid>
+
+                                            <!-- Row 3: resolution / bitrate / preset / audio -->
+                                            <Grid Margin="0,10,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="200"/>
+                                                    <ColumnDefinition Width="110"/>
+                                                    <ColumnDefinition Width="150"/>
+                                                    <ColumnDefinition Width="150"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ComboBox Grid.Column="0" ItemsSource="{Binding ResolutionChoices}"
+                                                          SelectedItem="{Binding Resolution}"
+                                                          Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                                                          materialDesign:HintAssist.Hint="Resolution" Margin="0,0,8,0"/>
+                                                <TextBox Grid.Column="1" Text="{Binding BitrateText, UpdateSourceTrigger=PropertyChanged}"
+                                                         Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                         materialDesign:HintAssist.Hint="kbps"
+                                                         Visibility="{Binding IsScaled, Converter={StaticResource BoolToVis}}"
+                                                         Margin="0,0,8,0"/>
+                                                <ComboBox Grid.Column="2" ItemsSource="{Binding PresetChoices}"
+                                                          SelectedItem="{Binding Preset}"
+                                                          Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                                                          materialDesign:HintAssist.Hint="Encoder preset"
+                                                          Visibility="{Binding IsScaled, Converter={StaticResource BoolToVis}}"
+                                                          Margin="0,0,8,0"/>
+                                                <ComboBox Grid.Column="3" ItemsSource="{Binding AudioChoices}"
+                                                          SelectedItem="{Binding AudioMode}"
+                                                          Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                                                          materialDesign:HintAssist.Hint="Audio"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="No destinations yet — add one above. Kick gives you the full RTMP URL + key in its Stream Dashboard; paste the URL part in the server field."
+                                   Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding IsDestinationsEmpty, Converter={StaticResource BoolToVis}}"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- ================ FFmpeg engine ================ -->
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,15" Padding="20">
+                    <StackPanel>
+                        <TextBlock Text="Engine — FFmpeg"
+                                   Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,0,0,12"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <Ellipse Width="12" Height="12" Margin="0,0,8,0" VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{DynamicResource ErrorRedBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsFfmpegFound}" Value="True">
+                                                <Setter Property="Fill" Value="LimeGreen"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="{Binding FfmpegStatusText}" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding IsFfmpegFound, Converter={StaticResource InvertBoolToVis}}">
+                            <Button Command="{Binding DownloadFfmpegCommand}"
+                                    Style="{StaticResource MaterialDesignRaisedButton}"
+                                    IsEnabled="{Binding CanDownloadFfmpeg}"
+                                    Margin="0,0,12,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Download" Width="18" Height="18" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Download FFmpeg (~90 MB)" Margin="6,0,0,0"/>
+                                </StackPanel>
+                            </Button>
+                            <ProgressBar Width="240" Height="6"
+                                         Minimum="0" Maximum="100"
+                                         Value="{Binding AcquirePercent, Mode=OneWay}"
+                                         Visibility="{Binding IsAcquiringFfmpeg, Converter={StaticResource BoolToVis}}"
+                                         VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding AcquireDetail, Mode=OneWay}" Margin="12,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </StackPanel>
+
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding FfmpegPathOverride}"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     materialDesign:HintAssist.Hint="Optional: custom ffmpeg.exe path (used instead of the bundled copy / PATH)"/>
+                        </Grid>
+
+                        <TextBlock Text="FFmpeg is also used from the system PATH if it is already installed. The restream engine uses the official gyan.dev build (GPL, includes x264)."
+                                   Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap"
+                                   Margin="0,10,0,0"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Save -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Save Settings"
+                            Command="{Binding SaveSettingsCommand}"
+                            Style="{StaticResource MaterialDesignRaisedButton}"/>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

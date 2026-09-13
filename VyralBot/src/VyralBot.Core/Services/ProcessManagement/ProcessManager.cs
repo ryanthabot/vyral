@@ -33,8 +33,10 @@ public sealed class ProcessManager : IProcessManager
         if (process.Start())
         {
             _activeProcesses.TryAdd(process.Id, process);
-            _logger.LogInformation("Process started: {Name} (PID: {Pid}, Args: {Args})", 
-                process.ProcessName, process.Id, startInfo.Arguments ?? "");
+            // Arguments are deliberately NOT logged: they can embed secrets
+            // (the restream command line carries every platform stream key).
+            _logger.LogInformation("Process started: {Name} (PID: {Pid})",
+                process.ProcessName, process.Id);
             return Task.FromResult(process);
         }
         
