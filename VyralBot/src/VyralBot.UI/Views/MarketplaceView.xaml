@@ -60,7 +60,7 @@
                         Margin="12,0,0,0"
                         ToolTip="Load a command from a pasted share code or offline code">
                     <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="CodeImport" Width="14" Height="14"
+                        <materialDesign:PackIcon Kind="Import" Width="14" Height="14"
                                                  Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBlock Text="IMPORT CODE" VerticalAlignment="Center"/>
                     </StackPanel>

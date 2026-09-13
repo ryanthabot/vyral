@@ -1813,6 +1813,12 @@ public class FlowCanvasControl : Control
                 _selectedNode = node;
         }
 
+        // Pre-routed loads (DB workflows, drafts, imports) carry their routing
+        // in the node objects BEFORE the canvas subscribed to PropertyChanged,
+        // so no routing change ever fires here — wires must be built explicitly.
+        foreach (FlowCanvasNode node in _nodes)
+            UpdateWiresForNode(node);
+
         UpdateAllWireGeometry();
         UpdateTriggerCardPosition();
     }
