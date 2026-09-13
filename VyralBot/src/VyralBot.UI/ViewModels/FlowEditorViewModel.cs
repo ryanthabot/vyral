@@ -2304,6 +2304,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         _existingCategory = existingWorkflow?.Category;
         _existingCreatedAt = existingWorkflow?.CreatedAt ?? DateTime.UtcNow;
         _sourceCommandId = null;
+        _loadedFromImport = false;
         _cascadeCount = 0;
         _componentSubNodes.Clear();
 
@@ -4813,7 +4814,10 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         {
             Directory.CreateDirectory(DraftDirectory);
             string json = SerializeSnapshot();
-            string path = DraftPathFor(IsPersisted ? _workflowId : "unsaved");
+            string draftKey = _existingWorkflow != null || _savedOnce || _loadedFromImport
+                ? _workflowId
+                : "unsaved";
+            string path = DraftPathFor(draftKey);
             await File.WriteAllTextAsync(path, json);
         }
         catch (Exception ex)
@@ -4826,6 +4830,14 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private bool IsPersisted => _existingWorkflow != null || _savedOnce;
 
     private bool _savedOnce;
+
+    /// <summary>
+    /// True while editing an imported shared code (file or marketplace). The
+    /// import is a deliberate load with a durable source — its autosave must
+    /// NOT take the "unsaved new flow" draft slot, or every later NEW COMMAND
+    /// resurrects the imported flow instead of starting fresh.
+    /// </summary>
+    private bool _loadedFromImport;
 
     private FlowEditorSnapshotDto? TryReadSnapshot(string path)
     {
@@ -5034,6 +5046,10 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             var workflow = AssembleWorkflow();
             await _dataService.SaveWorkflowAsync(WorkflowJson.ToRow(workflow));
 
+            // A command-triggered flow IS a custom command: make sure it has a
+            // row on the Commands page (first save) / stays linked (re-saves).
+            await EnsureCommandRowAsync(workflow);
+
             // Component child workflows (button / select sub-flows) sync after
             // the parent row exists so the parent id in their component keys is
             // stable. Best-effort — a child-sync failure never fails the save.
@@ -5056,6 +5072,10 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             StatusText = $"\"{workflow.Name}\" saved and live — triggers reloaded.";
             _logger.LogInformation("Flow editor saved workflow '{Name}' ({WorkflowId}, {NodeCount} nodes)",
                 workflow.Name, workflow.Id, workflow.Nodes.Count);
+
+            // A command-triggered flow IS a custom command: make sure it has a
+            // row on the Commands page (first save) / stays linked (re-saves).
+            await EnsureCommandRowAsync(workflow);
 
             // Command → flow adoption: retire the legacy command row (and
             // shadow same-named Discord built-ins) so the flow is the single
@@ -5345,6 +5365,48 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     /// Both steps are best-effort: failures are logged and noted in the status
     /// text but never fail the save.
     /// </summary>
+    /// <summary>
+    /// A command-triggered flow without a linked row gets one created (disabled,
+    /// flow-owned) so it shows in the Commands page CUSTOM list and EDIT routes
+    /// back into this flow. A same-named row is adopted instead of duplicated.
+    /// Best-effort — never fails the save.
+    /// </summary>
+    private async Task EnsureCommandRowAsync(Workflow workflow)
+    {
+        try
+        {
+            if (!FlowCommandRowBuilder.NeedsCommandRow(workflow))
+            {
+                return;
+            }
+
+            string name = workflow.Trigger!.CommandName!.Trim();
+            Command? existing = await _dataService.GetCommandByNameAsync(name);
+            if (existing == null)
+            {
+                existing = FlowCommandRowBuilder.BuildRow(workflow);
+                await _dataService.SaveCommandAsync(existing);
+                _logger.LogInformation("Flow {WorkflowId} created command row {CommandName} ({CommandId})",
+                    workflow.Id, existing.Name, existing.Id);
+            }
+
+            workflow.SourceCommandId = existing.Id;
+            _sourceCommandId = existing.Id;
+            if (_existingWorkflow != null)
+            {
+                _existingWorkflow.SourceCommandId = existing.Id;
+            }
+
+            await _dataService.SaveWorkflowAsync(WorkflowJson.ToRow(workflow)); // carry SourceCommandId in the graph
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Could not link flow {WorkflowId} to a command row — it may not show under CUSTOM",
+                workflow.Id);
+        }
+    }
+
     private async Task AdoptCommandOwnershipAsync(Workflow workflow)
     {
         try
@@ -5770,6 +5832,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 // currently open (the import becomes the working copy).
                 _existingWorkflow = null;
                 _savedOnce = false;
+                _loadedFromImport = true;
                 _workflowId = string.IsNullOrWhiteSpace(dto.Id) ? Guid.NewGuid().ToString("N") : dto.Id;
                 _existingCategory = null;
                 _existingCreatedAt = DateTime.UtcNow;
