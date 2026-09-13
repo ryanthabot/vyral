@@ -13,17 +13,13 @@ public sealed record RestreamFfmpegInstall(string FfmpegPath, string Source, str
 /// </summary>
 public sealed class RestreamFfmpegLocator
 {
-    /// <summary>Root used for app-portable storage — same walk-up as ProfileService.</summary>
-    public static string GetAppDataRoot()
-    {
-        var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        // Identical to ProfileService: six hops from bin/Debug/net10.0-windows
-        // lands on the VyralBot root; from a published single-file layout the
-        // walk runs past the drive root, returns null, and the exe folder is
-        // used instead (appdata next to Vyral.exe).
-        var projectRoot = Directory.GetParent(baseDirectory)?.Parent?.Parent?.Parent?.Parent?.Parent?.FullName;
-        return Path.Combine(projectRoot ?? baseDirectory, "appdata");
-    }
+    /// <summary>
+    /// Root used for app-portable storage — the same deterministic resolution
+    /// as ProfileService (appdata next to the exe when writable, else
+    /// %LOCALAPPDATA%\VyralBot), so a downloaded FFmpeg is found no matter
+    /// where the exe sits.
+    /// </summary>
+    public static string GetAppDataRoot() => VyralBot.Core.Services.AppDataRoot.GetRoot();
 
     public static string BundledFfmpegPath => Path.Combine(GetAppDataRoot(), "bin", "ffmpeg", "ffmpeg.exe");
 

@@ -45,6 +45,13 @@ public partial class App : Application
     private static Mutex? _instanceMutex;
 
     /// <summary>
+    /// True once <see cref="OnStartup"/> fully started the host. When startup
+    /// fails early, OnExit must skip host teardown — calling StopAsync on a
+    /// half-started host throws and the shutdown watchdog force-kills instead.
+    /// </summary>
+    private static bool _hostStarted;
+
+    /// <summary>
     /// Set by the Settings → Advanced "Restart App" button: OnExit launches a
     /// new instance AFTER all cleanup completes (mutex released, host stopped,
     /// bots disconnected), with a short extra delay so ports settle and the old
@@ -485,6 +492,7 @@ public partial class App : Application
 
             Log.Information("Starting application host (WPF + Kestrel on demand)...");
             await _host!.StartAsync();
+            _hostStarted = true;
             Log.Information("✅ Application host started successfully (the Kestrel web server starts on demand via WebhookCoordinatorService)");
 
             // Set static ServiceProvider for DI access
@@ -732,6 +740,23 @@ public partial class App : Application
             mainWindow.Activate();
             Log.Information("MainWindow displayed");
 
+            // First-launch dependency check: the exe is self-contained, so the
+            // only machine dependency is the WebView2 runtime. Fire-and-forget
+            // behind the shown window — a missing runtime prompts (and can
+            // silently install) without blocking startup.
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await UI.Services.RuntimeDependencyCheck.RunStartupCheckAsync(
+                        _host.Services.GetRequiredService<ILogger<App>>());
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Runtime dependency check failed");
+                }
+            });
+
             // Get MainViewModel to control the profile selector overlay
             var mainViewModel = _host.Services.GetRequiredService<MainViewModel>();
 
@@ -900,15 +925,33 @@ public partial class App : Application
             _instanceMutex?.Dispose();
 
             // Stop the host properly (this stops all BackgroundServices like PerformanceMonitor)
-            Log.Information("Stopping application host and all background services...");
-            try
+            if (_hostStarted)
             {
-                _host!.StopAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
-                Log.Information("Host stopped successfully");
+                Log.Information("Stopping application host and all background services...");
+                try
+                {
+                    _host!.StopAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+                    Log.Information("Host stopped successfully");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error stopping host");
+                }
             }
-            catch (Exception ex)
+            else
             {
-                Log.Error(ex, "Error stopping host");
+                Log.Warning("Host never fully started — skipping host teardown");
+            }
+
+            if (!_hostStarted)
+            {
+                // Startup failed before any service was constructed — resolving
+                // them now would re-run the failing constructors (and crash
+                // exit the way a failed ProfileService did). Log and leave.
+                Log.Warning("Skipping service cleanup — the host did not start");
+                try { base.OnExit(e); } catch { }
+                Log.CloseAndFlush();
+                return;
             }
 
             // Kill all tracked processes first to ensure zero orphans

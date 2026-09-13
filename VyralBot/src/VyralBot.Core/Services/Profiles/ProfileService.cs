@@ -27,25 +27,20 @@ public class ProfileService : IProfileService
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _eventBus = eventBus;
-        
-        // Portable: Store in appdata folder at VyralBot root (not in build output)
-        // This allows users to easily see/manage their data and makes the app portable
-        var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        
-        // Navigate up from: src/VyralBot.UI/bin/Debug/net9.0-windows/ to VyralBot root
-        // Go up 6 levels: net9.0-windows -> Debug -> bin -> VyralBot.UI -> src -> VyralBot (root)
-        var projectRoot = Directory.GetParent(baseDirectory)?.Parent?.Parent?.Parent?.Parent?.Parent?.FullName;
-        
-        // Fallback to base directory if we can't find project root (e.g., published release)
-        var rootDirectory = projectRoot ?? baseDirectory;
-        var portableDataPath = Path.Combine(rootDirectory, "appdata");
-        
+
+        // Deterministic portable root: "appdata" next to the exe when writable,
+        // else %LOCALAPPDATA%\VyralBot. The old fixed-walk heuristic produced a
+        // different (sometimes uncreatable — e.g. C:\Users\appdata) location
+        // for every install depth and crashed first launch on other machines.
+        var portableDataPath = AppDataRoot.GetRoot();
+        AppDataRoot.MigrateLegacyData(_logger, portableDataPath);
+
         _profilesRootPath = Path.Combine(portableDataPath, "profiles");
         _currentProfilePath = Path.Combine(portableDataPath, "current_profile.txt");
-        
+
         // Ensure profiles directory exists
         Directory.CreateDirectory(_profilesRootPath);
-        
+
         _logger.LogInformation("ProfileService using portable storage: {Path}", portableDataPath);
     }
 
