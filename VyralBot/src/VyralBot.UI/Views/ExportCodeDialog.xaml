@@ -1,0 +1,106 @@
+<Window x:Class="VyralBot.UI.Views.ExportCodeDialog"
+        Icon="/Resources/Images/vyral-logo.png"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        Title="Export Flow"
+        Height="380"
+        Width="520"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        Background="Transparent"
+        AllowsTransparency="True">
+
+    <Border Background="{DynamicResource BackgroundDarkBrush}"
+            CornerRadius="8"
+            BorderBrush="{DynamicResource BorderLightBrush}"
+            BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    CornerRadius="8,8,0,0"
+                    Padding="20,16">
+                <TextBlock Text="⬆️ Export Flow"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+            </Border>
+
+            <!-- Choices -->
+            <StackPanel Grid.Row="1" Margin="24,18">
+                <TextBlock Text="Pick how you want to share this flow. Anyone can load it from Commands → IMPORT (or the marketplace) with the code you get."
+                           FontSize="12.5"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Margin="0,0,0,14"/>
+
+                <Button Click="Online_Click"
+                        Style="{StaticResource MaterialDesignRaisedButton}"
+                        Background="{DynamicResource PrimaryBrush}"
+                        Foreground="White"
+                        Height="52"
+                        HorizontalAlignment="Stretch"
+                        ToolTip="Publish to the marketplace and get a short VYRAL-… code (needs the BotGhost setup)">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="CloudUploadOutline" Width="18" Height="18"
+                                                 Foreground="White" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <StackPanel>
+                            <TextBlock Text="GET SHARE CODE (ONLINE)" FontWeight="SemiBold" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Adds it to the marketplace — code works on any PC" FontSize="11" Opacity="0.85" HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Button>
+
+                <Button Click="Offline_Click"
+                        Style="{StaticResource MaterialDesignOutlinedButton}"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
+                        Height="52"
+                        Margin="0,10,0,0"
+                        HorizontalAlignment="Stretch"
+                        ToolTip="Copies a self-contained VYRAL1-… code — imports with no internet and no marketplace setup">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="ClipboardTextOutline" Width="18" Height="18"
+                                                 VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <StackPanel>
+                            <TextBlock Text="COPY OFFLINE CODE" FontWeight="SemiBold" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Whole flow embedded in the code — share it anywhere" FontSize="11" Opacity="0.7" HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Button>
+
+                <Button Click="File_Click"
+                        Style="{StaticResource MaterialDesignFlatButton}"
+                        Foreground="{DynamicResource TextSecondaryBrush}"
+                        Height="40"
+                        Margin="0,10,0,0"
+                        HorizontalAlignment="Left"
+                        Content="SAVE TO .FLOW.JSON FILE…"
+                        ToolTip="Classic file export"/>
+            </StackPanel>
+
+            <!-- Footer -->
+            <Border Grid.Row="2"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderLightBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,8,8"
+                    Padding="20,12">
+                <Button Content="CANCEL"
+                        Click="Cancel_Click"
+                        Style="{StaticResource MaterialDesignFlatButton}"
+                        Foreground="{DynamicResource TextSecondaryBrush}"
+                        Width="100"
+                        Height="36"
+                        HorizontalAlignment="Right"/>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

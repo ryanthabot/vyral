@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging.Abstractions;
 using VyralBot.UI.Services;
 using VyralBot.UI.ViewModels;
 using Xunit;
@@ -194,6 +195,73 @@ public class MarketplaceServiceTests
         Assert.Equal("ryanthabot", set.GitHubOwner);
         Assert.Equal("vyral", set.GitHubRepo);
         Assert.Equal("main", set.Branch);
+    }
+}
+
+/// <summary>
+/// Offline-path tests for the shared import resolver (no network, no DB —
+/// the IDataService dependency is only touched by the online fetch branch).
+/// </summary>
+public class ImportResolutionTests
+{
+    private static MarketplaceService CreateService() =>
+        new(null!, NullLogger<MarketplaceService>.Instance);
+
+    private static string SampleOfflineCode()
+    {
+        var snapshot = new FlowEditorSnapshotDto
+        {
+            Id = "abc123",
+            Name = "Ticket Flow",
+            Nodes = new List<FlowNodeDto>
+            {
+                new()
+                {
+                    Id = "n1",
+                    BlockType = "send_message",
+                    X = 12,
+                    Y = 34,
+                    Config = new Dictionary<string, string> { ["text"] = "hi" }
+                }
+            }
+        };
+        return MarketplaceService.EncodeOfflineCode(FlowSnapshotService.BuildDocument(snapshot));
+    }
+
+    [Fact]
+    public async Task ResolveImportInputAsync_decodes_offline_codes()
+    {
+        var result = await CreateService().ResolveImportInputAsync(SampleOfflineCode());
+        Assert.True(result.Success);
+        Assert.Equal("offline share code", result.Label);
+        Assert.Equal("Ticket Flow", result.Snapshot!.Name);
+    }
+
+    [Fact]
+    public async Task ResolveImportInputAsync_rejects_corrupt_offline_codes()
+    {
+        var result = await CreateService().ResolveImportInputAsync(MarketplaceService.OfflinePrefix + "!!!");
+        Assert.False(result.Success);
+        Assert.Contains("offline code", result.Error);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ResolveImportInputAsync_asks_for_a_code_on_empty_input(string? input)
+    {
+        var result = await CreateService().ResolveImportInputAsync(input!);
+        Assert.False(result.Success);
+        Assert.Contains("Paste a share code", result.Error);
+    }
+
+    [Fact]
+    public async Task ResolveImportInputAsync_rejects_non_code_text()
+    {
+        var result = await CreateService().ResolveImportInputAsync("hello world");
+        Assert.False(result.Success);
+        Assert.Contains("does not look like a share code", result.Error);
     }
 }
 

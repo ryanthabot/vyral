@@ -36,7 +36,7 @@
 
             <!-- Content -->
             <StackPanel Grid.Row="1" Margin="24,18">
-                <TextBlock Text="Paste a marketplace share code (VYRAL-…), an offline share code (VYRAL1-…), or a marketplace link."
+                <TextBlock Text="Paste a marketplace share code (VYRAL-…), an offline share code (VYRAL1-…), or a link containing a code."
                            FontSize="12.5"
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource TextSecondaryBrush}"
@@ -58,23 +58,32 @@
                     BorderThickness="0,1,0,0"
                     CornerRadius="0,0,8,8"
                     Padding="20,16">
-                <StackPanel Orientation="Horizontal"
-                            HorizontalAlignment="Right">
-                    <Button Content="CANCEL"
-                            Click="Cancel_Click"
+                <Grid>
+                    <Button HorizontalAlignment="Left"
+                            Content="FROM FILE…"
+                            Click="FromFile_Click"
                             Style="{StaticResource MaterialDesignFlatButton}"
                             Foreground="{DynamicResource TextSecondaryBrush}"
-                            Width="100"
+                            Width="110"
                             Height="40"
-                            Margin="0,0,12,0"/>
-                    <Button Content="IMPORT"
-                            Click="Import_Click"
-                            Style="{StaticResource MaterialDesignRaisedButton}"
-                            Background="{DynamicResource PrimaryBrush}"
-                            Foreground="White"
-                            Width="120"
-                            Height="40"/>
-                </StackPanel>
+                            ToolTip="Load a .flow.json file instead"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="CANCEL"
+                                Click="Cancel_Click"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Width="100"
+                                Height="40"
+                                Margin="0,0,12,0"/>
+                        <Button Content="IMPORT"
+                                Click="Import_Click"
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Background="{DynamicResource PrimaryBrush}"
+                                Foreground="White"
+                                Width="120"
+                                Height="40"/>
+                    </StackPanel>
+                </Grid>
             </Border>
         </Grid>
     </Border>

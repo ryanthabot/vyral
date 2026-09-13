@@ -77,17 +77,19 @@ Commands page → **MARKETPLACE** → **⚙** (top right):
 
 ## 5. Verify
 
-1. Open the flow editor on any command → **SHARE** → pick a category → SHARE.
-   The app copies the code and waits until the file shows up on GitHub
+1. Open the flow editor on any command → **EXPORT** → **GET SHARE CODE (ONLINE)** → pick a
+   category → SHARE. The app copies the code and waits until the file shows up on GitHub
    (`marketplace/commands/<CODE>.json`) — its status bar confirms when it's live.
-2. Commands → **MARKETPLACE** → your command appears under its category → **IMPORT** loads it
-   into the flow editor as a fresh working copy.
-3. **👍** on the listing → `marketplace/ratings/<CODE>.json` appears with `{"up":1,"down":0}`.
-4. **OFFLINE CODE** in the editor copies a `VYRAL1-…` blob; **IMPORT CODE** in the marketplace
-   pastes it back (works with no internet and no setup).
+2. Flow editor **IMPORT** (or Marketplace → **IMPORT CODE**) → paste the `VYRAL-…` code → the
+   command opens in the flow editor as a fresh working copy.
+3. **👍** on the marketplace listing → `marketplace/ratings/<CODE>.json` appears with
+   `{"up":1,"down":0}`.
+4. **EXPORT → COPY OFFLINE CODE** copies a `VYRAL1-…` blob; paste it into the same IMPORT box —
+   it decodes locally and works with no internet and no setup.
 
 ## Sharing codes with users
 
-A user only needs the code (`VYRAL-XXXXXXXXXX`) — they open the marketplace, press
-**IMPORT CODE**, paste it, and the command opens in their builder. Offline codes
-(`VYRAL1-…`) can be exchanged anywhere (Discord DM, pastebin) and import the same way.
+A user only needs the code (`VYRAL-XXXXXXXXXX`) — in the flow editor they press **IMPORT**
+(or Marketplace → **IMPORT CODE**), paste it, and the command opens in their builder. Offline
+codes (`VYRAL1-…`) paste into the same box, decode without any internet, and can be exchanged
+anywhere (Discord DM, pastebin).

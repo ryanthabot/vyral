@@ -2912,8 +2912,6 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
@@ -2945,7 +2943,7 @@
                         Command="{Binding ExportJsonCommand}"
                         Style="{StaticResource FlowActionButton}"
                         Margin="8,0,0,0"
-                        ToolTip="Save the flow as a portable .flow.json file">
+                        ToolTip="Get a share code (online marketplace or offline code), or save a .flow.json file">
                     <StackPanel Orientation="Horizontal">
                         <materialDesign:PackIcon Kind="Export" Width="13" Height="13"
                                                  Foreground="{StaticResource FlowGhostBrush}"
@@ -2957,7 +2955,7 @@
                         Command="{Binding ImportJsonCommand}"
                         Style="{StaticResource FlowActionButton}"
                         Margin="8,0,0,0"
-                        ToolTip="Load a flow from a .flow.json file">
+                        ToolTip="Import from a pasted share code (online or offline) or a .flow.json file">
                     <StackPanel Orientation="Horizontal">
                         <materialDesign:PackIcon Kind="Import" Width="13" Height="13"
                                                  Foreground="{StaticResource FlowGhostBrush}"
@@ -2965,32 +2963,8 @@
                         <TextBlock Text="IMPORT" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="4"
-                        Command="{Binding ShareToMarketplaceCommand}"
-                        Style="{StaticResource FlowActionButton}"
-                        Margin="8,0,0,0"
-                        ToolTip="Publish this flow to the command marketplace (gets a share code)">
-                    <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="ShareVariant" Width="13" Height="13"
-                                                 Foreground="{StaticResource FlowGreenBrush}"
-                                                 VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBlock Text="SHARE" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Button>
-                <Button Grid.Column="5"
-                        Command="{Binding CopyOfflineCodeCommand}"
-                        Style="{StaticResource FlowActionButton}"
-                        Margin="8,0,0,0"
-                        ToolTip="Copy a self-contained share code (imports with no internet)">
-                    <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="ClipboardTextOutline" Width="13" Height="13"
-                                                 Foreground="{StaticResource FlowGhostBrush}"
-                                                 VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBlock Text="OFFLINE CODE" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Button>
 
-                <TextBlock Grid.Column="6"
+                <TextBlock Grid.Column="4"
                            Text="{Binding StatusText}"
                            FontSize="11.5"
                            Foreground="{DynamicResource TextSecondaryBrush}"
@@ -2999,7 +2973,7 @@
                            TextTrimming="CharacterEllipsis"
                            ToolTip="{Binding StatusText}"/>
 
-                <Button Grid.Column="7" Content="✕ CLOSE"
+                <Button Grid.Column="5" Content="✕ CLOSE"
                         Command="{Binding CloseCommand}"
                         Style="{StaticResource FlowCloseButton}"
                         ToolTip="Close the editor (unsaved work is auto-saved as a draft)"/>

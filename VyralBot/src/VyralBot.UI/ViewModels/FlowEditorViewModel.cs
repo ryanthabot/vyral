@@ -5531,9 +5531,41 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
     }
 
-    /// <summary>Exports the flow as a spec-shaped .flow.json document.</summary>
+    /// <summary>
+    /// EXPORT: opens the export chooser — online share code (marketplace),
+    /// self-contained offline code, or the classic .flow.json file.
+    /// </summary>
     [RelayCommand]
-    public void ExportJson()
+    private async Task ExportJson()
+    {
+        if (Nodes.Count == 0)
+        {
+            StatusText = "Add at least one block before exporting.";
+            return;
+        }
+
+        var dialog = new Views.ExportCodeDialog { Owner = Application.Current.MainWindow };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        switch (dialog.Choice)
+        {
+            case Views.ExportFlowChoice.OnlineCode:
+                await ShareToMarketplaceAsync();
+                break;
+            case Views.ExportFlowChoice.OfflineCode:
+                CopyOfflineCodeToClipboard();
+                break;
+            case Views.ExportFlowChoice.File:
+                ExportToFile();
+                break;
+        }
+    }
+
+    /// <summary>Classic file export (also reachable from the export chooser).</summary>
+    private void ExportToFile()
     {
         try
         {
@@ -5560,30 +5592,55 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
     }
 
-    /// <summary>Imports a .flow.json document (tolerates missing fields) and rebuilds the canvas.</summary>
+    /// <summary>
+    /// IMPORT: paste box that accepts online share codes, offline codes, or
+    /// URLs containing a code — plus the classic .flow.json file picker.
+    /// </summary>
     [RelayCommand]
-    public void ImportJson()
+    private async Task ImportJson()
     {
-        try
+        var dialog = new Views.ImportCodeDialog { Owner = Application.Current.MainWindow };
+        if (dialog.ShowDialog() != true)
         {
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = "Import flow",
-                Filter = "Vyral flow (*.flow.json)|*.flow.json|JSON (*.json)|*.json"
-            };
+            return;
+        }
 
-            if (dialog.ShowDialog() != true)
+        if (dialog.FilePath != null)
+        {
+            try
             {
-                return;
+                TryImportSnapshot(
+                    FlowSnapshotService.ParseDocument(File.ReadAllText(dialog.FilePath)),
+                    Path.GetFileName(dialog.FilePath));
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Flow import failed");
+                StatusText = $"Import failed: {ex.Message}";
+            }
+            return;
+        }
 
-            TryImportSnapshot(FlowSnapshotService.ParseDocument(File.ReadAllText(dialog.FileName)), Path.GetFileName(dialog.FileName));
-        }
-        catch (Exception ex)
+        if (dialog.Code == null)
         {
-            _logger.LogError(ex, "Flow import failed");
-            StatusText = $"Import failed: {ex.Message}";
+            return;
         }
+
+        await ImportFromCodeAsync(dialog.Code!);
+    }
+
+    /// <summary>Resolves a pasted share/offline code and loads it as the working copy.</summary>
+    public async Task ImportFromCodeAsync(string input)
+    {
+        StatusText = "Resolving code…";
+        var result = await _marketplace.ResolveImportInputAsync(input);
+        if (!result.Success)
+        {
+            StatusText = result.Error ?? "Import failed.";
+            return;
+        }
+
+        TryImportSnapshot(result.Snapshot, result.Label);
     }
 
     /// <summary>
@@ -5597,10 +5654,10 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     // ==================================================================================
     // Marketplace: share to the cloud + self-contained offline paste-code
+    // (both reachable from the EXPORT chooser)
     // ==================================================================================
 
     /// <summary>Shares the current flow to the marketplace via a BotGhost webhook (code copied on success).</summary>
-    [RelayCommand]
     private async Task ShareToMarketplaceAsync()
     {
         if (Nodes.Count == 0)
@@ -5674,8 +5731,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     }
 
     /// <summary>Copies a self-contained offline share code (no internet needed to import).</summary>
-    [RelayCommand]
-    private void CopyOfflineCode()
+    private void CopyOfflineCodeToClipboard()
     {
         if (Nodes.Count == 0)
         {
@@ -5687,7 +5743,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         {
             string code = MarketplaceService.EncodeOfflineCode(FlowSnapshotService.BuildDocument(BuildSnapshotDto()));
             System.Windows.Clipboard.SetText(code);
-            StatusText = "Offline share code copied — anyone can paste it into IMPORT CODE to load this flow.";
+            StatusText = "Offline share code copied — anyone can paste it into IMPORT to load this flow.";
         }
         catch (Exception ex)
         {

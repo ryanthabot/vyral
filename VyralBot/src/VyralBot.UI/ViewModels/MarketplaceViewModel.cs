@@ -198,57 +198,54 @@ public partial class MarketplaceViewModel : ObservableObject
         }
     }
 
-    /// <summary>Resolves a pasted share code / offline code / link and opens it in the editor.</summary>
+    /// <summary>Resolves a pasted share code / offline code / link (or a picked file) and opens it in the editor.</summary>
     [RelayCommand]
     public async Task ImportCodeAsync()
     {
         var dialog = new Views.ImportCodeDialog { Owner = System.Windows.Application.Current.MainWindow };
-        if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.Code))
+        if (dialog.ShowDialog() != true)
         {
             return;
         }
 
-        string input = dialog.Code!;
-        if (MarketplaceService.LooksLikeOfflineCode(input))
+        if (dialog.FilePath != null)
         {
-            if (MarketplaceService.TryDecodeOfflineCode(input, out string flowJson))
+            try
             {
-                var snapshot = FlowSnapshotService.ParseDocument(flowJson);
-                if (snapshot != null)
+                var fileSnapshot = FlowSnapshotService.ParseDocument(System.IO.File.ReadAllText(dialog.FilePath));
+                if (fileSnapshot == null)
                 {
-                    ImportRequested?.Invoke(this, (snapshot, "offline share code"));
+                    StatusText = "Import failed: that file is not a Vyral flow document.";
                     return;
                 }
-            }
 
-            StatusText = "Import failed: that offline code is not a valid Vyral flow.";
+                ImportRequested?.Invoke(this, (fileSnapshot, System.IO.Path.GetFileName(dialog.FilePath)));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Marketplace file import failed");
+                StatusText = $"Import failed: {ex.Message}";
+            }
             return;
         }
 
-        if (!MarketplaceService.TryNormalizeShareCode(input, out string code))
+        if (dialog.Code == null)
         {
-            StatusText = "That does not look like a share code — expected VYRAL-XXXXXXXXXX or a VYRAL1- offline code.";
             return;
         }
 
         IsLoading = true;
-        StatusText = $"Fetching {code}…";
+        StatusText = "Resolving code…";
         try
         {
-            var document = await _marketplace.FetchCommandAsync(code);
-            var snapshot = document == null ? null : FlowSnapshotService.ParseDocument(document.Flow);
-            if (snapshot == null)
+            var result = await _marketplace.ResolveImportInputAsync(dialog.Code!);
+            if (!result.Success)
             {
-                StatusText = $"Import failed: {code} was not found in the marketplace.";
+                StatusText = result.Error ?? "Import failed.";
                 return;
             }
 
-            ImportRequested?.Invoke(this, (snapshot, $"{document!.Name} ({code})"));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Import by code failed for {Code}", code);
-            StatusText = $"Import failed: {ex.Message}";
+            ImportRequested?.Invoke(this, (result.Snapshot!, result.Label));
         }
         finally
         {

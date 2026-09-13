@@ -123,6 +123,12 @@ public sealed class MarketplaceEntry
     }
 }
 
+/// <summary>Result of resolving a pasted share/offline code into an importable snapshot.</summary>
+public sealed record CodeImportResult(FlowEditorSnapshotDto? Snapshot, string Label, string? Error)
+{
+    public bool Success => Snapshot != null;
+}
+
 /// <summary>Fixed marketplace sections.</summary>
 public static class MarketplaceCategories
 {
@@ -372,6 +378,59 @@ public class MarketplaceService
     }
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    // ==================================================================================
+    // Import resolution — one path for online sharecodes and offline codes
+    // ==================================================================================
+
+    /// <summary>
+    /// Resolves a pasted import input (offline code, online sharecode, or
+    /// URL containing one) into an editor snapshot. Offline codes decode
+    /// locally; online codes are fetched from the marketplace.
+    /// </summary>
+    public async Task<CodeImportResult> ResolveImportInputAsync(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return new CodeImportResult(null, string.Empty, "Paste a share code first.");
+        }
+
+        if (LooksLikeOfflineCode(input))
+        {
+            if (TryDecodeOfflineCode(input, out string flowJson))
+            {
+                var offlineSnapshot = FlowSnapshotService.ParseDocument(flowJson);
+                if (offlineSnapshot != null)
+                {
+                    return new CodeImportResult(offlineSnapshot, "offline share code", null);
+                }
+            }
+
+            return new CodeImportResult(null, string.Empty, "Import failed: that offline code is not a valid Vyral flow.");
+        }
+
+        if (!TryNormalizeShareCode(input, out string code))
+        {
+            return new CodeImportResult(null, string.Empty, "That does not look like a share code — expected VYRAL-XXXXXXXXXX or a VYRAL1- offline code.");
+        }
+
+        try
+        {
+            var document = await FetchCommandAsync(code);
+            var snapshot = document == null ? null : FlowSnapshotService.ParseDocument(document.Flow);
+            if (snapshot == null)
+            {
+                return new CodeImportResult(null, string.Empty, $"Import failed: {code} was not found in the marketplace.");
+            }
+
+            return new CodeImportResult(snapshot, $"{document!.Name} ({code})", null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Import by code failed for {Code}", code);
+            return new CodeImportResult(null, string.Empty, $"Import failed: {ex.Message}");
+        }
+    }
 
     // ==================================================================================
     // Read path — GitHub (unauthenticated)
