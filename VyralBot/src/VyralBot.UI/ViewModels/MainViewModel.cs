@@ -1032,8 +1032,9 @@ public partial class MainViewModel : ViewModelBase
             return true;
         }
 
-        // Check if the Discord setup wizard (its own full page) is mid-progress
-        if (_discordSetupPageViewModel is { } discordSetup && discordSetup.CurrentStep > 1)
+        // Check if the Discord setup wizard (its own full page) is open — it
+        // nags on every step including step 1, matching Twitch/Kick/YouTube.
+        if (_discordSetupPageViewModel is { } discordSetup && CurrentViewModel == discordSetup)
         {
             platformName = "Discord";
             var dialog = new Views.ConfirmDialog
@@ -1682,6 +1683,9 @@ public partial class MainViewModel : ViewModelBase
                 _discordSetupPageViewModel.SetupCompleted += (s, e) =>
                 {
                     _logger.LogInformation("Discord setup wizard completed, navigating to Platforms");
+                    // Leave the wizard page BEFORE navigating — otherwise the
+                    // setup-in-progress gate would prompt on completion.
+                    CurrentViewModel = null;
                     NavigateToPlatformsCommand.Execute(null);
                 };
             }
