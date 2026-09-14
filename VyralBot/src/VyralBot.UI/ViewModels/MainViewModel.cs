@@ -1008,6 +1008,53 @@ public partial class MainViewModel : ViewModelBase
             return true;
         }
 
+        // Check if YouTube setup is in progress
+        if (_platformsViewModel?.ShowYouTubeSetup == true)
+        {
+            platformName = "YouTube";
+            var dialog = new Views.ConfirmDialog
+            {
+                Owner = System.Windows.Application.Current.MainWindow
+            };
+
+            var result = dialog.ShowDialog();
+
+            if (result != true)
+            {
+                _logger.LogInformation("Navigation cancelled - YouTube setup in progress");
+                return false;
+            }
+
+            // Reset the YouTube wizard if user confirms
+            _platformsViewModel.YouTubeWebSetupViewModel?.ResetWizard(disposeWebView: true);
+            _platformsViewModel.ShowYouTubeSetup = false;
+            _logger.LogInformation("YouTube setup cancelled by user");
+            return true;
+        }
+
+        // Check if the Discord setup wizard (its own full page) is mid-progress
+        if (_discordSetupPageViewModel is { } discordSetup && discordSetup.CurrentStep > 1)
+        {
+            platformName = "Discord";
+            var dialog = new Views.ConfirmDialog
+            {
+                Owner = System.Windows.Application.Current.MainWindow
+            };
+
+            var result = dialog.ShowDialog();
+
+            if (result != true)
+            {
+                _logger.LogInformation("Navigation cancelled - Discord setup in progress");
+                return false;
+            }
+
+            // Reset the Discord wizard if user confirms
+            discordSetup.GoToStep1Command.Execute(null);
+            _logger.LogInformation("Discord setup cancelled by user");
+            return true;
+        }
+
         return true; // No setup in progress
     }
 
@@ -1039,6 +1086,7 @@ public partial class MainViewModel : ViewModelBase
             _platformsViewModel.ShowKickConnection = false;
             _platformsViewModel.ShowTwitchSetup = false;
             _platformsViewModel.ShowKickSetup = false;
+            _platformsViewModel.ShowYouTubeSetup = false;
             _platformsViewModel.ShowPlatformSelection = true;
         }
 

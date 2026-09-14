@@ -58,12 +58,22 @@
                 BorderThickness="0,0,0,1"
                 Padding="24,10">
             <StackPanel>
-                <!-- Title -->
-                <TextBlock Text="Discord Setup Wizard"
-                         FontSize="18"
-                         FontWeight="Bold"
-                         Foreground="{DynamicResource TextPrimaryBrush}"
-                         Margin="0,0,0,10"/>
+                <!-- Title + back to home -->
+                <Grid Margin="0,0,0,10">
+                    <TextBlock Text="Discord Setup Wizard"
+                             FontSize="18"
+                             FontWeight="Bold"
+                             Foreground="{DynamicResource TextPrimaryBrush}"
+                             HorizontalAlignment="Left"
+                             VerticalAlignment="Center"/>
+                    <Button Content="&#8592; BACK TO HOME"
+                            Command="{Binding DataContext.NavigateToHomeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Foreground="{DynamicResource TextSecondaryBrush}"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            ToolTip="Leave the setup wizard"/>
+                </Grid>
 
                 <!-- Stepper -->
                 <Grid>

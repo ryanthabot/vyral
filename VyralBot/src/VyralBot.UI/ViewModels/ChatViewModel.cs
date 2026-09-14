@@ -173,11 +173,18 @@ public class ChatViewModel : ViewModelBase
 
 	private Guid _youTubeStateSubscriptionId;
 
-	private string? _lastTwitchChatState;
+	// Baselines are "disconnected" so a fresh app that launches without a
+	// platform connected stays silent — the chat only announces a real
+	// transition: "connected" after auto-connect succeeds via saved
+	// credentials, or "disconnected" when the user disconnects or a live
+	// connection actually drops. A null baseline would announce
+	// "disconnected" on every launch for platforms the user simply hasn't
+	// connected (or is about to auto-connect).
+	private string? _lastTwitchChatState = "disconnected";
 
-	private string? _lastKickChatState;
+	private string? _lastKickChatState = "disconnected";
 
-	private string? _lastDiscordChatState;
+	private string? _lastDiscordChatState = "disconnected";
 
 	private Guid _discordSubscriptionId;
 
