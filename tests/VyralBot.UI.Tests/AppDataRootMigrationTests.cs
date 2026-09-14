@@ -9,17 +9,21 @@ public class AppDataRootMigrationTests : IDisposable
 {
     private readonly string _root;
     private readonly string _legacy;
+    private readonly string _legacy2;
 
     public AppDataRootMigrationTests()
     {
         _root = Path.Combine(Path.GetTempPath(), $"vyral-root-{Guid.NewGuid():N}");
         _legacy = Path.Combine(Path.GetTempPath(), $"vyral-legacy-{Guid.NewGuid():N}");
+        _legacy2 = Path.Combine(Path.GetTempPath(), $"vyral-legacy2-{Guid.NewGuid():N}");
     }
 
     public void Dispose()
     {
-        try { Directory.Delete(_root, recursive: true); } catch { }
-        try { Directory.Delete(_legacy, recursive: true); } catch { }
+        foreach (var dir in new[] { _root, _legacy, _legacy2 })
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
     }
 
     [Fact]
@@ -30,10 +34,10 @@ public class AppDataRootMigrationTests : IDisposable
         File.WriteAllText(Path.Combine(legacyProfile, "profile.json"), "{}");
         File.WriteAllText(Path.Combine(_legacy, "current_profile.txt"), "MainProfile");
 
-        var ran = AppDataRoot.MigrateLegacyData(
+        var adopted = AppDataRoot.MigrateLegacyData(
             NullLogger.Instance, _root, new[] { _legacy });
 
-        Assert.True(ran);
+        Assert.Equal(_legacy, adopted);
         Assert.True(File.Exists(Path.Combine(_root, "profiles", "MainProfile", "profile.json")));
         Assert.Equal("MainProfile",
             File.ReadAllText(Path.Combine(_root, "current_profile.txt")).Trim());
@@ -50,10 +54,10 @@ public class AppDataRootMigrationTests : IDisposable
         Directory.CreateDirectory(legacyProfile);
         File.WriteAllText(Path.Combine(legacyProfile, "profile.json"), "{}");
 
-        var ran = AppDataRoot.MigrateLegacyData(
+        var adopted = AppDataRoot.MigrateLegacyData(
             NullLogger.Instance, _root, new[] { _legacy });
 
-        Assert.False(ran);
+        Assert.Null(adopted);
         Assert.True(File.Exists(Path.Combine(existingProfile, "keep.txt")));
         Assert.False(Directory.Exists(Path.Combine(_root, "profiles", "Legacy")));
     }
@@ -68,10 +72,10 @@ public class AppDataRootMigrationTests : IDisposable
         File.WriteAllText(Path.Combine(legacyProfile, "profile.json"), "{}");
         File.WriteAllText(Path.Combine(_legacy, "current_profile.txt"), "Gone");
 
-        var ran = AppDataRoot.MigrateLegacyData(
+        var adopted = AppDataRoot.MigrateLegacyData(
             NullLogger.Instance, _root, new[] { _legacy });
 
-        Assert.True(ran);
+        Assert.NotNull(adopted);
         Assert.True(File.Exists(Path.Combine(_root, "profiles", "Other", "profile.json")));
         Assert.False(File.Exists(Path.Combine(_root, "current_profile.txt")));
     }
@@ -79,10 +83,32 @@ public class AppDataRootMigrationTests : IDisposable
     [Fact]
     public void Migrate_IsNoOp_WhenNoLegacyLocationHasProfiles()
     {
-        var ran = AppDataRoot.MigrateLegacyData(
+        var adopted = AppDataRoot.MigrateLegacyData(
             NullLogger.Instance, _root, new[] { _legacy });
 
-        Assert.False(ran);
+        Assert.Null(adopted);
         Assert.False(Directory.Exists(Path.Combine(_root, "profiles")));
+    }
+
+    [Fact]
+    public void Migrate_PrefersTheMostRecentlyUsedLegacyLocation()
+    {
+        // Two folders an exe was run from at different times: _legacy2 is the
+        // newer one and must win even though _legacy is listed first.
+        var older = Path.Combine(_legacy, "profiles", "Old");
+        Directory.CreateDirectory(older);
+        File.WriteAllText(Path.Combine(older, "profile.json"), "{}");
+        Directory.SetLastWriteTimeUtc(Path.Combine(_legacy, "profiles"), DateTime.UtcNow.AddDays(-5));
+
+        var newer = Path.Combine(_legacy2, "profiles", "New");
+        Directory.CreateDirectory(newer);
+        File.WriteAllText(Path.Combine(newer, "profile.json"), "{}");
+
+        var adopted = AppDataRoot.MigrateLegacyData(
+            NullLogger.Instance, _root, new[] { _legacy, _legacy2 });
+
+        Assert.Equal(_legacy2, adopted);
+        Assert.True(File.Exists(Path.Combine(_root, "profiles", "New", "profile.json")));
+        Assert.False(Directory.Exists(Path.Combine(_root, "profiles", "Old")));
     }
 }

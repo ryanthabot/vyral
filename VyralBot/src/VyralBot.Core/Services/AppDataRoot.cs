@@ -3,43 +3,27 @@ using Microsoft.Extensions.Logging;
 namespace VyralBot.Core.Services;
 
 /// <summary>
-/// Resolves Vyral's portable data root ("appdata") deterministically. The old
-/// heuristic — walking up a fixed number of parent directories — produced a
-/// different location for every install depth (on some machines literally
-/// "C:\Users\appdata", which is uncreatable without admin and crashed
-/// startup). Instead: use "appdata" next to the executable when that location
-/// is writable (true portable behavior for the downloaded single-file exe),
-/// and fall back to %LOCALAPPDATA%\VyralBot when it is not (e.g. Program
-/// Files). Existing data from the old heuristic's locations is migrated once.
+/// Resolves Vyral's data root. The root is the standard per-user application
+/// folder (%LOCALAPPDATA%\VyralBot) — it never moves with the executable, so
+/// re-downloading or relocating Vyral.exe can never "lose" profiles or platform
+/// connections. Data written by previous layouts (an "appdata" folder next to
+/// the exe, or the old fixed-walk locations like C:\appdata) is adopted once,
+/// automatically, on first launch.
 /// </summary>
 public static class AppDataRoot
 {
-    /// <summary>Writable data root for profiles, credentials and bundled tools.</summary>
-    public static string GetRoot() => Resolve();
-
-    public static string Resolve()
-    {
-        // 1. Portable layout: appdata next to the executable. Probed for real
-        //    write access — an exe launched from a read-only folder must not
-        //    select a root it cannot create.
-        var portable = Path.Combine(AppContext.BaseDirectory, "appdata");
-        if (IsWritableDirectory(portable))
-        {
-            return portable;
-        }
-
-        // 2. Per-user fallback — always creatable without elevation.
-        return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "VyralBot");
-    }
+    /// <summary>The per-user data root: stable regardless of where the exe sits.</summary>
+    public static string GetRoot() => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "VyralBot");
 
     /// <summary>
-    /// Copies profiles from the old heuristic's locations into the current
-    /// root when the root has no profiles yet. One-time, best-effort: failures
-    /// are logged, never thrown. Returns true when a migration ran.
+    /// Moves profiles from any legacy location into the current root when the
+    /// root has no profiles yet. When several legacy locations have data, the
+    /// most recently used one wins. One-time, best-effort: failures are logged,
+    /// never thrown. Returns the legacy location that was adopted, or null.
     /// </summary>
-    public static bool MigrateLegacyData(
+    public static string? MigrateLegacyData(
         ILogger? logger,
         string? root = null,
         IReadOnlyList<string>? legacyCandidates = null)
@@ -52,20 +36,24 @@ public static class AppDataRoot
         if (Directory.Exists(targetProfiles)
             && Directory.EnumerateFileSystemEntries(targetProfiles).Any())
         {
-            return false;
+            return null;
         }
 
-        foreach (var candidate in legacyCandidates)
-        {
-            var candidateProfiles = Path.Combine(candidate, "profiles");
-            if (!HasEntries(candidateProfiles))
-            {
-                continue;
-            }
+        // The most recently used legacy location with profiles wins — an exe
+        // that was moved between folders may have left several behind.
+        var candidates = legacyCandidates
+            .Where(c => HasEntries(Path.Combine(c, "profiles")))
+            .Select(c => (Path: c, Activity: LastProfileActivity(Path.Combine(c, "profiles"))))
+            .OrderByDescending(x => x.Activity)
+            .ToList();
 
+        foreach (var (candidate, _) in candidates)
+        {
             try
             {
+                var candidateProfiles = Path.Combine(candidate, "profiles");
                 Directory.CreateDirectory(targetProfiles);
+
                 foreach (var profileDir in Directory.GetDirectories(candidateProfiles))
                 {
                     var destination = Path.Combine(targetProfiles, Path.GetFileName(profileDir));
@@ -75,22 +63,17 @@ public static class AppDataRoot
                     }
                 }
 
+                // Loose root-level files (current_profile.txt, ui settings…).
                 foreach (var file in Directory.GetFiles(candidate))
                 {
                     var fileName = Path.GetFileName(file);
-                    // A stale current_profile.txt pointing at a profile that
-                    // failed to move would be worse than none — files move
-                    // only when the destination is free, so this is safe.
                     if (fileName.Equals("current_profile.txt", StringComparison.OrdinalIgnoreCase))
                     {
-                        var hasMatchingProfile = false;
+                        // Only adopt the pointer when its profile actually
+                        // migrated — a dangling one would break startup.
                         var profileName = File.ReadAllText(file).Trim();
-                        if (profileName.Length > 0)
-                        {
-                            hasMatchingProfile = Directory.Exists(Path.Combine(targetProfiles, profileName));
-                        }
-
-                        if (!hasMatchingProfile)
+                        if (profileName.Length == 0
+                            || !Directory.Exists(Path.Combine(targetProfiles, profileName)))
                         {
                             logger?.LogInformation(
                                 "Skipping legacy {File} — its profile did not migrate", fileName);
@@ -106,9 +89,9 @@ public static class AppDataRoot
                 }
 
                 logger?.LogInformation(
-                    "Migrated existing profiles from legacy location {Legacy} into {Root}",
+                    "Adopted existing profiles from previous data location {Legacy} into {Root}",
                     candidate, root);
-                return true;
+                return candidate;
             }
             catch (Exception ex)
             {
@@ -117,64 +100,71 @@ public static class AppDataRoot
             }
         }
 
-        return false;
+        return null;
     }
 
-    /// <summary>Locations the old fixed-walk heuristic could have produced.</summary>
+    /// <summary>Legacy "appdata" locations previous layouts could have used, in preference order.</summary>
     private static IReadOnlyList<string> DefaultLegacyCandidates()
     {
-        var candidates = new List<string>();
-
-        // The old heuristic's answer for THIS exe location (dev: solution root;
-        // published: varies with install depth — C:\, C:\Users, ...).
-        var walkUp = TryLegacyWalkUpRoot();
-        if (walkUp is not null)
+        var candidates = new List<string>
         {
-            candidates.Add(walkUp);
+            // appdata next to the executable (the portable layout this exe
+            // layout used most recently).
+            Path.Combine(AppContext.BaseDirectory, "appdata"),
+        };
+
+        // The old fixed-walk heuristic's answer for THIS exe location (dev:
+        // solution root; published: varies with install depth — C:\appdata,
+        // C:\Users\appdata, …).
+        try
+        {
+            var walkUp = Directory
+                .GetParent(AppContext.BaseDirectory)?
+                .Parent?.Parent?.Parent?.Parent?.Parent?.FullName;
+            if (walkUp is not null)
+            {
+                candidates.Add(Path.Combine(walkUp, "appdata"));
+            }
+        }
+        catch (Exception)
+        {
+            // Shallow path — the walk ran past the root; nothing to adopt there.
         }
 
-        // What a shallow published path (e.g. Desktop\Vyral) resolved to.
+        // What a shallow published path resolved to.
         var driveRoot = Path.GetPathRoot(AppContext.BaseDirectory);
         if (!string.IsNullOrEmpty(driveRoot))
         {
             candidates.Add(Path.Combine(driveRoot, "appdata"));
         }
 
-        return candidates;
+        return candidates
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
-    private static string? TryLegacyWalkUpRoot()
+    /// <summary>Newest write time anywhere directly inside a profiles folder.</summary>
+    private static DateTime LastProfileActivity(string profilesDir)
     {
+        var latest = DateTime.MinValue;
         try
         {
-            // Identical expression to the old ProfileService: GetParent plus
-            // five .Parent steps (the first GetParent only strips the trailing
-            // separator of BaseDirectory).
-            var projectRoot = Directory
-                .GetParent(AppContext.BaseDirectory)?
-                .Parent?.Parent?.Parent?.Parent?.Parent?.FullName;
-            return projectRoot is null ? null : Path.Combine(projectRoot, "appdata");
+            latest = Directory.GetLastWriteTimeUtc(profilesDir);
+            foreach (var dir in Directory.GetDirectories(profilesDir))
+            {
+                var time = Directory.GetLastWriteTimeUtc(dir);
+                if (time > latest)
+                {
+                    latest = time;
+                }
+            }
         }
         catch (Exception)
         {
-            return null;
+            // Unreadable candidate — its timestamp just sorts lowest.
         }
-    }
 
-    private static bool IsWritableDirectory(string directory)
-    {
-        try
-        {
-            Directory.CreateDirectory(directory);
-            var probe = Path.Combine(directory, $".write-probe-{Guid.NewGuid():N}.tmp");
-            File.WriteAllText(probe, string.Empty);
-            File.Delete(probe);
-            return true;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
+        return latest;
     }
 
     private static bool HasEntries(string directory) =>
