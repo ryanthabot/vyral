@@ -43,7 +43,9 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
     </UserControl.Resources>
 
-    <Grid>
+    <!-- Top band (64px) stays clear so the back button floats above the
+         wizard card, matching the other setup wizards. -->
+    <Grid Margin="0,64,0,0">
         <Grid.RowDefinitions>
             <!-- Stepper Header -->
             <RowDefinition Height="Auto"/>
@@ -52,8 +54,8 @@
         </Grid.RowDefinitions>
 
         <!-- Back Button (same top-right spot as the Platforms page wizards) -->
-        <Button Content="BACK TO HOME →"
-                Command="{Binding DataContext.NavigateToHomeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+        <Button Content="CONNECTIONS →"
+                Command="{Binding DataContext.NavigateToPlatformsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                 Style="{StaticResource MaterialDesignFlatButton}"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Top"

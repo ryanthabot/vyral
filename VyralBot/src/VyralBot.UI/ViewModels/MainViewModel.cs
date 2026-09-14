@@ -1805,6 +1805,12 @@ public partial class MainViewModel : ViewModelBase
             // Discord setup opens as its own full-window page
             _platformsViewModel.SetDiscordSetupCallback(() => NavigateToDiscordSetupCommand.Execute(null));
 
+            // Header back button: Home when idle, Connections when a wizard is open
+            _platformsViewModel.SetHomeNavigationCallback(async () =>
+            {
+                await NavigateToHome();
+            });
+
             _platformsViewModel.SetNavigationCallback(async () =>
             {
                 // Just ensure Platforms view is current, don't re-initialize

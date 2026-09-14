@@ -17,8 +17,8 @@
 
     <Grid>
         <!-- Back Button -->
-        <Button Content="BACK TO HOME →"
-                Command="{Binding DataContext.NavigateToHomeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+        <Button Content="{Binding BackButtonText}"
+                Command="{Binding HeaderBackCommand}"
                 Style="{StaticResource MaterialDesignFlatButton}"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Top"

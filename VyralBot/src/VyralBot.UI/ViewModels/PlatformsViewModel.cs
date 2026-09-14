@@ -150,6 +150,68 @@ public partial class PlatformsViewModel : ViewModelBase
     public TikTokWebSetupViewModel TikTokWebSetupViewModel => _tiktokWebSetupViewModel;
     public DiscordWebSetupViewModel DiscordWebSetupViewModel => _discordWebSetupViewModel;
 
+    private Func<Task>? _navigateHomeCallback;
+
+    /// <summary>Wired by MainViewModel so the header button can reach Home.</summary>
+    public void SetHomeNavigationCallback(Func<Task> navigateHome) => _navigateHomeCallback = navigateHome;
+
+    /// <summary>True while any setup wizard overlay is open on this page.</summary>
+    public bool AnyWizardOpen => ShowTwitchSetup || ShowKickSetup || ShowYouTubeSetup || ShowTikTokSetup;
+
+    /// <summary>
+    /// Header button text: while a wizard is open it returns to the
+    /// Connections selection; otherwise it goes Home.
+    /// </summary>
+    public string BackButtonText => AnyWizardOpen ? "CONNECTIONS →" : "BACK TO HOME →";
+
+    partial void OnShowTwitchSetupChanged(bool value) => OnPropertyChanged(nameof(BackButtonText));
+
+    partial void OnShowKickSetupChanged(bool value) => OnPropertyChanged(nameof(BackButtonText));
+
+    partial void OnShowYouTubeSetupChanged(bool value) => OnPropertyChanged(nameof(BackButtonText));
+
+    partial void OnShowTikTokSetupChanged(bool value) => OnPropertyChanged(nameof(BackButtonText));
+
+    /// <summary>
+    /// The header back button: with a wizard open it confirms, resets the
+    /// wizards and returns to the Connections selection; otherwise Home.
+    /// </summary>
+    [RelayCommand]
+    private void HeaderBack()
+    {
+        if (!AnyWizardOpen)
+        {
+            if (_navigateHomeCallback is { } navigateHome)
+            {
+                _ = navigateHome();
+            }
+            return;
+        }
+
+        // Leaving a wizard mid-setup: same confirmation as the navigation gate.
+        var dialog = new Views.ConfirmDialog
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            _logger.LogInformation("Navigation cancelled - setup wizard in progress");
+            return;
+        }
+
+        _webSetupViewModel.ResetWizard(disposeWebView: true);
+        _kickWebSetupViewModel.ResetWizard(disposeWebView: true);
+        _youtubeWebSetupViewModel.ResetWizard(disposeWebView: true);
+        _tiktokWebSetupViewModel.ResetWizard(disposeWebView: true);
+        ShowTwitchSetup = false;
+        ShowKickSetup = false;
+        ShowYouTubeSetup = false;
+        ShowTikTokSetup = false;
+        ShowPlatformSelection = true;
+        _logger.LogInformation("Setup wizard closed - back to platform selection");
+    }
+
     public PlatformsViewModel(
         ILogger<PlatformsViewModel> logger,
         IDataService dataService,
