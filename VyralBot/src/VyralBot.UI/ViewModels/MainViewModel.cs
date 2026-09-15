@@ -1032,6 +1032,30 @@ public partial class MainViewModel : ViewModelBase
             return true;
         }
 
+        // Check if TikTok setup is in progress
+        if (_platformsViewModel?.ShowTikTokSetup == true)
+        {
+            platformName = "TikTok";
+            var dialog = new Views.ConfirmDialog
+            {
+                Owner = System.Windows.Application.Current.MainWindow
+            };
+
+            var result = dialog.ShowDialog();
+
+            if (result != true)
+            {
+                _logger.LogInformation("Navigation cancelled - TikTok setup in progress");
+                return false;
+            }
+
+            // Reset the TikTok wizard if user confirms
+            _platformsViewModel.TikTokWebSetupViewModel?.ResetWizard(disposeWebView: true);
+            _platformsViewModel.ShowTikTokSetup = false;
+            _logger.LogInformation("TikTok setup cancelled by user");
+            return true;
+        }
+
         // Check if the Discord setup wizard (its own full page) is open — it
         // nags on every step including step 1, matching Twitch/Kick/YouTube.
         if (_discordSetupPageViewModel is { } discordSetup && CurrentViewModel == discordSetup)
@@ -1783,6 +1807,14 @@ public partial class MainViewModel : ViewModelBase
     private async Task NavigateToPlatformsAsync()
     {
         _logger.LogInformation("User clicked: Navigate to Platforms");
+
+        // Prompt when a setup wizard is open (Twitch/Kick/YouTube/TikTok
+        // overlays, or the Discord full-page wizard) — same as going Home.
+        if (!CheckSetupInProgress(out _))
+        {
+            return; // User cancelled navigation
+        }
+
         try
         {
             // CRITICAL ORDER: Null CurrentViewModel FIRST to release WPF references

@@ -43,17 +43,10 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
     </UserControl.Resources>
 
-    <!-- Top band (64px) stays clear so the back button floats above the
-         wizard card, matching the other setup wizards. -->
-    <Grid Margin="0,64,0,0">
-        <Grid.RowDefinitions>
-            <!-- Stepper Header -->
-            <RowDefinition Height="Auto"/>
-            <!-- Content -->
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-
-        <!-- Back Button (same top-right spot as the Platforms page wizards) -->
+    <!-- Floating back button: sits in the 64px band ABOVE the wizard card,
+         exactly like the Connections-page wizards. Declared before the card
+         grid and top-aligned to the OUTER grid so it is not pushed down. -->
+    <Grid>
         <Button Content="CONNECTIONS →"
                 Command="{Binding DataContext.NavigateToPlatformsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                 Style="{StaticResource MaterialDesignFlatButton}"
@@ -64,8 +57,15 @@
                 Padding="16,0"
                 FontWeight="SemiBold"
                 Foreground="{DynamicResource TextSecondaryBrush}"
-                Panel.ZIndex="999"
-                Grid.RowSpan="2"/>
+                Panel.ZIndex="999"/>
+
+        <Grid Margin="0,64,0,0">
+            <Grid.RowDefinitions>
+                <!-- Stepper Header -->
+                <RowDefinition Height="Auto"/>
+                <!-- Content -->
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
         <!-- Step Navigation Header -->
         <Border Grid.Row="0"
@@ -988,5 +988,6 @@
                 </StackPanel>
             </materialDesign:Card>
         </Border>
+        </Grid>
     </Grid>
 </UserControl>
