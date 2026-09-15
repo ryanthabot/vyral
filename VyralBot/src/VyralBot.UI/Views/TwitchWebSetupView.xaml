@@ -22,7 +22,7 @@
                 Background="{DynamicResource CardBackgroundBrush}"
                 BorderBrush="{DynamicResource BorderLightBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="32,24">
+                Padding="24,10">
             <Border.Style>
                 <Style TargetType="Border">
                     <Setter Property="Visibility" Value="Visible"/>
@@ -36,10 +36,10 @@
             <StackPanel>
                 <!-- Title -->
                 <TextBlock Text="Twitch Setup Wizard" 
-                         FontSize="24"
+                         FontSize="18"
                          FontWeight="Bold"
                          Foreground="{DynamicResource TextPrimaryBrush}"
-                         Margin="0,0,0,24"/>
+                         Margin="0,0,0,10"/>
                 
                 <!-- Stepper -->
                 <Grid>
@@ -57,13 +57,13 @@
                     <Button Grid.Column="0"
                             Command="{Binding GoToStep1Command}"
                             Style="{StaticResource MaterialDesignFlatButton}"
-                            Height="60"
-                            Padding="16,8"
+                            Height="46"
+                            Padding="12,4"
                             IsEnabled="False"
                             Cursor="Arrow">
                         <StackPanel>
-                            <Border Width="40" Height="40" 
-                                    CornerRadius="20"
+                            <Border Width="30" Height="30" 
+                                    CornerRadius="15"
                                     Margin="0,0,0,8"
                                     HorizontalAlignment="Center">
                                 <Border.Style>
@@ -116,13 +116,13 @@
                     <Button Grid.Column="2"
                             Command="{Binding GoToStep2Command}"
                             Style="{StaticResource MaterialDesignFlatButton}"
-                            Height="60"
-                            Padding="16,8"
+                            Height="46"
+                            Padding="12,4"
                             IsEnabled="False"
                             Cursor="Arrow">
                         <StackPanel>
-                            <Border Width="40" Height="40" 
-                                    CornerRadius="20"
+                            <Border Width="30" Height="30" 
+                                    CornerRadius="15"
                                     Margin="0,0,0,8"
                                     HorizontalAlignment="Center">
                                 <Border.Style>
@@ -175,13 +175,13 @@
                     <Button Grid.Column="4"
                             Command="{Binding GoToStep3Command}"
                             Style="{StaticResource MaterialDesignFlatButton}"
-                            Height="60"
-                            Padding="16,8"
+                            Height="46"
+                            Padding="12,4"
                             IsEnabled="False"
                             Cursor="Arrow">
                         <StackPanel>
-                            <Border Width="40" Height="40" 
-                                    CornerRadius="20"
+                            <Border Width="30" Height="30" 
+                                    CornerRadius="15"
                                     Margin="0,0,0,8"
                                     HorizontalAlignment="Center">
                                 <Border.Style>
@@ -234,13 +234,13 @@
                     <Button Grid.Column="6"
                             Command="{Binding GoToStep4Command}"
                             Style="{StaticResource MaterialDesignFlatButton}"
-                            Height="60"
-                            Padding="16,8"
+                            Height="46"
+                            Padding="12,4"
                             IsEnabled="False"
                             Cursor="Arrow">
                         <StackPanel>
-                            <Border Width="40" Height="40" 
-                                    CornerRadius="20"
+                            <Border Width="30" Height="30" 
+                                    CornerRadius="15"
                                     Margin="0,0,0,8"
                                     HorizontalAlignment="Center">
                                 <Border.Style>
