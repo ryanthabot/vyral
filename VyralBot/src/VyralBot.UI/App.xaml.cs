@@ -362,6 +362,15 @@ public partial class App : Application
                 services.AddSingleton<VyralBot.Integrations.Restream.RestreamFfmpegAcquisitionService>();
                 services.AddSingleton<VyralBot.Integrations.Restream.RestreamEngine>();
                 services.AddSingleton<RestreamViewModel>();
+                // StreamDeck page: button grid + LAN server for the VyralDeck
+                // mobile companion app. The server/layout/pairing services are
+                // singletons — the server keeps running when the page closes.
+                services.AddSingleton<VyralBot.UI.Services.VyralDeck.ObsRemoteBridge>();
+                services.AddSingleton<VyralBot.UI.Services.VyralDeck.DeckActionExecutor>();
+                services.AddSingleton<VyralBot.UI.Services.VyralDeck.DeckLayoutStore>();
+                services.AddSingleton<VyralBot.UI.Services.VyralDeck.DeckPairingStore>();
+                services.AddSingleton<VyralBot.UI.Services.VyralDeck.DeckServer>();
+                services.AddSingleton<StreamDeckViewModel>();
                 services.AddSingleton<DocumentationViewModel>();
                 services.AddSingleton<AutomationViewModel>(); // Automation page (structured workflow builder)
                 // Moderation system (Moderator page + Settings → Moderator):

@@ -93,6 +93,8 @@ public partial class MainViewModel : ViewModelBase
     private ObsViewModel? _obsViewModel;
     private IServiceScope? _restreamScope;
     private RestreamViewModel? _restreamViewModel;
+    private IServiceScope? _streamDeckScope;
+    private StreamDeckViewModel? _streamDeckViewModel;
 
     // One-shot guard for Discord bot auto-start: CheckPlatformConnectionsAsync
     // also runs on every PlatformConnectionChangedEvent refresh, but the bots
@@ -117,6 +119,9 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isStreamToolsExpanded = false;
+
+    [ObservableProperty]
+    private bool _isRestreamExpanded = false;
 
     [ObservableProperty]
     private bool _isTwitchConnected = false;
@@ -949,6 +954,13 @@ public partial class MainViewModel : ViewModelBase
     {
         _logger.LogInformation("User clicked: Toggle Stream Tools dropdown (Expanded: {IsExpanded})", !IsStreamToolsExpanded);
         IsStreamToolsExpanded = !IsStreamToolsExpanded;
+    }
+
+    [RelayCommand]
+    private void ToggleRestream()
+    {
+        _logger.LogInformation("User clicked: Toggle Restream dropdown (Expanded: {IsExpanded})", !IsRestreamExpanded);
+        IsRestreamExpanded = !IsRestreamExpanded;
     }
 
     /// <summary>
@@ -2029,6 +2041,32 @@ public partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task NavigateToStreamDeckAsync()
+    {
+        _logger.LogInformation("User clicked: Navigate to StreamDeck");
+
+        if (!CheckSetupInProgress(out _))
+            return;
+
+        try
+        {
+            CurrentViewModel = null;
+            await DisposeNonEssentialViewModelsAsync(excludeViewModel: _streamDeckViewModel);
+
+            _streamDeckScope?.Dispose();
+            _streamDeckScope = _serviceProvider.CreateScope();
+            _streamDeckViewModel = _streamDeckScope.ServiceProvider.GetRequiredService<StreamDeckViewModel>();
+            CurrentViewModel = _streamDeckViewModel;
+            Title = "Vyral - StreamDeck";
+            await _streamDeckViewModel.InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error navigating to StreamDeck");
+        }
+    }
+
+    [RelayCommand]
     private Task OpenDiscordLinkAsync() => OpenSupportLinkAsync("Support.DiscordUrl", "Discord");
 
     [RelayCommand]
@@ -2675,6 +2713,19 @@ public partial class MainViewModel : ViewModelBase
             _restreamScope = null;
             _restreamViewModel = null;
             _logger.LogInformation("♻️ Disposed RestreamViewModel to free memory");
+            disposedCount++;
+        }
+
+        if (_streamDeckViewModel != null && _streamDeckViewModel != excludeViewModel)
+        {
+            // Singleton like Restream: dispose the page VM (event hooks) while
+            // the DeckServer singleton intentionally keeps running in the
+            // background so paired phones stay connected.
+            _streamDeckViewModel.Dispose();
+            _streamDeckScope?.Dispose();
+            _streamDeckScope = null;
+            _streamDeckViewModel = null;
+            _logger.LogInformation("♻️ Disposed StreamDeckViewModel to free memory");
             disposedCount++;
         }
 

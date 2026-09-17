@@ -1,0 +1,21 @@
+name: vyral_deck
+description: VyralDeck — mobile companion app for VyralBot's StreamDeck. Press and customize your stream deck from your phone over Wi-Fi (same network only).
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # LAN-only app: WebSocket + UDP discovery use dart:io directly.
+  shared_preferences: ^2.2.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

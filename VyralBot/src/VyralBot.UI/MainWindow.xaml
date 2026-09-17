@@ -177,18 +177,57 @@
                         </StackPanel>
                     </Button>
 
-                    <!-- Restream -->
-                    <Button Style="{StaticResource MaterialDesignFlatButton}"
-                            Height="48"
-                            HorizontalContentAlignment="Left"
-                            Padding="16,0"
-                            Command="{Binding NavigateToRestreamCommand}"
-                            ToolTip="FFmpeg restream: send one OBS output to multiple platforms">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Cast" Width="20" Height="20" VerticalAlignment="Center"/>
-                            <TextBlock Text="Restream" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                    <!-- Restream group (Restream + StreamDeck) -->
+                    <StackPanel>
+                        <Button Style="{StaticResource MaterialDesignFlatButton}"
+                                Height="48"
+                                HorizontalContentAlignment="Left"
+                                Padding="16,0"
+                                Command="{Binding ToggleRestreamCommand}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" Grid.Column="0">
+                                    <materialDesign:PackIcon Kind="Cast" Width="20" Height="20" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Restream" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <materialDesign:PackIcon Grid.Column="1"
+                                                        Kind="{Binding IsRestreamExpanded, Converter={StaticResource BoolToExpandIconConverter}}"
+                                                        Width="16" Height="16"
+                                                        VerticalAlignment="Center"
+                                                        Margin="0,0,8,0"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- Restream Items (Collapsible) -->
+                        <StackPanel Visibility="{Binding IsRestreamExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Button Style="{StaticResource MaterialDesignFlatButton}"
+                                    Height="40"
+                                    HorizontalContentAlignment="Left"
+                                    Padding="48,0,16,0"
+                                    Command="{Binding NavigateToRestreamCommand}"
+                                    ToolTip="FFmpeg restream: send one OBS output to multiple platforms">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Cast" Width="18" Height="18" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Restream" Margin="12,0,0,0" VerticalAlignment="Center" FontSize="13"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Button Style="{StaticResource MaterialDesignFlatButton}"
+                                    Height="40"
+                                    HorizontalContentAlignment="Left"
+                                    Padding="48,0,16,0"
+                                    Command="{Binding NavigateToStreamDeckCommand}"
+                                    ToolTip="StreamDeck: customizable action buttons + mobile companion app">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="ViewDashboard" Width="18" Height="18" VerticalAlignment="Center"/>
+                                    <TextBlock Text="StreamDeck" Margin="12,0,0,0" VerticalAlignment="Center" FontSize="13"/>
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
-                    </Button>
+                    </StackPanel>
 
                     <!-- Platforms Dropdown -->
                     <StackPanel>
@@ -1078,6 +1117,11 @@
                         <!-- Restream View -->
                         <DataTemplate DataType="{x:Type vm:RestreamViewModel}">
                             <local:RestreamView/>
+                        </DataTemplate>
+
+                        <!-- StreamDeck View -->
+                        <DataTemplate DataType="{x:Type vm:StreamDeckViewModel}">
+                            <local:StreamDeckView/>
                         </DataTemplate>
                     </ContentControl.Resources>
                 </ContentControl>

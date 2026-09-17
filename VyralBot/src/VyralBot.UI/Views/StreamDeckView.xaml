@@ -1,0 +1,390 @@
+<UserControl x:Class="VyralBot.UI.Views.StreamDeckView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:vm="clr-namespace:VyralBot.UI.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:StreamDeckViewModel}"
+             Background="{DynamicResource BackgroundPrimaryBrush}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </UserControl.Resources>
+
+    <DockPanel Margin="24">
+
+        <!-- Header -->
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+            <Button Content="&#8592; BACK TO HOME"
+                    Style="{StaticResource MaterialDesignFlatButton}"
+                    Command="{Binding DataContext.NavigateToHomeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                    HorizontalAlignment="Left"
+                    Foreground="{DynamicResource TextSecondaryBrush}"
+                    Margin="0,0,0,16"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                <materialDesign:PackIcon Kind="ViewDashboard" Width="28" Height="28"
+                                         Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Text="StreamDeck" FontSize="24" FontWeight="Bold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+            </StackPanel>
+            <TextBlock Text="Buttons that run your stream — OBS scenes, chat, clips, sounds, workflows and more. Pair the VyralDeck mobile app (same Wi-Fi) to press and edit this deck from your phone."
+                       FontSize="13"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- ================ Mobile companion server ================ -->
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,15" Padding="20">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Ellipse Width="12" Height="12" Margin="0,0,8,0" VerticalAlignment="Center">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{DynamicResource TextSecondaryBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsServerRunning}" Value="True">
+                                                    <Setter Property="Fill" Value="#2EA043"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock Text="Mobile Companion Server" FontSize="17" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Grid.Column="1">
+                                <Button Content="START"
+                                        Style="{StaticResource MaterialDesignRaisedButton}"
+                                        Command="{Binding StartServerCommand}"
+                                        Visibility="{Binding IsServerRunning, Converter={StaticResource InvertBooleanToVisibilityConverter}}"
+                                        Margin="0,0,8,0"/>
+                                <Button Content="STOP"
+                                        Style="{StaticResource MaterialDesignOutlinedButton}"
+                                        Command="{Binding StopServerCommand}"
+                                        Visibility="{Binding IsServerRunning, Converter={StaticResource BoolToVis}}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="{Binding ServerStatusText}" FontSize="13"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                        <StackPanel Visibility="{Binding IsServerRunning, Converter={StaticResource BoolToVis}}">
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Orientation="Horizontal" Grid.Column="0" Margin="0,0,24,0">
+                                    <TextBlock Text="Pairing PIN" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
+                                               VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <TextBlock Text="{Binding PairingPin}" FontSize="26" FontWeight="Bold" FontFamily="Consolas"
+                                               Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"/>
+                                    <Button Style="{StaticResource MaterialDesignIconButton}"
+                                            Command="{Binding RegeneratePinCommand}"
+                                            ToolTip="New PIN (invalidates the old one)" Margin="8,0,0,0">
+                                        <materialDesign:PackIcon Kind="Refresh" Width="20" Height="20"/>
+                                    </Button>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Grid.Column="1" Margin="0,0,24,0">
+                                    <TextBlock Text="Phone connects to" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
+                                               VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <TextBlock Text="{Binding LanAddressText}" FontSize="16" FontWeight="SemiBold" FontFamily="Consolas"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Grid.Column="2">
+                                    <TextBlock Text="Clients:" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
+                                               VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBlock Text="{Binding ClientsCount}" FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="First start: Windows may ask to allow VyralBot through the firewall — click Allow (private networks). Nothing is reachable from the internet; phones must pair with this PIN."
+                                       FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                        </StackPanel>
+
+                        <Grid Visibility="{Binding IsServerRunning, Converter={StaticResource InvertBooleanToVisibilityConverter}}" Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Port" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBox Grid.Column="1" Text="{Binding PortText, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,16,0"/>
+                            <CheckBox Grid.Column="3" Content="Start server automatically on launch"
+                                      IsChecked="{Binding AutoStartOnLaunch}"
+                                      Command="{Binding ToggleAutoStartCommand}"
+                                      Foreground="{DynamicResource TextPrimaryBrush}"
+                                      VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <!-- Paired devices -->
+                        <TextBlock Text="PAIRED DEVICES" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,6"/>
+                        <ItemsControl ItemsSource="{Binding PairedDevices}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon Kind="Cellphone" Width="18" Height="18"
+                                                                     Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                     VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <TextBlock Text="{Binding PairedAtUtc, StringFormat='paired {0:d}'}" FontSize="12"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <Button Content="UNPAIR" Grid.Column="1"
+                                                Style="{StaticResource MaterialDesignOutlinedButton}"
+                                                Command="{Binding DataContext.RevokeDeviceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}" Margin="8,0"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- ================ The deck ================ -->
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,15" Padding="20">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Your Deck" FontSize="17" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                <Ellipse Width="10" Height="10" VerticalAlignment="Center" Margin="0,0,5,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="#3D444D"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsTwitchLive}" Value="True">
+                                                    <Setter Property="Fill" Value="#9146FF"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock Text="Twitch" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <Ellipse Width="10" Height="10" VerticalAlignment="Center" Margin="0,0,5,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="#3D444D"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsKickLive}" Value="True">
+                                                    <Setter Property="Fill" Value="#2EA043"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock Text="Kick" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <Ellipse Width="10" Height="10" VerticalAlignment="Center" Margin="0,0,5,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="#3D444D"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsYouTubeLive}" Value="True">
+                                                    <Setter Property="Fill" Value="#DA3633"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock Text="YouTube" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <Button Grid.Column="1" Command="{Binding ToggleEditModeCommand}"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                                    ToolTip="Edit mode: tap a slot to configure it">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Pencil" Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBlock Text="EDIT MODE" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <!-- Pages row -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <TextBlock Text="Pages:" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <ItemsControl ItemsSource="{Binding Pages}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Content="{Binding Name}"
+                                                Style="{StaticResource MaterialDesignFlatButton}"
+                                                Command="{Binding DataContext.SelectPageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                MinWidth="70" Height="34" Margin="0,0,6,0"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Style="{StaticResource MaterialDesignIconButton}"
+                                    Command="{Binding AddPageCommand}"
+                                    ToolTip="Add a page" Margin="4,0">
+                                <materialDesign:PackIcon Kind="Plus" Width="20" Height="20"/>
+                            </Button>
+                            <Button Style="{StaticResource MaterialDesignIconButton}"
+                                    Command="{Binding DeletePageCommand}" CommandParameter="{Binding SelectedPage}"
+                                    ToolTip="Delete the page shown below">
+                                <materialDesign:PackIcon Kind="DeleteOutline" Width="20" Height="20"/>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- Button grid -->
+                        <ItemsControl ItemsSource="{Binding SelectedPage.Buttons}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="4" Rows="3"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Height="110" Margin="4"
+                                            Command="{Binding DataContext.TapButtonCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"
+                                            Background="{Binding ButtonBrush}"
+                                            Opacity="{Binding Opacity}"
+                                            ToolTip="{Binding ToolTipText}"
+                                            BorderBrush="#3D444D" BorderThickness="1"
+                                            Style="{StaticResource MaterialDesignRaisedButton}">
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Icon}" FontSize="22" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="{Binding Label}" FontSize="13" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
+                                                       MaxWidth="130" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="{Binding LastResultText}" FontSize="13"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="4,10,0,0"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- ================ Button editor ================ -->
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,15" Padding="20"
+                                     Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                            <materialDesign:PackIcon Kind="PencilBox" Width="22" Height="22"
+                                                     Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Text="Edit Button" FontSize="17" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="LABEL" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding EditLabel, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                         materialDesign:HintAssist.Hint="e.g. Start Stream"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="ICON (EMOJI OR SHORT TEXT)" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding EditIcon, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                         materialDesign:HintAssist.Hint="e.g. ▶️"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="COLOR" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                        <ItemsControl ItemsSource="{Binding ColorChoices}" Margin="0,0,0,14">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Width="34" Height="34" Margin="0,0,8,0"
+                                            Background="{Binding}"
+                                            BorderBrush="#3D444D" BorderThickness="1"
+                                            Style="{StaticResource MaterialDesignRaisedButton}"
+                                            Command="{Binding DataContext.PickColorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="ACTION" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                        <ComboBox ItemsSource="{Binding ActionTypes}"
+                                  SelectedItem="{Binding EditAction}"
+                                  DisplayMemberPath="DisplayName"
+                                  Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                                  Margin="0,0,0,12"/>
+
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Visibility="{Binding HasParam1, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding EditAction.Param1Label, FallbackValue=''}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding EditParam1, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource MaterialDesignOutlinedTextBox}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Visibility="{Binding HasParam2, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding EditAction.Param2Label, FallbackValue=''}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding EditParam2, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource MaterialDesignOutlinedTextBox}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="SAVE BUTTON" Style="{StaticResource MaterialDesignRaisedButton}"
+                                    Command="{Binding SaveButtonCommand}" Margin="0,0,8,0"/>
+                            <Button Content="CLEAR SLOT" Style="{StaticResource MaterialDesignOutlinedButton}"
+                                    Command="{Binding ClearSlotCommand}" Margin="0,0,8,0"/>
+                            <Button Content="CANCEL" Style="{StaticResource MaterialDesignFlatButton}"
+                                    Command="{Binding CancelEditCommand}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </materialDesign:Card>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>
