@@ -147,13 +147,22 @@ class _ConnectScreenState extends State<ConnectScreen> {
       return;
     }
 
+    final newToken = result.token;
+    if (newToken == null) {
+      setState(() {
+        _busy = false;
+        _status = 'The PC accepted the pairing but sent no token — try again.';
+      });
+      return;
+    }
+
     try {
-      await _persist(token: result.token);
+      await _persist(token: newToken);
     } catch (_) {
       // Prefs failed — pairing still worked on the PC, just not saved locally.
     }
     if (!mounted) return;
-    _openDeck(token: result.token);
+    _openDeck(token: newToken);
   }
 
   /// Connect with the stored token (no PIN needed).

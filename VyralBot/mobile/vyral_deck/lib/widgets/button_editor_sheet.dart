@@ -140,7 +140,7 @@ class _ButtonEditorState extends State<_ButtonEditor> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<ActionInfo>(
-              value: _matchingCatalogEntry(_action.type),              items: widget.catalog
+              initialValue: _matchingCatalogEntry(_action.type),              items: widget.catalog
                   .map((info) => DropdownMenuItem(
                         value: info,
                         child: Text(info.name, overflow: TextOverflow.ellipsis),

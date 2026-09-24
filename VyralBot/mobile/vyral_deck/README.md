@@ -21,18 +21,19 @@ and edit them from your phone — iOS and Android — over **your local Wi-Fi on
 
 ## Building
 
-The `android/` and `ios/` platform folders are generated on first setup (they
-are machine-generated and not committed):
+The `android/` platform folder is committed, so Android builds work out of the
+box. iOS needs a one-time scaffold (Apple-only tooling, generated on a Mac):
 
 ```bash
 cd mobile/vyral_deck
-flutter create . --platforms=ios,android --org com.vyralbot --project-name vyral_deck
 flutter pub get
-flutter run          # device/emulator on the same Wi-Fi as the PC
+flutter build apk --release   # → build/app/outputs/flutter-apk/app-release.apk
+# iOS (on macOS): flutter create . --platforms=ios && flutter build ios
 ```
 
-Requirements: Flutter 3.22+ (Dart 3.4+). No other plugins beyond
-`shared_preferences` — networking is plain `dart:io` (TCP WebSocket + UDP broadcast).
+Requirements: Flutter 3.22+ (Dart 3.4+) with the Android SDK (JDK 17+). No
+plugins beyond `shared_preferences` — networking is plain `dart:io`
+(TCP WebSocket + UDP broadcast).
 
 ## Desktop side
 

@@ -1,5 +1,6 @@
 /// Deck data model — mirrors the desktop `DeckLayout` JSON exactly
 /// (see VyralBot.UI/Services/VyralDeck/DeckModels.cs and PROTOCOL.md).
+library;
 
 const int slotsPerPage = 12;
 

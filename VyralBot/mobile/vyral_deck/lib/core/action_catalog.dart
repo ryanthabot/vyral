@@ -1,6 +1,7 @@
 /// Local copy of the deck action catalog so the editor works before/independent
 /// of the server's `welcome.catalog`. The server catalog (when received) wins.
 /// Mirrors DeckActionCatalog in VyralBot.UI/Services/VyralDeck/DeckModels.cs.
+library;
 
 class ActionInfo {
   const ActionInfo(
