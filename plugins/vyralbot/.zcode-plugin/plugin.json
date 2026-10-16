@@ -1,0 +1,9 @@
+{
+  "name": "vyralbot",
+  "version": "0.1.0",
+  "description": "VyralBot toolkit: project-specific agents (desktop WPF developer, Flutter mobile developer, release engineer) and skills (build, release, mobile, feature recipes) for the VyralBot streaming-automation repo.",
+  "author": { "name": "VyralBot Team" },
+  "keywords": ["vyralbot", "wpf", "flutter", "streaming", "release"],
+  "skills": "skills",
+  "agents": "agents"
+}

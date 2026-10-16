@@ -1,0 +1,15 @@
+{
+  "name": "dev-vyralbot",
+  "owner": { "name": "VyralBot Team" },
+  "plugins": [
+    {
+      "name": "vyralbot",
+      "source": "./vyralbot",
+      "version": "0.1.0",
+      "description": "VyralBot toolkit: project agents (desktop WPF, Flutter mobile, release engineer) and skills (build, release, mobile, feature recipes).",
+      "displayName": "VyralBot Toolkit",
+      "description_i18n": { "zh-CN": "VyralBot 工具箱：项目专属智能体（桌面 WPF、Flutter 移动端、发布工程）与技能（构建、发布、移动端、功能配方）。" },
+      "category": "developer-tools"
+    }
+  ]
+}
