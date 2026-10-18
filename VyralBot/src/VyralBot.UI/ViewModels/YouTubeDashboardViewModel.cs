@@ -181,7 +181,7 @@ public partial class YouTubeDashboardViewModel : ViewModelBase
     [RelayCommand]
     private async Task SaveSettingsAsync()
     {
-        _logger.LogInformation("Saving Twitch settings");
+        _logger.LogInformation("Saving YouTube settings");
         
         try
         {
@@ -195,7 +195,7 @@ public partial class YouTubeDashboardViewModel : ViewModelBase
                 await _dataService.SavePlatformAsync(platform);
                 
                 Status = "Settings saved successfully";
-                _logger.LogInformation("Twitch settings saved");
+                _logger.LogInformation("YouTube settings saved");
             }
         }
         catch (Exception ex)

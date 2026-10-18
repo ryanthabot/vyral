@@ -16,7 +16,7 @@
         <!-- Plain raised button template: deterministic hit area, no adorner-layer ripple -->
         <Style x:Key="VyralPlainDiscordButton" TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource DiscordBrush}"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
             <Setter Property="Height" Value="40"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -87,7 +87,7 @@
         <!-- Plain danger button: red, for stop -->
         <Style x:Key="VyralPlainDangerButton" TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource ErrorRedBrush}"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
             <Setter Property="Height" Value="40"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>

@@ -1218,10 +1218,10 @@
                                                                     VerticalAlignment="Center">
                                                                 <Border.Style>
                                                                     <Style TargetType="Border">
-                                                                        <Setter Property="Background" Value="#339E9E9E"/>
+                                                                        <Setter Property="Background" Value="{DynamicResource BackgroundSecondaryBrush}"/>
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding IsConnected}" Value="True">
-                                                                                <Setter Property="Background" Value="#3310B981"/>
+                                                                                <Setter Property="Background" Value="{DynamicResource SuccessLightBrush}"/>
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
@@ -1232,7 +1232,7 @@
                                                                             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                                                             <Style.Triggers>
                                                                                 <DataTrigger Binding="{Binding IsConnected}" Value="True">
-                                                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource TextOnLightBrush}"/>
                                                                                 </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>
@@ -1774,7 +1774,7 @@
                                             <TextBlock Text="Workflows enabled"
                                                        FontSize="14"
                                                        Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                            <TextBlock Text="Master switch \u2014 no workflow fires while off (manual Run in the editor still works)"
+                                            <TextBlock Text="Master switch — no workflow fires while off (manual Run in the editor still works)"
                                                        FontSize="11"
                                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                                        TextWrapping="Wrap"/>
@@ -1850,7 +1850,7 @@
                                             <TextBlock Text="Timer check interval (seconds)"
                                                        FontSize="14"
                                                        Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                            <TextBlock Text="How often timer workflows are checked \u2014 30 to 600 seconds"
+                                            <TextBlock Text="How often timer workflows are checked — 30 to 600 seconds"
                                                        FontSize="11"
                                                        Foreground="{DynamicResource TextSecondaryBrush}"/>
                                         </StackPanel>
@@ -1869,7 +1869,7 @@
                                             <TextBlock Text="Execution history retention (days)"
                                                        FontSize="14"
                                                        Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                            <TextBlock Text="Older run records are deleted at startup \u2014 0 keeps everything forever"
+                                            <TextBlock Text="Older run records are deleted at startup — 0 keeps everything forever"
                                                        FontSize="11"
                                                        Foreground="{DynamicResource TextSecondaryBrush}"/>
                                         </StackPanel>

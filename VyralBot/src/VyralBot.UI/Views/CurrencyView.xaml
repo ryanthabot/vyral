@@ -15,7 +15,7 @@
         <!-- Header -->
         <Border Grid.Row="0" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderPrimaryBrush}" BorderThickness="0,0,0,1" Padding="20,15">
             <StackPanel>
-                <TextBlock Text="💰 Currency System" FontSize="24" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="💰 Currency System" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}"/>
                 <TextBlock Text="Manage currency settings, rewards, and redemptions" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0"/>
             </StackPanel>
         </Border>
@@ -34,7 +34,7 @@
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsSelected" Value="True">
                                         <Setter TargetName="Border" Property="Background" Value="{DynamicResource PrimaryBrush}"/>
-                                        <Setter Property="Foreground" Value="White"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
                                     </Trigger>
                                     <Trigger Property="IsSelected" Value="False">
                                         <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
@@ -54,7 +54,7 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="20" MaxWidth="800">
                         <!-- Currency Name & Symbol -->
-                        <TextBlock Text="Currency Configuration" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,0,0,15"/>
+                        <TextBlock Text="Currency Configuration" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,15"/>
                         
                         <Grid Margin="0,0,0,20">
                             <Grid.ColumnDefinitions>
@@ -66,21 +66,21 @@
                             <StackPanel Grid.Column="0">
                                 <TextBlock Text="Currency Name" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding Settings.CurrencyName, UpdateSourceTrigger=PropertyChanged}" 
-                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                             </StackPanel>
                             
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="Currency Symbol" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding Settings.CurrencySymbol, UpdateSourceTrigger=PropertyChanged}" 
-                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                             </StackPanel>
                         </Grid>
 
                         <!-- Watch Time Settings -->
-                        <TextBlock Text="Watch Time Rewards" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,20,0,15"/>
+                        <TextBlock Text="Watch Time Rewards" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,20,0,15"/>
                         
                         <CheckBox Content="Enable Watch Time Rewards" IsChecked="{Binding Settings.WatchTimeEnabled}" 
-                                  Foreground="White" Margin="0,0,0,10"/>
+                                  Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10"/>
                         
                         <Grid Margin="0,0,0,20">
                             <Grid.ColumnDefinitions>
@@ -92,21 +92,21 @@
                             <StackPanel Grid.Column="0">
                                 <TextBlock Text="Points Per Interval" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding Settings.WatchTimeAmount, UpdateSourceTrigger=PropertyChanged}" 
-                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                             </StackPanel>
                             
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="Interval (seconds)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding Settings.WatchTimeInterval, UpdateSourceTrigger=PropertyChanged}" 
-                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                             </StackPanel>
                         </Grid>
 
                         <!-- Chat Activity Settings -->
-                        <TextBlock Text="Chat Activity Rewards" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,20,0,15"/>
+                        <TextBlock Text="Chat Activity Rewards" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,20,0,15"/>
                         
                         <CheckBox Content="Enable Chat Activity Rewards" IsChecked="{Binding Settings.ChatActivityEnabled}" 
-                                  Foreground="White" Margin="0,0,0,10"/>
+                                  Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10"/>
                         
                         <Grid Margin="0,0,0,20">
                             <Grid.ColumnDefinitions>
@@ -118,18 +118,18 @@
                             <StackPanel Grid.Column="0">
                                 <TextBlock Text="Points Per Message" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding Settings.ChatActivityAmount, UpdateSourceTrigger=PropertyChanged}" 
-                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                             </StackPanel>
                             
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="Cooldown (seconds)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding Settings.ChatActivityCooldown, UpdateSourceTrigger=PropertyChanged}" 
-                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                             </StackPanel>
                         </Grid>
 
                         <!-- Event Bonus Settings -->
-                        <TextBlock Text="Event Bonuses" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,20,0,15"/>
+                        <TextBlock Text="Event Bonuses" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,20,0,15"/>
                         
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -151,36 +151,36 @@
 
                             <!-- Follow Bonus -->
                             <CheckBox Grid.Row="0" Grid.Column="0" Content="Follow Bonus" IsChecked="{Binding Settings.FollowBonusEnabled}" 
-                                      Foreground="White" VerticalAlignment="Center"/>
+                                      Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                             <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding Settings.FollowBonusAmount, UpdateSourceTrigger=PropertyChanged}" 
-                                     Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                     Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                             <TextBlock Grid.Row="0" Grid.Column="4" Text="points" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
 
                             <!-- Subscribe Bonus -->
                             <CheckBox Grid.Row="2" Grid.Column="0" Content="Subscribe Bonus" IsChecked="{Binding Settings.SubBonusEnabled}" 
-                                      Foreground="White" VerticalAlignment="Center"/>
+                                      Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                             <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding Settings.SubBonusAmount, UpdateSourceTrigger=PropertyChanged}" 
-                                     Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                     Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                             <TextBlock Grid.Row="2" Grid.Column="4" Text="points" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
 
                             <!-- Gift Sub Bonus -->
                             <CheckBox Grid.Row="4" Grid.Column="0" Content="Gift Sub Bonus (per sub)" IsChecked="{Binding Settings.GiftSubBonusEnabled}" 
-                                      Foreground="White" VerticalAlignment="Center"/>
+                                      Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                             <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding Settings.GiftSubBonusAmountPerSub, UpdateSourceTrigger=PropertyChanged}"
-                                     Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                     Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                             <TextBlock Grid.Row="4" Grid.Column="4" Text="points" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
 
                             <!-- Raid Bonus -->
                             <CheckBox Grid.Row="6" Grid.Column="0" Content="Raid Bonus (per viewer)" IsChecked="{Binding Settings.RaidBonusEnabled}" 
-                                      Foreground="White" VerticalAlignment="Center"/>
+                                      Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                             <TextBox Grid.Row="6" Grid.Column="2" Text="{Binding Settings.RaidBonusAmountPerViewer, UpdateSourceTrigger=PropertyChanged}"
-                                     Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                     Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                             <TextBlock Grid.Row="6" Grid.Column="4" Text="points" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                         </Grid>
 
                         <!-- Save Button -->
                         <Button Content="💾 Save Settings" Command="{Binding SaveSettingsCommand}" 
-                                Background="{DynamicResource PrimaryBrush}" Foreground="White" Padding="20,10" Margin="0,30,0,0" 
+                                Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="20,10" Margin="0,30,0,0" 
                                 BorderThickness="0" FontSize="14" FontWeight="SemiBold" Cursor="Hand"/>
                     </StackPanel>
                 </ScrollViewer>
@@ -190,13 +190,13 @@
             <TabItem Header="🏦 Bank &amp; Decay">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="20" MaxWidth="800">
-                        <TextBlock Text="Bank &amp; Decay Configuration" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,0,0,15"/>
+                        <TextBlock Text="Bank &amp; Decay Configuration" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,15"/>
 
                         <!-- Viewer Bank Settings -->
-                        <TextBlock Text="Viewer Bank" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,20,0,15"/>
+                        <TextBlock Text="Viewer Bank" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,20,0,15"/>
 
                         <CheckBox Content="Enable Viewer Bank" IsChecked="{Binding Settings.BankEnabled}"
-                                  Foreground="White" Margin="0,0,0,4"/>
+                                  Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
                         <TextBlock Text="Enables !deposit / !withdraw / !bank chat commands and once-per-day interest payouts on banked currency."
                                    FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,15"/>
 
@@ -215,7 +215,7 @@
                             <StackPanel Grid.Row="0" Grid.Column="0">
                                 <TextBlock Text="Daily Interest Rate (%)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding Settings.BankInterestRate, UpdateSourceTrigger=PropertyChanged}"
-                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                                 <TextBlock Text="Percent of each viewer's bank balance paid as interest once per day (1 = 1% daily)."
                                            FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
@@ -223,7 +223,7 @@
                             <StackPanel Grid.Row="0" Grid.Column="2">
                                 <TextBlock Text="Withdrawal Penalty (%)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding Settings.BankWithdrawalPenalty, UpdateSourceTrigger=PropertyChanged}"
-                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                                 <TextBlock Text="Percent fee deducted from every withdrawal when moving points back to the wallet (0 = no penalty)."
                                            FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
@@ -231,7 +231,7 @@
                             <StackPanel Grid.Row="2" Grid.Column="0">
                                 <TextBlock Text="Max Bank Balance" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding Settings.BankMaxBalance, UpdateSourceTrigger=PropertyChanged}"
-                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                                 <TextBlock Text="Cap on a single viewer's bank balance; deposits and interest past it are refused (0 = unlimited)."
                                            FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
@@ -239,17 +239,17 @@
                             <StackPanel Grid.Row="2" Grid.Column="2">
                                 <TextBlock Text="Withdrawal Cooldown (minutes)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding Settings.BankWithdrawalCooldownMinutes, UpdateSourceTrigger=PropertyChanged}"
-                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                                 <TextBlock Text="Minutes a viewer must wait between withdrawals (0 = none). Warning: not enforced by the bank service yet."
                                            FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Grid>
 
                         <!-- Inactivity Decay Settings -->
-                        <TextBlock Text="Inactivity Decay" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,20,0,15"/>
+                        <TextBlock Text="Inactivity Decay" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,20,0,15"/>
 
                         <CheckBox Content="Enable Inactivity Decay" IsChecked="{Binding Settings.CurrencyDecayEnabled}"
-                                  Foreground="White" Margin="0,0,0,4"/>
+                                  Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
                         <TextBlock Text="Enables the hourly background job that trims inactive viewers' balances (this job also processes daily bank interest payouts)."
                                    FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,15"/>
 
@@ -263,7 +263,7 @@
                             <StackPanel Grid.Row="0" Grid.Column="0">
                                 <TextBlock Text="Decay Percentage (%)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding Settings.CurrencyDecayPercent, UpdateSourceTrigger=PropertyChanged}"
-                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                                 <TextBlock Text="Percent of the balance removed on each hourly pass from inactive viewers (5 = 5% per run)."
                                            FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
@@ -271,7 +271,7 @@
                             <StackPanel Grid.Row="0" Grid.Column="2">
                                 <TextBlock Text="Inactivity Threshold (days)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding Settings.CurrencyDecayDays, UpdateSourceTrigger=PropertyChanged}"
-                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                                 <TextBlock Text="Viewers with no activity for more than this many days count as inactive (0 disables decay)."
                                            FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
@@ -279,7 +279,7 @@
 
                         <!-- Save Button -->
                         <Button Content="💾 Save Settings" Command="{Binding SaveSettingsCommand}"
-                                Background="{DynamicResource PrimaryBrush}" Foreground="White" Padding="20,10" Margin="0,30,0,0"
+                                Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="20,10" Margin="0,30,0,0"
                                 BorderThickness="0" FontSize="14" FontWeight="SemiBold" Cursor="Hand"/>
                     </StackPanel>
                 </ScrollViewer>
@@ -297,22 +297,22 @@
                     <!-- Toolbar -->
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
                         <Button Content="➕ New Reward" Command="{Binding NewRewardCommand}" 
-                                Background="{DynamicResource SuccessBrush}" Foreground="White" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"/>
+                                Background="{DynamicResource SuccessBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"/>
                         <Button Content="✏️ Edit" Command="{Binding EditRewardCommand}" 
-                                Background="{DynamicResource PrimaryBrush}" Foreground="White" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
+                                Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
                                 IsEnabled="{Binding SelectedReward, Converter={StaticResource NullToBoolConverter}}"/>
                         <Button Content="🗑️ Delete" Command="{Binding DeleteRewardCommand}" 
-                                Background="{DynamicResource ErrorBrush}" Foreground="White" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
+                                Background="{DynamicResource ErrorBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
                                 IsEnabled="{Binding SelectedReward, Converter={StaticResource NullToBoolConverter}}"/>
                         <Button Content="🔄 Toggle Enabled" Command="{Binding ToggleRewardEnabledCommand}" 
-                                Background="{DynamicResource WarningBrush}" Foreground="White" Padding="15,8" BorderThickness="0" Cursor="Hand"
+                                Background="{DynamicResource WarningBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="15,8" BorderThickness="0" Cursor="Hand"
                                 IsEnabled="{Binding SelectedReward, Converter={StaticResource NullToBoolConverter}}"/>
                     </StackPanel>
 
                     <!-- Rewards DataGrid -->
                     <DataGrid Grid.Row="1" ItemsSource="{Binding Rewards}" SelectedItem="{Binding SelectedReward}" 
                               AutoGenerateColumns="False" CanUserAddRows="False" Background="{DynamicResource CardBackgroundBrush}" 
-                              Foreground="White" BorderBrush="{DynamicResource BorderPrimaryBrush}" GridLinesVisibility="Horizontal" 
+                              Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderPrimaryBrush}" GridLinesVisibility="Horizontal" 
                               HorizontalGridLinesBrush="{DynamicResource BorderPrimaryBrush}" IsReadOnly="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*"/>
@@ -329,7 +329,7 @@
                     <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderPrimaryBrush}" BorderThickness="0,1,0,0" 
                             Padding="20" Margin="0,15,0,0" Visibility="{Binding IsEditingReward, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel>
-                            <TextBlock Text="Reward Details" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,15"/>
+                            <TextBlock Text="Reward Details" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,15"/>
                             
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -348,39 +348,39 @@
                                 <StackPanel Grid.Row="0" Grid.Column="0">
                                     <TextBlock Text="Name" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                     <TextBox Text="{Binding NewRewardName, UpdateSourceTrigger=PropertyChanged}" 
-                                             Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                             Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="0" Grid.Column="2">
                                     <TextBlock Text="Cost" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                     <TextBox Text="{Binding NewRewardCost, UpdateSourceTrigger=PropertyChanged}" 
-                                             Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                             Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3">
                                     <TextBlock Text="Description" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                     <TextBox Text="{Binding NewRewardDescription, UpdateSourceTrigger=PropertyChanged}" 
-                                             Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}" 
+                                             Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}" 
                                              TextWrapping="Wrap" AcceptsReturn="True" Height="60"/>
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="4" Grid.Column="0">
                                     <TextBlock Text="Cooldown (seconds)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                     <TextBox Text="{Binding NewRewardCooldown, UpdateSourceTrigger=PropertyChanged}" 
-                                             Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                             Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="4" Grid.Column="2" VerticalAlignment="Bottom">
                                     <CheckBox Content="Requires Moderator Approval" IsChecked="{Binding NewRewardRequiresApproval}" 
-                                              Foreground="White" Margin="0,0,0,8"/>
+                                              Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8"/>
                                 </StackPanel>
                             </Grid>
 
                             <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
                                 <Button Content="💾 Save" Command="{Binding SaveRewardCommand}" 
-                                        Background="{DynamicResource SuccessBrush}" Foreground="White" Padding="20,10" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"/>
+                                        Background="{DynamicResource SuccessBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="20,10" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"/>
                                 <Button Content="❌ Cancel" Command="{Binding CancelEditRewardCommand}" 
-                                        Background="{DynamicResource BorderPrimaryBrush}" Foreground="White" Padding="20,10" BorderThickness="0" Cursor="Hand"/>
+                                        Background="{DynamicResource BorderPrimaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="20,10" BorderThickness="0" Cursor="Hand"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -399,22 +399,22 @@
                     <!-- Toolbar -->
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
                         <Button Content="✅ Approve" Command="{Binding ApproveRedemptionCommand}" 
-                                Background="{DynamicResource SuccessBrush}" Foreground="White" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
+                                Background="{DynamicResource SuccessBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
                                 IsEnabled="{Binding SelectedRedemption, Converter={StaticResource NullToBoolConverter}}"/>
                         <Button Content="❌ Reject" Command="{Binding RejectRedemptionCommand}" 
-                                Background="{DynamicResource ErrorBrush}" Foreground="White" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
+                                Background="{DynamicResource ErrorBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
                                 IsEnabled="{Binding SelectedRedemption, Converter={StaticResource NullToBoolConverter}}"/>
                         <Button Content="✔️ Complete" Command="{Binding CompleteRedemptionCommand}" 
-                                Background="{DynamicResource PrimaryBrush}" Foreground="White" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
+                                Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="15,8" Margin="0,0,10,0" BorderThickness="0" Cursor="Hand"
                                 IsEnabled="{Binding SelectedRedemption, Converter={StaticResource NullToBoolConverter}}"/>
                         <Button Content="🔄 Refresh" Command="{Binding LoadRedemptionsCommand}" 
-                                Background="{DynamicResource WarningBrush}" Foreground="White" Padding="15,8" BorderThickness="0" Cursor="Hand"/>
+                                Background="{DynamicResource WarningBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="15,8" BorderThickness="0" Cursor="Hand"/>
                     </StackPanel>
 
                     <!-- Redemptions DataGrid -->
                     <DataGrid Grid.Row="1" ItemsSource="{Binding Redemptions}" SelectedItem="{Binding SelectedRedemption}" 
                               AutoGenerateColumns="False" CanUserAddRows="False" Background="{DynamicResource CardBackgroundBrush}" 
-                              Foreground="White" BorderBrush="{DynamicResource BorderPrimaryBrush}" GridLinesVisibility="Horizontal" 
+                              Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderPrimaryBrush}" GridLinesVisibility="Horizontal" 
                               HorizontalGridLinesBrush="{DynamicResource BorderPrimaryBrush}" IsReadOnly="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Username" Binding="{Binding Username}" Width="*"/>
@@ -433,14 +433,14 @@
                             Padding="20" Margin="0,15,0,0" 
                             Visibility="{Binding SelectedRedemption, Converter={StaticResource NullToVisibilityConverter}}">
                         <StackPanel>
-                            <TextBlock Text="Redemption Details" FontSize="16" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,10"/>
+                            <TextBlock Text="Redemption Details" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10"/>
                             <TextBlock Foreground="{DynamicResource TextSecondaryBrush}">
                                 <Run Text="User Input: " FontWeight="SemiBold"/>
-                                <Run Text="{Binding SelectedRedemption.UserInput, Mode=OneWay}" Foreground="White"/>
+                                <Run Text="{Binding SelectedRedemption.UserInput, Mode=OneWay}" Foreground="{DynamicResource TextPrimaryBrush}"/>
                             </TextBlock>
                             <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0">
                                 <Run Text="Notes: " FontWeight="SemiBold"/>
-                                <Run Text="{Binding SelectedRedemption.Notes, Mode=OneWay}" Foreground="White"/>
+                                <Run Text="{Binding SelectedRedemption.Notes, Mode=OneWay}" Foreground="{DynamicResource TextPrimaryBrush}"/>
                             </TextBlock>
                         </StackPanel>
                     </Border>
@@ -460,12 +460,12 @@
                     <!-- Leaderboard Toolbar -->
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
                         <Button Content="🔄 Refresh" Command="{Binding LoadLeaderboardCommand}" 
-                                Background="{DynamicResource PrimaryBrush}" Foreground="White" Padding="15,8" BorderThickness="0" Cursor="Hand"/>
+                                Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="15,8" BorderThickness="0" Cursor="Hand"/>
                     </StackPanel>
 
                     <!-- Leaderboard DataGrid -->
                     <DataGrid Grid.Row="1" ItemsSource="{Binding Leaderboard}" AutoGenerateColumns="False" 
-                              CanUserAddRows="False" Background="{DynamicResource CardBackgroundBrush}" Foreground="White" BorderBrush="{DynamicResource BorderPrimaryBrush}" 
+                              CanUserAddRows="False" Background="{DynamicResource CardBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderPrimaryBrush}" 
                               GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource BorderPrimaryBrush}" IsReadOnly="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Rank" Width="50">
@@ -483,8 +483,8 @@
                     </DataGrid>
 
                     <!-- Transaction History Section -->
-                    <TextBlock Grid.Row="2" Text="Transaction History" FontSize="16" FontWeight="SemiBold" 
-                               Foreground="White" Margin="0,20,0,10"/>
+                    <TextBlock Grid.Row="2" Text="Transaction History" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,20,0,10"/>
                     
                     <Grid Grid.Row="3">
                         <Grid.RowDefinitions>
@@ -496,14 +496,14 @@
                         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
                             <TextBlock Text="Username:" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
                             <TextBox Text="{Binding FilterUsername, UpdateSourceTrigger=PropertyChanged}" 
-                                     Width="200" Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="White" Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                     Width="200" Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
                             <Button Content="Load Transactions" Command="{Binding LoadTransactionsCommand}" 
-                                    Background="{DynamicResource PrimaryBrush}" Foreground="White" Padding="15,8" Margin="10,0,0,0" BorderThickness="0" Cursor="Hand"/>
+                                    Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="15,8" Margin="10,0,0,0" BorderThickness="0" Cursor="Hand"/>
                         </StackPanel>
 
                         <!-- Transactions DataGrid -->
                         <DataGrid Grid.Row="1" ItemsSource="{Binding Transactions}" AutoGenerateColumns="False" 
-                                  CanUserAddRows="False" Background="{DynamicResource CardBackgroundBrush}" Foreground="White" BorderBrush="{DynamicResource BorderPrimaryBrush}" 
+                                  CanUserAddRows="False" Background="{DynamicResource CardBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderPrimaryBrush}" 
                                   GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource BorderPrimaryBrush}" IsReadOnly="True">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Date" Binding="{Binding Timestamp, StringFormat=g}" Width="*"/>
@@ -521,7 +521,7 @@
 
         <!-- Status Bar -->
         <Border Grid.Row="2" Background="{DynamicResource PrimaryBrush}" Padding="15,10" Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}}">
-            <TextBlock Text="{Binding StatusMessage}" Foreground="White" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource TextOnPrimaryBrush}" FontWeight="SemiBold"/>
         </Border>
     </Grid>
 </UserControl>

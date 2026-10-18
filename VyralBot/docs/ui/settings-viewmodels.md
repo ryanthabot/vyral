@@ -54,13 +54,23 @@ ViewModels for specific settings areas: web server, audio, sounds, alerts, varia
 | ViewModel | File | Lines | Constructor |
 |-----------|------|-------|-------------|
 | `TwitchChatSettingsViewModel` | `TwitchChatSettingsViewModel.cs` | ~224 | `ILogger`, `IChatEventSettingsService` |
-| `KickChatSettingsViewModel` | `KickChatSettingsViewModel.cs` | ~242 | `ILogger`, `IChatEventSettingsService` |
-| `YoutubeChatSettingsViewModel` | `YoutubeChatSettingsViewModel.cs` | ~93 | `ILogger`, `IDataService`, `IEventBus` |
-| `TiktokChatSettingsViewModel` | `TiktokChatSettingsViewModel.cs` | ~93 | `ILogger`, `IDataService`, `IEventBus` |
-| `DiscordChatSettingsViewModel` | `DiscordChatSettingsViewModel.cs` | ~93 | `ILogger`, `IDataService`, `IEventBus` |
+| `KickChatSettingsViewModel` | `KickChatSettingsViewModel.cs` | ~384 | `ILogger`, `IChatEventSettingsService` |
+| `YoutubeChatSettingsViewModel` | `YoutubeChatSettingsViewModel.cs` | ~237 | `ILogger`, `IDataService`, `IEventBus` |
+| `TiktokChatSettingsViewModel` | `TiktokChatSettingsViewModel.cs` | ~243 | `ILogger`, `IDataService`, `IEventBus` |
+| `DiscordChatSettingsViewModel` | `DiscordChatSettingsViewModel.cs` | ~176 | `ILogger`, `IDataService`, `IEventBus` |
 
 All have properties: `_isChatEnabled`, `_autoStartChat`, `_autoRepliesEnabled`, `_status`
 Twitch and Kick additionally have: `_showFollowsInChat`
+YouTube + TikTok additionally have: `_showBadges`, `_showTimestamps`, `_compactMode`
+(bound by `Views/YoutubeChatSettingsView.xaml` / `Views/TiktokChatSettingsView.xaml`)
+
+Auto-replies master toggle persistence (`IDataService` config keys, category null):
+`Chat.Twitch.AutoRepliesEnabled`, `Kick.AutoRepliesEnabled` (shared with
+`KickSettingsViewModel`), `Chat.YouTube.AutoRepliesEnabled`,
+`Chat.TikTok.AutoRepliesEnabled`, `Chat.Discord.AutoRepliesEnabled` — default
+true; saved on toggle and via SaveSettings. YouTube/TikTok display prefs persist
+under `Chat.{YouTube|TikTok}.{ShowBadges|ShowTimestamps|CompactMode}`
+(defaults: badges on, timestamps/compact off).
 
 ## Chat Settings Views
 | View File |

@@ -79,7 +79,7 @@
 
         <Grid>
             <!-- Installed: the real OBS window, embedded -->
-            <Border Background="#FF101010" Visibility="{Binding IsObsInstalled, Converter={StaticResource BoolToVis}}">
+            <Border Background="{DynamicResource BackgroundDarkBrush}" Visibility="{Binding IsObsInstalled, Converter={StaticResource BoolToVis}}">
                 <controls:ObsWindowEmbedHost x:Name="Embed"/>
             </Border>
 

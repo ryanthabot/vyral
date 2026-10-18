@@ -45,13 +45,13 @@
                 <Button Click="Online_Click"
                         Style="{StaticResource MaterialDesignRaisedButton}"
                         Background="{DynamicResource PrimaryBrush}"
-                        Foreground="White"
+                        Foreground="{DynamicResource TextOnPrimaryBrush}"
                         Height="52"
                         HorizontalAlignment="Stretch"
                         ToolTip="Publish to the marketplace and get a short VYRAL-… code (needs the BotGhost setup)">
                     <StackPanel Orientation="Horizontal">
                         <materialDesign:PackIcon Kind="CloudUploadOutline" Width="18" Height="18"
-                                                 Foreground="White" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                 Foreground="{DynamicResource TextOnPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
                         <StackPanel>
                             <TextBlock Text="GET SHARE CODE (ONLINE)" FontWeight="SemiBold" HorizontalAlignment="Left"/>
                             <TextBlock Text="Adds it to the marketplace — code works on any PC" FontSize="11" Opacity="0.85" HorizontalAlignment="Left"/>

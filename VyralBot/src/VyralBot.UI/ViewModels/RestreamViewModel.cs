@@ -698,7 +698,11 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         // Only page-scoped work stops here — the engine (and a live stream)
-        // keeps running in the background by design.
+        // keeps running in the background by design. The engine is a singleton
+        // that outlives this page VM, so drop the named handlers or every
+        // navigation to this page stacks another subscription.
         _uptimeTimer.Stop();
+        _engine.StatusChanged -= OnEngineStatusChanged;
+        _engine.LogLine -= OnEngineLogLine;
     }
 }

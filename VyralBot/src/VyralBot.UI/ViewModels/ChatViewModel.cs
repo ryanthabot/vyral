@@ -252,6 +252,8 @@ public class ChatViewModel : ViewModelBase
 
 	private bool _twitchAutoRepliesEnabled = true;
 
+	private bool _kickAutoRepliesEnabled = true;
+
 	private readonly Dictionary<string, (bool IsFollower, DateTime ExpiresAt)> _followerCache = new Dictionary<string, (bool, DateTime)>();
 
 	private readonly object _followerCacheLock = new object();
@@ -2110,6 +2112,7 @@ public class ChatViewModel : ViewModelBase
 		}
 		await ReloadEventDisplayToggleAsync();
 		await ReloadTwitchAutoRepliesToggleAsync();
+		await ReloadKickAutoRepliesToggleAsync();
 		_isInitialized = true;
 		_logger.LogInformation("\ud83c\udfaf ChatViewModel initialization complete - all event handlers active!");
 		_logger.LogInformation("\ud83d\udcbe Chat history available but not loaded yet (saves memory - load on-demand if needed)");
@@ -3975,6 +3978,7 @@ public class ChatViewModel : ViewModelBase
 			break;
 		case "Kick":
 			KickFilterEnabled = evt.Enabled;
+			ReloadKickAutoRepliesToggleAsync();
 			break;
 		case "YouTube":
 			YoutubeFilterEnabled = evt.Enabled;
@@ -4006,6 +4010,25 @@ public class ChatViewModel : ViewModelBase
 			Exception ex3 = ex2;
 			Exception ex4 = ex3;
 			_logger.LogWarning(ex4, "Failed to load the Twitch auto-replies master toggle");
+		}
+	}
+
+	private async Task ReloadKickAutoRepliesToggleAsync()
+	{
+		try
+		{
+			if (_dataService != null)
+			{
+				_kickAutoRepliesEnabled = !bool.TryParse(await _dataService.GetConfigValueAsync("Kick.AutoRepliesEnabled"), out var enabled) || enabled;
+				_logger.LogInformation("Kick auto-replies master toggle: {Enabled}", _kickAutoRepliesEnabled);
+			}
+		}
+		catch (Exception ex)
+		{
+			Exception ex2 = ex;
+			Exception ex3 = ex2;
+			Exception ex4 = ex3;
+			_logger.LogWarning(ex4, "Failed to load the Kick auto-replies master toggle");
 		}
 	}
 
@@ -5494,7 +5517,7 @@ public class ChatViewModel : ViewModelBase
 			{ "platform", "Kick" }
 		};
 		_logger.LogInformation("\ud83d\udd0d Checking auto-reply: Enabled={Enabled}, Message={Message}", settings.AutoReplyEnabled, settings.AutoReplyMessage);
-		if (settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage))
+		if (_kickAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage))
 		{
 			bool shouldSend = _autoReplyService.ShouldSendReply(evt.Username, "Kick", "Follow");
 			_logger.LogInformation("\ud83d\udd0d Rate limit check: ShouldSend={ShouldSend}", shouldSend);
@@ -5609,7 +5632,7 @@ public class ChatViewModel : ViewModelBase
 			},
 			{ "platform", "Kick" }
 		};
-		if (settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.Username, "Kick", "Subscribe"))
+		if (_kickAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.Username, "Kick", "Subscribe"))
 		{
 			string reply = await BuildAutoReplyTextAsync("Kick", "Subscribe", evt.Username, settings.AutoReplyMessage, variables);
 			try
@@ -5691,7 +5714,7 @@ public class ChatViewModel : ViewModelBase
 			},
 			{ "platform", "Kick" }
 		};
-		if (settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.GifterUsername, "Kick", "GiftSub"))
+		if (_kickAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.GifterUsername, "Kick", "GiftSub"))
 		{
 			string reply = await BuildAutoReplyTextAsync("Kick", "GiftSub", evt.GifterUsername, settings.AutoReplyMessage, variables);
 			try
@@ -5770,7 +5793,7 @@ public class ChatViewModel : ViewModelBase
 			},
 			{ "platform", "Kick" }
 		};
-		if (settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.HostUsername, "Kick", "Host"))
+		if (_kickAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.HostUsername, "Kick", "Host"))
 		{
 			string reply = await BuildAutoReplyTextAsync("Kick", "Host", evt.HostUsername, settings.AutoReplyMessage, variables);
 			try
@@ -5829,7 +5852,7 @@ public class ChatViewModel : ViewModelBase
 			},
 			{ "platform", "Kick" }
 		};
-		if (settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.SenderUsername, "Kick", "KicksGifted"))
+		if (_kickAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.SenderUsername, "Kick", "KicksGifted"))
 		{
 			string reply = await BuildAutoReplyTextAsync("Kick", "KicksGifted", evt.SenderUsername, settings.AutoReplyMessage, variables);
 			try
@@ -5888,7 +5911,7 @@ public class ChatViewModel : ViewModelBase
 			},
 			{ "platform", "Kick" }
 		};
-		if (settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.Username, "Kick", "RewardRedeemed"))
+		if (_kickAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.Username, "Kick", "RewardRedeemed"))
 		{
 			string reply = await BuildAutoReplyTextAsync("Kick", "RewardRedeemed", evt.Username, settings.AutoReplyMessage, variables);
 			try

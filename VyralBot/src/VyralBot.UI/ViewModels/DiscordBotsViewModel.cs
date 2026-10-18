@@ -189,7 +189,7 @@ public partial class DiscordBotsViewModel : ViewModelBase
 
             HasBots = Bots.Count > 0;
             StatusMessage = Bots.Count == 0
-                ? "No Discord bots yet — add one below to get started"
+                ? "No Discord bots yet — add your first bot above or run the full setup wizard"
                 : $"{Bots.Count} bot{(Bots.Count == 1 ? string.Empty : "s")} configured";
         }
         catch (Exception ex)

@@ -63,6 +63,7 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
         _webServerService = webServerService;
         _serviceProvider = serviceProvider;
         _ = CheckInstallationAsync();
+        _ = RestoreSavedTokenAsync();
     }
 
     // Ngrok Step 1 Commands
@@ -192,9 +193,35 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
 
     protected override async Task LoadCredentialsAsync()
     {
-        // No OAuth client credentials to load for ngrok; the auth token is loaded
-        // from the per-profile credentials file via NgrokService.
-        await Task.CompletedTask;
+        // No OAuth client credentials for ngrok — reload the saved auth token
+        // (same per-profile store OnCompleteSetupAsync writes via NgrokService)
+        // so the wizard reflects the persisted state.
+        await RestoreSavedTokenAsync();
+    }
+
+    /// <summary>
+    /// Reads the auth token back from the per-profile credentials file via
+    /// NgrokService and mirrors it into <see cref="_savedNgrokAuth"/> (so
+    /// TestConnection works on a reopened wizard) and <see cref="TokenSaved"/>
+    /// (so the UI shows the saved state). The token value is never logged.
+    /// </summary>
+    private async Task RestoreSavedTokenAsync()
+    {
+        try
+        {
+            await _ngrokService.LoadAuthTokenAsync();
+            var saved = _ngrokService.AuthToken;
+            _savedNgrokAuth = string.IsNullOrWhiteSpace(saved) ? null : saved;
+            TokenSaved = _savedNgrokAuth is not null;
+            if (TokenSaved)
+            {
+                _logger.LogInformation("Ngrok auth token restored from profile credentials ({Length} chars)", _savedNgrokAuth!.Length);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to restore the saved ngrok auth token");
+        }
     }
 
     protected override async Task OnCompleteSetupAsync()
@@ -318,7 +345,8 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
             {
                 StatusMessage = "✗ Auth token appears invalid - ngrok tokens should be in format: 2abc...xyz_4def...";
                 TestMessageStatus = StatusMessage;
-                _logger.LogWarning("Auth token appears invalid: {Token}", _savedNgrokAuth.Substring(0, Math.Min(5, _savedNgrokAuth.Length)));
+                // Masked: never log any fragment of the token.
+                _logger.LogWarning("Saved auth token appears invalid (length {Length})", _savedNgrokAuth.Length);
                 return;
             }
             

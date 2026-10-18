@@ -66,9 +66,9 @@
                                          Foreground="{DynamicResource TextPrimaryBrush}"
                                          Margin="0,0,0,16"/>
                                 
-                                <TextBox Text="{Binding NgrokAuthToken, UpdateSourceTrigger=PropertyChanged}"
+                                <PasswordBox x:Name="NgrokAuthTokenBox"
+                                        PasswordChanged="NgrokAuthTokenBox_PasswordChanged"
                                         materialDesign:HintAssist.Hint="Ngrok auth token"
-                                        Style="{StaticResource MaterialDesignOutlinedTextBox}"
                                         FontFamily="Consolas"
                                         Margin="0,0,0,24"/>
 
@@ -104,7 +104,7 @@
                                Command="{Binding SaveCommand}"
                                Style="{StaticResource MaterialDesignRaisedButton}"
                                Background="{DynamicResource PrimaryBrush}"
-                               Foreground="White"
+                               Foreground="{DynamicResource TextOnPrimaryBrush}"
                                Height="40"
                                Padding="32,0"
                                HorizontalAlignment="Left"/>
@@ -271,7 +271,7 @@
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                                         <Setter Property="Background" Value="{DynamicResource SuccessBrush}"/>
-                                        <Setter Property="Foreground" Value="White"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
                                         <Setter Property="Visibility" Value="Visible"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsRunning}" Value="True">

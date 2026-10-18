@@ -57,10 +57,10 @@
                                                 <!-- Order matters: running/waiting first, streaming last so
                                                      Live wins while both are true (triggers apply top-down). -->
                                                 <DataTrigger Binding="{Binding IsEngineRunning}" Value="True">
-                                                    <Setter Property="Fill" Value="Orange"/>
+                                                    <Setter Property="Fill" Value="{DynamicResource WarningBrush}"/>
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding IsEngineStreaming}" Value="True">
-                                                    <Setter Property="Fill" Value="LimeGreen"/>
+                                                    <Setter Property="Fill" Value="{DynamicResource SuccessBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -297,8 +297,24 @@
                                                           Style="{StaticResource MaterialDesignOutlinedComboBox}"
                                                           materialDesign:HintAssist.Hint="Platform" Margin="0,0,16,0"/>
                                                 <TextBlock Grid.Column="2" Text="{Binding StatusText, Mode=OneWay}"
-                                                           Foreground="{DynamicResource ErrorRedBrush}"
-                                                           VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                                           VerticalAlignment="Center" TextWrapping="Wrap">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <!-- Idle / "starting…" rows are muted; healthy
+                                                                 "streaming" rows green; error rows red (the
+                                                                 IsStatusError trigger is last so it wins). -->
+                                                            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding StatusText}" Value="streaming">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsStatusError}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource ErrorRedBrush}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                                 <ToggleButton Grid.Column="3" IsChecked="{Binding Enabled}"
                                                               Style="{StaticResource MaterialDesignSwitchToggleButton}"
                                                               ToolTip="Include this destination in the restream" Margin="0,0,12,0"/>
@@ -321,8 +337,9 @@
                                                          Style="{StaticResource MaterialDesignOutlinedTextBox}"
                                                          materialDesign:HintAssist.Hint="RTMP server URL"
                                                          Margin="0,0,8,0"/>
-                                                <TextBox Grid.Column="1" Text="{Binding StreamKey, UpdateSourceTrigger=PropertyChanged}"
-                                                         Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                <PasswordBox Grid.Column="1"
+                                                         PasswordChanged="StreamKeyBox_PasswordChanged"
+                                                         Loaded="StreamKeyBox_Loaded"
                                                          materialDesign:HintAssist.Hint="Stream key"/>
                                             </Grid>
 
@@ -383,7 +400,7 @@
                                         <Setter Property="Fill" Value="{DynamicResource ErrorRedBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsFfmpegFound}" Value="True">
-                                                <Setter Property="Fill" Value="LimeGreen"/>
+                                                <Setter Property="Fill" Value="{DynamicResource SuccessBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>

@@ -112,7 +112,7 @@
                             Click="Share_Click"
                             Style="{StaticResource MaterialDesignRaisedButton}"
                             Background="{DynamicResource PrimaryBrush}"
-                            Foreground="White"
+                            Foreground="{DynamicResource TextOnPrimaryBrush}"
                             Width="120"
                             Height="40"/>
                 </StackPanel>

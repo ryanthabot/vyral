@@ -362,7 +362,7 @@
                           Command="{Binding FinishSetupCommand}"
                           Style="{StaticResource MaterialDesignRaisedButton}"
                           Background="{DynamicResource PrimaryBrush}"
-                          Foreground="White"
+                          Foreground="{DynamicResource TextOnPrimaryBrush}"
                           Height="40"
                           Padding="32,0"
                           FontSize="16"
@@ -471,7 +471,7 @@
                                              Margin="0,8,0,8"/>
 
                                     <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16">
-                                        <Run FontWeight="SemiBold" Text="1."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Foreground="#FF0000" Text="SIGN IN WITH YOUTUBE"/> <Run Text="below to open Google Cloud Console in the browser."/>
+                                        <Run FontWeight="SemiBold" Text="1."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Foreground="{DynamicResource YouTubeBrush}" Text="SIGN IN WITH YOUTUBE"/> <Run Text="below to open Google Cloud Console in the browser."/>
                                         <LineBreak/>
                                         <Run Text="   Sign in with the Google account linked to your YouTube channel."/>
                                         <LineBreak/><LineBreak/>
@@ -490,7 +490,7 @@
                                            Command="{Binding OpenStep1BrowserCommand}"
                                            Style="{StaticResource MaterialDesignRaisedButton}"
                                            Background="{DynamicResource YouTubeBrush}"
-                                           Foreground="White"
+                                           Foreground="{DynamicResource TextOnPrimaryBrush}"
                                            Height="48"
                                            FontSize="14"
                                            FontWeight="SemiBold"
@@ -540,7 +540,7 @@
                                              Margin="0,8,0,8"/>
 
                                     <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16">
-                                        <Run FontWeight="SemiBold" Text="1."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Foreground="#FF0000" Text="OPEN GOOGLE CLOUD CONSOLE"/> <Run Text="below to open the Credentials page in the browser."/>
+                                        <Run FontWeight="SemiBold" Text="1."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Foreground="{DynamicResource YouTubeBrush}" Text="OPEN GOOGLE CLOUD CONSOLE"/> <Run Text="below to open the Credentials page in the browser."/>
                                         <LineBreak/><LineBreak/>
                                         <Run FontWeight="SemiBold" Text="2."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Text="'+ CREATE CREDENTIALS'"/> <Run Text="→"/> <Run FontWeight="SemiBold" Text="'OAuth client ID'"/> <Run Text="."/>
                                         <LineBreak/>
@@ -569,7 +569,7 @@
                                            Command="{Binding OpenStep2BrowserCommand}"
                                            Style="{StaticResource MaterialDesignRaisedButton}"
                                            Background="{DynamicResource YouTubeBrush}"
-                                           Foreground="White"
+                                           Foreground="{DynamicResource TextOnPrimaryBrush}"
                                            Height="48"
                                            FontSize="14"
                                            FontWeight="SemiBold"/>
@@ -630,7 +630,7 @@
                                     <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8">
                                         <Run FontWeight="SemiBold" Text="1."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Text="ADD USER BEFORE AUTHORIZING"/> <Run Text="in the bottom-right. This opens Google's OAuth audience page where you must add your Google email as a test user (required while your app is in 'Testing' mode)."/>
                                         <LineBreak/><LineBreak/>
-                                        <Run FontWeight="SemiBold" Text="2."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Foreground="#FF0000" Text="AUTHORIZE WITH YOUTUBE"/> <Run Text="in the bottom-right. This opens Google's sign-in page in the browser."/>
+                                        <Run FontWeight="SemiBold" Text="2."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Foreground="{DynamicResource YouTubeBrush}" Text="AUTHORIZE WITH YOUTUBE"/> <Run Text="in the bottom-right. This opens Google's sign-in page in the browser."/>
                                         <LineBreak/><LineBreak/>
                                         <Run FontWeight="SemiBold" Text="3."/> <Run Text="Sign in with your YouTube account and click 'Allow' to grant VyralBot access to YouTube Live Chat."/>
                                         <LineBreak/><LineBreak/>
@@ -721,7 +721,7 @@
                                                                 Command="{Binding SubmitCallbackUrlCommand}"
                                                                 Style="{StaticResource MaterialDesignRaisedButton}"
                                                                 Background="{DynamicResource YouTubeBrush}"
-                                                                Foreground="White"
+                                                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                                                 Height="40"
                                                                 FontSize="13"
                                                                 FontWeight="SemiBold"/>
@@ -784,7 +784,7 @@
                                     <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16">
                                         <Run FontWeight="SemiBold" Text="1."/> <Run Text="Start a YouTube live stream (or have one already running)."/>
                                         <LineBreak/><LineBreak/>
-                                        <Run FontWeight="SemiBold" Text="2."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Foreground="#FF0000" Text="SEND TEST MESSAGE"/> <Run Text="below. This will post 'VyralBot test message' to your live chat."/>
+                                        <Run FontWeight="SemiBold" Text="2."/> <Run Text="Click"/> <Run FontWeight="SemiBold" Foreground="{DynamicResource YouTubeBrush}" Text="SEND TEST MESSAGE"/> <Run Text="below. This will post 'VyralBot test message' to your live chat."/>
                                         <LineBreak/><LineBreak/>
                                         <Run FontWeight="SemiBold" Text="3."/> <Run Text="Check your YouTube live stream chat to confirm the message appeared."/>
                                         <LineBreak/><LineBreak/>
@@ -795,7 +795,7 @@
                                            Command="{Binding SendTestMessageCommand}"
                                            Style="{StaticResource MaterialDesignRaisedButton}"
                                            Background="{DynamicResource YouTubeBrush}"
-                                           Foreground="White"
+                                           Foreground="{DynamicResource TextOnPrimaryBrush}"
                                            Height="48"
                                            FontSize="14"
                                            FontWeight="SemiBold"
@@ -861,7 +861,7 @@
                                     Command="{Binding SaveProjectIdCommand}"
                                     Height="40"
                                     Padding="24,0"
-                                    Foreground="White">
+                                    Foreground="{DynamicResource TextOnPrimaryBrush}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                                         <Setter Property="Background" Value="{DynamicResource YouTubeBrush}"/>
@@ -880,7 +880,7 @@
                                     Command="{Binding CopySearchCommand}"
                                     Height="40"
                                     Padding="24,0"
-                                    Foreground="White">
+                                    Foreground="{DynamicResource TextOnPrimaryBrush}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                                         <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
@@ -919,7 +919,7 @@
                                     Height="40"
                                     Padding="24,0"
                                     Margin="0,0,12,0"
-                                    Foreground="White"
+                                    Foreground="{DynamicResource TextOnPrimaryBrush}"
                                     Visibility="{Binding ShowOAuthConsentReload, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
@@ -932,7 +932,7 @@
                             <Button Content="📋 COPY URI"
                                     Command="{Binding CopyRedirectUriCommand}"
                                     Background="{DynamicResource YouTubeBrush}"
-                                    Foreground="White"
+                                    Foreground="{DynamicResource TextOnPrimaryBrush}"
                                     Height="40"
                                     Padding="24,0"
                                     Margin="0,0,12,0"
@@ -962,7 +962,7 @@
                                   Height="40"
                                   Padding="24,0"
                                   Margin="0,0,12,0"
-                                  Foreground="White">
+                                  Foreground="{DynamicResource TextOnPrimaryBrush}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                                         <Setter Property="Background" Value="{DynamicResource YouTubeBrush}"/>
@@ -979,7 +979,7 @@
                                   Command="{Binding SaveClientSecretCommand}"
                                   Height="40"
                                   Padding="24,0"
-                                  Foreground="White">
+                                  Foreground="{DynamicResource TextOnPrimaryBrush}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                                         <Setter Property="Background" Value="{DynamicResource YouTubeBrush}"/>
@@ -998,7 +998,7 @@
                                 Command="{Binding AddScopesCommand}"
                                 Height="40"
                                 Padding="24,0"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 HorizontalAlignment="Center">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
@@ -1022,7 +1022,7 @@
                         <Button Content="CONTINUE"
                                 Command="{Binding ContinueFromStep1Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -1046,7 +1046,7 @@
                         <Button Content="CONTINUE"
                                 Command="{Binding ContinueFromStep1Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -1070,7 +1070,7 @@
                         <Button Content="CONTINUE"
                                 Command="{Binding ContinueFromStep2Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -1094,7 +1094,7 @@
                         <Button Content="CONTINUE"
                                 Command="{Binding ContinueFromStep3Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -1118,7 +1118,7 @@
                         <Button Content="ADD USER BEFORE AUTHORIZING"
                                 Command="{Binding AddUserCommand}"
                                 Background="{DynamicResource YouTubeBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 FontWeight="SemiBold"
@@ -1144,7 +1144,7 @@
                         <Button Content="AUTHORIZE WITH YOUTUBE"
                                 Command="{Binding AuthorizeOAuthCommand}"
                                 Background="{DynamicResource YouTubeBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 FontWeight="SemiBold"
@@ -1170,7 +1170,7 @@
                         <Button Content="✓ IT WORKED!"
                                 Command="{Binding CompleteSetupCommand}"
                                 Background="{DynamicResource SuccessGreenBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 FontWeight="Bold"

@@ -54,6 +54,14 @@ public partial class DiscordWebSetupView : UserControl
         {
             ModalSecretBox?.Clear();
         }
+
+        // The manual fallback token is masked in a PasswordBox (not bindable);
+        // clear the box when the view model resets the manual input.
+        if (e.PropertyName == nameof(DiscordWebSetupViewModel.ManualTokenInput) &&
+            sender is DiscordWebSetupViewModel { ManualTokenInput: "" or null })
+        {
+            ManualTokenBox?.Clear();
+        }
     }
 
     private async void OnWebView2InitializeRequested(object? sender, EventArgs e)
@@ -129,6 +137,17 @@ public partial class DiscordWebSetupView : UserControl
         if (DataContext is DiscordWebSetupViewModel viewModel && sender is PasswordBox passwordBox)
         {
             viewModel.ModalInput = passwordBox.Password;
+        }
+    }
+
+    private void ManualTokenBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        // The manual fallback bot token is masked like the other platform
+        // secrets — feed it to the view model manually because
+        // PasswordBox.Password is not bindable.
+        if (DataContext is DiscordWebSetupViewModel viewModel && sender is PasswordBox passwordBox)
+        {
+            viewModel.ManualTokenInput = passwordBox.Password;
         }
     }
 }

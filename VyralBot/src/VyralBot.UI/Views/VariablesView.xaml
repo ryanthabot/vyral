@@ -150,8 +150,8 @@
                                                     Visibility="{Binding IsAutoUpdating, Converter={StaticResource BoolToVisibilityConverter}}">
                                                 <StackPanel Orientation="Horizontal">
                                                     <materialDesign:PackIcon Kind="Sync" Width="12" Height="12" 
-                                                                             Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                    <TextBlock Text="Auto-Updating" FontSize="10" Foreground="White" VerticalAlignment="Center"/>
+                                                                             Foreground="{DynamicResource TextOnPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                    <TextBlock Text="Auto-Updating" FontSize="10" Foreground="{DynamicResource TextOnPrimaryBrush}" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Border>
                                         </StackPanel>

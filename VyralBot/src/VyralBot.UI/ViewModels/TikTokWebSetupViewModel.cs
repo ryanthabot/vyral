@@ -23,6 +23,14 @@ public partial class TikTokWebSetupViewModel : ObservableObject
     public event EventHandler? WebView2InitializeRequested;
     public event EventHandler? WebView2DisposeRequested;
 
+    /// <summary>
+    /// Coming-soon gate: TikTok stream/OAuth connect is not implemented — the
+    /// authorization URL below is a stub without client_id and the callback
+    /// handler returns null, so this wizard cannot complete. Flip to true when
+    /// a real TikTok OAuth service lands.
+    /// </summary>
+    private bool StreamConnectSupported => false;
+
     [ObservableProperty]
     private int _currentStep = 1;
 
@@ -305,6 +313,15 @@ public partial class TikTokWebSetupViewModel : ObservableObject
     [RelayCommand]
     private async Task AuthorizeOAuthAsync()
     {
+        // Coming-soon gate: refuse early instead of pretending to progress —
+        // the OAuth URL below has no client_id, so this flow can never succeed.
+        if (!StreamConnectSupported)
+        {
+            OAuthStatus = "TikTok stream connect is coming soon";
+            _logger.LogInformation("TikTok stream connect is coming soon — authorize blocked");
+            return;
+        }
+
         _logger.LogInformation("Starting OAuth authorization with WebView2");
         OAuthStatus = "Preparing authorization...";
         
@@ -383,6 +400,15 @@ public partial class TikTokWebSetupViewModel : ObservableObject
     [RelayCommand]
     private async Task SubmitCallbackUrlAsync()
     {
+        // Coming-soon gate: refuse early instead of pretending to progress —
+        // the callback handler below always returns null.
+        if (!StreamConnectSupported)
+        {
+            OAuthStatus = "TikTok stream connect is coming soon";
+            _logger.LogInformation("TikTok stream connect is coming soon — manual callback blocked");
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(CallbackUrlInput))
         {
             OAuthStatus = "❌ Please enter the callback URL";
@@ -642,7 +668,7 @@ public partial class TikTokWebSetupViewModel : ObservableObject
     [RelayCommand]
     private void SaveModal()
     {
-        _logger.LogInformation("SaveModal called with input: {Input}", ModalInput?.Substring(0, Math.Min(10, ModalInput?.Length ?? 0)));
+        _logger.LogInformation("SaveModal called (secret input not logged)");
         if (!string.IsNullOrWhiteSpace(ModalInput) && _modalSaveAction != null)
         {
             _modalSaveAction(ModalInput);

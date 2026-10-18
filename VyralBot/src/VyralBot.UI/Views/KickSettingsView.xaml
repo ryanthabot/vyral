@@ -170,7 +170,7 @@
                               Command="{Binding SaveSettingsCommand}"
                               Style="{StaticResource MaterialDesignRaisedButton}"
                               Background="{DynamicResource KickBrush}"
-                              Foreground="{DynamicResource TwitchBackgroundBrush}"
+                              Foreground="{DynamicResource KickOnPrimaryBrush}"
                               Height="40"
                               Padding="24,0"
                               HorizontalAlignment="Left"/>
@@ -340,7 +340,7 @@
                         </Button>
                         
                         <!-- Status Indicator -->
-                        <Border Background="{DynamicResource CardBackgroundSecondaryBrush}"
+                        <Border Background="{DynamicResource BackgroundSecondaryBrush}"
                                 Padding="12"
                                 CornerRadius="4">
                             <Grid>

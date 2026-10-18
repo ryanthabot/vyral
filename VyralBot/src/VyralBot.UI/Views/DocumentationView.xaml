@@ -9,6 +9,12 @@
              d:DataContext="{d:DesignInstance Type=vm:DocumentationViewModel}"
              PreviewKeyDown="OnPreviewKeyDown">
 
+    <UserControl.Resources>
+        <!-- Translucent red wash behind the selected doc-nav entry (tracks the
+             palette's canonical ErrorColor; same pattern as FlowEditorView). -->
+        <SolidColorBrush x:Key="DocNavSelectedBackgroundBrush" Color="{DynamicResource ErrorColor}" Opacity="0.2"/>
+    </UserControl.Resources>
+
     <DockPanel>
 
         <!-- Toolbar -->
@@ -98,7 +104,7 @@
                                                                 <Style TargetType="Border">
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                                            <Setter Property="Background" Value="#33E05252"/>
+                                                                            <Setter Property="Background" Value="{DynamicResource DocNavSelectedBackgroundBrush}"/>
                                                                         </DataTrigger>
                                                                     </Style.Triggers>
                                                                 </Style>
@@ -113,7 +119,7 @@
                                                                                 <Setter TargetName="NavText" Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                                                                             </Trigger>
                                                                             <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                                                <Setter TargetName="NavText" Property="Foreground" Value="#FF6B6B"/>
+                                                                                <Setter TargetName="NavText" Property="Foreground" Value="{DynamicResource ErrorLightBrush}"/>
                                                                                 <Setter TargetName="NavText" Property="FontWeight" Value="SemiBold"/>
                                                                             </DataTrigger>
                                                         </ControlTemplate.Triggers>

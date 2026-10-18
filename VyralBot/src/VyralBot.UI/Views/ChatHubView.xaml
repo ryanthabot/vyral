@@ -13,6 +13,10 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
+        <!-- Translucent red wash for the "not connected" warning callout
+             (tracks the palette's canonical ErrorColor; FlowEditorView pattern). -->
+        <SolidColorBrush x:Key="ErrorCalloutBrush" Color="{DynamicResource ErrorColor}" Opacity="0.1"/>
+
         <!-- Platform tab radio-button style -->
         <Style x:Key="PlatformTab" TargetType="RadioButton">
             <Setter Property="Template">
@@ -226,7 +230,7 @@
 
             <!-- Not Connected Warning -->
             <Border Margin="0,0,0,20"
-                    Background="#1AEF4444" CornerRadius="8" Padding="16"
+                    Background="{DynamicResource ErrorCalloutBrush}" CornerRadius="8" Padding="16"
                     Visibility="{Binding IsCurrentPlatformConnected, Converter={StaticResource InvertBooleanToVisibilityConverter}}">
                 <StackPanel Orientation="Horizontal">
                     <materialDesign:PackIcon Kind="AlertCircle" Width="20" Height="20"

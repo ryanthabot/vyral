@@ -80,7 +80,7 @@
                                                     Margin="4,0" Background="{DynamicResource SurfacePressedBrush}"/>
                             </WrapPanel>
                             <TextBlock Text="{Binding CreatedAt, StringFormat='Created: {0:g}'}" 
-                                      FontSize="11" Foreground="Gray" Margin="0,4,0,0"/>
+                                      FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                         </StackPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -137,7 +137,7 @@
                             <Button Content="🗑️ Delete"
                                    Style="{StaticResource MaterialDesignOutlinedButton}"
                                    Command="{Binding DeletePollCommand}"
-                                   Foreground="Red"
+                                   Foreground="{DynamicResource ErrorBrush}"
                                    Margin="4"/>
                         </StackPanel>
                     </Grid>
@@ -171,8 +171,8 @@
                     </Grid>
                 </StackPanel>
 
-                <TextBlock Text="Select a poll to view details" 
-                          Foreground="Gray"
+                <TextBlock Text="Select a poll to view details"
+                          Foreground="{DynamicResource TextMutedBrush}"
                           Visibility="{Binding SelectedPoll, Converter={StaticResource InverseNullToVisibilityConverter}}"/>
             </StackPanel>
 

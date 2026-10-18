@@ -362,7 +362,7 @@
                           Command="{Binding FinishSetupCommand}"
                           Style="{StaticResource MaterialDesignRaisedButton}"
                           Background="{DynamicResource PrimaryBrush}"
-                          Foreground="White"
+                          Foreground="{DynamicResource TextOnPrimaryBrush}"
                           Height="40"
                           Padding="32,0"
                           FontSize="16"
@@ -476,7 +476,7 @@
                                            Command="{Binding OpenStep1ExternalCommand}"
                                            Style="{StaticResource MaterialDesignRaisedButton}"
                                            Background="{DynamicResource PrimaryBrush}"
-                                           Foreground="White"
+                                           Foreground="{DynamicResource TextOnPrimaryBrush}"
                                            Height="48" FontSize="14"/>
                                     
                                     <Button Grid.Column="2" Content="CHECK INSTALLATION"
@@ -489,7 +489,7 @@
                                 <Border Padding="16" Margin="0,16,0,0" CornerRadius="8">
                                     <Border.Style>
                                         <Style TargetType="Border">
-                                            <Setter Property="Background" Value="#1A4CAF50"/>
+                                            <Setter Property="Background" Value="{DynamicResource GlassBackgroundBrush}"/>
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsNgrokInstalled}" Value="True">
@@ -510,7 +510,7 @@
                                 <Border Padding="16" Margin="0,16,0,0" CornerRadius="8">
                                     <Border.Style>
                                         <Style TargetType="Border">
-                                            <Setter Property="Background" Value="#1AF44336"/>
+                                            <Setter Property="Background" Value="{DynamicResource GlassBackgroundBrush}"/>
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                             <Style.Triggers>
                                                 <MultiDataTrigger>
@@ -577,7 +577,7 @@
                                            Command="{Binding OpenStep2BrowserCommand}"
                                            Style="{StaticResource MaterialDesignRaisedButton}"
                                            Background="{DynamicResource PrimaryBrush}"
-                                           Foreground="White"
+                                           Foreground="{DynamicResource TextOnPrimaryBrush}"
                                            Height="48"
                                            FontSize="14"
                                            FontWeight="SemiBold"/>
@@ -631,7 +631,7 @@
                                            Command="{Binding OpenStep3BrowserCommand}"
                                            Style="{StaticResource MaterialDesignRaisedButton}"
                                            Background="{DynamicResource PrimaryBrush}"
-                                           Foreground="White"
+                                           Foreground="{DynamicResource TextOnPrimaryBrush}"
                                            Height="48"
                                            FontSize="14"
                                            FontWeight="SemiBold"/>
@@ -675,7 +675,7 @@
                                        Command="{Binding TestConnectionCommand}"
                                        Style="{StaticResource MaterialDesignRaisedButton}"
                                        Background="{DynamicResource PrimaryBrush}"
-                                       Foreground="White"
+                                       Foreground="{DynamicResource TextOnPrimaryBrush}"
                                        Height="48"
                                        FontSize="14"
                                        FontWeight="SemiBold"
@@ -741,7 +741,7 @@
                         <Button Content="CONTINUE"
                                 Command="{Binding ContinueFromStep1Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -765,7 +765,7 @@
                         <Button Content="CONTINUE" 
                                 Command="{Binding ContinueFromStep1Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -789,7 +789,7 @@
                         <Button Content="CONTINUE" 
                                 Command="{Binding ContinueFromStep2Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -810,7 +810,7 @@
                                 Command="{Binding SaveAuthTokenCommand}"
                                 Height="40"
                                 Padding="24,0"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 HorizontalAlignment="Right">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
@@ -836,7 +836,7 @@
                         <Button Content="CONTINUE" 
                                 Command="{Binding ContinueFromStep3Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -860,7 +860,7 @@
                         <Button Content="✓ IT WORKED!" 
                                 Command="{Binding CompleteSetupCommand}"
                                 Background="{DynamicResource SuccessGreenBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 FontWeight="Bold"

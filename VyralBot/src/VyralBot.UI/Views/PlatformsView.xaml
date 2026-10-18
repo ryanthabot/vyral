@@ -238,11 +238,13 @@
                         </StackPanel>
                     </materialDesign:Card>
 
-                    <!-- TikTok Card -->
+                    <!-- TikTok Card (coming soon — stream/OAuth connect is stubbed;
+                         TikTok chat still works from Chat Hub) -->
                     <materialDesign:Card Grid.Row="2" Grid.Column="2"
                                         Padding="32"
                                         Background="{DynamicResource CardBackgroundBrush}"
                                         Effect="{DynamicResource CardShadow}"
+                                        Opacity="0.6"
                                         Cursor="Hand">
                         <materialDesign:Card.InputBindings>
                             <MouseBinding Command="{Binding SelectTikTokCommand}" MouseAction="LeftClick"/>
@@ -259,7 +261,7 @@
                                      Foreground="{DynamicResource TextPrimaryBrush}"
                                      HorizontalAlignment="Center"
                                      Margin="0,0,0,8"/>
-                            <TextBlock Text="Live streaming platform"
+                            <TextBlock Text="Coming Soon"
                                      FontSize="14"
                                      Foreground="{DynamicResource TextSecondaryBrush}"
                                      HorizontalAlignment="Center"

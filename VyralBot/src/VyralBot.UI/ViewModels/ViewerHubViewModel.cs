@@ -245,7 +245,12 @@ public partial class ViewerHubViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Stops the pending-codes refresh timer (called by the host on teardown).</summary>
+    /// <summary>
+    /// Stops the pending-codes refresh timer. Idempotent (safe to call repeatedly);
+    /// invoked by the host when the ViewerHub section is hidden or on teardown.
+    /// The timer restarts via <see cref="InitializeAsync"/> or
+    /// <see cref="StartCodeRefresh"/> when the section becomes visible again.
+    /// </summary>
     public void Cleanup() => StopCodeRefresh();
 
     // ======================================================================

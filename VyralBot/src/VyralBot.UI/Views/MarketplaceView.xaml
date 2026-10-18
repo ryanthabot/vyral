@@ -55,13 +55,13 @@
                         Command="{Binding ImportCodeCommand}"
                         Style="{StaticResource MaterialDesignRaisedButton}"
                         Background="{DynamicResource PrimaryBrush}"
-                        Foreground="White"
+                        Foreground="{DynamicResource TextOnPrimaryBrush}"
                         Height="34"
                         Margin="12,0,0,0"
                         ToolTip="Load a command from a pasted share code or offline code">
                     <StackPanel Orientation="Horizontal">
                         <materialDesign:PackIcon Kind="Import" Width="14" Height="14"
-                                                 Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                 Foreground="{DynamicResource TextOnPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBlock Text="IMPORT CODE" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
@@ -170,7 +170,7 @@
                     <Button Command="{Binding SaveSettingsCommand}"
                             Style="{StaticResource MaterialDesignRaisedButton}"
                             Background="{DynamicResource PrimaryBrush}"
-                            Foreground="White"
+                            Foreground="{DynamicResource TextOnPrimaryBrush}"
                             Width="120" Height="34"
                             Content="SAVE"/>
                 </StackPanel>
@@ -299,7 +299,7 @@
                                                                 CommandParameter="{Binding}"
                                                                 Style="{StaticResource MaterialDesignRaisedButton}"
                                                                 Background="{DynamicResource PrimaryBrush}"
-                                                                Foreground="White"
+                                                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                                                 Height="30"
                                                                 Margin="10,0,0,0"
                                                                 Content="IMPORT"/>

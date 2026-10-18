@@ -35,7 +35,7 @@
         <Style x:Key="StatusTextStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsLive}" Value="True">
                     <Setter Property="Text" Value="LIVE"/>
@@ -137,10 +137,10 @@
                         </Border>
                     
                         <!-- Stream Preview Content -->
-                        <Grid Grid.Row="1" Background="{DynamicResource YouTubeBackgroundBrush}">
+                        <Grid Grid.Row="1" Background="{DynamicResource BackgroundSecondaryBrush}">
                         <!-- Show Preview Button (shown when preview is not active) -->
                         <Border Style="{StaticResource InverseVisibilityStyle}"
-                                Background="{DynamicResource YouTubeSurfaceBrush}"
+                                Background="{DynamicResource BackgroundPrimaryBrush}"
                                 HorizontalAlignment="Stretch"
                                 VerticalAlignment="Stretch">
                             <Button Command="{Binding PreviewStreamCommand}"
@@ -178,8 +178,8 @@
                             <!-- Close Preview Button -->
                             <Button Command="{Binding CloseStreamPreviewCommand}"
                                   Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
-                                  Background="{DynamicResource YouTubeDarkBrush}"
-                                  Foreground="White"
+                                  Background="{DynamicResource BackgroundSecondaryBrush}"
+                                  Foreground="{DynamicResource TextOnPrimaryBrush}"
                                   ToolTip="Hide Preview"
                                   HorizontalAlignment="Right"
                                   VerticalAlignment="Top"

@@ -129,6 +129,17 @@ public partial class KickChatSettingsViewModel : ViewModelBase
                 _isInitialized = true;
             }
 
+            // Load the auto-replies master toggle from config (default true).
+            // Shares the "Kick.AutoRepliesEnabled" key with KickSettingsViewModel's
+            // quick-settings toggle so both UIs stay in sync.
+            if (_dataService != null)
+            {
+                _isInitialized = false;
+                var storedAutoReplies = await _dataService.GetConfigValueAsync(AutoRepliesEnabledKey);
+                AutoRepliesEnabled = !bool.TryParse(storedAutoReplies, out var autoRepliesEnabled) || autoRepliesEnabled;
+                _isInitialized = true;
+            }
+
             // Load Follow settings
             var followSettings = await _eventSettingsService.GetSettingAsync("Kick", "Follow");
             if (followSettings != null)
@@ -215,6 +226,30 @@ public partial class KickChatSettingsViewModel : ViewModelBase
         }
     }
 
+    partial void OnAutoRepliesEnabledChanged(bool value)
+    {
+        if (_isInitialized && _dataService != null)
+        {
+            _ = PersistAutoRepliesEnabledAsync(value);
+        }
+    }
+
+    /// <summary>Config key backing the auto-replies master toggle (read by ChatViewModel's Kick event handlers). Shared with KickSettingsViewModel.</summary>
+    private const string AutoRepliesEnabledKey = "Kick.AutoRepliesEnabled";
+
+    /// <summary>Persists the auto-replies master toggle to config.</summary>
+    private async Task PersistAutoRepliesEnabledAsync(bool value)
+    {
+        try
+        {
+            await _dataService!.SetConfigValueAsync(AutoRepliesEnabledKey, value.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error persisting Kick auto-replies master toggle");
+        }
+    }
+
     /// <summary>
     /// Persists the KickChatEnabled / KickChatAutoStart platform flags (the auto-start
     /// flag is consumed at app launch by MainViewModel's startup auto-connect).
@@ -275,6 +310,12 @@ public partial class KickChatSettingsViewModel : ViewModelBase
         try
         {
             _logger.LogInformation("Saving Kick chat event settings...");
+
+            // Save the auto-replies master toggle (mirrors the toggle's own persist path)
+            if (_dataService != null)
+            {
+                await PersistAutoRepliesEnabledAsync(AutoRepliesEnabled);
+            }
 
             // Save Follow settings
             var followSetting = await _eventSettingsService.GetSettingAsync("Kick", "Follow") ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "Kick", EventType = "Follow" };

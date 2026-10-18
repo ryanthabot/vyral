@@ -12,6 +12,8 @@ public partial class AlertOverlayWindow : Window
 {
     private DispatcherTimer? _autoCloseTimer;
     private Storyboard? _currentAnimation;
+    private Task? _fadeOutTask;
+    private bool _isClosed;
 
     // WS_EX_* style bits that make the overlay click-through and non-activating
     private const int GWL_EXSTYLE = -20;
@@ -141,21 +143,68 @@ public partial class AlertOverlayWindow : Window
     }
 
     /// <summary>
-    /// Hides the alert with fade out animation
+    /// Fades the alert out and then closes the window. Closing (instead of only
+    /// hiding) raises <see cref="Window.Closed"/> so AlertService can reset its
+    /// showing state and display the next queued alert. Idempotent: concurrent
+    /// or repeated calls share the single fade+close sequence.
     /// </summary>
-    public async Task HideAlertAsync()
+    public Task HideAlertAsync()
     {
-        var fadeOut = (Storyboard)FindResource("FadeOut");
-        fadeOut.Begin();
-        
-        // Wait for animation to complete
-        await Task.Delay(500);
+        if (_isClosed)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (_fadeOutTask != null)
+        {
+            return _fadeOutTask;
+        }
+
+        _autoCloseTimer?.Stop();
+        _fadeOutTask = FadeOutAndCloseAsync();
+        return _fadeOutTask;
+    }
+
+    private async Task FadeOutAndCloseAsync()
+    {
+        try
+        {
+            var fadeOut = (Storyboard)FindResource("FadeOut");
+            fadeOut.Begin();
+
+            // Wait for the animation to complete (matches the FadeOut duration).
+            await Task.Delay(500);
+        }
+        catch
+        {
+            // A failed animation must never leave the overlay stuck on screen.
+        }
+
+        CloseIfNotClosed();
+    }
+
+    private void CloseIfNotClosed()
+    {
+        if (_isClosed)
+        {
+            return;
+        }
+
+        _isClosed = true;
+        try
+        {
+            Close();
+        }
+        catch
+        {
+            // Window already closed or its source is gone — nothing to do.
+        }
     }
 
     private void FadeOut_Completed(object? sender, EventArgs e)
     {
-        Hide();
         Opacity = 0;
+        CloseIfNotClosed();
     }
 
     private void PlayAnimation(AlertAnimation animation)
@@ -231,6 +280,7 @@ public partial class AlertOverlayWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _isClosed = true;
         _autoCloseTimer?.Stop();
         _currentAnimation?.Stop();
         base.OnClosed(e);

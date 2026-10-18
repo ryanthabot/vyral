@@ -9,7 +9,7 @@
     <!-- Plain raised button template: deterministic hit area, no adorner-layer ripple -->
     <Style x:Key="VyralPlainRaisedButton" TargetType="Button">
         <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
-        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
         <Setter Property="Height" Value="40"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
@@ -430,7 +430,7 @@
 
                         <materialDesign:Card Padding="20" Background="{DynamicResource CardBackgroundBrush}">
                             <StackPanel>
-                                <Border Background="#2010B981"
+                                <Border Background="{DynamicResource GlassBackgroundBrush}"
                                         BorderBrush="{DynamicResource SuccessBrush}"
                                         BorderThickness="1"
                                         CornerRadius="4"
@@ -540,7 +540,7 @@
                                        Command="{Binding OpenInviteBrowserCommand}"
                                        Style="{StaticResource MaterialDesignRaisedButton}"
                                        Background="{DynamicResource DiscordBrush}"
-                                       Foreground="White"
+                                       Foreground="{DynamicResource TextOnPrimaryBrush}"
                                        Height="40"
                                        FontSize="13"
                                        FontWeight="SemiBold"
@@ -580,7 +580,7 @@
                                        Command="{Binding ConnectBotCommand}"
                                        Style="{StaticResource MaterialDesignRaisedButton}"
                                        Background="{DynamicResource PrimaryBrush}"
-                                       Foreground="White"
+                                       Foreground="{DynamicResource TextOnPrimaryBrush}"
                                        Height="40"
                                        FontSize="13"
                                        FontWeight="SemiBold"/>
@@ -608,7 +608,8 @@
                                          TextWrapping="Wrap"
                                          Margin="0,0,0,12"/>
 
-                                <TextBox Text="{Binding ManualTokenInput, UpdateSourceTrigger=PropertyChanged}"
+                                <PasswordBox x:Name="ManualTokenBox"
+                                         PasswordChanged="ManualTokenBox_PasswordChanged"
                                          materialDesign:HintAssist.Hint="Paste bot token"
                                          FontSize="13"
                                          FontFamily="Consolas"
@@ -673,7 +674,7 @@
                                        Command="{Binding SendTestMessageCommand}"
                                        Style="{StaticResource MaterialDesignRaisedButton}"
                                        Background="{DynamicResource DiscordBrush}"
-                                       Foreground="White"
+                                       Foreground="{DynamicResource TextOnPrimaryBrush}"
                                        Height="40"
                                        FontSize="13"
                                        FontWeight="SemiBold"
@@ -731,7 +732,7 @@
                     <Button Content="CONTINUE"
                             Command="{Binding ContinueFromStep1Command}"
                             Background="{DynamicResource PrimaryBrush}"
-                            Foreground="White"
+                            Foreground="{DynamicResource TextOnPrimaryBrush}"
                             Height="40"
                             Padding="32,0"
                             HorizontalAlignment="Right">
@@ -755,7 +756,7 @@
                     <Button Content="DONE — CONTINUE"
                             Command="{Binding ContinueFromStep1Command}"
                             Background="{DynamicResource PrimaryBrush}"
-                            Foreground="White"
+                            Foreground="{DynamicResource TextOnPrimaryBrush}"
                             Height="40"
                             Padding="32,0"
                             HorizontalAlignment="Right">
@@ -794,7 +795,7 @@
                                 Height="40"
                                 Padding="24,0"
                                 Margin="0,0,12,0"
-                                Foreground="White">
+                                Foreground="{DynamicResource TextOnPrimaryBrush}">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                                     <Setter Property="Content" Value="SAVE BOT TOKEN"/>
@@ -811,7 +812,7 @@
                         <Button Content="CONTINUE"
                                 Command="{Binding ContinueFromStep2Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0">
                             <Button.Style>
@@ -836,7 +837,7 @@
                     <Button Content="DONE — CONTINUE"
                             Command="{Binding ContinueFromStep2Command}"
                             Background="{DynamicResource PrimaryBrush}"
-                            Foreground="White"
+                            Foreground="{DynamicResource TextOnPrimaryBrush}"
                             Height="40"
                             Padding="32,0"
                             HorizontalAlignment="Right">
@@ -861,7 +862,7 @@
                     <Button Content="CLOSE BROWSER"
                             Command="{Binding CloseBrowserCommand}"
                             Background="{DynamicResource PrimaryBrush}"
-                            Foreground="White"
+                            Foreground="{DynamicResource TextOnPrimaryBrush}"
                             Height="40"
                             Padding="32,0"
                             HorizontalAlignment="Right">
@@ -885,7 +886,7 @@
                     <Button Content="CONTINUE"
                             Command="{Binding ContinueFromStep3Command}"
                             Background="{DynamicResource PrimaryBrush}"
-                            Foreground="White"
+                            Foreground="{DynamicResource TextOnPrimaryBrush}"
                             Height="40"
                             Padding="32,0"
                             HorizontalAlignment="Right">
@@ -910,7 +911,7 @@
                     <Button Content="✓ FINISH SETUP"
                             Command="{Binding CompleteSetupCommand}"
                             Background="{DynamicResource SuccessGreenBrush}"
-                            Foreground="White"
+                            Foreground="{DynamicResource TextOnPrimaryBrush}"
                             Height="40"
                             Padding="32,0"
                             FontWeight="Bold"
@@ -982,7 +983,7 @@
                               Command="{Binding SaveModalCommand}"
                               Style="{StaticResource MaterialDesignRaisedButton}"
                               Background="{DynamicResource DiscordBrush}"
-                              Foreground="White"
+                              Foreground="{DynamicResource TextOnPrimaryBrush}"
                               Padding="16,8"/>
                     </StackPanel>
                 </StackPanel>

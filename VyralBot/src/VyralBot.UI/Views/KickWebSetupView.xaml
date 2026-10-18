@@ -362,7 +362,7 @@
                           Command="{Binding FinishSetupCommand}"
                           Style="{StaticResource MaterialDesignRaisedButton}"
                           Background="{DynamicResource PrimaryBrush}"
-                          Foreground="White"
+                          Foreground="{DynamicResource TextOnPrimaryBrush}"
                           Height="40"
                           Padding="32,0"
                           FontSize="16"
@@ -674,7 +674,7 @@
                                                                 Command="{Binding SubmitCallbackUrlCommand}"
                                                                 Style="{StaticResource MaterialDesignRaisedButton}"
                                                                 Background="{DynamicResource PrimaryBrush}"
-                                                                Foreground="White"
+                                                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                                                 Height="40"
                                                                 FontSize="13"
                                                                 FontWeight="SemiBold"/>
@@ -798,7 +798,7 @@
                                   Padding="24,0"
                                   Margin="0,0,12,0"
                                   Background="{DynamicResource PrimaryBrush}"
-                                  Foreground="White">
+                                  Foreground="{DynamicResource TextOnPrimaryBrush}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                                         <Setter Property="Background" Value="{DynamicResource KickBrush}"/>
@@ -816,7 +816,7 @@
                                   Height="40"
                                   Padding="24,0"
                                   Background="{DynamicResource PrimaryBrush}"
-                                  Foreground="White">
+                                  Foreground="{DynamicResource TextOnPrimaryBrush}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                                         <Setter Property="Background" Value="{DynamicResource KickBrush}"/>
@@ -859,7 +859,7 @@
                         <Button Content="CONTINUE"
                                 Command="{Binding ContinueFromStep1Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -883,7 +883,7 @@
                         <Button Content="CONTINUE" 
                                 Command="{Binding ContinueFromStep1Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -907,7 +907,7 @@
                         <Button Content="CONTINUE" 
                                 Command="{Binding ContinueFromStep2Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -931,7 +931,7 @@
                         <Button Content="CONTINUE" 
                                 Command="{Binding ContinueFromStep3Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -980,7 +980,7 @@
                         <Button Content="✓ IT WORKED!" 
                                 Command="{Binding CompleteSetupCommand}"
                                 Background="{DynamicResource SuccessGreenBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 FontWeight="Bold"
@@ -1053,7 +1053,7 @@
                               Command="{Binding SaveModalCommand}"
                               Style="{StaticResource MaterialDesignRaisedButton}"
                               Background="{DynamicResource PrimaryBrush}"
-                              Foreground="White"
+                              Foreground="{DynamicResource TextOnPrimaryBrush}"
                               Padding="16,8"/>
                     </StackPanel>
                 </StackPanel>

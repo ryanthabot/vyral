@@ -26,9 +26,9 @@
 
             <Separator Margin="8,10"/>
             <StackPanel Orientation="Vertical">
-                <CheckBox Content="Show Badges" IsChecked="True"/>
-                <CheckBox Content="Show Timestamps"/>
-                <CheckBox Content="Compact Mode"/>
+                <CheckBox Content="Show Badges" IsChecked="{Binding ShowBadges, Mode=TwoWay}"/>
+                <CheckBox Content="Show Timestamps" IsChecked="{Binding ShowTimestamps, Mode=TwoWay}"/>
+                <CheckBox Content="Compact Mode" IsChecked="{Binding CompactMode, Mode=TwoWay}"/>
             </StackPanel>
         </StackPanel>
     </Border>

@@ -923,7 +923,7 @@ public partial class YouTubeWebSetupViewModel : ObservableObject
     [RelayCommand]
     private void SaveModal()
     {
-        _logger.LogInformation("SaveModal called with input: {Input}", ModalInput?.Substring(0, Math.Min(10, ModalInput?.Length ?? 0)));
+        _logger.LogInformation("SaveModal called (secret input not logged)");
         if (!string.IsNullOrWhiteSpace(ModalInput) && _modalSaveAction != null)
         {
             _modalSaveAction(ModalInput);

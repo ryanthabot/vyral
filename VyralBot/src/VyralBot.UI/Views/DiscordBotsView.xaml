@@ -18,7 +18,7 @@
         <!-- Plain raised button template: deterministic hit area, no adorner-layer ripple -->
         <Style x:Key="VyralPlainDiscordButton" TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource DiscordBrush}"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
             <Setter Property="Height" Value="40"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -89,7 +89,7 @@
         <!-- Plain danger button: red, for destructive actions -->
         <Style x:Key="VyralPlainDangerButton" TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource ErrorRedBrush}"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
             <Setter Property="Height" Value="40"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -205,8 +205,9 @@
                                      Padding="8"
                                      VerticalAlignment="Center"/>
 
-                            <TextBox Grid.Column="2"
-                                     Text="{Binding NewBotToken, UpdateSourceTrigger=PropertyChanged}"
+                            <PasswordBox Grid.Column="2"
+                                     x:Name="NewBotTokenBox"
+                                     PasswordChanged="NewBotTokenBox_PasswordChanged"
                                      materialDesign:HintAssist.Hint="Bot token"
                                      FontSize="13"
                                      FontFamily="Consolas"

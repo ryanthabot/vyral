@@ -24,7 +24,7 @@
             <Setter Property="Padding" Value="8,4"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsLive}" Value="True">
-                    <Setter Property="Background" Value="#53FC18"/>
+                    <Setter Property="Background" Value="{DynamicResource KickBrush}"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsLive}" Value="False">
                     <Setter Property="Background" Value="{DynamicResource SurfacePressedBrush}"/>
@@ -35,7 +35,7 @@
         <Style x:Key="StatusTextStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsLive}" Value="True">
                     <Setter Property="Text" Value="LIVE"/>
@@ -153,7 +153,7 @@
                                         <materialDesign:PackIcon Kind="PlayCircle" 
                                                                Width="48" 
                                                                Height="48"
-                                                               Foreground="#53FC18"
+                                                               Foreground="{DynamicResource KickBrush}"
                                                                HorizontalAlignment="Center"
                                                                Margin="0,0,0,12"/>
                                         <TextBlock Text="SHOW PREVIEW" 
@@ -179,7 +179,7 @@
                                 <Button Command="{Binding CloseStreamPreviewCommand}"
                                       Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
                                       Background="{DynamicResource BackgroundSecondaryBrush}"
-                                      Foreground="White"
+                                      Foreground="{DynamicResource TextOnPrimaryBrush}"
                                       ToolTip="Hide Preview"
                                       HorizontalAlignment="Right"
                                       VerticalAlignment="Top"

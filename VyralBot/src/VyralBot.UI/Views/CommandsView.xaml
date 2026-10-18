@@ -20,7 +20,7 @@
              (copied from the DiscordBotsView plain-button pattern) -->
         <Style x:Key="VyralPlainPrimaryButton" TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource PrimaryHueMidBrush}"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
             <Setter Property="Height" Value="40"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -91,7 +91,7 @@
         <!-- Plain danger button: red, for destructive actions -->
         <Style x:Key="VyralPlainDangerButton" TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource ErrorRedBrush}"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
             <Setter Property="Height" Value="40"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -140,10 +140,10 @@
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PrimaryHueMidBrush}"/>
                                 <Setter TargetName="Border" Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
-                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -838,7 +838,7 @@
                 Padding="10,8"
                 Margin="0,12,0,0"
                 Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}}">
-            <TextBlock Text="{Binding StatusMessage}" Foreground="White" FontSize="12"/>
+            <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource TextOnPrimaryBrush}" FontSize="12"/>
         </Border>
         </Grid>
 

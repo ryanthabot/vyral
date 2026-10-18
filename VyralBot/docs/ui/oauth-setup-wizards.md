@@ -41,12 +41,10 @@ Browser-based OAuth setup ViewModels and views for platform authentication.
 - **File:** `src/VyralBot.UI/ViewModels/NgrokSetupWizardViewModel.cs` (~416 lines)
 - **Class:** `NgrokSetupWizardViewModel : BaseOAuthSetupViewModel`
 - **View:** `src/VyralBot.UI/Views/NgrokSetupWizardView.xaml(.cs)`
-
-### NgrokSetupViewModel
-- **File:** `src/VyralBot.UI/ViewModels/NgrokSetupViewModel.cs` (~491 lines)
-- **Class:** `NgrokSetupViewModel : ObservableObject` (extends ObservableObject directly)
-- **Constructor:** `ILogger`, `IDataService`, `NgrokService`, `WebServerService`
-- **View:** `src/VyralBot.UI/Views/NgrokSetupView.xaml(.cs)`
+- **Token persistence:** the auth token is saved to `ngrok_credentials.json` in
+  the profile credentials folder via `NgrokService.SaveAuthTokenAsync` and is
+  restored on wizard open / `LoadCredentialsAsync` via `NgrokService.LoadAuthTokenAsync`
+  (masked in UI and logs — never logged in clear)
 
 ### DemoSetupViewModel
 - **File:** `src/VyralBot.UI/ViewModels/DemoSetupViewModel.cs` (~75 lines)
@@ -66,5 +64,4 @@ Browser-based OAuth setup ViewModels and views for platform authentication.
 | `src/VyralBot.UI/ViewModels/KickWebSetupViewModel.cs` | Kick OAuth setup (975 lines) |
 | `src/VyralBot.UI/ViewModels/GoogleDemoSetupViewModel.cs` | Google demo setup (113 lines) |
 | `src/VyralBot.UI/ViewModels/NgrokSetupWizardViewModel.cs` | Ngrok wizard (416 lines) |
-| `src/VyralBot.UI/ViewModels/NgrokSetupViewModel.cs` | Ngrok setup (491 lines) |
 | `src/VyralBot.UI/ViewModels/DemoSetupViewModel.cs` | Demo setup (75 lines) |

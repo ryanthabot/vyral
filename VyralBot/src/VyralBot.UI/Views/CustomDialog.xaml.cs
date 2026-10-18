@@ -66,20 +66,20 @@ public partial class CustomDialog : Window
             Margin = new Thickness(0, 0, rightMargin, 0)
         };
 
-        if (isDefault)
-        {
-            button.Style = (Style)FindResource("MaterialDesignRaisedButton");
-            if (isDangerous)
+            if (isDefault)
             {
-                button.Background = (Brush)FindResource("ErrorBrush");
-                button.Foreground = Brushes.White;
+                button.Style = (Style)FindResource("MaterialDesignRaisedButton");
+                if (isDangerous)
+                {
+                    button.Background = (Brush)FindResource("ErrorBrush");
+                    button.Foreground = (Brush)(TryFindResource("TextOnPrimaryBrush") ?? Brushes.White);
+                }
+                else
+                {
+                    button.Background = (Brush)FindResource("PrimaryBrush");
+                    button.Foreground = (Brush)(TryFindResource("TextOnPrimaryBrush") ?? Brushes.White);
+                }
             }
-            else
-            {
-                button.Background = (Brush)FindResource("PrimaryBrush");
-                button.Foreground = Brushes.White;
-            }
-        }
         else
         {
             button.Style = (Style)FindResource("MaterialDesignFlatButton");

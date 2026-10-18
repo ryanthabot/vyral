@@ -74,7 +74,7 @@
                             Click="Yes_Click"
                             Style="{StaticResource MaterialDesignRaisedButton}"
                             Background="{DynamicResource ErrorBrush}"
-                            Foreground="White"
+                            Foreground="{DynamicResource TextOnPrimaryBrush}"
                             Width="100"
                             Height="40"/>
                 </StackPanel>

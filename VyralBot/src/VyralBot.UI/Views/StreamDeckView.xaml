@@ -53,7 +53,7 @@
                                             <Setter Property="Fill" Value="{DynamicResource TextSecondaryBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsServerRunning}" Value="True">
-                                                    <Setter Property="Fill" Value="#2EA043"/>
+                                                    <Setter Property="Fill" Value="{DynamicResource SuccessBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -181,10 +181,10 @@
                                 <Ellipse Width="10" Height="10" VerticalAlignment="Center" Margin="0,0,5,0">
                                     <Ellipse.Style>
                                         <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="#3D444D"/>
+                                            <Setter Property="Fill" Value="{DynamicResource TextMutedBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsTwitchLive}" Value="True">
-                                                    <Setter Property="Fill" Value="#9146FF"/>
+                                                    <Setter Property="Fill" Value="{DynamicResource TwitchBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -194,10 +194,10 @@
                                 <Ellipse Width="10" Height="10" VerticalAlignment="Center" Margin="0,0,5,0">
                                     <Ellipse.Style>
                                         <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="#3D444D"/>
+                                            <Setter Property="Fill" Value="{DynamicResource TextMutedBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsKickLive}" Value="True">
-                                                    <Setter Property="Fill" Value="#2EA043"/>
+                                                    <Setter Property="Fill" Value="{DynamicResource KickBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -207,10 +207,10 @@
                                 <Ellipse Width="10" Height="10" VerticalAlignment="Center" Margin="0,0,5,0">
                                     <Ellipse.Style>
                                         <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="#3D444D"/>
+                                            <Setter Property="Fill" Value="{DynamicResource TextMutedBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsYouTubeLive}" Value="True">
-                                                    <Setter Property="Fill" Value="#DA3633"/>
+                                                    <Setter Property="Fill" Value="{DynamicResource YouTubeBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -276,7 +276,7 @@
                                             Background="{Binding ButtonBrush}"
                                             Opacity="{Binding Opacity}"
                                             ToolTip="{Binding ToolTipText}"
-                                            BorderBrush="#3D444D" BorderThickness="1"
+                                            BorderBrush="{DynamicResource BorderPrimaryBrush}" BorderThickness="1"
                                             Style="{StaticResource MaterialDesignRaisedButton}">
                                         <StackPanel VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Icon}" FontSize="22" HorizontalAlignment="Center"/>
@@ -338,7 +338,7 @@
                                 <DataTemplate>
                                     <Button Width="34" Height="34" Margin="0,0,8,0"
                                             Background="{Binding}"
-                                            BorderBrush="#3D444D" BorderThickness="1"
+                                            BorderBrush="{DynamicResource BorderPrimaryBrush}" BorderThickness="1"
                                             Style="{StaticResource MaterialDesignRaisedButton}"
                                             Command="{Binding DataContext.PickColorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}"/>

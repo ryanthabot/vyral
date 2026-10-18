@@ -304,7 +304,6 @@ public class NgrokService : IDisposable
             }
 
             var json = await File.ReadAllTextAsync(credentialsPath);
-            _logger.LogInformation("Ngrok credentials file content: {Json}", json);
 
             var credentials = JsonSerializer.Deserialize<JsonElement>(json);
 

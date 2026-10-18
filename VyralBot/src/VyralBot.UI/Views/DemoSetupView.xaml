@@ -176,7 +176,7 @@
                     <materialDesign:Card Padding="32" Background="{DynamicResource CardBackgroundBrush}">
                         <StackPanel>
                             <TextBlock Text="This is a demonstration of the reusable setup wizard component." TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16"/>
-                            <Button Content="OPEN GITHUB IN BROWSER" Command="{Binding OpenStep1BrowserCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{DynamicResource PrimaryBrush}" Foreground="White" Height="48"/>
+                            <Button Content="OPEN GITHUB IN BROWSER" Command="{Binding OpenStep1BrowserCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Height="48"/>
                         </StackPanel>
                     </materialDesign:Card>
                 </StackPanel>
@@ -198,7 +198,7 @@
                     <materialDesign:Card Padding="32" Background="{DynamicResource CardBackgroundBrush}">
                         <StackPanel>
                             <TextBlock Text="The wizard supports modal dialogs for input." TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16"/>
-                            <Button Content="OPEN MODAL DIALOG" Command="{Binding OpenClientIdModalCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{DynamicResource PrimaryBrush}" Foreground="White" Height="48" Margin="0,0,0,8"/>
+                            <Button Content="OPEN MODAL DIALOG" Command="{Binding OpenClientIdModalCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Height="48" Margin="0,0,0,8"/>
                             <Button Content="BROWSE GOOGLE" Command="{Binding OpenStep2BrowserCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Height="48"/>
                         </StackPanel>
                     </materialDesign:Card>
@@ -221,7 +221,7 @@
                     <materialDesign:Card Padding="32" Background="{DynamicResource CardBackgroundBrush}">
                         <StackPanel>
                             <TextBlock Text="Final step before completion." TextWrapping="Wrap" FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,16"/>
-                            <Button Content="OPEN STACKOVERFLOW" Command="{Binding OpenStep3BrowserCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{DynamicResource PrimaryBrush}" Foreground="White" Height="48"/>
+                            <Button Content="OPEN STACKOVERFLOW" Command="{Binding OpenStep3BrowserCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Height="48"/>
                         </StackPanel>
                     </materialDesign:Card>
                 </StackPanel>
@@ -243,7 +243,7 @@
                         <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding CurrentStep}" Value="1">
                                     <Setter Property="Visibility" Value="Visible"/>
@@ -281,7 +281,7 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <Button Grid.Column="0" Content="CANCEL" Command="{Binding CloseModalCommand}" Style="{StaticResource MaterialDesignOutlinedButton}" Height="40"/>
-                        <Button Grid.Column="2" Content="SAVE" Command="{Binding SaveModalCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{DynamicResource PrimaryBrush}" Foreground="White" Height="40"/>
+                        <Button Grid.Column="2" Content="SAVE" Command="{Binding SaveModalCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Height="40"/>
                     </Grid>
                 </StackPanel>
             </materialDesign:Card>
@@ -292,7 +292,7 @@
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="600">
                 <TextBlock Text="✓ Setup Complete!" FontSize="32" FontWeight="Bold" Foreground="{DynamicResource SuccessGreenBrush}" HorizontalAlignment="Center" Margin="0,0,0,16"/>
                 <TextBlock Text="The reusable setup wizard is working perfectly!" FontSize="16" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,32"/>
-                <Button Content="FINISH" Command="{Binding FinishSetupCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{DynamicResource PrimaryBrush}" Foreground="White" Height="48" Padding="48,0" HorizontalAlignment="Center"/>
+                <Button Content="FINISH" Command="{Binding FinishSetupCommand}" Style="{StaticResource MaterialDesignRaisedButton}" Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Height="48" Padding="48,0" HorizontalAlignment="Center"/>
             </StackPanel>
         </local:GenericWebSetupView.SuccessContent>
     </local:GenericWebSetupView>

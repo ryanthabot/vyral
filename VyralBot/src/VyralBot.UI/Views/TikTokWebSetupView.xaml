@@ -362,7 +362,7 @@
                           Command="{Binding FinishSetupCommand}"
                           Style="{StaticResource MaterialDesignRaisedButton}"
                           Background="{DynamicResource PrimaryBrush}"
-                          Foreground="White"
+                          Foreground="{DynamicResource TextOnPrimaryBrush}"
                           Height="40"
                           Padding="32,0"
                           FontSize="16"
@@ -476,7 +476,7 @@
                                            Command="{Binding OpenStep1BrowserCommand}"
                                            Style="{StaticResource MaterialDesignRaisedButton}"
                                            Background="{DynamicResource TikTokBrush}"
-                                           Foreground="White"
+                                           Foreground="{DynamicResource TextOnPrimaryBrush}"
                                            Height="48"
                                            FontSize="14"
                                            FontWeight="SemiBold"
@@ -533,7 +533,7 @@
                                            Command="{Binding OpenStep2BrowserCommand}"
                                            Style="{StaticResource MaterialDesignRaisedButton}"
                                            Background="{DynamicResource TikTokBrush}"
-                                           Foreground="White"
+                                           Foreground="{DynamicResource TextOnPrimaryBrush}"
                                            Height="48"
                                            FontSize="14"
                                            FontWeight="SemiBold"/>
@@ -673,7 +673,7 @@
                                                                 Command="{Binding SubmitCallbackUrlCommand}"
                                                                 Style="{StaticResource MaterialDesignRaisedButton}"
                                                                 Background="{DynamicResource TikTokBrush}"
-                                                                Foreground="White"
+                                                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                                                 Height="40"
                                                                 FontSize="13"
                                                                 FontWeight="SemiBold"/>
@@ -726,7 +726,7 @@
                                            Command="{Binding SendTestMessageCommand}"
                                            Style="{StaticResource MaterialDesignRaisedButton}"
                                            Background="{DynamicResource TikTokBrush}"
-                                           Foreground="White"
+                                           Foreground="{DynamicResource TextOnPrimaryBrush}"
                                            Height="48"
                                            FontSize="14"
                                            FontWeight="SemiBold"
@@ -796,7 +796,7 @@
                                   Height="40"
                                   Padding="24,0"
                                   Margin="0,0,12,0"
-                                  Foreground="White">
+                                  Foreground="{DynamicResource TextOnPrimaryBrush}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                                         <Setter Property="Background" Value="{DynamicResource TikTokBrush}"/>
@@ -813,7 +813,7 @@
                                   Command="{Binding SaveClientSecretCommand}"
                                   Height="40"
                                   Padding="24,0"
-                                  Foreground="White">
+                                  Foreground="{DynamicResource TextOnPrimaryBrush}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
                                         <Setter Property="Background" Value="{DynamicResource TikTokBrush}"/>
@@ -831,7 +831,7 @@
                         <Button Content="📋 COPY REDIRECT URI"
                                 Command="{Binding CopyRedirectUriCommand}"
                                 Background="{DynamicResource TikTokBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="24,0"
                                 FontWeight="SemiBold"
@@ -856,7 +856,7 @@
                         <Button Content="CONTINUE"
                                 Command="{Binding ContinueFromStep1Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -880,7 +880,7 @@
                         <Button Content="CONTINUE" 
                                 Command="{Binding ContinueFromStep1Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -904,7 +904,7 @@
                         <Button Content="CONTINUE" 
                                 Command="{Binding ContinueFromStep2Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -928,7 +928,7 @@
                         <Button Content="CONTINUE" 
                                 Command="{Binding ContinueFromStep3Command}"
                                 Background="{DynamicResource PrimaryBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 HorizontalAlignment="Right">
@@ -952,7 +952,7 @@
                         <Button Content="AUTHORIZE WITH TIKTOK" 
                                 Command="{Binding AuthorizeOAuthCommand}"
                                 Background="{DynamicResource TikTokBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 FontWeight="SemiBold"
@@ -977,7 +977,7 @@
                         <Button Content="✓ IT WORKED!" 
                                 Command="{Binding CompleteSetupCommand}"
                                 Background="{DynamicResource SuccessGreenBrush}"
-                                Foreground="White"
+                                Foreground="{DynamicResource TextOnPrimaryBrush}"
                                 Height="40"
                                 Padding="32,0"
                                 FontWeight="Bold"

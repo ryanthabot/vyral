@@ -23,8 +23,25 @@ public partial class TiktokChatSettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _autoRepliesEnabled = true;
 
+    // Display preferences for the TikTok quick-settings card (Views/TiktokChatSettingsView.xaml)
+    [ObservableProperty]
+    private bool _showBadges = true;
+
+    [ObservableProperty]
+    private bool _showTimestamps;
+
+    [ObservableProperty]
+    private bool _compactMode;
+
     [ObservableProperty]
     private string _status = "";
+
+    /// <summary>Config key backing the auto-replies master toggle (read by ChatViewModel's TikTok event handlers).</summary>
+    private const string AutoRepliesEnabledKey = "Chat.TikTok.AutoRepliesEnabled";
+
+    private const string ShowBadgesKey = "Chat.TikTok.ShowBadges";
+    private const string ShowTimestampsKey = "Chat.TikTok.ShowTimestamps";
+    private const string CompactModeKey = "Chat.TikTok.CompactMode";
 
     public TiktokChatSettingsViewModel(ILogger<TiktokChatSettingsViewModel> logger, IDataService dataService, IEventBus eventBus)
     {
@@ -52,6 +69,19 @@ public partial class TiktokChatSettingsViewModel : ViewModelBase
             {
                 _isInitialized = true;
             }
+
+            // Load the auto-replies master toggle + display prefs from config
+            // (defaults: auto-replies on, badges on, timestamps/compact off)
+            _isInitialized = false;
+            var storedAutoReplies = await _dataService.GetConfigValueAsync(AutoRepliesEnabledKey);
+            AutoRepliesEnabled = !bool.TryParse(storedAutoReplies, out var autoRepliesEnabled) || autoRepliesEnabled;
+            var storedShowBadges = await _dataService.GetConfigValueAsync(ShowBadgesKey);
+            ShowBadges = !bool.TryParse(storedShowBadges, out var showBadges) || showBadges;
+            var storedShowTimestamps = await _dataService.GetConfigValueAsync(ShowTimestampsKey);
+            ShowTimestamps = bool.TryParse(storedShowTimestamps, out var showTimestamps) && showTimestamps;
+            var storedCompactMode = await _dataService.GetConfigValueAsync(CompactModeKey);
+            CompactMode = bool.TryParse(storedCompactMode, out var compactMode) && compactMode;
+            _isInitialized = true;
         }
         catch (Exception ex)
         {
@@ -68,6 +98,10 @@ public partial class TiktokChatSettingsViewModel : ViewModelBase
             // (PersistPlatformFlagAsync also publishes the routing-changed event).
             await PersistPlatformFlagAsync("TikTok", IsChatEnabled);
             await PersistAutoStartFlagAsync(AutoStartChat);
+            await PersistAutoRepliesEnabledAsync(AutoRepliesEnabled);
+            await PersistDisplayFlagAsync(ShowBadgesKey, ShowBadges);
+            await PersistDisplayFlagAsync(ShowTimestampsKey, ShowTimestamps);
+            await PersistDisplayFlagAsync(CompactModeKey, CompactMode);
 
             Status = "Saved";
         }
@@ -91,6 +125,73 @@ public partial class TiktokChatSettingsViewModel : ViewModelBase
         if (_isInitialized)
         {
             _ = PersistAutoStartFlagAsync(value);
+        }
+    }
+
+    partial void OnAutoRepliesEnabledChanged(bool value)
+    {
+        if (_isInitialized)
+        {
+            _ = PersistAutoRepliesEnabledAsync(value);
+        }
+    }
+
+    partial void OnShowBadgesChanged(bool value)
+    {
+        if (_isInitialized)
+        {
+            _ = PersistDisplayFlagAsync(ShowBadgesKey, value);
+        }
+    }
+
+    partial void OnShowTimestampsChanged(bool value)
+    {
+        if (_isInitialized)
+        {
+            _ = PersistDisplayFlagAsync(ShowTimestampsKey, value);
+        }
+    }
+
+    partial void OnCompactModeChanged(bool value)
+    {
+        if (_isInitialized)
+        {
+            _ = PersistDisplayFlagAsync(CompactModeKey, value);
+        }
+    }
+
+    /// <summary>
+    /// Persists the auto-replies master toggle to config and publishes the
+    /// routing-changed event so ChatViewModel re-reads the toggle immediately.
+    /// The event carries the current chat-routing flag (NOT the toggle value)
+    /// so the chat filter is untouched. Mirrors TwitchChatSettingsViewModel.
+    /// </summary>
+    private async Task PersistAutoRepliesEnabledAsync(bool value)
+    {
+        try
+        {
+            await _dataService.SetConfigValueAsync(AutoRepliesEnabledKey, value.ToString());
+
+            var platform = await _dataService.GetPlatformByNameAsync("TikTok");
+            var evt = new PlatformChatRoutingChangedEvent { Source = "UI", Platform = "TikTok", Enabled = platform?.TiktokChatEnabled ?? true };
+            await _eventBus.PublishAsync(evt);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error persisting TikTok auto-replies master toggle");
+        }
+    }
+
+    /// <summary>Persists a chat display preference (badges/timestamps/compact) to config.</summary>
+    private async Task PersistDisplayFlagAsync(string key, bool value)
+    {
+        try
+        {
+            await _dataService.SetConfigValueAsync(key, value.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error persisting TikTok chat display flag {Key}", key);
         }
     }
 

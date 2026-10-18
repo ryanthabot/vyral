@@ -26,6 +26,9 @@ public partial class DiscordChatSettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _status = "";
 
+    /// <summary>Config key backing the auto-replies master toggle (read by ChatViewModel's Discord event handlers).</summary>
+    private const string AutoRepliesEnabledKey = "Chat.Discord.AutoRepliesEnabled";
+
     public DiscordChatSettingsViewModel(ILogger<DiscordChatSettingsViewModel> logger, IDataService dataService, IEventBus eventBus)
     {
         _logger = logger;
@@ -52,6 +55,12 @@ public partial class DiscordChatSettingsViewModel : ViewModelBase
             {
                 _isInitialized = true;
             }
+
+            // Load the auto-replies master toggle from config (default true)
+            _isInitialized = false;
+            var storedAutoReplies = await _dataService.GetConfigValueAsync(AutoRepliesEnabledKey);
+            AutoRepliesEnabled = !bool.TryParse(storedAutoReplies, out var autoRepliesEnabled) || autoRepliesEnabled;
+            _isInitialized = true;
         }
         catch (Exception ex)
         {
@@ -68,6 +77,7 @@ public partial class DiscordChatSettingsViewModel : ViewModelBase
             // (PersistPlatformFlagAsync also publishes the routing-changed event).
             await PersistPlatformFlagAsync("Discord", IsChatEnabled);
             await PersistAutoStartFlagAsync(AutoStartChat);
+            await PersistAutoRepliesEnabledAsync(AutoRepliesEnabled);
 
             Status = "Saved";
         }
@@ -91,6 +101,36 @@ public partial class DiscordChatSettingsViewModel : ViewModelBase
         if (_isInitialized)
         {
             _ = PersistAutoStartFlagAsync(value);
+        }
+    }
+
+    partial void OnAutoRepliesEnabledChanged(bool value)
+    {
+        if (_isInitialized)
+        {
+            _ = PersistAutoRepliesEnabledAsync(value);
+        }
+    }
+
+    /// <summary>
+    /// Persists the auto-replies master toggle to config and publishes the
+    /// routing-changed event so ChatViewModel re-reads the toggle immediately.
+    /// The event carries the current chat-routing flag (NOT the toggle value)
+    /// so the chat filter is untouched. Mirrors TwitchChatSettingsViewModel.
+    /// </summary>
+    private async Task PersistAutoRepliesEnabledAsync(bool value)
+    {
+        try
+        {
+            await _dataService.SetConfigValueAsync(AutoRepliesEnabledKey, value.ToString());
+
+            var platform = await _dataService.GetPlatformByNameAsync("Discord");
+            var evt = new PlatformChatRoutingChangedEvent { Source = "UI", Platform = "Discord", Enabled = platform?.DiscordChatEnabled ?? true };
+            await _eventBus.PublishAsync(evt);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error persisting Discord auto-replies master toggle");
         }
     }
 

@@ -228,7 +228,7 @@
         <!-- Loading Overlay -->
         <Grid Grid.RowSpan="3" 
               Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"
-              Background="#80000000">
+              Background="{DynamicResource OverlayBackgroundBrush}">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                 <ProgressBar Style="{StaticResource MaterialDesignCircularProgressBar}"
                              Value="0"
@@ -236,7 +236,7 @@
                              Width="60"
                              Height="60"/>
                 <TextBlock Text="Loading Statistics..." 
-                           Foreground="White" 
+                           Foreground="{DynamicResource TextPrimaryBrush}"
                            FontSize="18"
                            Margin="0,15,0,0"
                            HorizontalAlignment="Center"/>

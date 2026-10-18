@@ -73,6 +73,21 @@ public partial class SettingsViewModel : ViewModelBase
             SelectedPlatformViewModel = null;
             ShowPlatformGrid = true;
         }
+
+        // Run the ViewerHub pending-codes poller (30s DispatcherTimer) only while
+        // its section is visible. ViewerHubViewModel is a singleton that outlives
+        // this page, so without this stop it would poll SQLite for the whole app
+        // lifetime. Cleanup/StartCodeRefresh are both idempotent, and the timer
+        // restarts on the next Settings load via ViewerHubViewModel.InitializeAsync
+        // (which also covers re-entry while SelectedCategory is still "ViewerHub").
+        if (value == "ViewerHub")
+        {
+            _viewerHubViewModel.StartCodeRefresh();
+        }
+        else
+        {
+            _viewerHubViewModel.Cleanup();
+        }
     }
 
     [ObservableProperty]

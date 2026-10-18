@@ -17,3 +17,4 @@ VyralBot/appdata/profiles/*/
 VyralBot/appdata/*.txt
 # libobs game-capture writes this into the app's working directory at runtime
 win-capture/
+ui-audit/

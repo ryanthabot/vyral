@@ -1820,15 +1820,18 @@ public partial class MainViewModel : ViewModelBase
     {
         _logger.LogInformation("User clicked: Navigate to Platforms");
 
-        // Prompt when a setup wizard is open (Twitch/Kick/YouTube/TikTok
-        // overlays, or the Discord full-page wizard) — same as going Home.
-        if (!CheckSetupInProgress(out _))
-        {
-            return; // User cancelled navigation
-        }
+        // Captured so a failed navigation can restore it — never leave a blank content area
+        var previousViewModel = CurrentViewModel;
 
         try
         {
+            // Prompt when a setup wizard is open (Twitch/Kick/YouTube/TikTok
+            // overlays, or the Discord full-page wizard) — same as going Home.
+            if (!CheckSetupInProgress(out _))
+            {
+                return; // User cancelled navigation
+            }
+
             // CRITICAL ORDER: Null CurrentViewModel FIRST to release WPF references
             CurrentViewModel = null;
 
@@ -1874,8 +1877,9 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error navigating to platforms: {ex}");
-            // Don't navigate if there's an error
+            _logger.LogError(ex, "Error navigating to Platforms");
+            // Restore the previous view so a failed navigation never leaves a blank content area
+            CurrentViewModel = previousViewModel;
         }
     }
 

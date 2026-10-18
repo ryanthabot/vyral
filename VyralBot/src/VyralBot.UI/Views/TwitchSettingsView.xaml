@@ -59,7 +59,7 @@
                 <materialDesign:PackIcon Kind="Twitch" 
                                          Width="64" 
                                          Height="64" 
-                                         Foreground="#9146FF"
+                                         Foreground="{DynamicResource TwitchBrush}"
                                          HorizontalAlignment="Center"
                                          Margin="0,0,0,16"/>
                 <TextBlock Text="Configuration settings coming soon..." 

@@ -61,6 +61,10 @@ public class AlertService : IAlertService
 {
     private const string SettingsConfigKey = "AlertSettings";
 
+    // Bounded FIFO: at most 10 alerts wait while another is on screen; the
+    // oldest is dropped when the cap is exceeded so the queue cannot grow.
+    private const int MaxPendingAlerts = 10;
+
     // Matches the 1..15 range of the duration slider on the Alert Settings page.
     private const int MinDurationSeconds = 1;
     private const int MaxDurationSeconds = 15;
@@ -157,9 +161,17 @@ public class AlertService : IAlertService
                         // request instead of killing the visible alert (last-wins).
                         if (_isShowing)
                         {
-                            _pendingAlerts.Enqueue(new QueuedAlert(
+                            var queued = new QueuedAlert(
                                 title, username, message, imageUrl,
-                                effectiveAnimation, effectivePosition, effectiveDuration));
+                                effectiveAnimation, effectivePosition, effectiveDuration);
+
+                            // Drop-oldest so the queue stays bounded.
+                            while (_pendingAlerts.Count >= MaxPendingAlerts)
+                            {
+                                _pendingAlerts.Dequeue();
+                            }
+
+                            _pendingAlerts.Enqueue(queued);
                             _logger.LogDebug("Alert queued ({Count} pending): {Title} - {Username}",
                                 _pendingAlerts.Count, title, username);
                             return;
@@ -266,9 +278,9 @@ public class AlertService : IAlertService
             {
                 if (_currentAlert?.IsVisible == true)
                 {
+                    // The overlay fades out and closes itself; the Closed handler
+                    // below clears _currentAlert and drains the pending queue.
                     await _currentAlert.HideAlertAsync();
-                    _currentAlert.Close();
-                    _currentAlert = null;
                     _logger.LogInformation("Alert hidden");
                 }
             });

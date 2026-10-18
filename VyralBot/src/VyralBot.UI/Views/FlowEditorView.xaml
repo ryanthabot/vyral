@@ -32,7 +32,7 @@
         <SolidColorBrush x:Key="FlowInputBorderBrush" Color="{DynamicResource FlowCanvasNodeBorder}"/>
         <SolidColorBrush x:Key="FlowPanelBrush" Color="{DynamicResource FlowCanvasChipBackground}"/>
         <SolidColorBrush x:Key="FlowGhostBrush" Color="{DynamicResource FlowCanvasDescriptionText}"/>
-        <SolidColorBrush x:Key="FlowInkBrush" Color="#111827"/>
+        <SolidColorBrush x:Key="FlowInkBrush" Color="{DynamicResource FlowCanvasButtonForeground}"/>
 
         <!-- Side-rail panel accents (cards #2B2D42, 1px borders #374151,
              rail background darkest, per-icon accent colors). -->
@@ -40,7 +40,7 @@
         <SolidColorBrush x:Key="FlowCardBorderBrush" Color="{DynamicResource FlowCanvasNodeBorder}"/>
         <SolidColorBrush x:Key="FlowRailBrush" Color="{DynamicResource FlowCanvasBackground}"/>
         <SolidColorBrush x:Key="FlowPinkBrush" Color="#EC4899"/>
-        <SolidColorBrush x:Key="FlowYellowBrush" Color="#F59E0B"/>
+        <SolidColorBrush x:Key="FlowYellowBrush" Color="{DynamicResource WarningColor}"/>
 
         <!-- ============================================================
              Implicit input styles (one per input type — every TextBox /
@@ -51,8 +51,8 @@
              ============================================================ -->
         <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Background" Value="{StaticResource FlowInputBgBrush}"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="CaretBrush" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource FlowCanvasTextPrimaryBrush}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource FlowCanvasTextPrimaryBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource FlowInputBorderBrush}"/>
             <Setter Property="Padding" Value="6,4"/>
             <Setter Property="FontSize" Value="12.5"/>
@@ -69,7 +69,7 @@
 
         <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
             <Setter Property="Background" Value="{StaticResource FlowInputBgBrush}"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource FlowCanvasTextPrimaryBrush}"/>
             <Setter Property="Padding" Value="6,4"/>
             <Setter Property="FontSize" Value="12.5"/>
             <Setter Property="materialDesign:TextFieldAssist.UnderlineBrush" Value="{StaticResource FlowIndigoFocusBrush}"/>
@@ -124,7 +124,7 @@
         <!-- Bottom-bar primary action (SAVE): indigo #5865F2, white bold text. -->
         <Style x:Key="FlowPrimaryButton" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource FlowIndigoBrush}"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
             <Setter Property="Height" Value="34"/>
             <Setter Property="Padding" Value="20,0"/>
             <Setter Property="FontSize" Value="12.5"/>
@@ -173,7 +173,7 @@
             <Setter Property="Width" Value="28"/>
             <Setter Property="Height" Value="28"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Template">
@@ -204,7 +204,7 @@
              "Add New Timed Event", "Save Selected Block") — Background comes
              from each use (indigo / yellow). -->
         <Style x:Key="FlowPanelCtaButton" TargetType="Button">
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
             <Setter Property="Height" Value="32"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="FontWeight" Value="Bold"/>
@@ -237,8 +237,8 @@
 
         <!-- White button on the red "Please save your changes!" bar. -->
         <Style x:Key="FlowSaveBarWhiteButton" TargetType="Button">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="Foreground" Value="#7F1D1D"/>
+            <Setter Property="Background" Value="{DynamicResource TextOnPrimaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
             <Setter Property="FontSize" Value="11.5"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="Height" Value="26"/>
@@ -255,7 +255,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="saveBarBtn" Property="Background" Value="#F3F4F6"/>
+                                <Setter TargetName="saveBarBtn" Property="Background" Value="{DynamicResource FlowCanvasButtonHoverBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="saveBarBtn" Property="Opacity" Value="0.8"/>
@@ -270,7 +270,7 @@
              (green when the row's IsEnabled is true). -->
         <Style x:Key="FlowToggleDotButton" TargetType="Button" BasedOn="{StaticResource FlowIconButton}">
             <Setter Property="Background" Value="{StaticResource FlowRedBrush}"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsEnabled}" Value="True">
                     <Setter Property="Background" Value="{StaticResource FlowGreenBrush}"/>
@@ -285,7 +285,7 @@
             <Setter Property="HorizontalAlignment" Value="Center"/>
             <Setter Property="Margin" Value="0,0,0,8"/>
             <Setter Property="FontSize" Value="15"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="2"/>
@@ -368,7 +368,7 @@
         <Style x:Key="FlowZoomButton" TargetType="Button">
             <Setter Property="Width" Value="28"/>
             <Setter Property="Height" Value="28"/>
-            <Setter Property="Background" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource FlowCanvasButtonBackgroundBrush}"/>
             <Setter Property="Foreground" Value="{StaticResource FlowInkBrush}"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="Bold"/>
@@ -421,7 +421,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="pill" Property="Background" Value="#2A2440"/>
+                                <Setter TargetName="pill" Property="Background" Value="{DynamicResource FlowCanvasChipBackgroundBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="pill" Property="Opacity" Value="0.7"/>
@@ -494,7 +494,7 @@
         <Style x:Key="FlowSectionHeader" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12.5"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{DynamicResource FlowCanvasTextPrimaryBrush}"/>
         </Style>
 
         <Style x:Key="FlowFieldLabel" TargetType="TextBlock">
@@ -528,7 +528,7 @@
             <TextBlock Text="{Binding HeaderTitle}"
                        FontSize="12.5"
                        FontWeight="Bold"
-                       Foreground="White"
+                       Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
                        Margin="12,14,8,4"/>
         </DataTemplate>
 
@@ -584,7 +584,7 @@
                         <TextBlock Text="{Binding Block.Title}"
                                    FontSize="12.5"
                                    FontWeight="Bold"
-                                   Foreground="White"
+                                   Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
                                    TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="{Binding Block.Description}"
                                    FontSize="10.5"
@@ -621,7 +621,7 @@
                             Margin="0,0,9,0">
                         <TextBlock Text="⚙"
                                    FontSize="13"
-                                   Foreground="White"
+                                   Foreground="{DynamicResource TextOnPrimaryBrush}"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"/>
                     </Border>
@@ -630,7 +630,7 @@
                         <TextBlock Text="{Binding Label}"
                                    FontSize="12.5"
                                    FontWeight="Bold"
-                                   Foreground="White"
+                                   Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
                                    TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="{Binding Description}"
                                    FontSize="10.5"
@@ -673,7 +673,7 @@
                             Margin="0,0,9,0">
                         <TextBlock Text="{Binding Glyph}"
                                    FontSize="12"
-                                   Foreground="White"
+                                   Foreground="{DynamicResource TextOnPrimaryBrush}"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"/>
                     </Border>
@@ -682,7 +682,7 @@
                         <TextBlock Text="{Binding Label}"
                                    FontSize="12.5"
                                    FontWeight="Bold"
-                                   Foreground="White"
+                                   Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
                                    TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="{Binding Description}"
                                    FontSize="10.5"
@@ -849,7 +849,7 @@
                         <TextBlock Text="{Binding DisplayName}"
                                    FontSize="12.5"
                                    FontWeight="Bold"
-                                   Foreground="White"
+                                   Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
                                    TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="{Binding Token}"
                                    FontFamily="Consolas"
@@ -883,7 +883,7 @@
                         <TextBlock Text="{Binding Badge}"
                                    FontSize="9"
                                    FontWeight="Bold"
-                                   Foreground="White"/>
+                                   Foreground="{DynamicResource TextOnPrimaryBrush}"/>
                     </Border>
                 </Grid>
             </Border>
@@ -912,7 +912,7 @@
                             <TextBlock Text="{Binding Title}"
                                        FontSize="12.5"
                                        FontWeight="Bold"
-                                       Foreground="White"/>
+                                       Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"/>
                             <TextBlock Text="{Binding RelativeTime}"
                                        FontSize="10.5"
                                        Foreground="{StaticResource FlowGhostBrush}"
@@ -983,14 +983,14 @@
                             Background="{StaticResource FlowGreenBrush}"
                             VerticalAlignment="Center"
                             Margin="0,0,9,0">
-                        <TextBlock Text="/" FontSize="13" FontWeight="Bold" Foreground="White"
+                        <TextBlock Text="/" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource TextOnPrimaryBrush}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding DisplayTitle}"
                                    FontSize="12.5"
                                    FontWeight="Bold"
-                                   Foreground="White"
+                                   Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
                                    TextTrimming="CharacterEllipsis"
                                    ToolTip="{Binding Description}"/>
                         <TextBlock Text="{Binding Description}"
@@ -1026,14 +1026,14 @@
                             Background="{StaticResource FlowBlueBrush}"
                             VerticalAlignment="Center"
                             Margin="0,0,9,0">
-                        <TextBlock Text="⚡" FontSize="12" Foreground="White"
+                        <TextBlock Text="⚡" FontSize="12" Foreground="{DynamicResource TextOnPrimaryBrush}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Name}"
                                    FontSize="12.5"
                                    FontWeight="Bold"
-                                   Foreground="White"
+                                   Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
                                    TextTrimming="CharacterEllipsis"
                                    ToolTip="{Binding Description}"/>
                         <TextBlock Text="{Binding Description}"
@@ -1069,14 +1069,14 @@
                             Background="{StaticResource FlowYellowBrush}"
                             VerticalAlignment="Center"
                             Margin="0,0,9,0">
-                        <TextBlock Text="🕐" FontSize="12" Foreground="White"
+                        <TextBlock Text="🕐" FontSize="12" Foreground="{DynamicResource TextOnPrimaryBrush}"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Name}"
                                    FontSize="12.5"
                                    FontWeight="Bold"
-                                   Foreground="White"
+                                   Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
                                    TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="{Binding IntervalText}"
                                    FontSize="10.5"
@@ -1142,7 +1142,7 @@
                         <TextBlock Text="{Binding Name}"
                                    FontSize="12.5"
                                    FontWeight="Bold"
-                                   Foreground="White"
+                                   Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
                                    TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="{Binding BlockTitle}"
                                    FontSize="10.5"
@@ -1791,7 +1791,7 @@
                                                Text="Please save your changes!"
                                                FontSize="11.5"
                                                FontWeight="Bold"
-                                               Foreground="White"
+                                               Foreground="{DynamicResource TextOnPrimaryBrush}"
                                                TextWrapping="Wrap"
                                                VerticalAlignment="Center"
                                                Margin="0,0,8,0"/>
@@ -1838,7 +1838,7 @@
                                 Command="{Binding ZoomOutCommand}"
                                 Style="{StaticResource FlowZoomButton}"
                                 ToolTip="Zoom out"/>
-                        <Border Background="White"
+                        <Border Background="{DynamicResource FlowCanvasButtonBackgroundBrush}"
                                 CornerRadius="4"
                                 Margin="4,0"
                                 MinWidth="44">
@@ -1881,7 +1881,7 @@
                             <TextBlock Text="Block Settings"
                                        FontSize="13.5"
                                        FontWeight="Bold"
-                                       Foreground="White"
+                                       Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
                                        VerticalAlignment="Center"/>
                             <Button Grid.Column="1" Content="✕"
                                     Command="{Binding CloseSettingsPanelCommand}"
@@ -1912,7 +1912,7 @@
                                     <TextBlock Text="{Binding SelectedBlock.Title}"
                                                FontSize="15"
                                                FontWeight="Bold"
-                                               Foreground="White"
+                                               Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
                                                VerticalAlignment="Center"
                                                TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
@@ -1941,7 +1941,7 @@
                                     Visibility="{Binding HasEmbedParam, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <Border BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
                                 <StackPanel>
-                                    <TextBlock FontSize="12.5" FontWeight="Bold" Foreground="White" Margin="0,0,0,2">
+                                    <TextBlock FontSize="12.5" FontWeight="Bold" Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}" Margin="0,0,0,2">
                                         <Run Text="Message Builder "/>
                                         <Run Text="✅" Foreground="{StaticResource FlowGreenBrush}"/>
                                     </TextBlock>
@@ -2040,7 +2040,7 @@
                                                        Visibility="{Binding EmbedBuilder.AuthorName, Converter={StaticResource StringToVisibilityConverter}}"/>
                                             <TextBlock Text="{Binding EmbedBuilder.Title}"
                                                        FontSize="14" FontWeight="Bold"
-                                                       Foreground="White" TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}" TextWrapping="Wrap"
                                                        Margin="0,2,0,0"
                                                        Visibility="{Binding EmbedBuilder.Title, Converter={StaticResource StringToVisibilityConverter}}"/>
                                             <TextBlock Text="{Binding EmbedBuilder.Description}"
@@ -2057,7 +2057,7 @@
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Width="150" Margin="0,0,12,6">
-                                                            <TextBlock Text="{Binding Name}" FontSize="11.5" FontWeight="Bold" Foreground="White" TextWrapping="Wrap"/>
+                                                            <TextBlock Text="{Binding Name}" FontSize="11.5" FontWeight="Bold" Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}" TextWrapping="Wrap"/>
                                                             <TextBlock Text="{Binding Value}" FontSize="11.5" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap"/>
                                                         </StackPanel>
                                                     </DataTemplate>
@@ -2485,7 +2485,7 @@
                                     <TextBlock Text="Command Settings"
                                                FontSize="13.5"
                                                FontWeight="Bold"
-                                               Foreground="White"/>
+                                               Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"/>
                                     <TextBlock Text="{Binding TriggerSummaryText}"
                                                FontSize="10.5"
                                                Foreground="{StaticResource FlowGhostBrush}"
@@ -2755,13 +2755,13 @@
                                         Background="{StaticResource FlowVioletBrush}"
                                         VerticalAlignment="Center"
                                         Margin="0,0,10,0">
-                                    <TextBlock Text="◈" FontSize="15" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBlock Text="◈" FontSize="15" Foreground="{DynamicResource TextOnPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel VerticalAlignment="Center">
                                     <TextBlock Text="Parameter Settings"
                                                FontSize="13.5"
                                                FontWeight="Bold"
-                                               Foreground="White"/>
+                                               Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"/>
                                     <TextBlock Text="{Binding SelectedParameter.TypeLabel}"
                                                FontSize="10.5"
                                                Foreground="{StaticResource FlowGhostBrush}"/>
@@ -2923,7 +2923,7 @@
                         ToolTip="Persist the flow and reload the triggers (Ctrl+S)">
                     <StackPanel Orientation="Horizontal">
                         <materialDesign:PackIcon Kind="ContentSave" Width="13" Height="13"
-                                                 Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                 Foreground="{DynamicResource TextOnPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBlock Text="SAVE" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>

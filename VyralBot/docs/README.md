@@ -36,7 +36,6 @@ src/
 | `BaseOAuthSetupViewModel` | 639 | Abstract OAuth base with WebView2 |
 | `SettingsViewModel` | 604 | Profile management and settings |
 | `WebServerSettingsViewModel` | 502 | Web server configuration |
-| `NgrokSetupViewModel` | 491 | Ngrok tunnel setup |
 | `KickSettingsViewModel` | 422 | Kick platform settings |
 | `GiveawayViewModel` | 416 | Giveaway management |
 | `NgrokSetupWizardViewModel` | 416 | Ngrok OAuth wizard |

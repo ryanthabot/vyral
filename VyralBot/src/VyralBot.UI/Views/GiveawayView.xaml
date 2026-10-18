@@ -338,9 +338,9 @@
                                 <TextBlock Grid.Row="3" Grid.Column="0" Text="Sub Bonus:" FontWeight="Bold" Margin="0,4"/>
                                 <TextBlock Grid.Row="3" Grid.Column="1" Margin="8,4">
                                     <Run Text="{Binding SelectedGiveaway.SubscriberBonusEnabled, StringFormat='{}{0}', Mode=OneWay}"/>
-                                    <Run Text=" (" Foreground="Gray"/>
-                                    <Run Text="{Binding SelectedGiveaway.SubscriberBonusEntries, StringFormat='+{0} entries', Mode=OneWay}" Foreground="Gray"/>
-                                    <Run Text=")" Foreground="Gray"/>
+                                    <Run Text=" (" Foreground="{DynamicResource TextMutedBrush}"/>
+                                    <Run Text="{Binding SelectedGiveaway.SubscriberBonusEntries, StringFormat='+{0} entries', Mode=OneWay}" Foreground="{DynamicResource TextMutedBrush}"/>
+                                    <Run Text=")" Foreground="{DynamicResource TextMutedBrush}"/>
                                 </TextBlock>
 
                                 <TextBlock Grid.Row="4" Grid.Column="0" Text="Min Watchtime:" FontWeight="Bold" Margin="0,4"/>

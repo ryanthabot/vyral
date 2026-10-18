@@ -11,6 +11,13 @@
              Background="{DynamicResource BackgroundDarkBrush}">
     
     <UserControl.Resources>
+        <!-- DM reply-mode send button gradient: Discord blue → theme red, both
+             tracking the active palette via their canonical color keys (same
+             pattern as FlowEditorView's local themed brushes). -->
+        <LinearGradientBrush x:Key="DmReplyGradientBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="{DynamicResource DiscordColor}" Offset="0"/>
+            <GradientStop Color="{DynamicResource ErrorColor}" Offset="1"/>
+        </LinearGradientBrush>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:NullOrEmptyToVisibilityConverter x:Key="NullOrEmptyToVisibilityConverter"/>
         <converters:BadgesToImagesConverter x:Key="BadgesToImagesConverter"/>
@@ -142,10 +149,8 @@
                                 Padding="8"
                                 CornerRadius="6"
                                 BorderThickness="1"
-                                BorderBrush="{DynamicResource TwitchBrush}">
-                            <Border.Effect>
-                                <DropShadowEffect Color="#000000" BlurRadius="8" ShadowDepth="2" Opacity="0.18"/>
-                            </Border.Effect>
+                                BorderBrush="{DynamicResource TwitchBrush}"
+                                Effect="{DynamicResource CardShadow}">
                             <controls:LazyPopupContent ContentType="{x:Type views:TwitchChatSettingsView}"/>
                         </Border>
                     </Popup>
@@ -174,10 +179,8 @@
                                 Padding="8"
                                 CornerRadius="6"
                                 BorderThickness="1"
-                                BorderBrush="{DynamicResource KickBrush}">
-                            <Border.Effect>
-                                <DropShadowEffect Color="#000000" BlurRadius="8" ShadowDepth="2" Opacity="0.18"/>
-                            </Border.Effect>
+                                BorderBrush="{DynamicResource KickBrush}"
+                                Effect="{DynamicResource CardShadow}">
                             <controls:LazyPopupContent ContentType="{x:Type views:KickChatSettingsView}"/>
                         </Border>
                     </Popup>
@@ -206,10 +209,8 @@
                                 Padding="8"
                                 CornerRadius="6"
                                 BorderThickness="1"
-                                BorderBrush="{DynamicResource YouTubeBrush}">
-                            <Border.Effect>
-                                <DropShadowEffect Color="#000000" BlurRadius="8" ShadowDepth="2" Opacity="0.18"/>
-                            </Border.Effect>
+                                BorderBrush="{DynamicResource YouTubeBrush}"
+                                Effect="{DynamicResource CardShadow}">
                             <controls:LazyPopupContent ContentType="{x:Type views:YoutubeChatSettingsView}"/>
                         </Border>
                     </Popup>
@@ -238,10 +239,8 @@
                                 Padding="8"
                                 CornerRadius="6"
                                 BorderThickness="1"
-                                BorderBrush="{DynamicResource TikTokBrush}">
-                            <Border.Effect>
-                                <DropShadowEffect Color="#000000" BlurRadius="8" ShadowDepth="2" Opacity="0.18"/>
-                            </Border.Effect>
+                                BorderBrush="{DynamicResource TikTokBrush}"
+                                Effect="{DynamicResource CardShadow}">
                             <controls:LazyPopupContent ContentType="{x:Type views:TiktokChatSettingsView}"/>
                         </Border>
                     </Popup>
@@ -269,10 +268,8 @@
                                 Padding="8"
                                 CornerRadius="6"
                                 BorderThickness="1"
-                                BorderBrush="{DynamicResource DiscordBrush}">
-                            <Border.Effect>
-                                <DropShadowEffect Color="#000000" BlurRadius="8" ShadowDepth="2" Opacity="0.18"/>
-                            </Border.Effect>
+                                BorderBrush="{DynamicResource DiscordBrush}"
+                                Effect="{DynamicResource CardShadow}">
                             <controls:LazyPopupContent ContentType="{x:Type views:DiscordChatSettingsView}"/>
                         </Border>
                     </Popup>
@@ -1272,15 +1269,8 @@
                             <Setter Property="Foreground" Value="{Binding SelectedPlatform.Name, Converter={StaticResource PlatformToBrushConverter}, ConverterParameter=foreground}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsDmReplyMode}" Value="True">
-                                    <Setter Property="Background">
-                                        <Setter.Value>
-                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                <GradientStop Color="#5865F2" Offset="0"/>
-                                                <GradientStop Color="#FF0000" Offset="1"/>
-                                            </LinearGradientBrush>
-                                        </Setter.Value>
-                                    </Setter>
-                                    <Setter Property="Foreground" Value="White"/>
+                                    <Setter Property="Background" Value="{DynamicResource DmReplyGradientBrush}"/>
+                                    <Setter Property="Foreground" Value="{DynamicResource TextOnPrimaryBrush}"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>

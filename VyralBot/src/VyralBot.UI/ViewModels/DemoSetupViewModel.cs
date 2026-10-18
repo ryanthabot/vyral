@@ -40,7 +40,7 @@ public partial class DemoSetupViewModel : BaseWebSetupViewModel
             "Enter your application's Client ID from the developer console",
             (input) =>
             {
-                _logger.LogInformation("Saved Client ID: {Input}", input);
+                _logger.LogInformation("Client ID saved (value not logged)");
                 // In real implementation, save to database
             });
     }
