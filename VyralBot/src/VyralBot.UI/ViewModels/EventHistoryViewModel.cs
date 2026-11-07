@@ -66,7 +66,7 @@ public partial class EventHistoryViewModel : ViewModelBase
     [ObservableProperty]
     private int _totalPages;
 
-    public ObservableCollection<string> Platforms { get; } = new() { "All", "Kick", "Twitch" };
+    public ObservableCollection<string> Platforms { get; } = new() { "All", "Kick", "Twitch", "YouTube", "Discord", "TikTok" };
     public ObservableCollection<string> EventTypes { get; } = new()
     {
         "All",

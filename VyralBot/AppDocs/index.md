@@ -31,7 +31,7 @@ Every page covers its feature for **two audiences at once**: a *User Guide* for 
 | YouTube | Yes (polling) | Yes (while live) | No (chat messages only) | Integrated |
 | TikTok | No | No | No | UI shell — backend not built |
 | [Discord](platforms/discord.md) | Yes (Discord.Net gateway, multiple bots) | Yes (per bot, to that bot's selected channel) | Chat messages only | Integrated |
-| OBS | — | — | — | Audio browser source only |
+| OBS | — | — | — | Integrated via the sidebar **OBS** page (Full OBS window hosting, embedded libobs Bot Studio, scene Collections); the Platforms-page card is a placeholder |
 
 Twitch EventSub connects once `Platform.UserId` is set — both Twitch auth flows populate it automatically (fixed 2026-08-15); accounts connected before the fix need one re-auth. See [Twitch](platforms/twitch.md) and the [Known Issues ledger](reference/known-issues.md).
 
@@ -43,7 +43,7 @@ Twitch EventSub connects once `Platform.UserId` is set — both Twitch auth flow
 
 ## The tech stack in one paragraph
 
-Vyral is a .NET 10 WPF desktop app split into projects: `VyralBot.UI` (WPF views/viewmodels), `VyralBot.Core` (domain services — commands, currency, giveaways, polls, watchtime, sounds, rules), `VyralBot.Data` (SQLite via Dapper), `VyralBot.Api` (embedded Kestrel web server, webhook controller, ngrok service), and `VyralBot.Integrations` (Twitch/Kick/YouTube/Discord clients). Everything talks through one in-process [Event Bus](architecture/event-bus.md); all data lives in [per-profile SQLite databases](architecture/data-layer.md). The full developer map starts at [Startup & Lifecycle](architecture/startup-lifecycle.md).
+Vyral is a .NET 10 WPF desktop app split into projects: `VyralBot.UI` (WPF views/viewmodels), `VyralBot.Core` (domain services — commands, currency, giveaways, polls, watchtime, sounds, rules), `VyralBot.Data` (SQLite via Dapper), `VyralBot.Api` (embedded Kestrel web server, webhook controller, ngrok service), `VyralBot.Workflows` (the visual workflow engine behind Automation and the flow editor), and `VyralBot.Integrations` (Twitch/Kick/YouTube/Discord clients, embedded OBS via libobs + obs-websocket, FFmpeg restreaming, lights, Stream Deck). Everything talks through one in-process [Event Bus](architecture/event-bus.md); all data lives in [per-profile SQLite databases](architecture/data-layer.md). The full developer map starts at [Startup & Lifecycle](architecture/startup-lifecycle.md).
 
 ## Catalogs
 

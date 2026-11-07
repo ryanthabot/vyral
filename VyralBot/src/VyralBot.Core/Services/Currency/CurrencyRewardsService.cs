@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
@@ -12,6 +13,17 @@ public class CurrencyRewardsService : ICurrencyRewardsService
     private readonly ILogger<CurrencyRewardsService> _logger;
     private readonly IDataService _dataService;
     private readonly ICurrencyService _currencyService;
+
+    // Redemptions are check-then-act sequences (per-user limit, cooldown,
+    // MaxRedemptionsTotal, CurrentRedemptions++ all read state that the
+    // redemption itself writes). Two rapid !redeem commands from the same
+    // viewer would both pass every check before either row is saved and
+    // double-spend. These per-reward gates serialize redemptions of the same
+    // reward (different rewards proceed in parallel).
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> _rewardGates = new();
+
+    private static SemaphoreSlim GetRewardGate(string rewardId)
+        => _rewardGates.GetOrAdd(rewardId, _ => new SemaphoreSlim(1, 1));
 
     public CurrencyRewardsService(
         ILogger<CurrencyRewardsService> logger,
@@ -47,6 +59,11 @@ public class CurrencyRewardsService : ICurrencyRewardsService
 
     public async Task<string?> RedeemRewardAsync(string rewardId, string username, string platform, string? userInput = null)
     {
+        // Serialize redemptions of the same reward so the cooldown, per-user
+        // limit and MaxRedemptionsTotal checks cannot be beaten by two rapid
+        // concurrent !redeem commands (both would pass before either row is saved).
+        var gate = GetRewardGate(rewardId);
+        await gate.WaitAsync();
         try
         {
             // Check if user can redeem
@@ -103,6 +120,10 @@ public class CurrencyRewardsService : ICurrencyRewardsService
                 rewardId, username);
             return null;
         }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     public async Task<IEnumerable<CurrencyRedemption>> GetRedemptionsAsync(string? status = null, string? username = null)
@@ -120,6 +141,15 @@ public class CurrencyRewardsService : ICurrencyRewardsService
         var redemption = await _dataService.GetCurrencyRedemptionAsync(redemptionId);
         if (redemption == null)
         {
+            return false;
+        }
+
+        // Only pending redemptions can be approved — a second click (or two
+        // moderators racing) must not re-process an already handled row.
+        if (redemption.Status != "Pending")
+        {
+            _logger.LogInformation("Redemption {RedemptionId} not approved: status is {Status}, not Pending",
+                redemptionId, redemption.Status);
             return false;
         }
 
@@ -141,6 +171,16 @@ public class CurrencyRewardsService : ICurrencyRewardsService
         var redemption = await _dataService.GetCurrencyRedemptionAsync(redemptionId);
         if (redemption == null)
         {
+            return false;
+        }
+
+        // Guard the refund: rejecting an already-rejected redemption refunded
+        // the cost EVERY time, so spamming the reject button minted points.
+        // Terminal states (Rejected/Completed) are never re-processed.
+        if (redemption.Status == "Rejected" || redemption.Status == "Completed")
+        {
+            _logger.LogInformation("Redemption {RedemptionId} not rejected: already {Status}",
+                redemptionId, redemption.Status);
             return false;
         }
 
@@ -167,6 +207,15 @@ public class CurrencyRewardsService : ICurrencyRewardsService
         var redemption = await _dataService.GetCurrencyRedemptionAsync(redemptionId);
         if (redemption == null)
         {
+            return false;
+        }
+
+        // Completing a rejected redemption (already refunded) would make the
+        // audit trail claim the reward was fulfilled — refuse instead.
+        if (redemption.Status == "Rejected" || redemption.Status == "Completed")
+        {
+            _logger.LogInformation("Redemption {RedemptionId} not completed: status is {Status}",
+                redemptionId, redemption.Status);
             return false;
         }
 
@@ -218,25 +267,28 @@ public class CurrencyRewardsService : ICurrencyRewardsService
             return (false, "Reward has reached maximum redemptions");
         }
 
-        // Check per-user redemptions limit
-        if (reward.MaxRedemptionsPerUser > 0)
+        // The per-user limit and cooldown both read the viewer's non-rejected
+        // history for THIS reward — fetch it once when either check is enabled
+        // (previously this ran two full-history queries per redemption).
+        List<CurrencyRedemption>? userRewardRedemptions = null;
+        if (reward.MaxRedemptionsPerUser > 0 || reward.Cooldown > 0)
         {
-            var userRedemptions = await _dataService.GetCurrencyRedemptionsAsync(null, username);
-            var rewardRedemptionCount = userRedemptions.Count(r => r.RewardId == rewardId &&
-                r.Status != "Rejected");
+            userRewardRedemptions = (await _dataService.GetCurrencyRedemptionsAsync(null, username))
+                .Where(r => r.RewardId == rewardId && r.Status != "Rejected")
+                .ToList();
+        }
 
-            if (rewardRedemptionCount >= reward.MaxRedemptionsPerUser)
-            {
-                return (false, $"You have reached the maximum redemptions for this reward ({reward.MaxRedemptionsPerUser})");
-            }
+        // Check per-user redemptions limit
+        if (reward.MaxRedemptionsPerUser > 0 &&
+            userRewardRedemptions!.Count >= reward.MaxRedemptionsPerUser)
+        {
+            return (false, $"You have reached the maximum redemptions for this reward ({reward.MaxRedemptionsPerUser})");
         }
 
         // Check cooldown
         if (reward.Cooldown > 0)
         {
-            var userRedemptions = await _dataService.GetCurrencyRedemptionsAsync(null, username);
-            var lastRedemption = userRedemptions
-                .Where(r => r.RewardId == rewardId && r.Status != "Rejected")
+            var lastRedemption = userRewardRedemptions!
                 .OrderByDescending(r => r.RedeemedAt)
                 .FirstOrDefault();
 

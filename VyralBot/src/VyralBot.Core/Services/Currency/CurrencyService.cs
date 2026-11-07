@@ -18,7 +18,6 @@ public class CurrencyService : ICurrencyService
     private readonly ILoyaltyTierService _loyaltyTierService;
     private readonly IMultiPlatformBonusService? _multiPlatformBonus;
     private readonly IStreamLiveRegistry? _streamLiveRegistry;
-    private readonly object _balanceLock = new();
     private CurrencySetting? _cachedSettings;
     private DateTime _settingsCacheTime = DateTime.MinValue;
     private readonly TimeSpan _settingsCacheDuration = TimeSpan.FromMinutes(5);
@@ -254,8 +253,41 @@ public class CurrencyService : ICurrencyService
         return await _dataService.GetUserCurrenciesAsync(username);
     }
 
+    // ===== Per-account mutation gates =====
+    // Balance updates are read-modify-write on the whole UserCurrency row
+    // (SaveUserCurrencyAsync persists Balance, TotalEarned and TotalSpent
+    // together), and callers genuinely overlap: the EventBus runs up to 4
+    // handlers concurrently, so chat-activity awards, watch-time ticks,
+    // commands, redemptions and bank operations can hit the same viewer at
+    // the same instant. These gates serialize every mutation for one
+    // canonical (post-unification) account; different viewers proceed in
+    // parallel. Keyed on the lower-cased "username:platform" identity.
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> _accountGates = new();
+
+    private static SemaphoreSlim GetAccountGate(string username, string platform)
+        => _accountGates.GetOrAdd(
+            $"{username.ToLowerInvariant()}:{platform.ToLowerInvariant()}",
+            _ => new SemaphoreSlim(1, 1));
+
+    /// <summary>
+    /// Saturating add for the int balance/total columns: at the int ceiling a
+    /// further award clamps to <see cref="int.MaxValue"/> instead of silently
+    /// wrapping negative in unchecked arithmetic.
+    /// </summary>
+    private static int SaturatingAdd(int current, int delta)
+    {
+        var sum = (long)current + delta;
+        return sum > int.MaxValue ? int.MaxValue : (int)sum;
+    }
+
     public async Task<bool> AddCurrencyAsync(string username, string platform, int amount, string reason, string transactionType = "Earn")
     {
+        if (amount <= 0)
+        {
+            _logger.LogWarning("Attempted to add non-positive amount: {Amount}", amount);
+            return false;
+        }
+
         // W2T5: capture where this award actually happened BEFORE unified-balance
         // redirection moves the balance write to the canonical account — the
         // per-platform ledger must record the caller's platform.
@@ -268,19 +300,31 @@ public class CurrencyService : ICurrencyService
             (username, platform) = (unified.Username, unified.Platform);
         }
 
-        if (amount <= 0)
-        {
-            _logger.LogWarning("Attempted to add non-positive amount: {Amount}", amount);
-            return false;
-        }
-
+        var gate = GetAccountGate(username, platform);
+        await gate.WaitAsync();
         try
         {
-            lock (_balanceLock)
-            {
-                // This lock ensures transaction safety
-            }
+            return await AddCurrencyUngatedAsync(username, platform, amount, reason, transactionType,
+                earnedOnPlatform, earnedByUsername);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
 
+    /// <summary>
+    /// Balance add WITHOUT acquiring the per-account gate — the caller must
+    /// already hold it (SemaphoreSlim is not reentrant, so the public
+    /// <see cref="AddCurrencyAsync"/> delegates here while holding the gate,
+    /// and so do the award paths that must keep check + award + cooldown
+    /// atomic). Expects an already-unified (canonical) identity.
+    /// </summary>
+    private async Task<bool> AddCurrencyUngatedAsync(string username, string platform, int amount,
+        string reason, string transactionType, string earnedOnPlatform, string earnedByUsername)
+    {
+        try
+        {
             var userCurrency = await GetUserCurrencyRowResolvedAsync(username, platform);
 
             if (userCurrency == null)
@@ -294,8 +338,8 @@ public class CurrencyService : ICurrencyService
             }
 
             var balanceBefore = userCurrency.Balance;
-            userCurrency.Balance += amount;
-            userCurrency.TotalEarned += amount;
+            userCurrency.Balance = SaturatingAdd(userCurrency.Balance, amount);
+            userCurrency.TotalEarned = SaturatingAdd(userCurrency.TotalEarned, amount);
 
             await _dataService.SaveUserCurrencyAsync(userCurrency);
 
@@ -334,6 +378,12 @@ public class CurrencyService : ICurrencyService
 
     public async Task<bool> RemoveCurrencyAsync(string username, string platform, int amount, string reason, string transactionType = "Spend")
     {
+        if (amount <= 0)
+        {
+            _logger.LogWarning("Attempted to remove non-positive amount: {Amount}", amount);
+            return false;
+        }
+
         // W2T5: capture where this spend actually happened BEFORE unified-balance
         // redirection moves the balance write to the canonical account — the
         // per-platform ledger must record the caller's platform.
@@ -346,19 +396,30 @@ public class CurrencyService : ICurrencyService
             (username, platform) = (unified.Username, unified.Platform);
         }
 
-        if (amount <= 0)
-        {
-            _logger.LogWarning("Attempted to remove non-positive amount: {Amount}", amount);
-            return false;
-        }
-
+        var gate = GetAccountGate(username, platform);
+        await gate.WaitAsync();
         try
         {
-            lock (_balanceLock)
-            {
-                // This lock ensures transaction safety
-            }
+            return await RemoveCurrencyUngatedAsync(username, platform, amount, reason, transactionType,
+                spentOnPlatform, spentByUsername);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
 
+    /// <summary>
+    /// Balance remove WITHOUT acquiring the per-account gate — the caller must
+    /// already hold it. The sufficient-balance check and the write run together
+    /// under the gate, so two concurrent spends cannot both pass the check and
+    /// double-spend the same balance. Expects an already-unified identity.
+    /// </summary>
+    private async Task<bool> RemoveCurrencyUngatedAsync(string username, string platform, int amount,
+        string reason, string transactionType, string spentOnPlatform, string spentByUsername)
+    {
+        try
+        {
             var userCurrency = await GetUserCurrencyRowResolvedAsync(username, platform);
 
             if (userCurrency == null || userCurrency.Balance < amount)
@@ -370,7 +431,7 @@ public class CurrencyService : ICurrencyService
 
             var balanceBefore = userCurrency.Balance;
             userCurrency.Balance -= amount;
-            userCurrency.TotalSpent += amount;
+            userCurrency.TotalSpent = SaturatingAdd(userCurrency.TotalSpent, amount);
 
             await _dataService.SaveUserCurrencyAsync(userCurrency);
 
@@ -562,33 +623,52 @@ public class CurrencyService : ICurrencyService
             return;
         }
 
-        var userCurrency = await GetUserCurrencyRowResolvedAsync(username, platform);
+        // Hold the account gate across cooldown check -> award -> cooldown
+        // timestamp so two chat messages processed concurrently (the EventBus
+        // runs up to 4 handlers in parallel) cannot both pass the cooldown
+        // check before either stamps it — the classic double-award window.
+        var chatTarget = await ResolveUnifiedTargetAsync(username, platform);
+        var chatCanonicalUser = chatTarget?.Username ?? username;
+        var chatCanonicalPlatform = chatTarget?.Platform ?? platform;
 
-        // Check cooldown
-        if (userCurrency?.LastChatActivityUpdate != null)
+        var chatGate = GetAccountGate(chatCanonicalUser, chatCanonicalPlatform);
+        await chatGate.WaitAsync();
+        try
         {
-            var timeSinceLastUpdate = DateTime.UtcNow - userCurrency.LastChatActivityUpdate.Value;
-            if (timeSinceLastUpdate.TotalSeconds < settings.ChatActivityCooldown)
+            var userCurrency = await _dataService.GetUserCurrencyAsync(chatCanonicalUser, chatCanonicalPlatform);
+
+            // Check cooldown
+            if (userCurrency?.LastChatActivityUpdate != null)
             {
-                return; // Still on cooldown
+                var timeSinceLastUpdate = DateTime.UtcNow - userCurrency.LastChatActivityUpdate.Value;
+                if (timeSinceLastUpdate.TotalSeconds < settings.ChatActivityCooldown)
+                {
+                    return; // Still on cooldown
+                }
+            }
+
+            // Award currency (platform x boost x tier multipliers applied; floored
+            // to int). Ungated add: this method already holds the account gate.
+            var awardAmount = await ApplyEarnMultipliersAsync(settings.ChatActivityAmount, username, platform);
+            if (awardAmount > 0)
+            {
+                await AddCurrencyUngatedAsync(chatCanonicalUser, chatCanonicalPlatform, awardAmount,
+                    "Chat activity", "Earn", platform, username);
+            }
+
+            // Update cooldown timestamp. Re-fetch first: a brand-new viewer's record was
+            // null above and is only created inside the add — without the re-fetch
+            // LastChatActivityUpdate would stay null and the next message would double-pay.
+            var currencyForCooldown = await _dataService.GetUserCurrencyAsync(chatCanonicalUser, chatCanonicalPlatform);
+            if (currencyForCooldown != null)
+            {
+                currencyForCooldown.LastChatActivityUpdate = DateTime.UtcNow;
+                await _dataService.SaveUserCurrencyAsync(currencyForCooldown);
             }
         }
-
-        // Award currency (platform x boost x tier multipliers applied; floored to int)
-        var awardAmount = await ApplyEarnMultipliersAsync(settings.ChatActivityAmount, username, platform);
-        if (awardAmount > 0)
+        finally
         {
-            await AddCurrencyAsync(username, platform, awardAmount, "Chat activity", "Earn");
-        }
-
-        // Update cooldown timestamp. Re-fetch first: a brand-new viewer's record was
-        // null above and is only created inside AddCurrencyAsync — without the re-fetch
-        // LastChatActivityUpdate would stay null and the next message would double-pay.
-        var currencyForCooldown = await GetUserCurrencyRowResolvedAsync(username, platform);
-        if (currencyForCooldown != null)
-        {
-            currencyForCooldown.LastChatActivityUpdate = DateTime.UtcNow;
-            await _dataService.SaveUserCurrencyAsync(currencyForCooldown);
+            chatGate.Release();
         }
     }
 
@@ -612,33 +692,51 @@ public class CurrencyService : ICurrencyService
             return;
         }
 
-        var userCurrency = await GetUserCurrencyRowResolvedAsync(username, platform);
+        // Hold the account gate across interval check -> award -> timestamp so
+        // a concurrent earning path (chat activity, commands) cannot interleave
+        // with the read-modify-write below and lose an update.
+        var watchTarget = await ResolveUnifiedTargetAsync(username, platform);
+        var watchCanonicalUser = watchTarget?.Username ?? username;
+        var watchCanonicalPlatform = watchTarget?.Platform ?? platform;
 
-        // Check interval
-        if (userCurrency?.LastWatchTimeUpdate != null)
+        var watchGate = GetAccountGate(watchCanonicalUser, watchCanonicalPlatform);
+        await watchGate.WaitAsync();
+        try
         {
-            var timeSinceLastUpdate = DateTime.UtcNow - userCurrency.LastWatchTimeUpdate.Value;
-            if (timeSinceLastUpdate.TotalSeconds < settings.WatchTimeInterval)
+            var userCurrency = await _dataService.GetUserCurrencyAsync(watchCanonicalUser, watchCanonicalPlatform);
+
+            // Check interval
+            if (userCurrency?.LastWatchTimeUpdate != null)
             {
-                return; // Not enough time passed
+                var timeSinceLastUpdate = DateTime.UtcNow - userCurrency.LastWatchTimeUpdate.Value;
+                if (timeSinceLastUpdate.TotalSeconds < settings.WatchTimeInterval)
+                {
+                    return; // Not enough time passed
+                }
+            }
+
+            // Award currency (platform x boost x tier multipliers applied; floored
+            // to int). Ungated add: this method already holds the account gate.
+            var awardAmount = await ApplyEarnMultipliersAsync(settings.WatchTimeAmount, username, platform);
+            if (awardAmount > 0)
+            {
+                await AddCurrencyUngatedAsync(watchCanonicalUser, watchCanonicalPlatform, awardAmount,
+                    "Watch time", "Earn", platform, username);
+            }
+
+            // Update watch time timestamp. Re-fetch first: a brand-new viewer's record was
+            // null above and is only created inside the add — without the re-fetch
+            // LastWatchTimeUpdate would stay null and the next tick would double-pay.
+            var currencyForCooldown = await _dataService.GetUserCurrencyAsync(watchCanonicalUser, watchCanonicalPlatform);
+            if (currencyForCooldown != null)
+            {
+                currencyForCooldown.LastWatchTimeUpdate = DateTime.UtcNow;
+                await _dataService.SaveUserCurrencyAsync(currencyForCooldown);
             }
         }
-
-        // Award currency (platform x boost x tier multipliers applied; floored to int)
-        var awardAmount = await ApplyEarnMultipliersAsync(settings.WatchTimeAmount, username, platform);
-        if (awardAmount > 0)
+        finally
         {
-            await AddCurrencyAsync(username, platform, awardAmount, "Watch time", "Earn");
-        }
-
-        // Update watch time timestamp. Re-fetch first: a brand-new viewer's record was
-        // null above and is only created inside AddCurrencyAsync — without the re-fetch
-        // LastWatchTimeUpdate would stay null and the next tick would double-pay.
-        var currencyForCooldown = await GetUserCurrencyRowResolvedAsync(username, platform);
-        if (currencyForCooldown != null)
-        {
-            currencyForCooldown.LastWatchTimeUpdate = DateTime.UtcNow;
-            await _dataService.SaveUserCurrencyAsync(currencyForCooldown);
+            watchGate.Release();
         }
     }
 
@@ -776,57 +874,71 @@ public class CurrencyService : ICurrencyService
             (username, platform) = (dailyUnified.Username, dailyUnified.Platform);
         }
 
-        var streak = await _dataService.GetViewerStreakAsync(username, platform);
-        if (streak == null)
+        // Hold the account gate across the claimed-today check -> streak save ->
+        // payout so two concurrent !daily commands cannot both pass the check
+        // and double-claim (each bumping the streak twice).
+        var dailyGate = GetAccountGate(username, platform);
+        await dailyGate.WaitAsync();
+        try
         {
-            streak = new ViewerStreak { Username = username, Platform = platform };
-        }
+            var streak = await _dataService.GetViewerStreakAsync(username, platform);
+            if (streak == null)
+            {
+                streak = new ViewerStreak { Username = username, Platform = platform };
+            }
 
-        // Check if already claimed today
-        if (streak.LastDailyClaimDate.HasValue &&
-            streak.LastDailyClaimDate.Value.Date == DateTime.UtcNow.Date)
+            // Check if already claimed today
+            if (streak.LastDailyClaimDate.HasValue &&
+                streak.LastDailyClaimDate.Value.Date == DateTime.UtcNow.Date)
+            {
+                return (false, 0, streak.CurrentStreak, "You've already claimed your daily bonus today!");
+            }
+
+            // Check streak continuity (must have claimed yesterday)
+            if (streak.LastDailyClaimDate.HasValue &&
+                (DateTime.UtcNow.Date - streak.LastDailyClaimDate.Value.Date).Days == 1)
+            {
+                streak.CurrentStreak++;
+            }
+            else if (!streak.LastDailyClaimDate.HasValue ||
+                     (DateTime.UtcNow.Date - streak.LastDailyClaimDate.Value.Date).Days > 1)
+            {
+                streak.CurrentStreak = 1; // Reset streak
+            }
+
+            if (streak.CurrentStreak > streak.LongestStreak)
+            {
+                streak.LongestStreak = streak.CurrentStreak;
+            }
+
+            // Calculate bonus based on streak
+            int bonus = settings.DailyBonusAmount;
+            if (settings.StreakBonusEnabled)
+            {
+                if (streak.CurrentStreak >= 10)
+                    bonus += settings.StreakBonusDay10;
+                else if (streak.CurrentStreak >= 5)
+                    bonus += settings.StreakBonusDay5;
+                else
+                    bonus += settings.StreakBonusDay1;
+            }
+
+            streak.LastDailyClaimDate = DateTime.UtcNow;
+            await _dataService.SaveViewerStreakAsync(streak);
+
+            var currencyName = settings.CurrencyName;
+            // Ungated add: this method already holds the account gate.
+            await AddCurrencyUngatedAsync(username, platform, bonus,
+                $"Daily bonus (streak: {streak.CurrentStreak})", "DailyBonus", platform, username);
+
+            var streakText = streak.CurrentStreak > 1 ? $" 🔥 {streak.CurrentStreak}-day streak!" : "";
+            return (true, bonus, streak.CurrentStreak,
+                $"@{username} claimed {bonus:N0} {currencyName}!{streakText}");
+        }
+        finally
         {
-            return (false, 0, streak.CurrentStreak, "You've already claimed your daily bonus today!");
+            dailyGate.Release();
         }
-
-        // Check streak continuity (must have claimed yesterday)
-        if (streak.LastDailyClaimDate.HasValue &&
-            (DateTime.UtcNow.Date - streak.LastDailyClaimDate.Value.Date).Days == 1)
-        {
-            streak.CurrentStreak++;
-        }
-        else if (!streak.LastDailyClaimDate.HasValue ||
-                 (DateTime.UtcNow.Date - streak.LastDailyClaimDate.Value.Date).Days > 1)
-        {
-            streak.CurrentStreak = 1; // Reset streak
-        }
-
-        if (streak.CurrentStreak > streak.LongestStreak)
-        {
-            streak.LongestStreak = streak.CurrentStreak;
-        }
-
-        // Calculate bonus based on streak
-        int bonus = settings.DailyBonusAmount;
-        if (settings.StreakBonusEnabled)
-        {
-            if (streak.CurrentStreak >= 10)
-                bonus += settings.StreakBonusDay10;
-            else if (streak.CurrentStreak >= 5)
-                bonus += settings.StreakBonusDay5;
-            else
-                bonus += settings.StreakBonusDay1;
-        }
-
-        streak.LastDailyClaimDate = DateTime.UtcNow;
-        await _dataService.SaveViewerStreakAsync(streak);
-
-        var currencyName = settings.CurrencyName;
-        await AddCurrencyAsync(username, platform, bonus, $"Daily bonus (streak: {streak.CurrentStreak})", "DailyBonus");
-
-        var streakText = streak.CurrentStreak > 1 ? $" 🔥 {streak.CurrentStreak}-day streak!" : "";
-        return (true, bonus, streak.CurrentStreak,
-            $"@{username} claimed {bonus:N0} {currencyName}!{streakText}");
     }
 
     public async Task AwardFirstChatBonusAsync(string username, string platform)
@@ -834,14 +946,31 @@ public class CurrencyService : ICurrencyService
         var settings = await GetSettingsRequiredAsync();
         if (!settings.FirstChatBonusEnabled) return;
 
-        // Check if user already has a currency record (not first time)
-        var existing = await GetUserCurrencyRowResolvedAsync(username, platform);
-        if (existing != null) return;
+        // Hold the account gate across the record-exists check and the award:
+        // a viewer's first two messages can be handled concurrently (EventBus
+        // runs up to 4 handlers), and both would otherwise see no record and
+        // double-pay the first-chat bonus.
+        var firstTarget = await ResolveUnifiedTargetAsync(username, platform);
+        var firstCanonicalUser = firstTarget?.Username ?? username;
+        var firstCanonicalPlatform = firstTarget?.Platform ?? platform;
 
-        await AddCurrencyAsync(username, platform, settings.FirstChatBonusAmount,
-            "First-time chatter bonus", "FirstChat");
+        var firstGate = GetAccountGate(firstCanonicalUser, firstCanonicalPlatform);
+        await firstGate.WaitAsync();
+        try
+        {
+            // Check if user already has a currency record (not first time)
+            var existing = await _dataService.GetUserCurrencyAsync(firstCanonicalUser, firstCanonicalPlatform);
+            if (existing != null) return;
 
-        _logger.LogInformation("Awarded first-chat bonus to {Username} ({Platform})", username, platform);
+            await AddCurrencyUngatedAsync(firstCanonicalUser, firstCanonicalPlatform,
+                settings.FirstChatBonusAmount, "First-time chatter bonus", "FirstChat", platform, username);
+
+            _logger.LogInformation("Awarded first-chat bonus to {Username} ({Platform})", username, platform);
+        }
+        finally
+        {
+            firstGate.Release();
+        }
     }
 
     public async Task<double> GetEffectiveMultiplierAsync(string username, string platform,

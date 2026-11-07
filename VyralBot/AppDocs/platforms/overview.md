@@ -1,6 +1,6 @@
 # Platforms
 
-> The Platforms page is where you connect Twitch, Kick, YouTube, and Discord to Vyral (and someday TikTok and OBS) — each through a built-in setup wizard that walks you from sign-in to a working connection.
+> The Platforms page is where you connect Twitch, Kick, YouTube, and Discord to Vyral (TikTok's wizard is a "Coming Soon" shell) — each through a built-in setup wizard that walks you from sign-in to a working connection. OBS is not connected here anymore: its card is a placeholder, and the real OBS integration lives on the sidebar's **OBS** page (see [TikTok & OBS](tiktok-discord-obs.md)).
 
 ## Overview
 
@@ -17,7 +17,7 @@ Current connection status at a glance:
 | [YouTube](youtube.md) | Yes (polling, only while live) | Yes (only while live) | Chat messages only | Implemented, chat only |
 | [Discord](discord.md) | Yes (Discord.Net gateway, every guild channel + DMs, multiple bots) | Yes (per bot, to that bot's selected channel) | Chat messages only | Implemented, chat only — bot-token wizard + multi-bot manager |
 | [TikTok](tiktok-discord-obs.md) | No | No | No | UI shell only — backend not built (wizard saves "Coming Soon") |
-| OBS | — | — | — | Placeholder card; only the [audio browser source](../stream-tools/audio.md) is real |
+| OBS | — | — | — | Placeholder card on this page — OBS itself is integrated via the sidebar **OBS** page (Full OBS hosting, Bot Studio, Collections; see [TikTok & OBS](tiktok-discord-obs.md)) |
 
 Twitch EventSub connects once `Platform.UserId` is set — both Twitch auth flows populate it automatically now (fixed 2026-08-15); older connections need one re-auth. See [Twitch](twitch.md) and the [known issues ledger](../reference/known-issues.md).
 

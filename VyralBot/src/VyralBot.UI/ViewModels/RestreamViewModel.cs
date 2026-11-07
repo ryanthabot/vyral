@@ -375,23 +375,29 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
         await File.WriteAllTextAsync(Path.Combine(folder, DestinationsFileName), json);
     }
 
+    /// <summary>Persists settings + destinations. Also called on session start so an edited-but-unsaved configuration survives a restart.</summary>
+    private async Task PersistAsync()
+    {
+        var settings = new RestreamSettingsDto(
+            IsTwoPcMode ? RestreamOperationMode.TwoPC : RestreamOperationMode.SinglePC,
+            ParsedPort(),
+            string.IsNullOrWhiteSpace(IngestStreamKey) ? RestreamSettingsDto.DefaultStreamKey : IngestStreamKey.Trim(),
+            string.IsNullOrWhiteSpace(FfmpegPathOverride) ? null : FfmpegPathOverride.Trim());
+
+        await _dataService.SetConfigValueAsync(
+            SettingsConfigKey,
+            JsonSerializer.Serialize(settings, PersistenceJson),
+            "Restream");
+
+        await SaveDestinationsAsync(Destinations.Select(d => d.ToModel()).ToList());
+    }
+
     [RelayCommand]
     private async Task SaveSettingsAsync()
     {
         try
         {
-            var settings = new RestreamSettingsDto(
-                IsTwoPcMode ? RestreamOperationMode.TwoPC : RestreamOperationMode.SinglePC,
-                ParsedPort(),
-                string.IsNullOrWhiteSpace(IngestStreamKey) ? RestreamSettingsDto.DefaultStreamKey : IngestStreamKey.Trim(),
-                string.IsNullOrWhiteSpace(FfmpegPathOverride) ? null : FfmpegPathOverride.Trim());
-
-            await _dataService.SetConfigValueAsync(
-                SettingsConfigKey,
-                JsonSerializer.Serialize(settings, PersistenceJson),
-                "Restream");
-
-            await SaveDestinationsAsync(Destinations.Select(d => d.ToModel()).ToList());
+            await PersistAsync();
 
             StatusMessage = "";
             _logger.LogInformation("Restream settings saved ({Count} destination(s))", Destinations.Count);
@@ -458,6 +464,19 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
         }
 
         StatusMessage = "";
+
+        // Going live persists the exact session configuration: destinations
+        // edited without pressing Save would otherwise be lost on the next
+        // app start. A persistence failure must not block the stream.
+        try
+        {
+            await PersistAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not persist restream settings before starting the session");
+        }
+
         var source = new RestreamSourceConfig(
             IsTwoPcMode ? RestreamOperationMode.TwoPC : RestreamOperationMode.SinglePC,
             ParsedPort(),

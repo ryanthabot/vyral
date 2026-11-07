@@ -8,7 +8,7 @@ public class EventStatistic
     public Guid Id { get; set; } = Guid.NewGuid();
     
     /// <summary>
-    /// Platform: "Kick" or "Twitch"
+    /// Platform: "Kick", "Twitch" or "YouTube"
     /// </summary>
     public required string Platform { get; set; }
     

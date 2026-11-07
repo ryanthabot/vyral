@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using VyralBot.Core.Services.EventBus;
 using VyralBot.Data;
+using VyralBot.Data.Entities;
 
 namespace VyralBot.Integrations.Discord;
 
@@ -335,12 +336,14 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             if (running != null)
             {
                 // Let lifecycle subscribers unhook BEFORE the service is torn down
-                UnhookIdentity(running.Service);
+                UnhookServiceEvents(running.Service);
                 RaiseServiceEvent(ServiceStopped, running.Service);
                 await ShutdownBotAsync(running).ConfigureAwait(false);
             }
 
             await _dataService.DeleteDiscordBotAsync(botId).ConfigureAwait(false);
+
+            await CleanupBotScopedDataAsync(botId).ConfigureAwait(false);
 
             // If the removed bot was the migrated legacy bot, retire the legacy row
             // too — otherwise the next start-up would migrate/resurrect it.
@@ -372,6 +375,101 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
         }
 
         RaiseBotsChanged();
+    }
+
+    /// <summary>
+    /// Deletes the removed bot's scoped data so it does not linger as orphans:
+    /// Command rows pinned to the bot (they can never fire again — no bot row,
+    /// no runtime), Command timers pinned to it, its Discord role→tier
+    /// mappings and its monitored connected channels. Each group is
+    /// best-effort: one failing group is logged and never blocks the others
+    /// or the removal itself.
+    /// </summary>
+    private async Task CleanupBotScopedDataAsync(string botId)
+    {
+        // Commands pinned to this bot ("this bot only" scope).
+        try
+        {
+            int deleted = 0;
+            foreach (Command command in await _dataService.GetCommandsAsync().ConfigureAwait(false))
+            {
+                if (string.Equals(command.BotId, botId, StringComparison.Ordinal))
+                {
+                    await _dataService.DeleteCommandAsync(command.Id).ConfigureAwait(false);
+                    deleted++;
+                }
+            }
+
+            if (deleted > 0)
+            {
+                _logger.LogInformation("🧹 Deleted {Count} command(s) scoped to removed bot {BotId}", deleted, botId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not clean up commands scoped to removed bot {BotId}", botId);
+        }
+
+        // Command timers pinned to this bot.
+        try
+        {
+            int deleted = 0;
+            foreach (CommandTimer timer in await _dataService.GetCommandTimersAsync().ConfigureAwait(false))
+            {
+                if (string.Equals(timer.BotId, botId, StringComparison.Ordinal))
+                {
+                    await _dataService.DeleteCommandTimerAsync(timer.Id).ConfigureAwait(false);
+                    deleted++;
+                }
+            }
+
+            if (deleted > 0)
+            {
+                _logger.LogInformation("🧹 Deleted {Count} command timer(s) scoped to removed bot {BotId}", deleted, botId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not clean up timers scoped to removed bot {BotId}", botId);
+        }
+
+        // Discord role → mod tier mappings authored for this bot.
+        try
+        {
+            var assignments = await _dataService.GetRoleTierAssignmentsAsync(botId).ConfigureAwait(false);
+            foreach (var assignment in assignments)
+            {
+                await _dataService.DeleteRoleTierAssignmentAsync(botId, assignment.DiscordRoleId).ConfigureAwait(false);
+            }
+
+            if (assignments.Count > 0)
+            {
+                _logger.LogInformation("🧹 Deleted {Count} role-tier assignment(s) for removed bot {BotId}", assignments.Count, botId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not clean up role-tier assignments for removed bot {BotId}", botId);
+        }
+
+        // Monitored channels tagged to this bot.
+        try
+        {
+            var channels = await _dataService.GetConnectedChannelsAsync(botId).ConfigureAwait(false);
+            foreach (var channel in channels)
+            {
+                await _dataService.DeleteConnectedChannelAsync(botId, channel.ChannelId).ConfigureAwait(false);
+            }
+
+            if (channels.Count > 0)
+            {
+                _logger.LogInformation("🧹 Deleted {Count} connected channel(s) for removed bot {BotId}", channels.Count, botId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not clean up connected channels for removed bot {BotId}", botId);
+        }
     }
 
     /// <inheritdoc />
@@ -408,6 +506,15 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
                 return false;
             }
 
+            // Pre-compute the Platform-row token match for the legacy-adoption
+            // check inside the lock below: LegacyTokenMatches is a DATABASE
+            // round-trip, and blocking on it under the lock
+            // (GetAwaiter().GetResult()) stalled every manager dictionary
+            // access on I/O.
+            var legacyRowTokenMatches = _legacyService is { IsConnected: true }
+                && await LegacyTokenMatches(row.Token!).ConfigureAwait(false);
+
+            ManagedBot? evicted = null;
             lock (_sync)
             {
                 if (_running.TryGetValue(row.Id, out var existing) && existing.Service.IsConnected)
@@ -416,9 +523,28 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
                     return true;
                 }
 
-                // Evict this bot's own stale (stopped) entry so it can never match
+                // Evict this bot's own stale entry so it can never match
                 // itself in the duplicate-token guard below.
-                _running.Remove(row.Id);
+                if (_running.Remove(row.Id, out var stale))
+                {
+                    evicted = stale;
+                }
+            }
+
+            if (evicted != null)
+            {
+                // The evicted service's IsConnected flag is only false while
+                // its client is stopped OR mid-auto-reconnect. In the
+                // reconnect case an abandoned entry would leave an ORPHANED
+                // live gateway: Discord.Net brings the client back by itself,
+                // it keeps the token's live-session slot claimed, and the
+                // replacement ConnectAsync below then refuses the token — the
+                // bot card would show Offline forever while the invisible
+                // session keeps publishing events. Tear the stale service
+                // down first so exactly one session survives this start.
+                UnhookServiceEvents(evicted.Service);
+                RaiseServiceEvent(ServiceStopped, evicted.Service);
+                await ShutdownBotAsync(evicted).ConfigureAwait(false);
             }
 
             // Guard against connecting the same token twice inside the manager:
@@ -445,11 +571,12 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
                 // legacy singleton: adopt that session instead of failing. The LIVE
                 // ConnectedToken is the ground truth (the wizard can rewrite the
                 // Platform row's AccessToken while the old session is still up);
-                // the Platform-row match stays as a fallback so a session whose
-                // token was persisted normally keeps adopting as before.
+                // the Platform-row match (pre-computed above, outside the lock)
+                // stays as a fallback so a session whose token was persisted
+                // normally keeps adopting as before.
                 if (_legacyService is { IsConnected: true }
                     && (string.Equals(_legacyService.ConnectedToken?.Trim(), row.Token, StringComparison.Ordinal)
-                        || LegacyTokenMatches(row.Token).GetAwaiter().GetResult()))
+                        || legacyRowTokenMatches))
                 {
                     if (!_running.ContainsKey(row.Id))
                     {
@@ -466,7 +593,7 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
 
                     // Identity: subscribe and backfill whatever the adopted
                     // session already detected (its connect predates us).
-                    HookIdentity(_legacyService);
+                    HookServiceEvents(_legacyService);
                     _ = PersistIdentityAsync(row.Id);
 
                     // Keep the row status honest (the bot IS online). The task
@@ -497,13 +624,13 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             // Identity persistence: subscribe BEFORE connecting so the
             // BotIdentityDetected raise during ConnectAsync/READY is caught;
             // the subscription also covers later reconnects of this client.
-            HookIdentity(service);
+            HookServiceEvents(service);
 
             _logger.LogInformation("🚀 Starting Discord bot '{Name}' ({BotId})...", row.Name, row.Id);
             var connected = await service.ConnectAsync(row.Token!).ConfigureAwait(false);
             if (!connected)
             {
-                UnhookIdentity(service);
+                UnhookServiceEvents(service);
                 service.Dispose();
                 await SetStatusAsync(row, StatusError).ConfigureAwait(false);
                 _logger.LogError("❌ Discord bot '{Name}' failed to connect", row.Name);
@@ -572,7 +699,7 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             }
 
             // Let lifecycle subscribers unhook BEFORE the service is torn down
-            UnhookIdentity(running.Service);
+            UnhookServiceEvents(running.Service);
             RaiseServiceEvent(ServiceStopped, running.Service);
             await ShutdownBotAsync(running).ConfigureAwait(false);
         }
@@ -717,7 +844,7 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
 
                 // Identity: subscribe and backfill whatever the adopted session
                 // already detected (its connect predates the manager's hook).
-                HookIdentity(_legacyService);
+                HookServiceEvents(_legacyService);
                 _ = PersistIdentityAsync(bot.Id);
 
                 RaiseServiceEvent(ServiceStarted, _legacyService);
@@ -1218,17 +1345,37 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
     // and raises BotsChanged so open UI refreshes.
     // ==================================================================
 
-    private void HookIdentity(DiscordService service)
+    private void HookServiceEvents(DiscordService service)
     {
         // "-=" then "+=" keeps adoption of the same instance (the legacy
         // service can be adopted repeatedly) a single subscription.
         service.BotIdentityDetected -= OnBotIdentityDetected;
         service.BotIdentityDetected += OnBotIdentityDetected;
+        service.ConnectionStateChanged -= OnServiceConnectionStateChanged;
+        service.ConnectionStateChanged += OnServiceConnectionStateChanged;
     }
 
-    private void UnhookIdentity(DiscordService service)
+    private void UnhookServiceEvents(DiscordService service)
     {
         service.BotIdentityDetected -= OnBotIdentityDetected;
+        service.ConnectionStateChanged -= OnServiceConnectionStateChanged;
+    }
+
+    /// <summary>
+    /// A running bot's live connection flag flipped: gateway drop (network
+    /// loss), Discord.Net auto-reconnect, or permanent loss. The row's
+    /// persisted Status is deliberately NOT rewritten here (Status is the
+    /// auto-restore hint for the next launch), but open UI must see the live
+    /// truth immediately — fan out <see cref="BotsChanged"/> so the bots list
+    /// and the per-bot dashboard re-read the service's IsConnected flag.
+    /// </summary>
+    private void OnServiceConnectionStateChanged(bool connected)
+    {
+        _logger.LogInformation(
+            connected
+                ? "🔌 Discord gateway connection restored for a running bot"
+                : "⚠️ Discord gateway connection lost for a running bot (auto-reconnect pending)");
+        RaiseBotsChanged();
     }
 
     private void OnBotIdentityDetected(string botId)
@@ -1542,7 +1689,7 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
         {
             // Unhook identity persistence BEFORE disposing the service so a
             // late gateway event cannot reach a disposed manager path.
-            UnhookIdentity(bot.Service);
+            UnhookServiceEvents(bot.Service);
 
             if (ReferenceEquals(bot.Service, _legacyService))
             {
@@ -1569,7 +1716,7 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
         // non-subscribed handler is a no-op).
         if (_legacyService != null)
         {
-            UnhookIdentity(_legacyService);
+            UnhookServiceEvents(_legacyService);
             _legacyService.BotIdentityDetected -= OnLegacyServiceIdentityDetected;
         }
 

@@ -61,7 +61,7 @@ appdata/
 
 | Table | Purpose | Key columns | Written by |
 |---|---|---|---|
-| `CurrencySettings` | Single-row economy configuration: name/symbol, watch-time and chat-activity earning, event bonus toggles/amounts, role and platform multipliers, decay, bank, transfer tax | `CurrencyName`, `CurrencySymbol`, `WatchTime*`, `ChatActivity*`, `*Bonus*`, `*Multiplier*`, `Bank*`, `TransferTaxPercent` | [CurrencyService.cs](../../src/VyralBot.Core/Services/Currency/CurrencyService.cs) + the Currency page's Save (`SaveSettingsAsync`, cache refreshed). Caveat: `SaveCurrencySettingsAsync` persists only a subset of fields — [Known Issues](known-issues.md) KI-29 |
+| `CurrencySettings` | Single-row economy configuration: name/symbol, watch-time and chat-activity earning, event bonus toggles/amounts, role and platform multipliers, decay, bank, transfer tax | `CurrencyName`, `CurrencySymbol`, `WatchTime*`, `ChatActivity*`, `*Bonus*`, `*Multiplier*`, `Bank*`, `TransferTaxPercent` | [CurrencyService.cs](../../src/VyralBot.Core/Services/Currency/CurrencyService.cs) + the Currency page's Save (`SaveSettingsAsync`, cache refreshed; writes the full row incl. bank/decay — KI-29 resolved) |
 | `UserCurrency` | Balances per (Username, Platform) | `Username`, `Platform` (unique pair), `Balance`, `TotalEarned`, `TotalSpent` | [CurrencyService.cs](../../src/VyralBot.Core/Services/Currency/CurrencyService.cs) |
 | `CurrencyTransactions` | Full audit ledger of every currency movement | `Username`, `Platform`, `Amount`, `TransactionType`, `Reason`, `BalanceBefore`, `BalanceAfter` | [CurrencyService.cs](../../src/VyralBot.Core/Services/Currency/CurrencyService.cs) |
 | `CurrencyRewards` | Redeemable reward store items | `Name`, `Cost`, `RequiresApproval`, `Cooldown`, `MaxRedemptions*`, `RewardTier`, `AvailableFrom`/`AvailableUntil` | [CurrencyViewModel.cs](../../src/VyralBot.UI/ViewModels/CurrencyViewModel.cs) (Rewards tab CRUD); seeded defaults |
@@ -122,7 +122,7 @@ Key families actually used in the `Configs` table (grep of `Get/SetConfigValueAs
 
 ### Partially persisted
 
-- **`CurrencySetting` non-core fields** — the data layer's `SaveCurrencySettingsAsync` persists only the name/symbol, watch-time, chat-activity, and follow/sub/giftsub/raid bonus fields; role multipliers and other columns keep their previous values even after a successful Save from the Currency page (KI-29).
+*(This section previously listed the `CurrencySetting` subset-save caveat — KI-29 — which is resolved: `SaveCurrencySettingsAsync` now persists every `CurrencySetting` column.)*
 
 ---
 

@@ -30,13 +30,13 @@ Resolved entries are kept below (never deleted) with a ✅ marker and a one-line
 | [KI-26](#ki-26-wiring-gap--showin-chat-off-skips-eventstatistics-recording) | Wiring gap | Statistics / Event History | 6 handlers gated on ShowInChat skip recording EventStatistics when it is off | [Event History](../chat-features/event-history.md), [Statistics](../stream-tools/statistics.md) |
 | [KI-27](#ki-27-wiring-gap--first-chat-bonus-means-first-currency-record) | Wiring gap | Currency | `AwardFirstChatBonusAsync` semantics = "first currency record", not true first chat | [Currency & Rewards](../stream-tools/currency.md) |
 | [KI-28](#ki-28-wiring-gap--auto-reply-templates-still-do-not-resolve-db-or-social-variables) | Wiring gap | Auto-replies | `ProcessTemplate` remains `string.Replace` — DB/social variables do not resolve in auto-replies | [Auto-Replies](../chat-features/auto-replies.md), [Variables Catalog](variables-catalog.md) |
-| [KI-29](#ki-29-wiring-gap--savecurrencysettingsasync-persists-only-a-field-subset) | Wiring gap | Currency | Data layer's settings save persists a subset of `CurrencySetting` fields (role multipliers etc. dropped) | [Currency & Rewards](../stream-tools/currency.md) |
+| [KI-29](#ki-29-wiring-gap--savecurrencysettingsasync-persists-only-a-field-subset) | Wiring gap ✅ | Currency | RESOLVED: the settings save now writes the full `CurrencySetting` row, and the Bank & Decay tab edits bank/decay in the UI (withdrawal cooldown enforced) | [Currency & Rewards](../stream-tools/currency.md) |
 | [KI-30](#ki-30-behavior-change-documented--watchtime-earning-rate-is-now-configurable-defaults-to-10minute) | Behavior change (documented) | Currency / Watchtime | Watchtime earning uses `WatchTime*` settings — default 10/interval vs old hard-coded 1/min | [Watchtime](../stream-tools/watchtime.md), [Currency & Rewards](../stream-tools/currency.md) |
 | [KI-31](#ki-31-wiring-gap--kick--youtube-follower-eligibility-is-still-false) | Wiring gap | Giveaways / Polls | Kick has no followers API (KickLib 1.8.0); YouTube has no follower concept — eligibility passes `false` | [Giveaways](../stream-tools/giveaways.md), [Polls](../stream-tools/polls.md) |
 | [KI-32](#ki-32-wiring-gap-minor--audio-settings-client-count-timer-only-stops-at-shutdown) | Wiring gap (minor) | Audio | `AudioSettingsViewModel` is a singleton — its 2s poll timer runs until shutdown | [Audio Settings](../stream-tools/audio.md) |
 | [KI-33](#ki-33-wiring-gap--twitch-follower-check-requires-the-moderatorreadfollowers-scope) | Wiring gap | Giveaways / Polls / Twitch | Twitch follower eligibility needs `moderator:read:followers` on the stored user token; degrades to `false` | [Twitch](../platforms/twitch.md), [Giveaways](../stream-tools/giveaways.md) |
 | [KI-34](#ki-34-wiring-gap--discord-integration-limitations) | Wiring gap | Discord | Message Content intent required; no slash commands; no non-chat Discord events; history rows not reloaded (single-channel bullet superseded per-bot by multi-bot, 2026-08-16) | [Discord](../platforms/discord.md), [Chat Window](../chat/chat-window.md) |
-| [KI-36](#ki-36-wiring-gap--discord-multi-bot-transition-loose-ends) | Wiring gap | Discord | Wizard targets the setup bot only (no per-bot wizard); per-bot RECONNECT reads the shared legacy token; legacy dashboard view orphaned | [Discord](../platforms/discord.md), [Platform Dashboards](../platforms/dashboards.md) |
+| [KI-36](#ki-36-wiring-gap--discord-multi-bot-transition-loose-ends) | Wiring gap ◐ | Discord | Wizard targets the setup bot only (no per-bot wizard); per-bot RECONNECT reads the shared legacy token; the legacy dashboard view is live again as the bots page's DASHBOARD tab | [Discord](../platforms/discord.md), [Platform Dashboards](../platforms/dashboards.md) |
 | [KI-37](#ki-37-wiring-gap--commands-list-ignores-discord-bot-scope) | Wiring gap | Commands | The built-in `!commands` list does not filter by bot scope | [Commands](../chat-features/commands.md), [Command Catalog](command-catalog.md) |
 | [KI-38](#ki-38-wiring-gap--discord-origin-race-can-fall-back-to-primary-routing) | Wiring gap | Discord / Event bus | The generic command event can beat the typed Discord event, so a reply routes through Primary instead of the origin bot | [Discord](../platforms/discord.md), [Event Bus](../architecture/event-bus.md) |
 | [KI-40](#ki-40-wiring-gap--slash-command-registration-requires-the-bot-online) | Wiring gap | Workflows / Discord | Flow slash commands register only while a bot is online; offline saves register on the next save/reconnect | [Automation](../chat-features/automation.md), [Discord](../platforms/discord.md) |
@@ -265,7 +265,7 @@ The remaining half of KI-12: `AutoReplyService.ProcessTemplate` is a plain case-
 
 ### KI-29 (Wiring gap) — SaveCurrencySettingsAsync persists only a field subset
 
-The Currency page's Save is wired (KI-7 resolved), but the underlying `DapperDataService.SaveCurrencySettingsAsync` writes only a subset of `CurrencySetting` columns: currency name/symbol, watch-time fields, chat-activity fields, and the follow/sub/giftsub/raid bonuses. Other fields — role multipliers, cheer/host bonuses, decay, bank, transfer tax among them — keep their previous values; editing them in the UI appears to save but does not persist. Documented on [Currency & Rewards](../stream-tools/currency.md).
+**✅ RESOLVED** — `DapperDataService.SaveCurrencySettingsAsync` now writes the **full** `CurrencySetting` row (role multipliers, cheer/host bonuses, decay, bank fields including the withdrawal cooldown, and transfer tax included), and the Currency page gained a **Bank & Decay** tab that edits the bank/decay fields in the UI. The withdrawal cooldown is also now **enforced** (rejections quote the remaining wait; the window is durable across restarts). Documented on [Currency & Rewards](../stream-tools/currency.md).
 
 ### KI-30 (Behavior change, documented) — Watchtime earning rate is now configurable, defaults to 10/minute
 
@@ -305,7 +305,7 @@ The multi-bot feature (2026-08-16) moved per-bot truth into the `DiscordBots` ta
 
 - **The full wizard configures the setup bot only** — the four-step wizard validates and stores its token on the legacy `Platform` row and drives the DI-singleton `DiscordService`; it does not create or edit `DiscordBots` rows. Adding a *second* bot means **Quick Add** on the bots page (name + token, no invite-link derivation or validation preview). A per-bot wizard is pending.
 - **Per-bot RECONNECT reads the shared legacy token** — the dashboard's RECONNECT calls `DiscordService.ReconnectAsync`, which loads its token from the legacy `Platform` row, not from the bot's own `DiscordBots` row. For any bot whose token differs from the legacy row's (normally the migrated Primary or the wizard's bot), RECONNECT reconnects with the *wrong* token. STOP + START reads the correct per-bot token and is the reliable restart path.
-- **The legacy single-bot dashboard view is orphaned** — `DiscordDashboardView`/`ViewModel` are still DI-registered with a DataTemplate and a `NavigateToDiscordDashboardAsync` method in MainViewModel, but the generated command is bound nowhere; the per-bot `DiscordBotDetailView` replaced it. No user path can show the old page.
+- **The legacy single-bot dashboard view is reachable again** — the Discord Bots page header gained a **DASHBOARD** toggle that lazily hosts `DiscordDashboardView` (from DI) as a tab showing the setup bot's servers, member counts, channel drop-downs, active-channel picker, and test message. The per-bot `DiscordBotDetailView` remains the per-bot manager; the old "bound nowhere" orphan state no longer applies.
 
 Documented on [Discord](../platforms/discord.md), [Platform Dashboards](../platforms/dashboards.md), and [UI Reference](ui-reference.md).
 
@@ -391,7 +391,7 @@ Which ledger entries affect which feature areas (✅ = resolved, ◐ = partially
 | [Giveaways](../stream-tools/giveaways.md) | KI-1 ✅, KI-5 ◐, KI-31, KI-33 |
 | [Polls](../stream-tools/polls.md) | KI-1 ✅, KI-5 ◐, KI-31, KI-33 |
 | [Watchtime](../stream-tools/watchtime.md) | KI-1 ✅, KI-30 |
-| [Currency & Rewards](../stream-tools/currency.md) | KI-1 ✅, KI-7 ✅ (KI-29 remains), KI-27, KI-29, KI-30 |
+| [Currency & Rewards](../stream-tools/currency.md) | KI-1 ✅, KI-7 ✅, KI-29 ✅ (full-row save + Bank & Decay tab), KI-27, KI-30 |
 | [Statistics](../stream-tools/statistics.md) | KI-3 ✅, KI-26 |
 | [Browser Sources](../stream-tools/browser-sources.md) | KI-4 ✅, KI-16 ◐ |
 | [Sounds](../stream-tools/sounds.md) | KI-4 ✅ |
@@ -404,7 +404,7 @@ Which ledger entries affect which feature areas (✅ = resolved, ◐ = partially
 | [Kick](../platforms/kick.md) | KI-13 ✅, KI-19 ✅, KI-21 ◐, KI-31 |
 | [YouTube](../platforms/youtube.md) | KI-9 ✅, KI-21 ◐, KI-31, KI-47 |
 | [Discord](../platforms/discord.md) | KI-24 ◐ (Discord half superseded), KI-34 ◐, KI-35 ✅, KI-36, KI-38, KI-39 ✅, KI-40, KI-41, KI-43 ✅, KI-44, KI-45, KI-46 |
-| [Platform Dashboards](../platforms/dashboards.md) | KI-36 (orphaned legacy Discord dashboard) |
+| [Platform Dashboards](../platforms/dashboards.md) | KI-36 (per-bot RECONNECT token; dashboard-tab half resolved) |
 | [TikTok & OBS](../platforms/tiktok-discord-obs.md) | KI-17 ✅, KI-24 ◐ |
 | [Profiles](../getting-started/profiles.md) | KI-11 ✅, KI-15 ✅, KI-20 ✅ |
 | [API, Web Server & ngrok](../settings/web-server-ngrok.md) | KI-10 ✅, KI-13 ✅, KI-22 ✅ |

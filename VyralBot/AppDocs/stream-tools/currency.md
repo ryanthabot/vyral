@@ -10,18 +10,18 @@ Despite living under the Tools hub's "Currency & Rewards" card, this feature is 
 
 The current-state picture:
 
-- **Chat earning is live.** Per-message chat-activity earning, `!daily`, games, redemptions, auctions, and every other chat command run through the command pipeline, which is fed by all three chat integrations (KI-1 resolved 2026-08-15).
+- **Chat earning is live.** Per-message chat-activity earning, `!daily`, games, redemptions, auctions, and every other chat command run through the command pipeline, which is fed by all the chat integrations (Twitch, Kick, YouTube, and Discord) (KI-1 resolved 2026-08-15).
 - **The multiplier stack is applied to earning paths** — platform × boost × tier × role (highest-wins per family, floored) now multiplies event bonuses, watchtime awards, and chat-activity awards.
 - **Linked viewers spend from one unified pool.** With [account linking](../chat-features/account-linking.md), all earning and spending routes to a single canonical account, so a viewer's balance is one spendable total that works from any linked platform — while a **per-platform earnings ledger** keeps recording where every point was earned or spent (see [Unified balances & the per-platform ledger](#unified-balances--the-per-platform-ledger)).
 - **Earning follows the stream.** Watch-time points accrue only while that platform is actually live (and never on Discord), and Discord chat-activity points are paid only in channels you assigned to your bots (see [Where points can be earned](#where-points-can-be-earned-live--channel-gating)).
 - **Watchtime earning is configurable** — `WatchTimeEnabled` / `WatchTimeAmount` / `WatchTimeInterval` are honored. **BEHAVIOR CHANGE:** the defaults award 10 per minute where older builds hard-coded 1 (KI-30 — set Points Per Interval to 1 for the old rate).
-- **The Settings tab persists** via the currency service (KI-7 resolved), with one caveat: the data-layer save writes only a subset of `CurrencySetting` fields — name/symbol, watch-time, chat-activity, and the follow/sub/giftsub/raid bonuses. Role multipliers and other columns keep their previous values even after a successful Save (KI-29).
+- **The Settings and Bank & Decay tabs persist** via the currency service (KI-7 resolved, and the KI-29 subset-save caveat is resolved too — `SaveCurrencySettingsAsync` now writes every `CurrencySetting` column, role multipliers and bank fields included).
 
 What genuinely works: every earning stream with a trigger, the full game suite (heists self-resolve 60 s after the first join), the bank (interest now writes "Interest" audit rows), auctions, boosts that actually multiply awards, the whole management UI (rewards CRUD, redemption queue, leaderboard, transaction lookup), and the hourly background maintenance loop.
 
 ## User Guide
 
-Open **Currency** in the sidebar (top level, below the chat entries) or the "Currency & Rewards" card on the Tools hub. The page has four tabs; a transaction lookup sits under the Leaderboard tab.
+Open **Currency** in the sidebar (top level, below the chat entries) or the "Currency & Rewards" card on the Tools hub. The page has five tabs — **Settings**, **Bank & Decay**, **Rewards**, **Redemptions**, and **Leaderboard** (with the transaction lookup under Leaderboard).
 
 ### Settings tab
 
@@ -30,7 +30,16 @@ Open **Currency** in the sidebar (top level, below the chat entries) or the "Cur
 - **Chat Activity Rewards** — enable toggle, **Points Per Message**, and **Cooldown (seconds)** (per-user minimum time between awards).
 - **Event Bonuses** — enable toggles and amounts for **Follow**, **Subscribe**, **Gift Sub** (per sub), and **Raid** (per viewer).
 
-Pressing **Save Settings** persists through `ICurrencyService.SaveSettingsAsync` (with the service cache refreshed) and confirms with "Settings saved successfully!". One caveat: the data-layer save persists only the fields above — cheer/host bonuses, role multipliers, decay, bank, and transfer-tax columns have no UI on this tab and are not written by the save (KI-29); those keep their defaults unless edited directly in SQLite.
+Pressing **Save Settings** persists through `ICurrencyService.SaveSettingsAsync` (with the service cache refreshed) and confirms with "Settings saved successfully!". The save writes the **full** `CurrencySetting` row — every settings tab field, the role multipliers, decay, bank, and transfer-tax columns included (the old subset-save caveat, KI-29, is resolved).
+
+### Bank & Decay tab
+
+The bank and inactivity-decay configuration, editable in the UI:
+
+- **Viewer Bank** — **Enable Viewer Bank** toggle, **Daily Interest Rate** percent, **Withdrawal Penalty** percent, **Max Bank Balance** cap (0 = unlimited), and **Withdrawal Cooldown (minutes)** (0 = none).
+- **Inactivity Decay** — enable toggle, percent, and days of inactivity.
+
+The **withdrawal cooldown is enforced**: a viewer withdrawing again inside the cooldown window is rejected with the remaining wait time ("Withdrawal on cooldown — try again in ~N min."). The last-withdrawal timestamp is durable, so restarting the app does not reset the window, and the check cannot be bypassed by casing changes in the username.
 
 ### Rewards tab
 
@@ -112,7 +121,7 @@ Earning paths apply the full multiplier stack, floored with `Math.Floor`:
 - **Loyalty tier multipliers** — `GetTierMultiplierAsync`, from the viewer's lifetime-earnings tier.
 - **Role multipliers** — `GetEffectiveMultiplierAsync` (sub 2.0, VIP 1.5, mod 1.5; highest wins, not stacking) when the earning event knows the viewer's role.
 
-The multiplier stack multiplies event bonuses, watchtime awards, and chat-activity awards — and it now includes the **multi-platform bonus** as a final factor (see the section below). Settings for role multipliers are among the fields the Settings-tab save does not persist (KI-29).
+The multiplier stack multiplies event bonuses, watchtime awards, and chat-activity awards — and it now includes the **multi-platform bonus** as a final factor (see the section below). Role-multiplier settings are among the fields the settings save persists.
 
 ### Multi-platform bonus
 
@@ -157,7 +166,7 @@ All games are gated by `CanPlayAsync` (`CurrencyGameService.cs:36-73`): per-game
 
 ### Bank (CurrencyBankService)
 
-Deposit moves currency from wallet to a separate `UserBankAccount`; withdrawal moves it back minus the configured penalty percent. Everything is gated by `BankEnabled` (default **off**), with a bank balance cap (`BankMaxBalance`, default 1,000,000). `ProcessInterestPayoutsAsync` (`CurrencyBankService.cs:118-163`) pays `BankInterestRate` percent (default 1% daily) to every account once per UTC day, capped at the max balance — and since 2026-08-15 each payout writes a `CurrencyTransaction` audit row with the reason "Interest". It is invoked hourly by the decay background service.
+Deposit moves currency from wallet to a separate `UserBankAccount`; withdrawal moves it back minus the configured penalty percent. Everything is gated by `BankEnabled` (default **off**, toggled on the **Bank & Decay** tab), with a bank balance cap (`BankMaxBalance`, default 1,000,000). **Withdrawals obey the configured cooldown**: when `BankWithdrawalCooldownMinutes` > 0, a withdrawal landing inside the window since the viewer's last successful withdrawal is rejected with the remaining wait time; the last-withdrawal timestamp is case-insensitive and durable across app restarts, so the window survives a restart (enforced — see the Bank & Decay tab). `ProcessInterestPayoutsAsync` (`CurrencyBankService.cs:118-163`) pays `BankInterestRate` percent (default 1% daily) to every account once per UTC day, capped at the max balance — and since 2026-08-15 each payout writes a `CurrencyTransaction` audit row with the reason "Interest". It is invoked hourly by the decay background service.
 
 ### Auctions (CurrencyAuctionService)
 
@@ -281,13 +290,14 @@ The transaction audit trail records `TransactionType` values including Earn, Spe
 ## Status & Known Issues
 
 - **Chat-earning is live** — per-message earning, `!daily`, games, redemptions, auctions, and every other chat command run from real chat on all connected platforms (KI-1 resolved 2026-08-15). Tracked in the [known issues ledger](../reference/known-issues.md).
-- **Settings tab persists, with a subset caveat** — `SaveSettingsAsync` goes through the currency service, but `DapperDataService.SaveCurrencySettingsAsync` writes only the name/symbol, watch-time, chat-activity, and follow/sub/giftsub/raid bonus fields; role multipliers and other columns keep their previous values (KI-29). The service's 5-minute settings cache is refreshed on save, so edits apply immediately.
+- **Settings tab persists, with a subset caveat** — resolved: `SaveSettingsAsync` goes through the currency service and `DapperDataService.SaveCurrencySettingsAsync` now writes every `CurrencySetting` column (KI-29 fixed). The service's 5-minute settings cache is refreshed on save, so edits apply immediately.
 - **Watchtime rate behavior change (KI-30)** — earning is configurable and multiplier-stacked, but defaults to 10/minute where older builds hard-coded 1/minute.
 - **First-chat bonus semantics (KI-27)** — the bonus means "first currency record", not true first chat: a viewer who earned currency any other way first will never receive it.
 - **Heists self-resolve** — an internal 60-second timer resolves the heist after the first join (race-safe); stakes are always paid out.
-- **Boosts, tier, and role multipliers apply** — the earning paths multiply by platform × boost × tier × role (floored). Role-multiplier settings are among the fields the Settings save does not persist (KI-29).
+- **Boosts, tier, and role multipliers apply** — the earning paths multiply by platform × boost × tier × role (floored). Role-multiplier settings are persisted by the settings save (KI-29 resolved).
 - **Game cooldowns are in-memory** — restart clears them.
-- **Banking is off by default** — `BankEnabled` defaults to false and has no UI toggle; enabling it requires editing the database directly (the Settings save does not write that column — KI-29).
+- **Banking is configurable in the UI** — the **Bank & Decay** tab edits `BankEnabled`, interest, penalty, max balance, and the withdrawal cooldown (all persisted by the settings save). It still defaults to off.
+- **Withdrawal cooldown is enforced** — rejections quote the remaining wait time and the window is durable across restarts (see the Bank & Decay tab).
 - **Link codes are proper DB rows now** — the live `!link` flow (6-digit codes, 5-minute expiry, single-use) is persisted in the `LinkCodes` table with the correct chat reply; see [Account Linking](../chat-features/account-linking.md).
 - **The multi-platform bonus is off by default** — `MultiPlatform.Mode` defaults to `Off`, so linked viewers earn at 1x until the streamer selects OptIn or Auto under Settings → Viewer Hub (see [Vyral Goals](vyral-goals.md#the-multi-platform-bonus)).
 - **Unified balances are on by default** — `Linking.UnifiedBalances` defaults to true; setting it to `false` restores per-platform wallets for linked viewers. The ledger keeps its own records and never blocks an earn or spend.

@@ -1,6 +1,6 @@
 # Settings Overview
 
-> The Settings page is a 15-category hub, and every category is implemented today — profile management, platforms, theme, per-section tool settings, the Viewer Hub, the Moderator channel settings, and the API & Webhooks page.
+> The Settings page is a 16-category hub, and every category is implemented today — profile management, platforms, theme, per-section tool settings, the Viewer Hub, the Moderator channel settings, Stream FX (lights + deck links), and the API & Webhooks page.
 
 ## Overview
 
@@ -9,7 +9,7 @@ Open **Settings** from the bottom of the sidebar. The page is a two-pane layout:
 | Category | What is actually there |
 |---|---|
 | **Profile** | Auto-Login toggle plus full profile management (list, create, switch, export, delete, change PIN) |
-| **Theme** | The full theme picker — built-in themes, Light/Dark base, Custom color builder, brightness sliders (applied live; see below) |
+| **Theme** | The full theme picker — nine built-in themes (**Native Teal, Light, Dark, Crimson Forge, Azure Depths, Emerald Grove, Arctic Frost, Carbon Graphite, Sunset Ember**), the Light/Dark base, a Custom color builder with a live accent color picker, and brightness sliders (applied live; see below) |
 | **Platforms** | Grid of 6 platform cards (only Twitch and Kick navigate) plus the **Startup & Connection** section — see below |
 | **Data Management** | Storage locations with sizes, data inventory counts, cleanup tools (clear history, compact DB, export backup) |
 | **Notifications** | Master toggles for event messages in chat and event sounds |
@@ -18,6 +18,7 @@ Open **Settings** from the bottom of the sidebar. The page is a two-pane layout:
 | **Variables** | Hosts the full Variables manager |
 | **Timers** | Command-timers master toggle |
 | **Automation** | Workflow master toggle, trigger gates, timer interval, execution-history retention |
+| **Stream FX** | Lights provider (**Philips Hue** bridge IP + per-light enabled rows driving the `!flashlights` command) and saved **Stream Deck action links** — see the Stream FX panel; changes apply on Save without a restart |
 | **Moderator** | Mod channel ID, mod role name, and the auto-create toggle for the [mod system](../architecture/moderator-guide.md) — see below |
 | **API & Webhooks** | Web server + ngrok configuration — see [API, Web Server & ngrok](web-server-ngrok.md) |
 | **Performance** | The live performance monitor: process CPU/memory/GC, per-platform and per-component activity, child processes, sparklines |
@@ -144,7 +145,7 @@ When `MainViewModel.CheckPlatformConnectionsAsync` auto-connects a platform whos
 
 | File | Role |
 |---|---|
-| [SettingsView.xaml](../../src/VyralBot.UI/Views/SettingsView.xaml) | The whole Settings page: category sidebar, all 15 category panels, and the four dialogs (delete confirm, change PIN, create profile, switch profile) |
+| [SettingsView.xaml](../../src/VyralBot.UI/Views/SettingsView.xaml) | The whole Settings page: category sidebar, all 16 category panels, and the four dialogs (delete confirm, change PIN, create profile, switch profile) |
 | [SettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/SettingsViewModel.cs) | Category selection, AutoLogin load/save, all profile-management dialogs, Twitch/Kick settings navigation commands |
 | [TwitchSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/TwitchSettingsViewModel.cs) | 27-line stub — status message only |
 | [KickSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/KickSettingsViewModel.cs) | Real Kick settings: disconnect, account save, webhook toggle, chat toggles, auto-replies flag |
@@ -177,7 +178,7 @@ await _eventBus.PublishAsync(new PlatformChatRoutingChangedEvent { ... });
 
 ## Gotchas / Status & Known Issues
 
-- **No placeholder categories remain** — all 15 categories have real content; the last "Coming Soon..." panels (Theme, Performance, and the per-section settings) were implemented across the theming, performance-monitor, and settings waves.
+- **No placeholder categories remain** — all 16 categories have real content; the last "Coming Soon..." panels (Theme, Performance, and the per-section settings) were implemented across the theming, performance-monitor, and settings waves.
 - **YouTube/TikTok/Discord/OBS platform cards are disabled with explanatory tooltips** — they no longer look clickable (fixed 2026-08-15); only Twitch and Kick navigate. (Discord being disabled here does not mean the platform is unavailable — it is configured through the [Platforms wizard](../platforms/discord.md) and has no settings sub-page.) See the [known issues ledger](../reference/known-issues.md).
 - **Auto-connect re-enables chat display** — the `<Platform>ChatEnabled` flag is force-set true on first successful auto-connect (intended behavior — KI-14).
 - **Twitch settings page is a stub** — nothing loads or saves there.

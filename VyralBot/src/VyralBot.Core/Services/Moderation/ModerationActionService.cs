@@ -1,0 +1,368 @@
+using Microsoft.Extensions.Logging;
+using VyralBot.Data;
+using VyralBot.Data.Entities;
+
+namespace VyralBot.Core.Services.Moderation;
+
+/// <summary>
+/// The per-platform enforcement surface the auto-moderator drives. One adapter
+/// per connected platform, registered by the composition root (or a chat
+/// pipeline) when that platform gains moderation APIs. Every method is
+/// best-effort: false / exceptions never crash the chat pipeline.
+/// </summary>
+public interface IModerationPlatformAdapter
+{
+    /// <summary>Platform name as used in <see cref="ModerationIncomingMessage.Platform"/>.</summary>
+    string Platform { get; }
+
+    /// <summary>Whether the platform can delete a single chat message.</summary>
+    bool CanDeleteMessage { get; }
+
+    /// <summary>Whether the platform can time a viewer out.</summary>
+    bool CanTimeout { get; }
+
+    /// <summary>Whether the platform can ban a viewer.</summary>
+    bool CanBan { get; }
+
+    /// <summary>Deletes the message from <paramref name="message"/> (by id or author).</summary>
+    Task<bool> DeleteMessageAsync(ModerationIncomingMessage message);
+
+    /// <summary>Times the viewer out for <paramref name="seconds"/>.</summary>
+    Task<bool> TimeoutAsync(ModerationIncomingMessage message, int seconds, string reason);
+
+    /// <summary>Bans the viewer.</summary>
+    Task<bool> BanAsync(ModerationIncomingMessage message, string reason);
+
+    /// <summary>Posts a public chat notice (used for warnings and fallbacks).</summary>
+    Task<bool> SendNoticeAsync(string message);
+}
+
+/// <summary>
+/// Executes auto-moderation verdicts against the registered platform adapters
+/// with GRACEFUL DEGRADATION: a platform without a ban API falls back
+/// timeout → delete → warn; a platform with no adapter at all still gets the
+/// action logged (and a warning notice when some chat send path exists via an
+/// adapter). NEVER throws. Every executed — or degraded, or logged-only —
+/// action is written to the persistent mod-action log
+/// (<see cref="IDataService.SaveModActionAsync"/>), so it survives restarts and
+/// shows up in the Moderator dashboard's Action Log.
+/// </summary>
+public sealed class ModerationActionService
+{
+    private const string AutoModActor = "AutoMod";
+    private const int MaxTimeoutSeconds = 604800; // 7 days
+
+    private readonly object _adapterGate = new();
+    private readonly Dictionary<string, IModerationPlatformAdapter> _adapters =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // Non-readonly: the Shared instance gets these late via Configure() from
+    // the Moderator dashboard's page init. Plain fields are sufficient —
+    // Configure runs once, before any chat-pipeline ExecuteAsync calls.
+    private IDataService? _dataService;
+    private ILogger? _logger;
+
+    /// <summary>
+    /// Process-wide default instance. The Moderator dashboard configures it
+    /// with the profile's IDataService on page init; the chat pipelines call
+    /// <see cref="ExecuteAsync"/> on it. DI composition may also construct a
+    /// dedicated instance later (the class is stateless besides the registry).
+    /// </summary>
+    public static ModerationActionService Shared { get; } = new();
+
+    public ModerationActionService()
+    {
+    }
+
+    public ModerationActionService(IDataService dataService, ILogger? logger = null)
+    {
+        _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
+        _logger = logger;
+    }
+
+    /// <summary>Late binding of persistence + logging (used for the Shared instance).</summary>
+    public void Configure(IDataService dataService, ILogger? logger = null)
+    {
+        ArgumentNullException.ThrowIfNull(dataService);
+        _dataService = dataService;
+        _logger = logger;
+    }
+
+    // ------------------------------------------------------------------
+    // adapter registry
+    // ------------------------------------------------------------------
+
+    public void RegisterAdapter(IModerationPlatformAdapter adapter)
+    {
+        ArgumentNullException.ThrowIfNull(adapter);
+        lock (_adapterGate)
+        {
+            _adapters[adapter.Platform] = adapter;
+        }
+    }
+
+    public void UnregisterAdapter(string platform)
+    {
+        lock (_adapterGate)
+        {
+            _adapters.Remove(platform);
+        }
+    }
+
+    public IModerationPlatformAdapter? GetAdapter(string platform)
+    {
+        lock (_adapterGate)
+        {
+            return _adapters.TryGetValue(platform, out var adapter) ? adapter : null;
+        }
+    }
+
+    /// <summary>Snapshot of the registered adapters (UI parity display).</summary>
+    public IReadOnlyList<IModerationPlatformAdapter> GetAdapters()
+    {
+        lock (_adapterGate)
+        {
+            return _adapters.Values.ToList();
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // execution + degradation
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Executes (or degrades) one verdict and logs it. Returns the action kind
+    /// that was actually applied — check the returned value against
+    /// <paramref name="verdict"/>.Action to detect degradation.
+    /// </summary>
+    public async Task<ModerationActionKind> ExecuteAsync(
+        ModerationIncomingMessage message,
+        ModerationVerdict verdict)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(verdict);
+
+        var adapter = GetAdapter(message.Platform);
+        var desired = verdict.Action;
+        var executed = desired;
+        var degraded = false;
+        var notice = $"@{message.Username}: please follow the chat rules ({verdict.Reason}).";
+
+        try
+        {
+            switch (desired)
+            {
+                case ModerationActionKind.Ban:
+                    if (adapter?.CanBan == true && await adapter.BanAsync(message, verdict.Reason).ConfigureAwait(false))
+                    {
+                        executed = ModerationActionKind.Ban;
+                    }
+                    else if (adapter?.CanTimeout == true &&
+                             await adapter.TimeoutAsync(message, Math.Min(verdict.TimeoutSeconds, MaxTimeoutSeconds), verdict.Reason).ConfigureAwait(false))
+                    {
+                        executed = ModerationActionKind.Timeout;
+                        degraded = true;
+                    }
+                    else if (adapter?.CanDeleteMessage == true &&
+                             await adapter.DeleteMessageAsync(message).ConfigureAwait(false))
+                    {
+                        executed = ModerationActionKind.Delete;
+                        degraded = true;
+                    }
+                    else if (await TryNotifyAsync(adapter, notice).ConfigureAwait(false))
+                    {
+                        executed = ModerationActionKind.Warn;
+                        degraded = true;
+                    }
+                    else
+                    {
+                        // No adapter at all (e.g. TikTok / Kick today): the
+                        // action still lands in the mod log so mods see it.
+                        executed = ModerationActionKind.Warn;
+                        degraded = true;
+                    }
+
+                    break;
+
+                case ModerationActionKind.Timeout:
+                    if (adapter?.CanTimeout == true &&
+                        await adapter.TimeoutAsync(message, Math.Min(verdict.TimeoutSeconds, MaxTimeoutSeconds), verdict.Reason).ConfigureAwait(false))
+                    {
+                        executed = ModerationActionKind.Timeout;
+                    }
+                    else if (adapter?.CanDeleteMessage == true &&
+                             await adapter.DeleteMessageAsync(message).ConfigureAwait(false))
+                    {
+                        executed = ModerationActionKind.Delete;
+                        degraded = true;
+                    }
+                    else if (await TryNotifyAsync(adapter, notice).ConfigureAwait(false))
+                    {
+                        executed = ModerationActionKind.Warn;
+                        degraded = true;
+                    }
+                    else
+                    {
+                        executed = ModerationActionKind.Warn;
+                        degraded = true;
+                    }
+
+                    break;
+
+                case ModerationActionKind.Delete:
+                    if (adapter?.CanDeleteMessage == true &&
+                        await adapter.DeleteMessageAsync(message).ConfigureAwait(false))
+                    {
+                        executed = ModerationActionKind.Delete;
+                    }
+                    else if (await TryNotifyAsync(adapter, notice).ConfigureAwait(false))
+                    {
+                        executed = ModerationActionKind.Warn;
+                        degraded = true;
+                    }
+                    else
+                    {
+                        executed = ModerationActionKind.Warn;
+                        degraded = true;
+                    }
+
+                    break;
+
+                case ModerationActionKind.Warn:
+                    await TryNotifyAsync(adapter, notice).ConfigureAwait(false);
+                    executed = ModerationActionKind.Warn;
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            // Adapter contract says "never throw" but the chat pipeline must
+            // survive even a misbehaving adapter.
+            _logger?.LogWarning(ex,
+                "Auto-mod action {Action} on {Platform}/{Username} threw — logged as degraded",
+                desired, message.Platform, message.Username);
+            executed = desired;
+            degraded = true;
+        }
+
+        await LogAsync(message, verdict, executed, degraded, adapter is null).ConfigureAwait(false);
+        return executed;
+    }
+
+    private static async Task<bool> TryNotifyAsync(IModerationPlatformAdapter? adapter, string notice)
+    {
+        if (adapter is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return await adapter.SendNoticeAsync(notice).ConfigureAwait(false);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task LogAsync(
+        ModerationIncomingMessage message,
+        ModerationVerdict verdict,
+        ModerationActionKind executed,
+        bool degraded,
+        bool noAdapter)
+    {
+        var details = $"{verdict.Rule}: {verdict.Reason} (strike {verdict.Strikes})" +
+                      (noAdapter ? " — no platform adapter, logged only" :
+                       degraded ? $" — degraded from {verdict.Action}" : "");
+        if (executed == ModerationActionKind.Timeout)
+        {
+            details += $" [{Math.Min(verdict.TimeoutSeconds, MaxTimeoutSeconds)}s]";
+        }
+
+        try
+        {
+            var dataService = _dataService;
+            if (dataService is null)
+            {
+                _logger?.LogDebug(
+                    "Auto-mod action not persisted (no DataService configured): {Details}", details);
+                return;
+            }
+
+            await dataService.SaveModActionAsync(new ModAction
+            {
+                ModUsername = AutoModActor,
+                ModUserId = "",
+                TargetUsername = message.Username,
+                TargetUserId = message.UserId ?? "",
+                Action = executed.ToString(),
+                Details = $"{message.Platform}: {details}"
+            }).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Failed to persist the auto-mod action for {Username}", message.Username);
+        }
+    }
+}
+
+/// <summary>
+/// Static per-platform moderation parity table — the audit-truth for what each
+/// integration can enforce TODAY (see the service interfaces in
+/// VyralBot.Integrations). Used by the Moderator dashboard to show which
+/// platforms degrade, and by future waves when adapters get wired.
+/// </summary>
+public static class ModerationPlatformParity
+{
+    /// <summary>Platform, native per-viewer capability summary, audit note.</summary>
+    public static readonly (string Platform, string BuiltIn, string Note)[] Table =
+    {
+        ("Twitch", "chat clear / chat modes only",
+            "ITwitchService has no per-viewer timeout/ban/delete API yet (Helix automod scopes are requested in TwitchOAuthService but unused) — auto-mod degrades to warn"),
+        ("Discord", "full",
+            "IDiscordService: ban/unban/timeout/purge/delete-by-scope — the only platform able to enforce all actions once an adapter is registered"),
+        ("Kick", "none",
+            "IKickService is connect/send only; moderation webhooks (WebhooksController) are inbound notifications, not outbound actions — auto-mod degrades to warn"),
+        ("YouTube", "none",
+            "IYouTubeService is connect/send + stream info only — auto-mod degrades to warn"),
+        ("TikTok", "none",
+            "No chat service integration exists (web setup only) — no moderation surface at all; auto-mod degrades to logged-only")
+    };
+
+    /// <summary>
+    /// One status line per known platform: registered adapter vs. built-in
+    /// capability — "no adapter (built-in: …)" makes the degradation visible.
+    /// </summary>
+    public static IEnumerable<string> Describe(ModerationActionService service)
+    {
+        ArgumentNullException.ThrowIfNull(service);
+        var registered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var adapter in service.GetAdapters())
+        {
+            registered.Add(adapter.Platform);
+            yield return
+                $"{adapter.Platform} — adapter registered ({DescribeCapabilities(adapter)}); verdicts enforce natively";
+        }
+
+        foreach (var (platform, builtIn, note) in Table)
+        {
+            if (registered.Contains(platform))
+            {
+                continue;
+            }
+
+            yield return $"{platform} — no adapter (built-in: {builtIn}); actions degrade to warn — {note}";
+        }
+    }
+
+    private static string DescribeCapabilities(IModerationPlatformAdapter adapter)
+    {
+        var parts = new List<string>(3);
+        if (adapter.CanDeleteMessage) parts.Add("delete");
+        if (adapter.CanTimeout) parts.Add("timeout");
+        if (adapter.CanBan) parts.Add("ban");
+        return parts.Count == 0 ? "no actions" : string.Join("/", parts);
+    }
+}

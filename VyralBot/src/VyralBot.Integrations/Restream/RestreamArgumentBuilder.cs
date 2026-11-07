@@ -3,8 +3,8 @@ namespace VyralBot.Integrations.Restream;
 /// <summary>
 /// Builds the single FFmpeg command behind a restream session: RTMP listen-mode
 /// input (one publisher), then one output per destination — pass-through outputs
-/// (<c>-c copy</c>, no decode/encode) and scaled outputs (shared decode, one
-/// x264 encode each). Output order matches the destination list so FFmpeg's
+/// (<c>-c:v copy</c>, no video decode/encode) and scaled outputs (shared decode,
+/// one x264 encode each). Output order matches the destination list so FFmpeg's
 /// per-output log lines map back onto rows. Also the single home for Windows
 /// argument escaping and stream-key masking.
 /// </summary>
@@ -40,11 +40,24 @@ public static class RestreamArgumentBuilder
         return $"rtmp://{bind}:{source.IngestPort}/live/{key}";
     }
 
-    /// <summary>Full publish URL (server + key) for a destination.</summary>
+    /// <summary>
+    /// Full publish URL (server + key) for a destination. If the server field
+    /// already embeds the key (Kick and custom dashboards hand out ONE url
+    /// with the key appended), appending the key again would publish to
+    /// "<c>server/key/key</c>" — rejected by every platform — so the server is
+    /// used as the complete publish URL instead.
+    /// </summary>
     public static string DestinationUrl(RestreamDestination destination)
     {
         var server = destination.ServerUrl.Trim().TrimEnd('/');
-        return $"{server}/{destination.StreamKey.Trim()}";
+        var key = destination.StreamKey.Trim();
+
+        if (key.Length >= 8 && server.Contains(key, StringComparison.OrdinalIgnoreCase))
+        {
+            return server;
+        }
+
+        return $"{server}/{key}";
     }
 
     /// <summary>FFmpeg argv (unescaped, one element per option/value).</summary>
@@ -73,9 +86,23 @@ public static class RestreamArgumentBuilder
 
             if (destination.Resolution == RestreamResolution.Source)
             {
-                // Pass-through: remux only. No decode, no encode — effectively free.
-                args.Add("-c");
+                // Pass-through: remux only. No decode, no video encode —
+                // effectively free. Audio is still honored: a Source row with
+                // an audio bitrate re-encodes just the audio track.
+                args.Add("-c:v");
                 args.Add("copy");
+                if (destination.AudioMode == RestreamAudioMode.Copy)
+                {
+                    args.Add("-c:a");
+                    args.Add("copy");
+                }
+                else
+                {
+                    args.Add("-c:a");
+                    args.Add("aac");
+                    args.Add("-b:a");
+                    args.Add(destination.AudioMode == RestreamAudioMode.A128k ? "128k" : "160k");
+                }
             }
             else
             {

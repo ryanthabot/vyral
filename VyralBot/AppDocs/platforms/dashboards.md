@@ -44,7 +44,7 @@ No stream preview, no decorative buttons — two cards per bot, opened with **OP
 | **Connection** | "Connected as {bot}" status, START / STOP / RECONNECT | **Everything** — the status string is actually displayed here |
 | **Servers** | One row per guild (name, member count, text-channel drop-down), SET ACTIVE CHANNEL, owner-ping Test Message | **Everything** — the picker persists that bot's active channel |
 
-The channel selection, permission model, and what each bot does with its active channel are documented in [Discord](discord.md); limitations (the per-bot RECONNECT token quirk, single channel per bot, chat-only events) are in the [known issues ledger](../reference/known-issues.md) (KI-34, KI-36). The pre-multi-bot single-bot dashboard view (`DiscordDashboardView`) is superseded and no longer reachable — KI-36.
+The channel selection, permission model, and what each bot does with its active channel are documented in [Discord](discord.md); limitations (the per-bot RECONNECT token quirk, single channel per bot, chat-only events) are in the [known issues ledger](../reference/known-issues.md) (KI-34, KI-36). The single-bot dashboard view (`DiscordDashboardView`) is back and reachable: the Discord Bots page header has a **DASHBOARD** toggle that lazily hosts it as a tab (see below).
 
 ## How It Works (Developer)
 
@@ -77,7 +77,7 @@ The status card that isn't: `Status` is an `[ObservableProperty]` diligently mai
 | [KickDashboardViewModel.cs](../../src/VyralBot.UI/ViewModels/KickDashboardViewModel.cs) | Kick twin — adds `IKickService.IsConnected` check for the "reconnect on app restart" state |
 | [TwitchDashboardView.xaml](../../src/VyralBot.UI/Views/TwitchDashboardView.xaml) / [KickDashboardView.xaml](../../src/VyralBot.UI/Views/KickDashboardView.xaml) | Identical 498-line stream-manager layouts; 12 decorative quick-action buttons, no commands |
 | [TwitchDashboardView.xaml.cs](../../src/VyralBot.UI/Views/TwitchDashboardView.xaml.cs) / [KickDashboardView.xaml.cs](../../src/VyralBot.UI/Views/KickDashboardView.xaml.cs) | On-demand WebView2 creation into `%TEMP%\VyralBot_WebView2_Temp`, disposal on close/unload |
-| [DiscordDashboardViewModel.cs](../../src/VyralBot.UI/ViewModels/DiscordDashboardViewModel.cs) | Legacy single-bot Discord dashboard — **orphaned** since the 2026-08-16 multi-bot rework (its navigation command is bound nowhere; KI-36) |
+| [DiscordDashboardViewModel.cs](../../src/VyralBot.UI/ViewModels/DiscordDashboardViewModel.cs) | Single-bot (setup bot) Discord dashboard: status, guild list with member counts, per-guild text-channel drop-downs, active-channel picker, test message — hosted as the **DASHBOARD** tab on the Discord Bots page |
 | [DiscordBotDetailViewModel.cs](../../src/VyralBot.UI/ViewModels/DiscordBotDetailViewModel.cs) | Per-bot dashboard: start/stop/reconnect, guild snapshot, per-bot active-channel picker, owner-ping test — no WebView2 |
 | [DiscordBotDetailView.xaml](../../src/VyralBot.UI/Views/DiscordBotDetailView.xaml) | Two-card layout per bot: connection status (bound, visible) + servers/channel list |
 | [MainViewModel.cs](../../src/VyralBot.UI/ViewModels/MainViewModel.cs) | `NavigateToTwitchSettingsAsync` / `NavigateToKickSettingsAsync` (`1490-1553`) — misleadingly named; `NavigateToDiscordBotsAsync` (`1763`) + `NavigateToDiscordBotDetailAsync` (`1807`) — honestly named |
@@ -97,5 +97,5 @@ The status card that isn't: `Status` is an `[ObservableProperty]` diligently mai
 - **Twelve decorative buttons** — Stream Management and Chat Moderation panels have no command bindings (visual placeholders; see the [known issues ledger](../reference/known-issues.md)); the Activity Feed is static placeholder text.
 - **Misleading command names** — `NavigateToTwitchSettingsCommand` loads `TwitchDashboardViewModel` (`MainViewModel.cs:1490`), not settings; platform settings actually live on the [Platforms](overview.md) page.
 - `SaveSettingsAsync` in both VMs is unreachable — no view binds its command.
-- **The legacy single-bot Discord dashboard is orphaned** (KI-36) — `DiscordDashboardView` still exists and is DI-registered, but nothing binds its navigation command anymore; the per-bot dashboards replaced it.
+- **The single-bot Discord dashboard is back as a tab** — the Discord Bots page header's **DASHBOARD** toggle shows it (servers with member counts, per-guild channel drop-downs, active-channel picker, connection status, test message). The view is created lazily from DI on first open, so an unopened tab costs nothing.
 - There is deliberately no YouTube dashboard, even though YouTube connections work (no sidebar entry either) — see [YouTube](youtube.md). Discord has bot dashboards because each bot needs a place to pick its active channel — see [Discord](discord.md).

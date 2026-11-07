@@ -1,15 +1,15 @@
 # TikTok & OBS
 
-> These two platforms are placeholders: TikTok has a full-looking setup wizard that marks the platform "Coming Soon" with no backend behind it, and OBS is a "Coming Soon" card — the only real OBS feature in the app is the audio browser source, which does not use the OBS platform at all. (Discord used to live on this page as a third stub; it is a fully implemented platform now — see [Discord](discord.md).)
+> TikTok is a placeholder — a full-looking setup wizard that marks the platform "Coming Soon" with no chat backend behind it. OBS is the opposite now: the **Platforms-page card** still reads "Coming Soon", but the sidebar has a real **OBS** page that hosts the actual obs64.exe window, embeds a libobs-powered Bot Studio, and manages scene collections. (Discord used to live on this page as a third stub; it is a fully implemented platform now — see [Discord](discord.md).)
 
 ## Overview
 
 The Platforms page shows six cards. Twitch, Kick, YouTube, and [Discord](discord.md) are real; the honest status of the remaining two is:
 
-- **TikTok** — a UI shell. The wizard looks real, but the OAuth pieces are commented-out TODO stubs. No TikTok service exists anywhere in the codebase.
-- **OBS** — a "Coming Soon / Not Available" card. Deep OBS integration is planned in design docs at the repo root but unimplemented. The one working OBS touchpoint — adding Vyral's audio page as an OBS browser source — lives in [Audio](../stream-tools/audio.md), not here.
+- **TikTok** — a UI shell. The wizard looks real, but the OAuth pieces are commented-out TODO stubs. No TikTok chat service exists anywhere in the codebase. Stream/OAuth connect is explicitly gated "Coming Soon".
+- **OBS** — the Platforms card is still a static "Coming Soon / Not Available" placeholder, but OBS itself is **fully integrated** through its own top-level **OBS** page in the sidebar: the **Full OBS** tab hosts the real obs64.exe window inside the app (with a silent install offer when OBS is missing and obs-websocket remote control so bot features can drive it), the **Bot Studio** tab embeds a libobs-based studio, and the **Collections** tab imports/browses/exports OBS scene-collection JSON. The older OBS touchpoint — adding Vyral's audio page as an OBS browser source — lives in [Audio](../stream-tools/audio.md).
 
-This page exists so you do not lose time on them, and so developers know exactly what is stub vs. real before touching the code.
+This page exists so you do not lose time on TikTok, and so you know where OBS actually lives (the sidebar, not the Platforms card).
 
 ## User Guide
 
@@ -28,7 +28,13 @@ Finishing the wizard writes a `Platform` row with **`Status="Coming Soon"`** and
 
 ### OBS: what you can actually use today
 
-There is no OBS connection to configure. What you can do today is add Vyral's **sound output** to OBS as a browser source:
+Ignore the "Coming Soon" OBS card on the Platforms page — open **OBS** in the sidebar instead. That page has three tabs:
+
+1. **Full OBS** — hosts the real obs64.exe window inside the page. If OBS is not installed, the tab offers a silent install. obs-websocket remote control is wired so bot features can drive the running OBS.
+2. **Bot Studio** — an embedded libobs studio (the native engine boots only when you first select this tab, never at app start).
+3. **Collections** — imports OBS scene-collection JSON verbatim, browses the imported documents as a tree, and exports byte-identical copies.
+
+The older OBS touchpoint also still works — add Vyral's **sound output** to OBS as a browser source:
 
 1. Go to **Audio Settings** in Vyral and copy the browser source URL (`http://localhost:5000/audio.html`).
 2. In OBS: Sources → Add → **Browser**, paste the URL, size to taste.
@@ -68,9 +74,10 @@ var platform = new Platform
 
 ### OBS
 
-- The Platforms card is static XAML: "Coming Soon" / "Not Available" (`PlatformsView.xaml:349-372`), and the Settings page has an OBS card with no navigation command at all.
-- Repo-root design docs (`OBS_INTEGRATION_PLAN.md`, `OBS-addition.md`) describe plans to embed libobs and script the real OBS app — none of it is implemented.
-- The only OBS-adjacent runtime code is the browser-source page: `wwwroot/audio.html` served by [WebServerService](../../src/VyralBot.Api/Services/WebServerService.cs) on port 5000 (URL pinned in `AudioSettingsViewModel.cs:36`), with a `/audio-ws` WebSocket endpoint broadcasting sound triggers to connected OBS browser-source pages. See [Web Server](../architecture/web-server.md).
+- The Platforms card is still static XAML: "Coming Soon" / "Not Available" (`PlatformsView.xaml:349-372`) — a leftover placeholder; OBS is reached from the sidebar's **OBS** entry (`NavigateToObsCommand` → `ObsViewModel`, `MainViewModel.cs:1993`).
+- The OBS page ([ObsView.xaml](../../src/VyralBot.UI/Views/ObsView.xaml) + [ObsViewModel.cs](../../src/VyralBot.UI/ViewModels/ObsViewModel.cs)) hosts three tabs: **Full OBS** ([ObsHostViewModel.cs](../../src/VyralBot.UI/ViewModels/ObsHostViewModel.cs) — real obs64.exe window hosted in-page via the `ObsWindowEmbedHost` control, silent install when OBS is missing, obs-websocket remote control), **Bot Studio** ([ObsStudioViewModel.cs](../../src/VyralBot.UI/ViewModels/ObsStudioViewModel.cs) — embedded libobs studio; the native engine boots only when the tab is first selected), and **Collections** (verbatim scene-collection JSON import/tree/export via [ObsSceneCollectionStore.cs](../../src/VyralBot.Integrations/Obs/ObsSceneCollectionStore.cs)).
+- The integration layer lives under `VyralBot.Integrations/Obs/` — `Engine` (libobs P/Invoke), `Hosting` (window hosting, acquisition, bundled collections, obs-websocket config editing), `Native`, and `WebSocket`.
+- The browser-source page also remains: `wwwroot/audio.html` served by [WebServerService](../../src/VyralBot.Api/Services/WebServerService.cs) on port 5000 (URL pinned in `AudioSettingsViewModel.cs:36`), with a `/audio-ws` WebSocket endpoint broadcasting sound triggers to connected OBS browser-source pages. See [Web Server](../architecture/web-server.md).
 
 ## Files & Code
 
@@ -79,7 +86,9 @@ var platform = new Platform
 | [TikTokWebSetupViewModel.cs](../../src/VyralBot.UI/ViewModels/TikTokWebSetupViewModel.cs) | TikTok wizard stub (TODO OAuth; writes honest "Coming Soon" row) |
 | [TikTokWebSetupView.xaml](../../src/VyralBot.UI/Views/TikTokWebSetupView.xaml) | TikTok wizard UI (fully built, cosmetically real) |
 | [TiktokChatSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/TiktokChatSettingsViewModel.cs) / [TiktokChatSettingsView.xaml](../../src/VyralBot.UI/Views/TiktokChatSettingsView.xaml) | TikTok chat-settings shell (enable toggle persists `TiktokChatEnabled`; nothing consumes it) |
-| [PlatformsView.xaml](../../src/VyralBot.UI/Views/PlatformsView.xaml) | Hosts all six cards incl. the OBS "Coming Soon" placeholder (lines 349-372) |
+| [PlatformsView.xaml](../../src/VyralBot.UI/Views/PlatformsView.xaml) | Hosts all six cards incl. the OBS "Coming Soon" placeholder (lines 349-372) — the placeholder; the real OBS page is the sidebar's OBS entry |
+| [ObsView.xaml](../../src/VyralBot.UI/Views/ObsView.xaml) / [ObsViewModel.cs](../../src/VyralBot.UI/ViewModels/ObsViewModel.cs) | The real OBS page: Full OBS / Bot Studio / Collections tabs |
+| [ObsHostViewModel.cs](../../src/VyralBot.UI/ViewModels/ObsHostViewModel.cs) | Full OBS tab: hosts obs64.exe in-page, silent install, obs-websocket wiring |
 | [PlatformsViewModel.cs](../../src/VyralBot.UI/ViewModels/PlatformsViewModel.cs) | Renders TikTok as connected purely from the DB row (disconnect ~line 1548) |
 | [AudioSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/AudioSettingsViewModel.cs) | The real OBS touchpoint: `http://localhost:5000/audio.html` browser-source URL |
 | [WebServerService.cs](../../src/VyralBot.Api/Services/WebServerService.cs) | Serves `audio.html` + `/audio-ws` to OBS browser sources |
@@ -94,6 +103,6 @@ Wizard step destinations, for anyone wiring TikTok up for real: the wizard navig
 ## Status & Known Issues
 
 - **TikTok saves honest "Coming Soon" state (fixed 2026-08-15)** — finishing the stub wizard writes a `Status="Coming Soon"` row with `TokenExpiresAt = null`; nothing in the app treats it as connected. Previously it wrote a fake `"Connected"` row. Tracked in the [known issues ledger](../reference/known-issues.md) (KI-24 partially resolved).
-- **OBS platform is entirely aspirational** — the card and the repo-root OBS design docs describe an integration that does not exist; only the [audio browser source](../stream-tools/audio.md) is real.
+- **OBS is real but entered from the sidebar, not the Platforms card** — the card still says "Coming Soon" (stale placeholder), while the OBS page (Full OBS hosting, Bot Studio, Collections) is implemented on top of `VyralBot.Integrations/Obs`. The [audio browser source](../stream-tools/audio.md) also still works.
 - **No service-layer code for TikTok** — implementing TikTok for real means building an OAuth service plus a chat/event service under `VyralBot.Integrations` and wiring them in [App.xaml.cs](../../src/VyralBot.UI/App.xaml.cs) — the wizard UI can then be pointed at them. (The Discord rewrite is the template to follow for a non-OAuth platform — see [Discord](discord.md).)
 - **Discord is no longer a stub** — its former entries here (fake Connected row, IRC test message, Twitch copy/paste remnants) were all eliminated by the 2026-08-15 rewrite; Discord limitations now live on [Discord](discord.md) and in the [known issues ledger](../reference/known-issues.md) (KI-34).

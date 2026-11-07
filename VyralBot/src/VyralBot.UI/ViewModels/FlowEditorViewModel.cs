@@ -4896,10 +4896,92 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 ? "Slash command triggers need a command name (e.g. hello for /hello)."
                 : "Command triggers need a command name (e.g. hello for !hello).";
         }
+        if (IsTriggerNeedsCommandName && !string.IsNullOrWhiteSpace(TriggerCommandName)
+            && TriggerCommandName.Trim().Contains(' '))
+        {
+            // The runtime matches the FIRST token after the prefix, so a name
+            // with spaces can never fire; "!mod" verbs are single tokens too.
+            return "Command names cannot contain spaces — use a single word (hello, not hello world).";
+        }
         if (IsTriggerTimer && (!int.TryParse(TriggerIntervalMinutes, out int minutes) || minutes < 1))
         {
             return "Timer triggers need an interval of at least 1 minute.";
         }
+        return null;
+    }
+
+    /// <summary>
+    /// Async half of save validation: a command/slash/mod-command trigger name
+    /// must not already be claimed. Two flows with the same chat-command name
+    /// would BOTH fire on every invocation, a duplicate slash name silently
+    /// loses one flow at registration, and a duplicate "!mod" verb is a silent
+    /// last-one-wins in the engine's verb index. A "!mod" verb that collides
+    /// with a built-in engine verb (kick, ban, …) can never run at all — the
+    /// engine consumes built-in verbs before offering the verb to workflows.
+    /// Returns the user-facing problem, or null when the name is free.
+    /// </summary>
+    private async Task<string?> ValidateCommandNameAvailabilityAsync()
+    {
+        if (!IsTriggerNeedsCommandName || string.IsNullOrWhiteSpace(TriggerCommandName))
+        {
+            return null;
+        }
+
+        string name = TriggerCommandName.Trim();
+
+        if (IsTriggerModCommand && ModTiers.Admin.Contains(name.ToLowerInvariant(), StringComparer.Ordinal))
+        {
+            return $"'!mod {name.ToLowerInvariant()}' is a built-in mod action — the engine always answers it first. Pick a different verb.";
+        }
+
+        try
+        {
+            string normalized = NormalizeCommandName(name);
+            foreach (WorkflowEntity row in await _dataService.GetWorkflowsAsync())
+            {
+                if (string.Equals(row.Id, _workflowId, StringComparison.Ordinal))
+                {
+                    continue; // re-saving THIS flow keeps its own name
+                }
+
+                Workflow loaded;
+                try
+                {
+                    loaded = WorkflowJson.FromRow(row);
+                }
+                catch (Exception)
+                {
+                    continue; // unreadable row — never blocks the save
+                }
+
+                var trigger = loaded.Trigger;
+                if (trigger == null || string.IsNullOrWhiteSpace(trigger.CommandName))
+                {
+                    continue;
+                }
+
+                bool claimsNames = string.Equals(trigger.Type, WorkflowTriggerTypes.Command, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(trigger.Type, WorkflowTriggerTypes.SlashCommand, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(trigger.Type, WorkflowTriggerTypes.ModCommand, StringComparison.OrdinalIgnoreCase);
+                if (!claimsNames)
+                {
+                    continue;
+                }
+
+                if (string.Equals(NormalizeCommandName(trigger.CommandName), normalized, StringComparison.Ordinal))
+                {
+                    string kind = IsTriggerModCommand ? "!mod verb" : IsTriggerSlash ? "slash command" : "command";
+                    return $"A {kind} named '{name}' already exists (flow \"{loaded.Name}\"). Command names must be unique — pick another.";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // The availability check is advisory — a storage failure must not
+            // block saving entirely.
+            _logger.LogWarning(ex, "Command-name availability check failed for workflow {WorkflowId}", _workflowId);
+        }
+
         return null;
     }
 
@@ -5040,6 +5122,14 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             return;
         }
 
+        problem = await ValidateCommandNameAvailabilityAsync();
+        if (problem != null)
+        {
+            StatusText = problem;
+            System.Windows.MessageBox.Show(problem, "Cannot save flow", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         try
         {
             IsBusy = true;
@@ -5073,13 +5163,10 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             _logger.LogInformation("Flow editor saved workflow '{Name}' ({WorkflowId}, {NodeCount} nodes)",
                 workflow.Name, workflow.Id, workflow.Nodes.Count);
 
-            // A command-triggered flow IS a custom command: make sure it has a
-            // row on the Commands page (first save) / stays linked (re-saves).
-            await EnsureCommandRowAsync(workflow);
-
             // Command → flow adoption: retire the legacy command row (and
             // shadow same-named Discord built-ins) so the flow is the single
             // owner of the command. Best-effort — never fails the save.
+            // (The command row itself was ensured above, before the reload.)
             await AdoptCommandOwnershipAsync(workflow);
         }
         catch (Exception ex)
@@ -5345,27 +5432,6 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     // ======================================================================
 
     /// <summary>
-    /// After a successful save of a command-triggered flow that carries a
-    /// SourceCommandId (seeded from a Command row via
-    /// <see cref="InitializeFromCommandAsync"/>):
-    /// <para>
-    /// 1. The legacy Command row is disabled so <c>CommandService</c> never
-    ///    double-fires — the flow now owns the command. Built-in rows keep
-    ///    their IsBuiltIn flag; they are only disabled, so deleting the flow
-    ///    from the Commands list re-enables the original.
-    /// </para>
-    /// <para>
-    /// 2. When the flow's command name matches a Discord built-in (a built-in
-    ///    Command row or a moderation command claimed by the in-Discord
-    ///    handler) and the trigger platform is Discord or any, the name is
-    ///    merged into every bot's "DiscordBot.{botId}.DisabledBuiltIns" config
-    ///    array — the exact list ChatViewModel reads before running the
-    ///    in-Discord mod-command handler — so it stands down too.
-    /// </para>
-    /// Both steps are best-effort: failures are logged and noted in the status
-    /// text but never fail the save.
-    /// </summary>
-    /// <summary>
     /// A command-triggered flow without a linked row gets one created (disabled,
     /// flow-owned) so it shows in the Commands page CUSTOM list and EDIT routes
     /// back into this flow. A same-named row is adopted instead of duplicated.
@@ -5407,6 +5473,28 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
     }
 
+    /// <summary>
+    /// After a successful save of a command-triggered flow that carries a
+    /// SourceCommandId (seeded from a Command row via
+    /// <see cref="InitializeFromCommandAsync"/> or set by
+    /// <see cref="EnsureCommandRowAsync"/>):
+    /// <para>
+    /// 1. The legacy Command row is disabled so <c>CommandService</c> never
+    ///    double-fires — the flow now owns the command. Built-in rows keep
+    ///    their IsBuiltIn flag; they are only disabled, so deleting the flow
+    ///    from the Commands list re-enables the original.
+    /// </para>
+    /// <para>
+    /// 2. When the flow's command name matches a Discord built-in (a built-in
+    ///    Command row or a moderation command claimed by the in-Discord
+    ///    handler) and the trigger platform is Discord or any, the name is
+    ///    merged into every bot's "DiscordBot.{botId}.DisabledBuiltIns" config
+    ///    array — the exact list ChatViewModel reads before running the
+    ///    in-Discord mod-command handler — so it stands down too.
+    /// </para>
+    /// Both steps are best-effort: failures are logged and noted in the status
+    /// text but never fail the save.
+    /// </summary>
     private async Task AdoptCommandOwnershipAsync(Workflow workflow)
     {
         try

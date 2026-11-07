@@ -29,6 +29,12 @@ public class WaitNode : INode
         {
             await Task.Delay(TimeSpan.FromSeconds(seconds), ctx.CancellationToken).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (ctx.CancellationToken.IsCancellationRequested)
+        {
+            // Run-level cancellation: rethrow so the runtime records "Cancelled"
+            // instead of routing the error branch / error handler on a dying run.
+            throw;
+        }
         catch (OperationCanceledException)
         {
             return NodeResult.Fail("Wait was cancelled");

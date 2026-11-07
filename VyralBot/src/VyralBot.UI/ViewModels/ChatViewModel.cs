@@ -4340,19 +4340,34 @@ public class ChatViewModel : ViewModelBase
 
 	private async Task OnYouTubeMembershipStatusAsync(YouTubeMembershipEvent evt)
 	{
-		if (_viewerStatusService == null)
+		// Membership is YouTube's subscribe equivalent — alert parity with the
+		// Twitch/Kick subscribe handlers ("New Subscriber!" is covered by the
+		// SubscribeAlertsEnabled toggle in AlertSettings).
+		await ShowEventAlertAsync("New Subscriber!", evt.Username, evt.IsMilestone ? $"Milestone: {evt.Level}" : $"Thanks for joining ({evt.Level})!", "YouTube");
+		if (_viewerStatusService != null)
 		{
-			return;
+			try
+			{
+				await _viewerStatusService.RecordSubscriptionAsync(evt.Username, "YouTube", 1, 0);
+				_logger.LogInformation("Recorded YouTube membership status for {Username} (Level: {Level}, Milestone: {IsMilestone})", evt.Username, evt.Level, evt.IsMilestone);
+			}
+			catch (Exception exception)
+			{
+				_logger.LogWarning(exception, "Failed to record YouTube membership status for {Username}", evt.Username);
+			}
 		}
-		try
+		// Membership is the YouTube subscribe equivalent — record it in event
+		// statistics with the same event-name vocabulary the Twitch/Kick writers
+		// use (Subscribe for new members, Resub for milestone renewals) so the
+		// Statistics/EventHistory charts aggregate across platforms.
+		Dictionary<string, string> variables = new Dictionary<string, string>
 		{
-			await _viewerStatusService.RecordSubscriptionAsync(evt.Username, "YouTube", 1, 0);
-			_logger.LogInformation("Recorded YouTube membership status for {Username} (Level: {Level}, Milestone: {IsMilestone})", evt.Username, evt.Level, evt.IsMilestone);
-		}
-		catch (Exception exception)
-		{
-			_logger.LogWarning(exception, "Failed to record YouTube membership status for {Username}", evt.Username);
-		}
+			{ "username", evt.Username },
+			{ "displayname", evt.Username },
+			{ "tier", evt.Level },
+			{ "platform", "YouTube" }
+		};
+		await SaveEventStatisticAsync("YouTube", evt.IsMilestone ? "Resub" : "Subscribe", evt.Username, variables, wasAutoReplied: false);
 	}
 
 	private async Task OnAccountsLinkedAsync(AccountsLinkedEvent evt)

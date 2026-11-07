@@ -4,7 +4,7 @@
 
 ## Overview
 
-Vyral runs in a single borderless window ([MainWindow.xaml](../../src/VyralBot.UI/MainWindow.xaml), 1164 lines) with a hand-drawn title bar, a fixed 200px sidebar, and one content area. There are no separate windows per feature (the profile selector and dialogs are overlays inside this window) — every page you can visit is a WPF view swapped into a single `ContentControl`, chosen by which ViewModel is currently assigned to `MainViewModel.CurrentViewModel`.
+Vyral runs in a single borderless window ([MainWindow.xaml](../../src/VyralBot.UI/MainWindow.xaml), ~1400 lines) with a hand-drawn title bar, a fixed 200px sidebar, and one content area. There are no separate windows per feature (the profile selector and dialogs are overlays inside this window) — every page you can visit is a WPF view swapped into a single `ContentControl`, chosen by which ViewModel is currently assigned to `MainViewModel.CurrentViewModel`.
 
 Two consequences of that design are worth knowing as a user:
 
@@ -33,18 +33,24 @@ A fixed 200px column, scrollable, organized as:
 
 - **Home** — the [Dashboard](dashboard.md).
 - **Chat** — the live chat feed ([Chat Window](../chat/chat-window.md)).
+- **OBS** — the OBS page: **Full OBS** (the real obs64.exe window hosted in-page), **Bot Studio** (embedded libobs studio), and **Collections** (scene-collection JSON import/browse/export). See [TikTok & OBS](../platforms/tiktok-discord-obs.md).
+
+**Restream** (collapsible group)
+
+- **Restream** — the FFmpeg restream engine (fan one source out to multiple destinations).
+- **StreamDeck** — the StreamDeck button grid and the VyralDeck mobile companion server.
 
 **Platforms** (collapsible group)
 
-- **Twitch** and **Kick** entries appear **only while that platform is connected** (they vanish when you disconnect). Each opens that platform's dashboard page with a live stream preview.
-- **Discord** is **always visible** and opens the [Discord Bots page](../platforms/discord.md#multiple-bots) — the multi-bot manager (Quick Add, per-bot cards, per-bot dashboards) — regardless of connection state, since it is also where you add your first bot.
-- There is deliberately no YouTube entry here, even though YouTube connections work — see [Status & Known Issues](#status--known-issues).
+- **Twitch**, **Kick**, and **YouTube** entries appear **only while that platform is connected** (they vanish when you disconnect). Twitch/Kick open that platform's dashboard page with a live stream preview; YouTube opens its dashboard.
+- **Discord** is **always visible** and opens the [Discord Bots page](../platforms/discord.md#multiple-bots) — the multi-bot manager (Quick Add, per-bot cards, per-bot dashboards, and the single-bot **DASHBOARD** tab) — regardless of connection state, since it is also where you add your first bot.
 
 **Chat Features** (collapsible group)
 
 - **Events & Alerts** — opens the [Alert Settings](../stream-tools/visual-alerts.md) page (same destination as Stream Tools → Visual Alerts).
 - **Currency & Rewards** — the currency economy.
 - **Commands** — command management.
+- **Automation** — the visual workflow engine and flow editor ([Automation](../chat-features/automation.md)).
 - **Event History** — past-event browser.
 
 **Stream Tools** (collapsible group)
@@ -99,7 +105,7 @@ Kept alive always: `DashboardViewModel` and `ChatViewModel`. Everything else is 
 
 ### Platform status in the sidebar
 
-`IsTwitchConnected` / `IsKickConnected` / `IsYouTubeConnected` / `IsDiscordConnected` are set by `CheckPlatformConnectionsAsync()` (`MainViewModel.cs:358-427`), which reads the `Platforms` rows from the current profile's database — `Status == "Connected"` maps to `true` (Discord additionally requires a stored bot token); any failure silently forces all four `false`. The Twitch and Kick flags are used in XAML (sidebar entry visibility, `MainWindow.xaml:196-220`); the Discord sidebar entry is no longer visibility-bound (always visible, opens the bots page); `IsYouTubeConnected` is set but **never displayed**. While checking, this method also performs the startup auto-connects (Twitch token DPAPI-decrypt, Kick token refresh, YouTube, and the Discord gateway from its stored token) — see [Platforms Overview](../platforms/overview.md). Managed Discord bots auto-start right after, via the bot manager's `StartAllSavedAsync` (`MainViewModel.cs:298`).
+`IsTwitchConnected` / `IsKickConnected` / `IsYouTubeConnected` / `IsDiscordConnected` are set by `CheckPlatformConnectionsAsync()` (`MainViewModel.cs:358-427`), which reads the `Platforms` rows from the current profile's database — `Status == "Connected"` maps to `true` (Discord additionally requires a stored bot token); any failure silently forces all four `false`. The Twitch, Kick, and YouTube flags drive their sidebar entries' visibility in XAML; the Discord sidebar entry is not visibility-bound (always visible, opens the bots page). While checking, this method also performs the startup auto-connects (Twitch token DPAPI-decrypt, Kick token refresh, YouTube, and the Discord gateway from its stored token) — see [Platforms Overview](../platforms/overview.md). Managed Discord bots auto-start right after, via the bot manager's `StartAllSavedAsync` (`MainViewModel.cs:298`).
 
 When the user connects/disconnects a platform on the Platforms page, `PlatformsViewModel` fires a callback registered by `NavigateToPlatformsAsync` → `RefreshPlatformConnectionsAsync()` (`MainViewModel.cs:593-606`), which re-checks status and tells `ChatViewModel.UpdateConnectedPlatforms()` on the UI dispatcher.
 

@@ -18,7 +18,7 @@ Click **Chat** in the sidebar. (The **Chat** card on the Home page opens the [Ch
 
 Each line in the list shows:
 
-- **Timestamp** in `h:mm tt` format (for example `9:41 PM`).
+- **Timestamp** in `h:mm tt` format (for example `9:41 PM`) — can be hidden with the header's timestamp toggle.
 - **Platform logo** — the Twitch, Kick, YouTube, or Discord icon.
 - **Badges** — small images next to the username: broadcaster, moderator, VIP, subscriber, verified. Hover a badge to see its name in a tooltip.
 - **Username** in the color the platform reported (streamers and mods often have custom colors).
@@ -61,10 +61,15 @@ Right side of the header, in order:
 
 | Button | What it does |
 |---|---|
+| **Decrease chat font size** (A-with-down-arrow icon) | Shrinks message text by 1 pt per click, clamped to 8 pt minimum. |
+| **Increase chat font size** (A-with-up-arrow icon) | Grows message text by 1 pt per click, clamped to 36 pt maximum. |
+| **Toggle timestamps** (clock icon) | Shows/hides the per-message timestamps in the feed. |
 | **Toggle Auto-Scroll** (down-arrow icon) | Enables/disables automatic scrolling to new messages. |
 | **Load Chat History** (history icon) | Loads stored past messages from the database into the feed (see below). |
 | **Clear Chat** (eraser icon) | Empties the on-screen list only. Nothing is deleted from the database. |
 | **Delete Chat History** (database-remove icon) | After a confirmation dialog, permanently deletes stored history for connected channels from the database, then clears the view. |
+
+**Chat appearance is real and persisted**: the font-size +/- buttons (clamped 8–36) and the timestamp toggle change the feed immediately and are saved to the `Chat.Appearance` config key, so your font size and timestamp preference survive a restart.
 
 ### Loading chat history
 
@@ -87,7 +92,7 @@ Being honest about the current build:
 
 ## How It Works (Developer)
 
-- The page is [ChatView.xaml](../../src/VyralBot.UI/Views/ChatView.xaml) (558 lines) + [ChatView.xaml.cs](../../src/VyralBot.UI/Views/ChatView.xaml.cs), bound to the singleton [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) (2,880 lines).
+- The page is [ChatView.xaml](../../src/VyralBot.UI/Views/ChatView.xaml) (~1390 lines) + [ChatView.xaml.cs](../../src/VyralBot.UI/Views/ChatView.xaml.cs), bound to the singleton [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) (~7200 lines).
 - `ChatViewModel` is registered as a **DI singleton** and is created during profile load *before* platform auto-connect, specifically so its EventBus subscriptions exist before any message can arrive ([MainViewModel.cs](../../src/VyralBot.UI/ViewModels/MainViewModel.cs) `OnProfileLoadedAsync`).
 - `InitializeAsync()` guards with `_isInitialized` and subscribes (via `IEventBus.SubscribeAsync<T>`) to roughly 20 event types (ChatViewModel.cs:207-270): the four per-platform chat message events (Twitch, Kick, YouTube, Discord), the generic `ChatMessageReceivedEvent`, routing/connection change events, 7 Kick event types, and 6 Twitch event types.
 - Incoming per-platform handlers (`OnTwitchChatMessageReceivedAsync` ChatViewModel.cs:503, `OnKickChatMessageReceivedAsync` :1611, `OnYouTubeChatMessageReceivedAsync` :1527, `OnDiscordChatMessageReceivedAsync` :2321) each: check the platform display-filter flag, check **echo suppression** (Discord's handler skips the bot's own account outright — the UI already adds outgoing bot messages locally), then append a `ChatMessage` to `Messages` and trim to 500. Discord messages are also persisted through the chat store here. Discord **direct messages** are diverted before rendering: instead of the main feed they are routed into the DM inbox (grouped per user, with unread badges), and a reply sent from a DM thread goes out through the same bot instance that received the DM.
@@ -137,9 +142,11 @@ The message row template (ChatView.xaml, `ListBox.ItemTemplate`) — timestamp, 
         <ColumnDefinition Width="*"/>
     </Grid.ColumnDefinitions>
 
-    <!-- Timestamp -->
+    <!-- Timestamp (visibility follows the ShowTimestamps header toggle) -->
     <TextBlock Grid.Column="0" Text="{Binding Timestamp, StringFormat='h:mm tt'}"
-               FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"/>
+               FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
+               Visibility="{Binding DataContext.ShowTimestamps, RelativeSource={RelativeSource AncestorType=UserControl},
+                            Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
     <!-- Platform Logo + Badges + Username -->
     <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,8,0">
@@ -240,7 +247,7 @@ The in-UI `ChatMessage` model (bottom of ChatViewModel.cs:2657) is a plain `INot
 
 ## Status & Known Issues
 
-- **Works**: merged live feed for Twitch/Kick/YouTube/Discord, badges, colors, timestamps, auto-scroll + unread banner, on-demand history (Kick/Twitch/YouTube), clear/delete history, quick-settings popups, the Discord DM inbox (per-user conversations with previews and unread badges, persistent unlimited history with per-thread and inbox-wide Load/Clear, New DM by Discord user ID, a unified reply box with DM-mode gradient send button that replies through the bot that received the DM, and the Combined side-by-side layout), clickable usernames opening [viewer profiles](../chat-features/viewer-profiles.md), event system messages, and — since 2026-08-15 — the full chat command pipeline (commands, currency, giveaways, polls, watchtime) driven by `ChatMessageReceivedEvent`, on Discord as well. See [Commands](../chat-features/commands.md) and the [known issues ledger](../reference/known-issues.md) (KI-1 resolved).
+- **Works**: merged live feed for Twitch/Kick/YouTube/Discord, badges, colors, timestamps (toggleable), chat font size +/- (8–36, persisted with the timestamp preference via `Chat.Appearance`), auto-scroll + unread banner, on-demand history (Kick/Twitch/YouTube), clear/delete history, quick-settings popups, the Discord DM inbox (per-user conversations with previews and unread badges, persistent unlimited history with per-thread and inbox-wide Load/Clear, New DM by Discord user ID, a unified reply box with DM-mode gradient send button that replies through the bot that received the DM, and the Combined side-by-side layout), clickable usernames opening [viewer profiles](../chat-features/viewer-profiles.md), event system messages, and — since 2026-08-15 — the full chat command pipeline (commands, currency, giveaways, polls, watchtime) driven by `ChatMessageReceivedEvent`, on Discord as well. See [Commands](../chat-features/commands.md) and the [known issues ledger](../reference/known-issues.md) (KI-1 resolved).
 - **Discord history is not reloaded** — Discord messages persist to the `ChatMessages` table, but Load Chat History merges only Kick/Twitch/YouTube rows back into the feed. Tracked in the [known issues ledger](../reference/known-issues.md) (KI-34).
 - **Twitch messages can be filtered out**: the Twitch "Chat Enabled" toggle now persists `TwitchChatEnabled` and publishes the routing event (fixed 2026-08-15), so all five platform filters behave the same.
 - **All-Platforms popup buttons are placeholders**: Start Giveaway / Start Poll / Send Announcement / Trigger Event have no command bindings (ChatView.xaml:94-111).

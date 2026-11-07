@@ -13,6 +13,16 @@ public class CurrencyAuctionService : ICurrencyAuctionService
     private readonly IDataService _dataService;
     private readonly ICurrencyService _currencyService;
 
+    // Only one auction can be active at a time, and PlaceBid is a multi-step
+    // read-modify-write (read current bidder -> refund them -> deduct the new
+    // bid -> save). Two bids arriving together would both read the SAME
+    // previous bidder and refund them twice, and both save themselves as the
+    // current bidder. A single gate serializes create/bid/resolve/cancel.
+    // Public entry points take the gate; the *Core helpers assume the caller
+    // holds it (PlaceBid resolves an expired auction inline, so nesting the
+    // public ResolveAuctionAsync while holding the gate would deadlock).
+    private readonly SemaphoreSlim _auctionGate = new(1, 1);
+
     public CurrencyAuctionService(
         ILogger<CurrencyAuctionService> logger,
         IDataService dataService,
@@ -25,35 +35,57 @@ public class CurrencyAuctionService : ICurrencyAuctionService
 
     public async Task<CurrencyAuction> CreateAuctionAsync(string itemName, string? description, int startingBid, int durationMinutes, int minBidIncrement = 10)
     {
-        // Check for existing active auction
-        var existing = await GetActiveAuctionAsync();
-        if (existing != null)
+        await _auctionGate.WaitAsync();
+        try
         {
-            throw new InvalidOperationException("An auction is already active. End it before starting a new one.");
+            // Check for existing active auction
+            var existing = await GetActiveAuctionAsync();
+            if (existing != null)
+            {
+                throw new InvalidOperationException("An auction is already active. End it before starting a new one.");
+            }
+
+            var auction = new CurrencyAuction
+            {
+                ItemName = itemName,
+                Description = description,
+                StartingBid = Math.Max(1, startingBid),
+                MinBidIncrement = Math.Max(1, minBidIncrement),
+                CurrentBid = 0,
+                DurationMinutes = Math.Max(1, durationMinutes),
+                StartedAt = DateTime.UtcNow,
+                EndsAt = DateTime.UtcNow.AddMinutes(durationMinutes),
+                Status = "Active"
+            };
+
+            await _dataService.SaveCurrencyAuctionAsync(auction);
+
+            _logger.LogInformation("Auction started: {ItemName} (starting bid: {StartingBid}, duration: {Duration}m)",
+                itemName, startingBid, durationMinutes);
+
+            return auction;
         }
-
-        var auction = new CurrencyAuction
+        finally
         {
-            ItemName = itemName,
-            Description = description,
-            StartingBid = Math.Max(1, startingBid),
-            MinBidIncrement = Math.Max(1, minBidIncrement),
-            CurrentBid = 0,
-            DurationMinutes = Math.Max(1, durationMinutes),
-            StartedAt = DateTime.UtcNow,
-            EndsAt = DateTime.UtcNow.AddMinutes(durationMinutes),
-            Status = "Active"
-        };
-
-        await _dataService.SaveCurrencyAuctionAsync(auction);
-
-        _logger.LogInformation("Auction started: {ItemName} (starting bid: {StartingBid}, duration: {Duration}m)",
-            itemName, startingBid, durationMinutes);
-
-        return auction;
+            _auctionGate.Release();
+        }
     }
 
     public async Task<(bool Success, string Message)> PlaceBidAsync(string username, string platform, int amount)
+    {
+        await _auctionGate.WaitAsync();
+        try
+        {
+            return await PlaceBidCoreAsync(username, platform, amount);
+        }
+        finally
+        {
+            _auctionGate.Release();
+        }
+    }
+
+    /// <summary>Ungated bid placement — callers hold <see cref="_auctionGate"/>.</summary>
+    private async Task<(bool Success, string Message)> PlaceBidCoreAsync(string username, string platform, int amount)
     {
         var auction = await GetActiveAuctionAsync();
         if (auction == null)
@@ -61,7 +93,7 @@ public class CurrencyAuctionService : ICurrencyAuctionService
 
         if (DateTime.UtcNow > auction.EndsAt)
         {
-            await ResolveAuctionAsync(auction.Id);
+            await ResolveAuctionCoreAsync(auction.Id);
             return (false, "The auction has ended!");
         }
 
@@ -78,20 +110,23 @@ public class CurrencyAuctionService : ICurrencyAuctionService
         if (balance < amount)
             return (false, $"Insufficient balance (have {balance:N0}, need {amount:N0}).");
 
-        // Refund the previous bidder
+        // Deduct from the new bidder FIRST: if their balance changed since the
+        // check above, the bid fails before the previous bidder gets refunded,
+        // so the auction state never ends up with a refunded-but-still-current bid.
+        var removed = await _currencyService.RemoveCurrencyAsync(
+            username, platform, amount, $"Auction bid: {auction.ItemName}", "Spend");
+
+        if (!removed)
+            return (false, "Failed to place bid.");
+
+        // Refund the previous bidder (exactly once — the gate guarantees no
+        // concurrent bid read the same previous bidder).
         if (!string.IsNullOrEmpty(auction.CurrentBidder) && auction.CurrentBid > 0)
         {
             await _currencyService.AddCurrencyAsync(
                 auction.CurrentBidder, auction.CurrentBidderPlatform ?? platform,
                 auction.CurrentBid, $"Auction outbid refund: {auction.ItemName}", "Refund");
         }
-
-        // Deduct from new bidder
-        var removed = await _currencyService.RemoveCurrencyAsync(
-            username, platform, amount, $"Auction bid: {auction.ItemName}", "Spend");
-
-        if (!removed)
-            return (false, "Failed to place bid.");
 
         // Update auction
         auction.CurrentBid = amount;
@@ -135,6 +170,20 @@ public class CurrencyAuctionService : ICurrencyAuctionService
 
     public async Task<(bool Resolved, string Message)> ResolveAuctionAsync(string auctionId)
     {
+        await _auctionGate.WaitAsync();
+        try
+        {
+            return await ResolveAuctionCoreAsync(auctionId);
+        }
+        finally
+        {
+            _auctionGate.Release();
+        }
+    }
+
+    /// <summary>Ungated resolution — callers hold <see cref="_auctionGate"/>.</summary>
+    private async Task<(bool Resolved, string Message)> ResolveAuctionCoreAsync(string auctionId)
+    {
         var auction = await _dataService.GetCurrencyAuctionAsync(auctionId);
         if (auction == null || auction.Status != "Active")
             return (false, "Auction not found or already resolved.");
@@ -160,24 +209,32 @@ public class CurrencyAuctionService : ICurrencyAuctionService
 
     public async Task<bool> CancelAuctionAsync(string auctionId)
     {
-        var auction = await _dataService.GetCurrencyAuctionAsync(auctionId);
-        if (auction == null || auction.Status != "Active")
-            return false;
-
-        // Refund current bidder
-        if (!string.IsNullOrEmpty(auction.CurrentBidder) && auction.CurrentBid > 0)
+        await _auctionGate.WaitAsync();
+        try
         {
-            await _currencyService.AddCurrencyAsync(
-                auction.CurrentBidder, auction.CurrentBidderPlatform ?? "Unknown",
-                auction.CurrentBid, $"Auction cancelled refund: {auction.ItemName}", "Refund");
+            var auction = await _dataService.GetCurrencyAuctionAsync(auctionId);
+            if (auction == null || auction.Status != "Active")
+                return false;
+
+            // Refund current bidder
+            if (!string.IsNullOrEmpty(auction.CurrentBidder) && auction.CurrentBid > 0)
+            {
+                await _currencyService.AddCurrencyAsync(
+                    auction.CurrentBidder, auction.CurrentBidderPlatform ?? "Unknown",
+                    auction.CurrentBid, $"Auction cancelled refund: {auction.ItemName}", "Refund");
+            }
+
+            auction.Status = "Cancelled";
+            auction.UpdatedAt = DateTime.UtcNow;
+            await _dataService.SaveCurrencyAuctionAsync(auction);
+
+            _logger.LogInformation("Auction {AuctionId} cancelled, bidder refunded", auctionId);
+            return true;
         }
-
-        auction.Status = "Cancelled";
-        auction.UpdatedAt = DateTime.UtcNow;
-        await _dataService.SaveCurrencyAuctionAsync(auction);
-
-        _logger.LogInformation("Auction {AuctionId} cancelled, bidder refunded", auctionId);
-        return true;
+        finally
+        {
+            _auctionGate.Release();
+        }
     }
 
     public async Task<IEnumerable<CurrencyAuction>> GetAuctionHistoryAsync(int limit = 20)

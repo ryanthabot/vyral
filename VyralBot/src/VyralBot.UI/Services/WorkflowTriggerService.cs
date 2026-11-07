@@ -122,6 +122,10 @@ public class WorkflowTriggerService
     private bool _timerTriggersEnabled = true;
     // Duplicate-delivery window for slash invocations (see TryHandleSlashCommand).
     private static readonly TimeSpan SlashDedupWindow = TimeSpan.FromSeconds(5);
+    // Cooldown-map pruning: entries older than the window are dropped once the
+    // map exceeds the threshold (see EvaluateOptions).
+    private const int CooldownPruneThreshold = 512;
+    private const double CooldownPruneWindowDays = 7;
     // Custom-id namespace of workflow components ("vyralwf:{workflowId}(:{extra})?").
     private const string ComponentCustomIdPrefix = "vyralwf:";
 
@@ -174,6 +178,12 @@ public class WorkflowTriggerService
     private Timer? _tickTimer;
     private int _tickRunning; // 1 while a tick is executing (reentrancy guard)
     private bool _started;
+    // Cancels every in-flight workflow run on StopAsync (profile switch / app
+    // shutdown): each run's ExecutionContext carries this token, so waits,
+    // HTTP requests and response-waiters abort and the runtime records
+    // "Cancelled" instead of finishing against the wrong profile's services.
+    // Replaced (not disposed) on stop so late contexts never touch a dead CTS.
+    private CancellationTokenSource _runCancellation = new();
 
     /// <summary>True while the service is started (a profile is active).</summary>
     public bool IsRunning => _started;
@@ -261,7 +271,11 @@ public class WorkflowTriggerService
             CommandCount, _eventIndex.Count, _timerWorkflows.Count, _tickInterval.TotalSeconds, _workflowsEnabled);
     }
 
-    /// <summary>Stops timers, unsubscribes every EventBus subscription and clears the cache. Safe to call twice.</summary>
+    /// <summary>
+    /// Stops timers, cancels every in-flight workflow run (they end recorded as
+    /// "Cancelled" rather than finishing against the next profile's services),
+    /// unsubscribes every EventBus subscription and clears the cache. Safe to call twice.
+    /// </summary>
     public Task StopAsync()
     {
         // Unhook the Discord interaction bridge first so no invocation can
@@ -271,6 +285,12 @@ public class WorkflowTriggerService
         lock (_sync)
         {
             _started = false;
+
+            // Cancel in-flight runs first (cooperative: the runtime observes the
+            // token between nodes and the wait/http nodes mid-flight), then arm a
+            // fresh source for runs started after this stop (e.g. editor test runs).
+            _runCancellation.Cancel();
+            _runCancellation = new CancellationTokenSource();
 
             var timer = _tickTimer;
             _tickTimer = null;
@@ -1038,6 +1058,23 @@ public class WorkflowTriggerService
                     var now = DateTime.UtcNow;
                     lock (_sync)
                     {
+                        // Bound the bookkeeping: one entry per workflow|user would
+                        // otherwise grow forever on busy channels. Entries older
+                        // than the prune window are dropped once the map grows
+                        // past the threshold (any authorable cooldown in seconds
+                        // is far shorter than the window).
+                        if (_lastOptionRun.Count > CooldownPruneThreshold)
+                        {
+                            var pruneBefore = now.AddDays(-CooldownPruneWindowDays);
+                            foreach (var stale in _lastOptionRun
+                                         .Where(kvp => kvp.Value < pruneBefore)
+                                         .Select(kvp => kvp.Key)
+                                         .ToList())
+                            {
+                                _lastOptionRun.Remove(stale);
+                            }
+                        }
+
                         if (_lastOptionRun.TryGetValue(key, out var lastRun)
                             && now - lastRun < TimeSpan.FromSeconds(seconds))
                         {
@@ -1932,7 +1969,9 @@ public class WorkflowTriggerService
 
     /// <summary>
     /// Builds the engine ExecutionContext (ExecutionId/Variables/Services are
-    /// assigned by its constructor). Base variables seeded for every trigger
+    /// assigned by its constructor; its CancellationToken comes from the
+    /// service's run-cancellation source, cancelled on <see cref="StopAsync"/>).
+    /// Base variables seeded for every trigger
     /// kind: username, platform, channel, message; <paramref name="extra"/>
     /// adds trigger-specific ones (args/command for commands, eventType plus
     /// event fields for events/timers/manual). The trailing identity params
@@ -1954,7 +1993,7 @@ public class WorkflowTriggerService
         string? userId = null,
         bool isBot = false)
     {
-        var context = new ExecutionContext(_serviceProvider, _logger)
+        var context = new ExecutionContext(_serviceProvider, _logger, _runCancellation.Token)
         {
             WorkflowId = workflow.Id ?? string.Empty,
             Platform = platform ?? string.Empty,

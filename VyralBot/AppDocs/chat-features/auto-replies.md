@@ -23,7 +23,7 @@ Auto-reply settings are part of each platform's **chat settings** — open the C
 
 Kick events: Follow, Subscribe, Gift Sub, Host, Kicks Gifted, Reward Redeemed (Stream Status has show-in-chat only). Twitch events: Follow, Subscribe, Resub, Gift Sub, Raid, Cheer.
 
-YouTube, TikTok, and Discord have no event auto-replies.
+Every platform tab also has a General-card **Auto-Replies** master toggle, and all of them persist (`Chat.<Platform>.AutoRepliesEnabled`; Kick uses its own key) — but only Twitch and Kick have per-event templates behind the toggle, so YouTube, TikTok, and Discord still have no event auto-replies that actually fire.
 
 ### Writing a template
 

@@ -396,15 +396,23 @@
                                        Foreground="{DynamicResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
-                        <Button Grid.Column="1"
-                                Command="{Binding RefreshModActionsCommand}"
-                                Style="{StaticResource MaterialDesignFlatButton}"
-                                VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon Kind="Refresh" Width="16" Height="16" VerticalAlignment="Center"/>
-                                <TextBlock Text="Refresh" Margin="6,0,0,0" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBox Text="{Binding ModActionFilter, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     materialDesign:HintAssist.Hint="Filter (user / action / reason)"
+                                     Width="220"
+                                     Margin="0,0,8,0"
+                                     VerticalAlignment="Center"
+                                     ToolTip="Filters the loaded batch by action kind, target, mod or reason — e.g. AutoMod, ban, a username"/>
+                            <Button Command="{Binding RefreshModActionsCommand}"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Refresh" Width="16" Height="16" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Refresh" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
                     </Grid>
 
                     <ItemsControl ItemsSource="{Binding ModActions}">
@@ -462,6 +470,295 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- ============================================================ -->
+            <!-- Section 5b: Auto-Moderation (chat content filter)             -->
+            <!-- ============================================================ -->
+            <materialDesign:Card Padding="20" Margin="0,0,0,16"
+                                 Background="{DynamicResource CardBackgroundBrush}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Shield" Width="20" Height="20"
+                                                         Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Text="Auto-Moderation"
+                                           FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="8,0,0,0"/>
+                            </StackPanel>
+                            <TextBlock Text="Chat content filter evaluated for every incoming message: caps, links, emojis, banned words, repeated messages and ASCII art, with a warning → timeout → ban escalation ladder. Platforms without a moderation API degrade gracefully (delete/warn) instead of failing."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,12,0"/>
+                        </StackPanel>
+                        <ToggleButton Grid.Column="1"
+                                      IsChecked="{Binding AutoModEnabled}"
+                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                      VerticalAlignment="Top"
+                                      Margin="16,0,0,0"
+                                      ToolTip="Master switch — off passes every message"/>
+                    </Grid>
+
+                    <!-- Column headers for the rule rows -->
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="120"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Rule" FontSize="11"
+                                   Foreground="{DynamicResource TextMutedBrush}"/>
+                        <TextBlock Grid.Column="1" Text="Threshold" FontSize="11"
+                                   Foreground="{DynamicResource TextMutedBrush}"/>
+                        <TextBlock Grid.Column="2" Text="Action" FontSize="11"
+                                   Foreground="{DynamicResource TextMutedBrush}"/>
+                        <TextBlock Grid.Column="3" Text="Second value" FontSize="11"
+                                   Foreground="{DynamicResource TextMutedBrush}"/>
+                        <TextBlock Grid.Column="4" Text="Timeout (s)" FontSize="11"
+                                   Foreground="{DynamicResource TextMutedBrush}"/>
+                        <TextBlock Grid.Column="5" Text="Enabled" FontSize="11"
+                                   Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,12,0"/>
+                    </Grid>
+
+                    <!-- Rule rows -->
+                    <ItemsControl ItemsSource="{Binding AutoModRules}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                        CornerRadius="4"
+                                        Padding="12,8"
+                                        Margin="0,0,0,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="90"/>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="100"/>
+                                            <ColumnDefinition Width="90"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="{Binding Description}"
+                                                       FontSize="10"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding Threshold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 materialDesign:HintAssist.Hint="{Binding ThresholdLabel}"
+                                                 Margin="0,0,8,0"
+                                                 VerticalAlignment="Center"/>
+
+                                        <ComboBox Grid.Column="2"
+                                                  ItemsSource="{Binding DataContext.AutoModActionOptions, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                  SelectedItem="{Binding Action, Mode=TwoWay}"
+                                                  Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                                                  Margin="0,0,8,0"
+                                                  VerticalAlignment="Center"/>
+
+                                        <TextBox Grid.Column="3"
+                                                 Text="{Binding MinLength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 materialDesign:HintAssist.Hint="{Binding MinLengthLabel}"
+                                                 Margin="0,0,8,0"
+                                                 VerticalAlignment="Center"/>
+
+                                        <TextBox Grid.Column="4"
+                                                 Text="{Binding TimeoutSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                 Margin="0,0,8,0"
+                                                 VerticalAlignment="Center"/>
+
+                                        <ToggleButton Grid.Column="5"
+                                                      IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                      VerticalAlignment="Center"
+                                                      ToolTip="Enable this rule"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Exemptions (uniform across all rules) + platform filter -->
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,8">
+                        <TextBlock Text="Exempt from all rules:"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,12,0"/>
+                        <CheckBox Content="Moderators"
+                                  IsChecked="{Binding AutoModExemptModerators}"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                  Margin="0,0,12,0"
+                                  VerticalAlignment="Center"/>
+                        <CheckBox Content="VIPs"
+                                  IsChecked="{Binding AutoModExemptVips}"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                  Margin="0,0,12,0"
+                                  VerticalAlignment="Center"/>
+                        <CheckBox Content="Subscribers"
+                                  IsChecked="{Binding AutoModExemptSubscribers}"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                  Margin="0,0,24,0"
+                                  VerticalAlignment="Center"/>
+                        <TextBlock Text="(the broadcaster is always exempt)"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <TextBox Text="{Binding AutoModPlatformsText, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             materialDesign:HintAssist.Hint="Platforms (comma-separated, empty = all — e.g. Twitch, Kick)"
+                             Width="420"
+                             HorizontalAlignment="Left"
+                             Margin="0,0,0,12"/>
+
+                    <!-- Escalation ladder -->
+                    <TextBlock Text="Escalation (strikes per viewer per platform)"
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,4"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <ToggleButton IsChecked="{Binding EscalationEnabled}"
+                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,16,0"
+                                      ToolTip="Upgrade repeat offenders: warn/delete → timeout → ban"/>
+                        <TextBox Text="{Binding EscalationStrikesToTimeout, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                 materialDesign:HintAssist.Hint="Strikes → timeout"
+                                 Width="130"
+                                 Margin="0,0,8,0"/>
+                        <TextBox Text="{Binding EscalationStrikesToBan, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                 materialDesign:HintAssist.Hint="Strikes → ban"
+                                 Width="120"
+                                 Margin="0,0,8,0"/>
+                        <TextBox Text="{Binding EscalationWindowMinutes, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                 materialDesign:HintAssist.Hint="Window (min)"
+                                 Width="110"
+                                 Margin="0,0,8,0"/>
+                        <TextBox Text="{Binding EscalationBaseTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                 materialDesign:HintAssist.Hint="Base timeout (s)"
+                                 Width="130"/>
+                    </StackPanel>
+
+                    <!-- Allowlists / banned words / exempt users -->
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding LinkAllowlistText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                 materialDesign:HintAssist.Hint="Link allowlist (one domain per line)"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 Height="90"
+                                 VerticalContentAlignment="Top"/>
+                        <TextBox Grid.Column="2"
+                                 Text="{Binding BannedWordsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                 materialDesign:HintAssist.Hint="Banned words / phrases (one per line)"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 Height="90"
+                                 VerticalContentAlignment="Top"/>
+                        <TextBox Grid.Column="4"
+                                 Text="{Binding ExemptUsersText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                 materialDesign:HintAssist.Hint="Exempt users (one per line)"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 Height="90"
+                                 VerticalContentAlignment="Top"/>
+                    </Grid>
+
+                    <!-- Test a message against the live rules -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBox Text="{Binding AutoModTestMessage, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                 materialDesign:HintAssist.Hint="Test a message against the live rules"
+                                 Width="420"
+                                 VerticalAlignment="Center"/>
+                        <Button Content="Test"
+                                Command="{Binding TestAutoModMessageCommand}"
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Background="{DynamicResource PrimaryBrush}"
+                                Margin="12,0,0,0"
+                                VerticalAlignment="Center"
+                                ToolTip="Evaluates the message as a plain Twitch viewer — no action is executed"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding AutoModTestResult}"
+                               FontSize="12"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,12"
+                               Visibility="{Binding AutoModTestResult, Converter={StaticResource StringNullOrEmptyToVisibilityConverter}}"/>
+
+                    <!-- Platform enforcement parity -->
+                    <TextBlock Text="Platform enforcement parity"
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,4"/>
+                    <ItemsControl ItemsSource="{Binding AutoModPlatformStatus}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,4"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Save / reset -->
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="Save auto-mod rules"
+                                Command="{Binding SaveAutoModConfigCommand}"
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Background="{DynamicResource PrimaryBrush}"/>
+                        <Button Content="Reset escalation state"
+                                Command="{Binding ResetAutoModEscalationCommand}"
+                                Style="{StaticResource MaterialDesignFlatButton}"
+                                Margin="16,0,0,0"
+                                ToolTip="Clears every viewer's strike and repeat tracking"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding AutoModStatus}"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,8,0,0"
+                               Visibility="{Binding AutoModStatus, Converter={StaticResource StringNullOrEmptyToVisibilityConverter}}"/>
                 </StackPanel>
             </materialDesign:Card>
 

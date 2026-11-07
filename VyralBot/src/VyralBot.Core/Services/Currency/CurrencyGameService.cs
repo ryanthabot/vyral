@@ -146,10 +146,15 @@ public class CurrencyGameService : ICurrencyGameService, IDisposable
 
         if (multiplier > 0)
         {
-            var winnings = amount * multiplier;
-            await _currencyService.AddCurrencyAsync(username, platform, winnings - amount, "Slots win", "Gamble");
+            // long math: amount * 10 on a near-max balance overflows int and
+            // silently wraps negative. Clamp the payout delta at int.MaxValue
+            // (the balance add itself also saturates) so the economy can never
+            // wrap.
+            var winnings = (long)amount * multiplier;
+            var payout = (int)Math.Min(winnings - amount, int.MaxValue);
+            await _currencyService.AddCurrencyAsync(username, platform, payout, "Slots win", "Gamble");
             var newBalance = await _currencyService.GetBalanceAsync(username, platform);
-            return new GameResult(true, winnings - amount,
+            return new GameResult(true, payout,
                 $"🎰 {display} — @{username} won {winnings:N0} {currencyName} ({multiplier}x)! Balance: {newBalance:N0}");
         }
         else
@@ -171,12 +176,14 @@ public class CurrencyGameService : ICurrencyGameService, IDisposable
 
         var key = $"{opponent.ToLowerInvariant()}:{platform}";
 
-        if (_pendingDuels.ContainsKey(key))
+        // TryAdd is atomic — two simultaneous challenges to the same opponent
+        // cannot both pass a ContainsKey check and silently overwrite each other.
+        var added = _pendingDuels.TryAdd(key,
+            new DuelChallenge(challenger, opponent, platform, amount, DateTime.UtcNow.AddSeconds(60)));
+        if (!added)
         {
             return $"@{opponent} already has a pending duel. They must !accept or wait for it to expire.";
         }
-
-        _pendingDuels[key] = new DuelChallenge(challenger, opponent, platform, amount, DateTime.UtcNow.AddSeconds(60));
 
         return $"⚔️ @{challenger} challenges @{opponent} to a duel for {amount:N0}! Type !accept within 60s to fight!";
     }
@@ -216,7 +223,18 @@ public class CurrencyGameService : ICurrencyGameService, IDisposable
         var winner = challengerWins ? duel.Challenger : username;
         var loser = challengerWins ? username : duel.Challenger;
 
-        await _currencyService.RemoveCurrencyAsync(loser, platform, duel.Amount, $"Duel loss vs {winner}", "Gamble");
+        // Pay order matters: deduct the loser's stake FIRST and check the
+        // result — RemoveCurrencyAsync re-validates the balance atomically, so
+        // if the loser went broke between the check above and now, the duel is
+        // voided instead of paying the winner with freshly minted points.
+        var paid = await _currencyService.RemoveCurrencyAsync(
+            loser, platform, duel.Amount, $"Duel loss vs {winner}", "Gamble");
+        if (!paid)
+        {
+            return new GameResult(false, 0,
+                $"⚔️ The duel was voided — @{loser} can no longer cover the {duel.Amount:N0} stake.");
+        }
+
         await _currencyService.AddCurrencyAsync(winner, platform, duel.Amount, $"Duel win vs {loser}", "Gamble");
 
         var settings = await _currencyService.GetSettingsAsync();
@@ -445,10 +463,13 @@ public class CurrencyGameService : ICurrencyGameService, IDisposable
 
         if (won)
         {
-            var winnings = amount * multiplier;
-            await _currencyService.AddCurrencyAsync(username, platform, winnings - amount, "Roulette win", "Gamble");
+            // long math: a straight-number hit pays 36x, which overflows int on
+            // large bets. Clamp the payout delta at int.MaxValue.
+            var winnings = (long)amount * multiplier;
+            var payout = (int)Math.Min(winnings - amount, int.MaxValue);
+            await _currencyService.AddCurrencyAsync(username, platform, payout, "Roulette win", "Gamble");
             var newBalance = await _currencyService.GetBalanceAsync(username, platform);
-            return new GameResult(true, winnings - amount,
+            return new GameResult(true, payout,
                 $"🎡 {colorEmoji} {result}! @{username} won {winnings:N0} {currencyName} ({multiplier}x)! Balance: {newBalance:N0}");
         }
         else

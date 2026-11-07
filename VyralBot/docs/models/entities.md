@@ -453,8 +453,8 @@ Individual event occurrence for statistics and history.
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | Id | `Guid` | — | `Guid.NewGuid()` | Primary key |
-| Platform | `string` | **required** | — | "Kick" or "Twitch" |
-| EventType | `string` | **required** | — | "Follow", "Subscribe", "Raid", etc. |
+| Platform | `string` | **required** | — | Platform name — written today by ChatViewModel for "Kick", "Twitch" (all event types) and "YouTube" (membership Subscribe/Resub); "Discord"/"TikTok" raise no follow/sub-style events yet |
+| EventType | `string` | **required** | — | "Follow", "Subscribe", "Resub", "GiftSub", "Raid", "Cheer", "Host", "KicksGifted", "RewardRedeemed", "StreamStatus" |
 | Username | `string` | **required** | — | User who triggered the event |
 | EventData | `string?` | — | `null` | JSON data (tier, amount, count, etc.) |
 | Timestamp | `DateTime` | — | `DateTime.UtcNow` | When the event occurred |

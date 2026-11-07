@@ -20,6 +20,21 @@ public class CurrencyBankService : ICurrencyBankService
     // restarts via the CurrencyTransactions audit trail (see GetLastWithdrawalUtcAsync).
     private readonly ConcurrentDictionary<string, DateTime> _lastWithdrawalUtc = new();
 
+    // Bank rows are mutated read-modify-write (read BankBalance, add/subtract,
+    // save the whole row). Two concurrent !withdraw commands would both read
+    // the same balance and double-withdraw (the wallet credit makes it real
+    // money creation); two concurrent deposits can lose one. These per-account
+    // gates serialize bank mutations for one viewer while different viewers
+    // proceed in parallel. Lock order is always bank gate -> currency gate
+    // (Deposit/Withdraw call into CurrencyService while holding it), so it can
+    // never deadlock against CurrencyService's own account gates.
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> _bankAccountGates = new();
+
+    private static SemaphoreSlim GetBankAccountGate(string username, string platform)
+        => _bankAccountGates.GetOrAdd(
+            $"{username.ToLowerInvariant()}:{platform.ToLowerInvariant()}",
+            _ => new SemaphoreSlim(1, 1));
+
     public CurrencyBankService(
         ILogger<CurrencyBankService> logger,
         IDataService dataService,
@@ -51,33 +66,42 @@ public class CurrencyBankService : ICurrencyBankService
         if (!bankSettings.Enabled)
             return (false, "Banking is currently disabled.");
 
-        // Check wallet balance
-        var balance = await _currencyService.GetBalanceAsync(username, platform);
-        if (balance < amount)
-            return (false, $"Insufficient wallet balance (have {balance:N0}, need {amount:N0}).");
+        var gate = GetBankAccountGate(username, platform);
+        await gate.WaitAsync();
+        try
+        {
+            // Check wallet balance
+            var balance = await _currencyService.GetBalanceAsync(username, platform);
+            if (balance < amount)
+                return (false, $"Insufficient wallet balance (have {balance:N0}, need {amount:N0}).");
 
-        // Check max bank balance
-        var account = await GetOrCreateAccountAsync(username, platform);
-        if (bankSettings.MaxBankBalance > 0 && account.BankBalance + amount > bankSettings.MaxBankBalance)
-            return (false, $"Deposit would exceed bank cap of {bankSettings.MaxBankBalance:N0}.");
+            // Check max bank balance
+            var account = await GetOrCreateAccountAsync(username, platform);
+            if (bankSettings.MaxBankBalance > 0 && (long)account.BankBalance + amount > bankSettings.MaxBankBalance)
+                return (false, $"Deposit would exceed bank cap of {bankSettings.MaxBankBalance:N0}.");
 
-        // Remove from wallet
-        var removed = await _currencyService.RemoveCurrencyAsync(
-            username, platform, amount, "Bank deposit", "BankDeposit");
-        if (!removed)
-            return (false, "Failed to deduct from wallet.");
+            // Remove from wallet
+            var removed = await _currencyService.RemoveCurrencyAsync(
+                username, platform, amount, "Bank deposit", "BankDeposit");
+            if (!removed)
+                return (false, "Failed to deduct from wallet.");
 
-        // Add to bank
-        account.BankBalance += amount;
-        account.TotalDeposited += amount;
-        account.UpdatedAt = DateTime.UtcNow;
-        await _dataService.SaveUserBankAccountAsync(account);
+            // Add to bank
+            account.BankBalance += amount;
+            account.TotalDeposited += amount;
+            account.UpdatedAt = DateTime.UtcNow;
+            await _dataService.SaveUserBankAccountAsync(account);
 
-        var settings = await _currencyService.GetSettingsAsync();
-        var currencyName = settings?.CurrencyName ?? "Points";
+            var settings = await _currencyService.GetSettingsAsync();
+            var currencyName = settings?.CurrencyName ?? "Points";
 
-        _logger.LogInformation("{Username} ({Platform}) deposited {Amount} to bank", username, platform, amount);
-        return (true, $"🏦 Deposited {amount:N0} {currencyName}. Bank balance: {account.BankBalance:N0}");
+            _logger.LogInformation("{Username} ({Platform}) deposited {Amount} to bank", username, platform, amount);
+            return (true, $"🏦 Deposited {amount:N0} {currencyName}. Bank balance: {account.BankBalance:N0}");
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     public async Task<(bool Success, string Message)> WithdrawAsync(string username, string platform, int amount)
@@ -89,54 +113,63 @@ public class CurrencyBankService : ICurrencyBankService
         if (!bankSettings.Enabled)
             return (false, "Banking is currently disabled.");
 
-        var account = await _dataService.GetUserBankAccountAsync(username, platform);
-        if (account == null || account.BankBalance < amount)
-            return (false, $"Insufficient bank balance (have {account?.BankBalance ?? 0:N0}).");
-
-        // Enforce the configured withdrawal cooldown: reject while the viewer's
-        // last successful withdrawal is still inside the cooldown window.
-        // A setting of 0 (or unset) keeps withdrawals permissive (no cooldown).
-        if (bankSettings.WithdrawalCooldownMinutes > 0)
+        var gate = GetBankAccountGate(username, platform);
+        await gate.WaitAsync();
+        try
         {
-            var lastWithdrawal = await GetLastWithdrawalUtcAsync(username, platform);
-            if (lastWithdrawal.HasValue)
+            var account = await _dataService.GetUserBankAccountAsync(username, platform);
+            if (account == null || account.BankBalance < amount)
+                return (false, $"Insufficient bank balance (have {account?.BankBalance ?? 0:N0}).");
+
+            // Enforce the configured withdrawal cooldown: reject while the viewer's
+            // last successful withdrawal is still inside the cooldown window.
+            // A setting of 0 (or unset) keeps withdrawals permissive (no cooldown).
+            if (bankSettings.WithdrawalCooldownMinutes > 0)
             {
-                var cooldownEnd = lastWithdrawal.Value.AddMinutes(bankSettings.WithdrawalCooldownMinutes);
-                if (cooldownEnd > DateTime.UtcNow)
+                var lastWithdrawal = await GetLastWithdrawalUtcAsync(username, platform);
+                if (lastWithdrawal.HasValue)
                 {
-                    var minutesLeft = (int)Math.Ceiling((cooldownEnd - DateTime.UtcNow).TotalMinutes);
-                    _logger.LogInformation(
-                        "Withdrawal for {Username} ({Platform}) rejected: cooldown active for {Minutes} more minute(s)",
-                        username, platform, minutesLeft);
-                    return (false, $"🏦 Withdrawal on cooldown — try again in ~{minutesLeft} min.");
+                    var cooldownEnd = lastWithdrawal.Value.AddMinutes(bankSettings.WithdrawalCooldownMinutes);
+                    if (cooldownEnd > DateTime.UtcNow)
+                    {
+                        var minutesLeft = (int)Math.Ceiling((cooldownEnd - DateTime.UtcNow).TotalMinutes);
+                        _logger.LogInformation(
+                            "Withdrawal for {Username} ({Platform}) rejected: cooldown active for {Minutes} more minute(s)",
+                            username, platform, minutesLeft);
+                        return (false, $"🏦 Withdrawal on cooldown — try again in ~{minutesLeft} min.");
+                    }
                 }
             }
+
+            // Calculate penalty
+            var penalty = (int)(amount * bankSettings.WithdrawalPenaltyPercent / 100.0);
+            var netAmount = amount - penalty;
+
+            // Deduct from bank
+            account.BankBalance -= amount;
+            account.TotalWithdrawn += amount;
+            account.UpdatedAt = DateTime.UtcNow;
+            await _dataService.SaveUserBankAccountAsync(account);
+
+            // Add net amount to wallet
+            await _currencyService.AddCurrencyAsync(
+                username, platform, netAmount, "Bank withdrawal", "BankWithdrawal");
+
+            _lastWithdrawalUtc[GetWithdrawalKey(username, platform)] = DateTime.UtcNow;
+
+            var settings = await _currencyService.GetSettingsAsync();
+            var currencyName = settings?.CurrencyName ?? "Points";
+
+            var penaltyText = penalty > 0 ? $" (penalty: {penalty:N0})" : "";
+            _logger.LogInformation("{Username} ({Platform}) withdrew {Amount} from bank (penalty: {Penalty})",
+                username, platform, amount, penalty);
+
+            return (true, $"🏦 Withdrew {netAmount:N0} {currencyName}{penaltyText}. Bank balance: {account.BankBalance:N0}");
         }
-
-        // Calculate penalty
-        var penalty = (int)(amount * bankSettings.WithdrawalPenaltyPercent / 100.0);
-        var netAmount = amount - penalty;
-
-        // Deduct from bank
-        account.BankBalance -= amount;
-        account.TotalWithdrawn += amount;
-        account.UpdatedAt = DateTime.UtcNow;
-        await _dataService.SaveUserBankAccountAsync(account);
-
-        // Add net amount to wallet
-        await _currencyService.AddCurrencyAsync(
-            username, platform, netAmount, "Bank withdrawal", "BankWithdrawal");
-
-        _lastWithdrawalUtc[GetWithdrawalKey(username, platform)] = DateTime.UtcNow;
-
-        var settings = await _currencyService.GetSettingsAsync();
-        var currencyName = settings?.CurrencyName ?? "Points";
-
-        var penaltyText = penalty > 0 ? $" (penalty: {penalty:N0})" : "";
-        _logger.LogInformation("{Username} ({Platform}) withdrew {Amount} from bank (penalty: {Penalty})",
-            username, platform, amount, penalty);
-
-        return (true, $"🏦 Withdrew {netAmount:N0} {currencyName}{penaltyText}. Bank balance: {account.BankBalance:N0}");
+        finally
+        {
+            gate.Release();
+        }
     }
 
     private static string GetWithdrawalKey(string username, string platform)

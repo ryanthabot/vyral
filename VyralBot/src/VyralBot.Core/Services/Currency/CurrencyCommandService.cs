@@ -334,21 +334,34 @@ public class CurrencyCommandService : ICurrencyCommandService
             return $"Minimum bet is 10 {currencyName}.";
         }
 
+        // Escrow the stake BEFORE flipping: the balance check above used a
+        // stale read, and two commands arriving together (e.g. "!gamble all"
+        // twice) would otherwise both resolve against the same pre-bet balance.
+        // RemoveCurrencyAsync re-validates atomically, so exactly one of them
+        // can take the stake.
+        var escrowed = await _currencyService.RemoveCurrencyAsync(
+            username, platform, amount, "Gamble stake", "Gamble");
+        if (!escrowed)
+        {
+            var refreshedBalance = await _currencyService.GetBalanceAsync(username, platform);
+            return $"You don't have enough {currencyName}! (Balance: {refreshedBalance:N0})";
+        }
+
         // 50% chance to win
-        var random = new Random();
-        var won = random.Next(0, 2) == 1;
+        var won = Random.Shared.Next(0, 2) == 1;
 
         if (won)
         {
-            // Double their bet
-            await _currencyService.AddCurrencyAsync(username, platform, amount, "Gamble win", "Gamble");
+            // Stake back plus winnings = double. long math + clamp keep a near-max
+            // balance from overflowing int.
+            var payout = (int)Math.Min((long)amount * 2, int.MaxValue);
+            await _currencyService.AddCurrencyAsync(username, platform, payout, "Gamble win", "Gamble");
             var newBalance = await _currencyService.GetBalanceAsync(username, platform);
             return $"🎰 @{username} won {amount:N0} {currencyName}! New balance: {newBalance:N0}";
         }
         else
         {
-            // Lose their bet
-            await _currencyService.RemoveCurrencyAsync(username, platform, amount, "Gamble loss", "Gamble");
+            // Stake already deducted above.
             var newBalance = await _currencyService.GetBalanceAsync(username, platform);
             return $"🎰 @{username} lost {amount:N0} {currencyName}. New balance: {newBalance:N0}";
         }

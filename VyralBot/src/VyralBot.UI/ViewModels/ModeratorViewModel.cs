@@ -82,9 +82,82 @@ public partial class RoleTierRow : ObservableObject
 }
 
 /// <summary>
+/// One row of the Auto-Moderation card: observable edit state for one
+/// <see cref="ModerationRuleConfig"/> slot. Rows hold no services — the VM
+/// copies the observable values back into the rule set on save
+/// (<see cref="ApplyToConfig"/>), and the labels vary per rule type
+/// (e.g. Threshold = "Max caps %" for Caps but "Repeats" for RepeatedMessage).
+/// </summary>
+public partial class AutoModRuleRow : ObservableObject
+{
+    public AutoModRuleRow(
+        ModerationRuleType type,
+        string displayName,
+        string description,
+        string thresholdLabel,
+        string minLengthLabel,
+        ModerationRuleConfig config)
+    {
+        Type = type;
+        DisplayName = displayName;
+        Description = description;
+        ThresholdLabel = thresholdLabel;
+        MinLengthLabel = minLengthLabel;
+        Config = config;
+        _isEnabled = config.Enabled;
+        _action = config.Action.ToString();
+        _threshold = config.Threshold;
+        _minLength = config.MinLength;
+        _timeoutSeconds = config.TimeoutSeconds;
+    }
+
+    public ModerationRuleType Type { get; }
+
+    public string DisplayName { get; }
+
+    public string Description { get; }
+
+    public string ThresholdLabel { get; }
+
+    public string MinLengthLabel { get; }
+
+    /// <summary>The live config object edited by this row (copied out on save).</summary>
+    public ModerationRuleConfig Config { get; }
+
+    [ObservableProperty]
+    private bool _isEnabled;
+
+    /// <summary>One of "Delete" / "Warn" / "Timeout" / "Ban" (AutoModActionOptions).</summary>
+    [ObservableProperty]
+    private string _action;
+
+    [ObservableProperty]
+    private int _threshold;
+
+    [ObservableProperty]
+    private int _minLength;
+
+    [ObservableProperty]
+    private int _timeoutSeconds;
+
+    /// <summary>Copies the row's observable values into its config slot.</summary>
+    public void ApplyToConfig()
+    {
+        Config.Enabled = IsEnabled;
+        Config.Action = Enum.TryParse<ModerationActionKind>(Action, out var parsed)
+            ? parsed
+            : ModerationActionKind.Delete;
+        Config.Threshold = Threshold;
+        Config.MinLength = MinLength;
+        Config.TimeoutSeconds = TimeoutSeconds;
+    }
+}
+
+/// <summary>
 /// Moderator dashboard: mod channel setup (create + config), mod role
 /// assignments, the command-channel list, the Discord role→tier mapping
-/// editor, the moderation action log and the Moderator Commands card — custom
+/// editor, the moderation action log, the Auto-Moderation card (chat content
+/// filter) and the Moderator Commands card — custom
 /// "!mod verb" workflows authored in the visual Flow editor (the page's
 /// "Add moderator command" button opens that editor as an overlay; the host
 /// lives in <see cref="Views.ModeratorView"/>'s code-behind).
@@ -487,29 +560,341 @@ public partial class ModeratorViewModel : ViewModelBase
 
     public ObservableCollection<ModAction> ModActions { get; } = new();
 
+    /// <summary>Unfiltered batch backing the action log (re-filtered in place).</summary>
+    private List<ModAction> _modActionCache = new();
+
+    /// <summary>
+    /// Free-text filter over the loaded action-log batch: matches the action
+    /// kind, target username or mod username (e.g. "AutoMod", "ban", a viewer).
+    /// </summary>
+    [ObservableProperty]
+    private string? _modActionFilter;
+
+    partial void OnModActionFilterChanged(string? value) => ApplyModActionFilter();
+
     [RelayCommand]
     private async Task RefreshModActionsAsync()
     {
         try
         {
             var actions = await _dataService.GetModActionsAsync(100);
-
-            // Collection writes are marshaled to the UI thread (loads can be
-            // triggered while other EventBus/refresh work is in flight).
-            RunOnUi(() =>
-            {
-                ModActions.Clear();
-                foreach (var action in actions)
-                {
-                    ModActions.Add(action);
-                }
-            });
+            _modActionCache = actions.ToList();
+            ApplyModActionFilter();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error loading the mod action log");
             StatusMessage = $"Error loading action log: {ex.Message}";
         }
+    }
+
+    /// <summary>Re-applies <see cref="ModActionFilter"/> over the cached batch.</summary>
+    private void ApplyModActionFilter()
+    {
+        var filter = (ModActionFilter ?? "").Trim();
+
+        // Collection writes are marshaled to the UI thread (loads can be
+        // triggered while other EventBus/refresh work is in flight).
+        RunOnUi(() =>
+        {
+            ModActions.Clear();
+            foreach (var action in _modActionCache)
+            {
+                if (filter.Length == 0 ||
+                    Contains(action.Action, filter) ||
+                    Contains(action.TargetUsername, filter) ||
+                    Contains(action.ModUsername, filter) ||
+                    Contains(action.Details, filter))
+                {
+                    ModActions.Add(action);
+                }
+            }
+        });
+    }
+
+    private static bool Contains(string? value, string filter)
+        => value is not null && value.Contains(filter, StringComparison.OrdinalIgnoreCase);
+
+    // ======================================================================
+    // Section 4b — Auto-moderation (chat content filter)
+    // ======================================================================
+
+    /// <summary>
+    /// Edit rows for the six detection rules (caps / links / emojis / banned
+    /// words / repeats / ASCII art) — see <see cref="ChatModerationEngine"/>.
+    /// </summary>
+    public ObservableCollection<AutoModRuleRow> AutoModRules { get; } = new();
+
+    /// <summary>Action options for every rule row (ModerationActionKind names).</summary>
+    public IReadOnlyList<string> AutoModActionOptions { get; } = Enum.GetNames<ModerationActionKind>();
+
+    /// <summary>Per-platform enforcement parity lines (adapters vs built-ins).</summary>
+    public ObservableCollection<string> AutoModPlatformStatus { get; } = new();
+
+    [ObservableProperty]
+    private bool _autoModEnabled;
+
+    // One set of exemption toggles for ALL rules (kept uniform on save; the
+    // underlying config stores them per rule for future fine-grained UIs).
+    [ObservableProperty]
+    private bool _autoModExemptModerators = true;
+
+    [ObservableProperty]
+    private bool _autoModExemptVips;
+
+    [ObservableProperty]
+    private bool _autoModExemptSubscribers;
+
+    /// <summary>Comma-separated platform filter; empty = every platform.</summary>
+    [ObservableProperty]
+    private string _autoModPlatformsText = string.Empty;
+
+    [ObservableProperty]
+    private bool _escalationEnabled = true;
+
+    [ObservableProperty]
+    private int _escalationStrikesToTimeout = 2;
+
+    [ObservableProperty]
+    private int _escalationStrikesToBan = 4;
+
+    [ObservableProperty]
+    private int _escalationWindowMinutes = 15;
+
+    [ObservableProperty]
+    private int _escalationBaseTimeoutSeconds = 120;
+
+    /// <summary>One domain per line ("twitch.tv" also allows subdomains).</summary>
+    [ObservableProperty]
+    private string _linkAllowlistText = string.Empty;
+
+    /// <summary>One word or phrase per line (phrases match as substrings).</summary>
+    [ObservableProperty]
+    private string _bannedWordsText = string.Empty;
+
+    /// <summary>One username per line — never auto-moderated.</summary>
+    [ObservableProperty]
+    private string _exemptUsersText = string.Empty;
+
+    [ObservableProperty]
+    private string _autoModTestMessage = string.Empty;
+
+    [ObservableProperty]
+    private string? _autoModTestResult;
+
+    [ObservableProperty]
+    private string? _autoModStatus;
+
+    /// <summary>The rule set currently being edited (loaded by LoadAutoModConfigAsync).</summary>
+    private ModerationRuleSet? _autoModRules;
+
+    /// <summary>
+    /// Loads the persisted rule JSON, applies it to the shared engine and
+    /// fills the card. Also configures the shared action service so executed
+    /// verdicts land in the persistent mod-action log.
+    /// </summary>
+    [RelayCommand]
+    private async Task LoadAutoModConfigAsync()
+    {
+        try
+        {
+            var repository = new ModerationRulesRepository(_dataService);
+            var rules = await repository.LoadAsync();
+            ModerationActionService.Shared.Configure(_dataService);
+            PopulateAutoMod(rules);
+            RefreshAutoModPlatformStatus();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading auto-mod rules");
+            StatusMessage = $"Error loading auto-mod rules: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Normalizes the card state, persists it and applies it to the shared
+    /// engine (chat pipelines evaluate against the new rules immediately).
+    /// </summary>
+    [RelayCommand]
+    private async Task SaveAutoModConfigAsync()
+    {
+        try
+        {
+            IsBusy = true;
+
+            var rules = _autoModRules ?? ModerationRuleSet.CreateDefault();
+            rules.MasterEnabled = AutoModEnabled;
+            rules.Platforms = SplitList(AutoModPlatformsText);
+
+            foreach (var row in AutoModRules)
+            {
+                row.ApplyToConfig();
+            }
+
+            // The card keeps exemptions uniform across all six rules.
+            foreach (var config in new[]
+                     {
+                         rules.BannedWords, rules.Links, rules.Caps,
+                         rules.Emojis, rules.RepeatedMessage, rules.AsciiArt
+                     })
+            {
+                config.ExemptModerators = AutoModExemptModerators;
+                config.ExemptVips = AutoModExemptVips;
+                config.ExemptSubscribers = AutoModExemptSubscribers;
+            }
+
+            rules.Escalation = new ModerationEscalationConfig
+            {
+                Enabled = EscalationEnabled,
+                StrikesToTimeout = EscalationStrikesToTimeout,
+                StrikesToBan = EscalationStrikesToBan,
+                StrikeWindowMinutes = EscalationWindowMinutes,
+                BaseTimeoutSeconds = EscalationBaseTimeoutSeconds
+            };
+            rules.LinkAllowlist = SplitList(LinkAllowlistText);
+            rules.BannedWordList = SplitList(BannedWordsText);
+            rules.ExemptUsers = SplitList(ExemptUsersText);
+
+            var repository = new ModerationRulesRepository(_dataService);
+            await repository.SaveAsync(rules);
+            _autoModRules = rules.Clone();
+
+            AutoModStatus = "Auto-mod rules saved — the engine evaluates with them now.";
+            _logger.LogInformation("Auto-mod rules saved from the Moderator dashboard");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving auto-mod rules");
+            AutoModStatus = $"Error saving auto-mod rules: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Runs the sample message through the shared engine (as a plain viewer on
+    /// "Twitch") and shows which rule would trip — no action is executed.
+    /// </summary>
+    [RelayCommand]
+    private void TestAutoModMessage()
+    {
+        if (string.IsNullOrWhiteSpace(AutoModTestMessage))
+        {
+            AutoModTestResult = "Type a sample message to test.";
+            return;
+        }
+
+        var verdict = ChatModerationEngine.Shared.Evaluate(new ModerationIncomingMessage
+        {
+            Platform = "Twitch",
+            Username = "auto-mod-test",
+            Message = AutoModTestMessage.Trim()
+        });
+
+        AutoModTestResult = verdict is null
+            ? "Clean — no rule triggered."
+            : $"{verdict.Rule} → {verdict.Action}" +
+              (verdict.Action == ModerationActionKind.Timeout ? $" ({verdict.TimeoutSeconds}s)" : "") +
+              $": {verdict.Reason} [strike {verdict.Strikes}]";
+    }
+
+    /// <summary>Clears every viewer's repeat + escalation state.</summary>
+    [RelayCommand]
+    private void ResetAutoModEscalation()
+    {
+        var tracked = ChatModerationEngine.Shared.TrackedViewerCount;
+        ChatModerationEngine.Shared.ResetAll();
+        AutoModStatus = $"Escalation state cleared ({tracked} viewer(s) were tracked).";
+    }
+
+    private void PopulateAutoMod(ModerationRuleSet rules)
+    {
+        _autoModRules = rules;
+
+        var rows = new[]
+        {
+            new AutoModRuleRow(ModerationRuleType.BannedWords, "Banned words",
+                "Words/phrases from the banned list (word allowlist overrides; phrases match as substrings).",
+                "—", "—", rules.BannedWords),
+            new AutoModRuleRow(ModerationRuleType.Links, "Links",
+                "Links whose domain is not on the allowlist; threshold = tolerated link count.",
+                "Max links", "—", rules.Links),
+            new AutoModRuleRow(ModerationRuleType.Caps, "Excessive caps",
+                "Upper-case share of the message's letters; short messages are ignored.",
+                "Max caps %", "Min letters", rules.Caps),
+            new AutoModRuleRow(ModerationRuleType.Emojis, "Emojis",
+                "Emoji count in one message (unicode emoji, symbols and arrows).",
+                "Max emojis", "—", rules.Emojis),
+            new AutoModRuleRow(ModerationRuleType.RepeatedMessage, "Repeated message",
+                "The same message repeated by the same viewer within the window.",
+                "Repeats", "Window (s)", rules.RepeatedMessage),
+            new AutoModRuleRow(ModerationRuleType.AsciiArt, "ASCII art",
+                "Box-drawing / block / geometric-shape character share of the message.",
+                "Max art %", "Min length", rules.AsciiArt)
+        };
+
+        var platformLines = ModerationPlatformParity.Describe(ModerationActionService.Shared).ToList();
+
+        RunOnUi(() =>
+        {
+            AutoModEnabled = rules.MasterEnabled;
+            AutoModExemptModerators = rules.Caps.ExemptModerators;
+            AutoModExemptVips = rules.Caps.ExemptVips;
+            AutoModExemptSubscribers = rules.Caps.ExemptSubscribers;
+            AutoModPlatformsText = string.Join(", ", rules.Platforms);
+
+            EscalationEnabled = rules.Escalation.Enabled;
+            EscalationStrikesToTimeout = rules.Escalation.StrikesToTimeout;
+            EscalationStrikesToBan = rules.Escalation.StrikesToBan;
+            EscalationWindowMinutes = rules.Escalation.StrikeWindowMinutes;
+            EscalationBaseTimeoutSeconds = rules.Escalation.BaseTimeoutSeconds;
+
+            LinkAllowlistText = string.Join(Environment.NewLine, rules.LinkAllowlist);
+            BannedWordsText = string.Join(Environment.NewLine, rules.BannedWordList);
+            ExemptUsersText = string.Join(Environment.NewLine, rules.ExemptUsers);
+
+            AutoModRules.Clear();
+            foreach (var row in rows)
+            {
+                AutoModRules.Add(row);
+            }
+
+            AutoModPlatformStatus.Clear();
+            foreach (var line in platformLines)
+            {
+                AutoModPlatformStatus.Add(line);
+            }
+        });
+    }
+
+    private void RefreshAutoModPlatformStatus()
+    {
+        var lines = ModerationPlatformParity.Describe(ModerationActionService.Shared).ToList();
+        RunOnUi(() =>
+        {
+            AutoModPlatformStatus.Clear();
+            foreach (var line in lines)
+            {
+                AutoModPlatformStatus.Add(line);
+            }
+        });
+    }
+
+    /// <summary>Splits a textbox blob into clean list entries (newline or comma separated).</summary>
+    private static List<string> SplitList(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return new List<string>();
+        }
+
+        return text
+            .Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(entry => entry.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     // ======================================================================
@@ -624,6 +1009,7 @@ public partial class ModeratorViewModel : ViewModelBase
 
             await LoadAssignmentsAsync();
             await RefreshModActionsCommand.ExecuteAsync(null);
+            await LoadAutoModConfigCommand.ExecuteAsync(null);
             await LoadModCommandWorkflowsAsync();
             await LoadCommandChannelsCommand.ExecuteAsync(null);
 

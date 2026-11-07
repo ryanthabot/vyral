@@ -34,7 +34,8 @@ public partial class DiscordBotDetailView : UserControl
     /// <summary>Commands-card button: opens the visual editor on a new Discord flow.</summary>
     private async void OnVisualCommandBuilderClick(object sender, RoutedEventArgs e)
     {
-        await OpenFlowEditorAsync(null, null);
+        // Discord is the platform context for anything authored on a bot page.
+        await OpenFlowEditorAsync(null, "Discord");
     }
 
     /// <summary>Built-in moderation row EDIT: opens (or seeds) the flow for that command.</summary>

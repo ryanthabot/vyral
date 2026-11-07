@@ -9,8 +9,9 @@ namespace VyralBot.Workflows.Nodes;
 /// <summary>
 /// Pauses the flow until the triggering user posts another message on the same
 /// platform/channel. Config: "TimeoutSeconds" (default 30). The reply is stored
-/// in the "response" variable; a timeout (or run cancellation) produces a failed
-/// node result so the runtime's error branch can take over.
+/// in the "response" variable; a timeout produces a failed node result so the
+/// runtime's error branch can take over, while run-level cancellation rethrows
+/// so the runtime records the run as "Cancelled".
 /// </summary>
 public class WaitResponseNode : INode
 {
@@ -51,6 +52,12 @@ public class WaitResponseNode : INode
             response = await registry.WaitForResponseAsync(
                 platform, username, channel, TimeSpan.FromSeconds(timeoutSeconds), ctx.CancellationToken).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (ctx.CancellationToken.IsCancellationRequested)
+        {
+            // Run-level cancellation: rethrow so the runtime records "Cancelled"
+            // instead of routing the error branch / error handler on a dying run.
+            throw;
+        }
         catch (OperationCanceledException)
         {
             return NodeResult.Fail("Wait for response was cancelled");
@@ -60,8 +67,11 @@ public class WaitResponseNode : INode
             return NodeResult.Fail($"Wait for response failed: {ex.Message}");
         }
 
+        // The registry settles cancelled waits as null (its contract), so a
+        // cancelled run would otherwise look like a TIMEOUT and run error-branch
+        // side effects — rethrow to record the run as "Cancelled" instead.
         if (ctx.CancellationToken.IsCancellationRequested)
-            return NodeResult.Fail("Wait for response was cancelled");
+            throw new OperationCanceledException(ctx.CancellationToken);
 
         if (response is null)
             return NodeResult.Fail($"No response within {timeoutSeconds}s");

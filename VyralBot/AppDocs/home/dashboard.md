@@ -25,10 +25,12 @@ Each card is a large clickable tile. Click anywhere on it to navigate:
 
 | Card | Subtitle | Where it goes |
 |---|---|---|
-| **Connections** | "Manage your platform connections" | The **Platforms** page — cards for Twitch, Kick, YouTube, TikTok, Discord, and OBS (OAuth wizards for Twitch/Kick/YouTube, a bot-token wizard for Discord; TikTok/OBS are placeholders). See [Platforms Overview](../platforms/overview.md). |
-| **Chat** | "Complete chat management for all platforms" | The **Chat Hub** — *not* the chat feed. The hub holds per-platform chat settings (event display, auto-replies, enable toggles). To read and send messages, use **Chat** in the sidebar instead ([Chat Window](../chat/chat-window.md)). |
+| **Connections** | "Manage your platform connections" | The **Platforms** page — cards for Twitch, Kick, YouTube, TikTok, Discord, and OBS (OAuth wizards for Twitch/Kick/YouTube, a bot-token wizard for Discord; TikTok's card is a "Coming Soon" shell, and OBS is reached from the sidebar's **OBS** page, not here). See [Platforms Overview](../platforms/overview.md). |
+| **Chat** | "Complete chat management for all platforms" | The **Chat Hub** — *not* the chat feed. The hub holds per-platform chat settings (event display, auto-replies, enable toggles) plus the **Moderator** chip. To read and send messages, use **Chat** in the sidebar instead ([Chat Window](../chat/chat-window.md)). |
 | **Tools** | "Stream tools, chat features, and more" | The **Tools** hub — a second, larger card grid covering the same destinations as the sidebar's Stream Tools and Chat Features groups (Alerts, Currency, Commands, Event History, Audio, Sounds, Statistics, Conditional Rules, Giveaways, Polls, Watchtime). |
 | **Integrations** | "Third-party integrations and bots" | The **Integrations** page. Every integration on it (BotGhost and similar) is marked "Coming soon" — the page is a placeholder. |
+
+A fifth, full-width **Moderator** card sits in the second row and opens the [Moderator dashboard](../architecture/moderator-guide.md) (`NavigateToModeratorCommand`).
 
 ### The Support section
 

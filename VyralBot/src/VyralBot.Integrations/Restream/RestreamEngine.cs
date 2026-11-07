@@ -232,17 +232,20 @@ public sealed class RestreamEngine : IDisposable
             void OnExited(object? sender, EventArgs args) => exited.TrySetResult();
             try
             {
+                // Subscribe FIRST, then probe: if the process died between a
+                // HasExited check and the subscription the Exited event fires
+                // with no listener and never fires again, so the session would
+                // wait forever. After subscribing, a late probe only races a
+                // redundant TrySetResult.
+                process.Exited += OnExited;
                 if (process.HasExited)
                 {
                     exited.TrySetResult();
                 }
-                else
-                {
-                    process.Exited += OnExited;
-                }
             }
             catch (Exception)
             {
+                // ProcessManager disposed it (it already exited) — treat as exited.
                 exited.TrySetResult();
             }
 

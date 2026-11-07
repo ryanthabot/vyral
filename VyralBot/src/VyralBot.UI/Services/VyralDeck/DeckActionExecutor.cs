@@ -121,12 +121,15 @@ public sealed class DeckActionExecutor
             case DeckActionType.SoundPlay:
                 return await PlaySoundAsync(button).ConfigureAwait(false);
             case DeckActionType.AlertShow:
+                // Empty Param1 is valid (the default "Stream Deck" title is used),
+                // so resolve the title once — button.Param1.Trim() would NRE below.
+                var alertTitle = string.IsNullOrWhiteSpace(button.Param1) ? "Stream Deck" : button.Param1.Trim();
                 await Alert().ShowAlertAsync(
-                    string.IsNullOrWhiteSpace(button.Param1) ? "Stream Deck" : button.Param1.Trim(),
+                    alertTitle,
                     "Stream Deck",
                     NullIfEmpty(button.Param2),
                     applySettings: false).ConfigureAwait(false);
-                return new DeckActionResult(true, $"✅ Alert '{button.Param1.Trim()}' shown.");
+                return new DeckActionResult(true, $"✅ Alert '{alertTitle}' shown.");
 
             // ── Automation ───────────────────────────────────────────────
             case DeckActionType.WorkflowRun:

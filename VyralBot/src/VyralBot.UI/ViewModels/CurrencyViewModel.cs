@@ -328,9 +328,15 @@ public partial class CurrencyViewModel : ViewModelBase
 
         try
         {
-            await _rewardsService.ApproveRedemptionAsync(SelectedRedemption.Id, await GetApproverNameAsync(), "Approved via UI");
+            // The service only approves Pending rows — surface the result so a
+            // double click (or a row already handled elsewhere) is not reported
+            // as a success.
+            var approved = await _rewardsService.ApproveRedemptionAsync(
+                SelectedRedemption.Id, await GetApproverNameAsync(), "Approved via UI");
             await LoadRedemptionsAsync();
-            StatusMessage = "Redemption approved!";
+            StatusMessage = approved
+                ? "Redemption approved!"
+                : "Redemption was not approved (it may already be handled).";
         }
         catch (Exception ex)
         {
@@ -346,9 +352,14 @@ public partial class CurrencyViewModel : ViewModelBase
 
         try
         {
-            await _rewardsService.RejectRedemptionAsync(SelectedRedemption.Id, await GetApproverNameAsync(), "Rejected via UI");
+            // The service refuses to refund a redemption that was already
+            // rejected/completed — the bool tells the UI which happened.
+            var rejected = await _rewardsService.RejectRedemptionAsync(
+                SelectedRedemption.Id, await GetApproverNameAsync(), "Rejected via UI");
             await LoadRedemptionsAsync();
-            StatusMessage = "Redemption rejected and currency refunded.";
+            StatusMessage = rejected
+                ? "Redemption rejected and currency refunded."
+                : "Redemption was not rejected (already handled — no refund issued).";
         }
         catch (Exception ex)
         {
@@ -364,9 +375,11 @@ public partial class CurrencyViewModel : ViewModelBase
 
         try
         {
-            await _rewardsService.CompleteRedemptionAsync(SelectedRedemption.Id, "Completed via UI");
+            var completed = await _rewardsService.CompleteRedemptionAsync(SelectedRedemption.Id, "Completed via UI");
             await LoadRedemptionsAsync();
-            StatusMessage = "Redemption marked as completed!";
+            StatusMessage = completed
+                ? "Redemption marked as completed!"
+                : "Redemption was not completed (already handled).";
         }
         catch (Exception ex)
         {

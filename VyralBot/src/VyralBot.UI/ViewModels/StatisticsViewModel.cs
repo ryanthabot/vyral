@@ -62,7 +62,7 @@ public partial class StatisticsViewModel : ViewModelBase
     };
 
     [ObservableProperty]
-    private ObservableCollection<string?> _availablePlatforms = new() { null, "Kick", "Twitch" };
+    private ObservableCollection<string?> _availablePlatforms = new() { null, "Kick", "Twitch", "YouTube", "Discord", "TikTok" };
 
     public StatisticsViewModel(
         ILogger<StatisticsViewModel> logger,

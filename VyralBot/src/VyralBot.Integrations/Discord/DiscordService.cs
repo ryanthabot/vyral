@@ -148,6 +148,16 @@ public class DiscordService : IDiscordService, IDisposable
     public event Action<string>? BotIdentityDetected;
 
     /// <summary>
+    /// Raised whenever the live connection flag flips: the initial connect,
+    /// every Discord.Net auto-reconnect (network blip → session resume) and
+    /// every gateway drop. Lets the bot manager (the only subscriber, while
+    /// the service is in its running set) fan out BotsChanged so open UI
+    /// shows the truth instead of the last start/stop snapshot. Raised
+    /// defensively after the state lock is released; never contains the token.
+    /// </summary>
+    public event Action<bool>? ConnectionStateChanged;
+
+    /// <summary>
     /// Identity of this bot instance: the DiscordBotManager assigns each managed
     /// instance its DiscordBots row id right after construction; the setup
     /// wizard's DI-singleton keeps the "primary" default. Published on
@@ -1853,6 +1863,33 @@ public class DiscordService : IDiscordService, IDisposable
         }
 
         PublishConnectionChanged(connected);
+        RaiseConnectionStateChanged(connected);
+    }
+
+    /// <summary>
+    /// Raises <see cref="ConnectionStateChanged"/> defensively: one throwing
+    /// subscriber must not break the others or the gateway thread. Handlers
+    /// run on the caller's thread (typically the gateway connection manager).
+    /// </summary>
+    private void RaiseConnectionStateChanged(bool connected)
+    {
+        var handlers = ConnectionStateChanged;
+        if (handlers == null)
+        {
+            return;
+        }
+
+        foreach (Action<bool> handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(connected);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ ConnectionStateChanged subscriber threw an exception");
+            }
+        }
     }
 
     private void PublishConnectionChanged(bool connected)
