@@ -55,7 +55,8 @@ namespace VyralBot.UI.Services;
 ///
 ///  • EVENT triggers — typed EventBus subscriptions (IEventBus.SubscribeAsync)
 ///    for Twitch follow/subscribe/resub/gift-sub/raid/cheer and Kick
-///    follow/subscribe/gift-sub/host records. Workflow EventType values are
+///    follow/subscribe/gift-sub/host/reward-redeemed/kicks-gifted records.
+///    Workflow EventType values are
 ///    normalized case-insensitively with a few aliases ("sub"→subscribe,
 ///    "bits"→cheer, "gift"/"gifted"→giftsub, "hosted"→host, "raided"→raid).
 ///    Platform filtering: workflow Trigger.Platform null/empty/"Any"/"All"
@@ -82,11 +83,17 @@ namespace VyralBot.UI.Services;
 ///    executes the flow AWAITED, returning a confirmation the engine audits.
 ///    Built-in engine verbs keep precedence — they never reach this path.
 ///
-/// COMMAND OPTIONS (Workflow.Options, authored in the flow editor): cooldowns,
-/// channel restrictions and DM/guild scoping are enforced BEFORE an execution
-/// is built (see <see cref="EvaluateOptions"/>); "Moderator"/role-name
+/// COMMAND OPTIONS (Workflow.Options, authored in the flow editor): channel
+/// restrictions and DM/guild scoping are enforced BEFORE an execution is
+/// built (see <see cref="EvaluateOptions"/>); "Moderator"/role-name
 /// permissions are enforced AFTER the context is built, against the seeded
-/// "userRoles"/"isModerator" variables (see <see cref="TryAllowPermission"/>).
+/// "userRoles"/"isModerator" variables (see <see cref="TryAllowPermission"/>),
+/// and the per-user cooldown is only CHECKED up front — its key is STAMPED by
+/// <see cref="TryStampOptionCooldown"/> after the permission checks succeed,
+/// so a permission-denied user never burns the cooldown. Command triggers
+/// additionally honor the trigger-options "platforms" filter
+/// (Trigger.Platforms): a non-empty list restricts the command to the named
+/// publishing platforms (case-insensitive; null/empty = all platforms).
 /// Every command/slash/component trigger seeds its context with identity
 /// variables (userRoles/userId/isBot) supplied by the caller when available.
 ///
@@ -492,6 +499,7 @@ public class WorkflowTriggerService
                 matches = candidates
                     .Where(w => w.Trigger != null
                         && PlatformMatches(w.Trigger.Platform, platform)
+                        && CommandPlatformListed(w.Trigger.Platforms, platform)
                         && PrefixMatches(w.Trigger.CommandPrefix, prefix))
                     .ToList();
             }
@@ -533,6 +541,15 @@ public class WorkflowTriggerService
                 // post-context against the seeded identity variables.
                 if (!TryAllowPermission(workflow, context))
                 {
+                    continue;
+                }
+
+                // Cooldown is stamped only now — after permission passed, so a
+                // denied user never burns it (see TryStampOptionCooldown).
+                var (stamped, cooldownReply) = TryStampOptionCooldown(workflow, username);
+                if (!stamped)
+                {
+                    _ = SendOptionReplyAsync(reply, cooldownReply, workflow);
                     continue;
                 }
 
@@ -908,6 +925,15 @@ public class WorkflowTriggerService
                 return;
             }
 
+            // Cooldown is stamped only now — after permission passed, so a
+            // denied user never burns it (see TryStampOptionCooldown).
+            var (stamped, cooldownReply) = TryStampOptionCooldown(workflow, username);
+            if (!stamped)
+            {
+                await SendOptionReplyAsync(invocation.Reply, cooldownReply, workflow).ConfigureAwait(false);
+                return;
+            }
+
             ExecuteInBackground(workflow, context, result =>
                 SendInteractionCompletionFollowupAsync(invocation.Reply, $"/{name}", result));
         }
@@ -958,6 +984,15 @@ public class WorkflowTriggerService
                 return;
             }
 
+            // Cooldown is stamped only now — after permission passed, so a
+            // denied user never burns it (see TryStampOptionCooldown).
+            var (stamped, cooldownReply) = TryStampOptionCooldown(workflow, username);
+            if (!stamped)
+            {
+                await SendOptionReplyAsync(interaction.Reply, cooldownReply, workflow).ConfigureAwait(false);
+                return;
+            }
+
             ExecuteInBackground(workflow, context, result =>
                 SendInteractionCompletionFollowupAsync(interaction.Reply, workflow.Name, result));
         }
@@ -999,13 +1034,16 @@ public class WorkflowTriggerService
 
     /// <summary>
     /// Pre-context enforcement of <see cref="WorkflowOption"/> constraints.
-    /// Cooldowns apply ONLY to user-invoked triggers (command / slash /
-    /// button / select — never timer/event/manual); a blocked cooldown yields
-    /// a reply message ("{name} is on cooldown ({n}s)") sent through the
-    /// origin when a reply path exists, while every other block is silent.
-    /// The permission option is deliberately NOT checked here — it needs the
-    /// seeded identity variables, so <see cref="TryAllowPermission"/> enforces
-    /// it after the context is built. Never throws.
+    /// Cooldowns are only CHECKED here (stamping is deferred to
+    /// <see cref="TryStampOptionCooldown"/>, which runs after the permission
+    /// checks pass — a denied user must not burn the cooldown) and apply ONLY
+    /// to user-invoked triggers (command / slash / button / select — never
+    /// timer/event/manual); a blocked cooldown yields a reply message
+    /// ("{name} is on cooldown ({n}s)") sent through the origin when a reply
+    /// path exists, while every other block is silent. The permission option
+    /// is deliberately NOT checked here — it needs the seeded identity
+    /// variables, so <see cref="TryAllowPermission"/> enforces it after the
+    /// context is built. Never throws.
     /// </summary>
     private (bool Allowed, string? BlockReply) EvaluateOptions(
         Workflow workflow,
@@ -1055,36 +1093,20 @@ public class WorkflowTriggerService
                     }
 
                     var key = $"{workflow.Id}|{username}".ToLowerInvariant();
-                    var now = DateTime.UtcNow;
                     lock (_sync)
                     {
-                        // Bound the bookkeeping: one entry per workflow|user would
-                        // otherwise grow forever on busy channels. Entries older
-                        // than the prune window are dropped once the map grows
-                        // past the threshold (any authorable cooldown in seconds
-                        // is far shorter than the window).
-                        if (_lastOptionRun.Count > CooldownPruneThreshold)
-                        {
-                            var pruneBefore = now.AddDays(-CooldownPruneWindowDays);
-                            foreach (var stale in _lastOptionRun
-                                         .Where(kvp => kvp.Value < pruneBefore)
-                                         .Select(kvp => kvp.Key)
-                                         .ToList())
-                            {
-                                _lastOptionRun.Remove(stale);
-                            }
-                        }
-
                         if (_lastOptionRun.TryGetValue(key, out var lastRun)
-                            && now - lastRun < TimeSpan.FromSeconds(seconds))
+                            && DateTime.UtcNow - lastRun < TimeSpan.FromSeconds(seconds))
                         {
                             _logger.LogDebug("Workflow '{Name}' ({WorkflowId}) blocked for {Username}: cooldown ({Seconds}s)",
                                 workflow.Name, workflow.Id, username, seconds);
                             return (false, $"{workflow.Name} is on cooldown ({seconds}s)");
                         }
-
-                        _lastOptionRun[key] = now;
                     }
+
+                    // STAMPING IS DELIBERATELY DEFERRED to TryStampOptionCooldown:
+                    // it runs only after the permission checks pass, so a
+                    // permission-denied user never burns the cooldown.
                 }
                 else if (string.Equals(type, WorkflowOptionTypes.ChannelRestriction, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1136,6 +1158,114 @@ public class WorkflowTriggerService
                 workflow.Name, workflow.Id);
             return (true, null);
         }
+    }
+
+    /// <summary>
+    /// Stamps the per-user cooldown AFTER every other gate passed —
+    /// <see cref="TryAllowPermission"/> enforces permissions post-context, so
+    /// <see cref="EvaluateOptions"/> deliberately only CHECKS the cooldown and
+    /// this method runs once the permission checks succeed: a denied user
+    /// never burns the cooldown or sees cooldown notices. Atomic
+    /// check-and-stamp under the lock (two rapid messages from the same user
+    /// cannot both run; the late loser gets the cooldown notice). Returns
+    /// (true, null) when the run may proceed — including when the workflow has
+    /// no parseable cooldown option (nothing to stamp). Never throws.
+    /// </summary>
+    private (bool Allowed, string? BlockReply) TryStampOptionCooldown(Workflow workflow, string username)
+    {
+        try
+        {
+            var seconds = GetCooldownSeconds(workflow);
+            if (seconds <= 0)
+            {
+                return (true, null); // no cooldown option authored — nothing to stamp
+            }
+
+            var key = $"{workflow.Id}|{username}".ToLowerInvariant();
+            var now = DateTime.UtcNow;
+            lock (_sync)
+            {
+                // Bound the bookkeeping: one entry per workflow|user would
+                // otherwise grow forever on busy channels. Entries older
+                // than the prune window are dropped once the map grows
+                // past the threshold (any authorable cooldown in seconds
+                // is far shorter than the window).
+                if (_lastOptionRun.Count > CooldownPruneThreshold)
+                {
+                    var pruneBefore = now.AddDays(-CooldownPruneWindowDays);
+                    foreach (var stale in _lastOptionRun
+                                 .Where(kvp => kvp.Value < pruneBefore)
+                                 .Select(kvp => kvp.Key)
+                                 .ToList())
+                    {
+                        _lastOptionRun.Remove(stale);
+                    }
+                }
+
+                if (_lastOptionRun.TryGetValue(key, out var lastRun)
+                    && now - lastRun < TimeSpan.FromSeconds(seconds))
+                {
+                    _logger.LogDebug("Workflow '{Name}' ({WorkflowId}) blocked for {Username}: cooldown ({Seconds}s)",
+                        workflow.Name, workflow.Id, username, seconds);
+                    return (false, $"{workflow.Name} is on cooldown ({seconds}s)");
+                }
+
+                _lastOptionRun[key] = now;
+            }
+
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            // Never let an option-authoring mistake break a trigger.
+            _logger.LogWarning(ex, "Workflow cooldown stamp failed for '{Name}' ({WorkflowId}) — allowing",
+                workflow.Name, workflow.Id);
+            return (true, null);
+        }
+    }
+
+    /// <summary>
+    /// The workflow's cooldown option in seconds; 0 when absent, unparseable
+    /// or the trigger is not user-invoked (timer/event/manual never cool down).
+    /// </summary>
+    private static int GetCooldownSeconds(Workflow workflow)
+    {
+        var options = workflow.Options;
+        if (options == null)
+        {
+            return 0;
+        }
+
+        var triggerType = (workflow.Trigger?.Type ?? string.Empty).Trim().ToLowerInvariant();
+        var isUserInvoked = triggerType == WorkflowTriggerTypes.Command
+            || triggerType == WorkflowTriggerTypes.SlashCommand
+            || triggerType == WorkflowTriggerTypes.ButtonClick
+            || triggerType == WorkflowTriggerTypes.SelectMenu;
+        if (!isUserInvoked)
+        {
+            return 0;
+        }
+
+        foreach (var option in options)
+        {
+            if (option == null)
+            {
+                continue;
+            }
+
+            if (!string.Equals((option.Type ?? string.Empty).Trim(), WorkflowOptionTypes.Cooldown, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = (option.Value ?? string.Empty).Trim();
+            if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds) && seconds > 0)
+            {
+                return seconds;
+            }
+        }
+
+        return 0;
     }
 
     /// <summary>
@@ -1466,6 +1596,25 @@ public class WorkflowTriggerService
         {
             DispatchEvent("host", "Kick", e.HostUsername, null, e,
                 Vars(("viewers", e.ViewerCount)));
+            return Task.CompletedTask;
+        });
+
+        // Kick rewards / Kicks gifting (KickLibChatService publishes both;
+        // TwitchChannelPointsRedeemEvent is upstream-dead — nothing subscribes
+        // to it by design). Canonical keys are separator-free like every other
+        // dispatch key, so authored "RewardRedeemed" / "reward_redeemed" /
+        // "KicksGifted" all normalize onto them (see NormalizeEventType).
+        await Subscribe<KickKicksGiftedEvent>(e =>
+        {
+            DispatchEvent("kicksgifted", "Kick", e.SenderUsername, e.Message, e,
+                Vars(("userId", e.SenderUserId), ("amount", e.Amount)));
+            return Task.CompletedTask;
+        });
+
+        await Subscribe<KickRewardRedeemedEvent>(e =>
+        {
+            DispatchEvent("rewardredeemed", "Kick", e.Username, e.UserInput, e,
+                Vars(("userId", e.UserId), ("reward", e.RewardName), ("cost", e.Cost)));
             return Task.CompletedTask;
         });
 
@@ -2165,6 +2314,31 @@ public class WorkflowTriggerService
     }
 
     /// <summary>
+    /// Command-trigger Platforms filter (trigger-options field "platforms"):
+    /// null/empty matches every platform, else the publishing platform must be
+    /// listed (case-insensitive, blank entries ignored). Filtered workflows are
+    /// skipped SILENTLY — no per-message logging on the hot chat path.
+    /// </summary>
+    private static bool CommandPlatformListed(IReadOnlyList<string>? platforms, string platform)
+    {
+        if (platforms is null || platforms.Count == 0)
+        {
+            return true;
+        }
+
+        foreach (var entry in platforms)
+        {
+            if (!string.IsNullOrWhiteSpace(entry)
+                && string.Equals(entry.Trim(), platform, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Optional per-trigger prefix restriction: when Trigger.CommandPrefix is
     /// set (e.g. "!"), only that prefix matches; unset accepts all three
     /// conventional prefixes.
@@ -2200,6 +2374,10 @@ public class WorkflowTriggerService
             "host" or "hosted" or "hosting" => "host",
             "raid" or "raided" => "raid",
             "follow" or "followed" => "follow",
+            // "rewardredeemed" needs no case — the default branch's separator
+            // strip already maps "reward_redeemed"/"Reward Redeemed" onto it.
+            "reward" or "redeem" or "rewardredeem" => "rewardredeemed",
+            "kicksgift" or "kicks" => "kicksgifted",
             _ => t.Replace("-", string.Empty).Replace("_", string.Empty).Replace(" ", string.Empty)
         };
     }

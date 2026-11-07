@@ -1,0 +1,96 @@
+# Workflow Engine (Deep Guide)
+
+> What actually runs when a trigger fires: the block catalog, the eight trigger types, the command-level options, the runtime's hard safety caps, and the execution history — the engine under the [flow editor](automation.md). Every claim here is verified against `VyralBot.Workflows/` and `WorkflowTriggerService` as of 2026-11-07.
+
+## Overview
+
+A workflow is **data, not code**: a trigger plus a node graph, persisted as JSON (`TriggerJson` + `GraphJson` columns of the Workflows table) and executed by `WorkflowRuntime`. The [visual flow editor](automation.md) is one authoring surface; the Discord bot command builder and the Commands page EDIT buttons are others — all editing the same storage.
+
+The numbers, straight from the code:
+
+- **35 placeable blocks** — 24 **Actions** (blue) across Messaging / Threads & Channels / Roles / Moderation / Variables & Math / Economy / Loops / Utility sections, and 11 **Conditions** (green, flat list) (BlockCatalog.cs:101-295).
+- **8 trigger types** — `command`, `slash_command`, `button_click`, `select_menu`, `mod_command`, `event`, `timer`, `manual` (WorkflowTriggerTypes, Workflow.cs:4-18).
+- **6 command options** — Cooldown, Require Moderator, Channel Restriction, DM Only, Guild Only, NSFW (BlockCatalog.cs:361-369).
+- **Runtime caps** — a run executes at most **200 steps** (cycle guard) and a loop block iterates at most **25 times**; loop body nodes count toward the step budget too (WorkflowRuntime.cs:55-58, 263-268, 405-411).
+
+## User Guide
+
+### Triggers
+
+| Trigger | Fires when | Key settings |
+|---|---|---|
+| **Command** | A chat message `!name`/`?name`/`.name` arrives (prefix set synced with Settings → Commands) | Command name + prefix; consumes the message |
+| **Slash command** | A native Discord `/name` is invoked | Registered per bot on each connected bot; 5 s dedup per bot\|command\|user\|channel |
+| **Button click / Select menu** | A workflow-sent Discord component is used | Component child flows (`ComponentKey`) |
+| **Mod command** | `!mod <verb>` with a custom verb | Minimum tier on the TrialMod < Mod < SeniorMod < Admin ladder |
+| **Event** | A platform event publishes (follow/subscribe/giftsub/host/raid/cheer aliases normalized) | Event type + **platform filter** + optional guard expression |
+| **Timer** | Every N minutes (60 s internal tick) | Interval minutes |
+| **Manual** | The RUN button / API | — |
+
+Platform filtering on the **event** trigger: `Trigger.Platform` null/empty/"Any"/"All" matches every platform, otherwise an exact case-insensitive match is required (WorkflowTriggerService.cs:61-64). The same filter is **enforced by the runtime on command, slash and mod-command matches too** (WorkflowTriggerService.cs:492-496, 600, 773-775) — but note the flow editor's Platform picker currently only appears on event triggers (FlowEditorViewModel.cs:4999), so a platform-scoped *command* trigger is a runtime capability the editor UI does not yet expose per-trigger.
+
+**Discord bot scoping**: commands executed from Discord carry the receiving bot's id — `TryHandleCommand` accepts a `discordBotId`, seeds the execution context's `BotId`, and every Discord node send routes back through that origin bot (WorkflowTriggerService.cs:428, 451, 529; NodeBridges.cs — every bridge method takes `botId?`). Slash commands are registered on **each** connected bot separately (WorkflowTriggerService.cs:1654-1727).
+
+### Options (the purple tab)
+
+Cooldown (per-user seconds, enforced via an in-memory `workflowId|username` map), Require Moderator (Everyone/Moderator/role name — checks the "userRoles"/"isModerator" context variables seeded from badges/Discord roles; allows when roles are unavailable, a documented V1 behavior), Channel Restriction, DM Only, Guild Only, NSFW (informational in V1) (Workflow.cs:21-40; WorkflowTriggerService.cs:85-89, 171-172, 435-445). The Options tab also holds typed **command parameters** — the slash-command argument definitions exposed to nodes as `{variables}` (Workflow.cs:56-86).
+
+### Blocks
+
+**Actions** (24): Send Message, Send Embed (live Discord preview), Send DM, Edit Bot Message, Delete Message, React, Add/Remove Role, Create Channel/Thread, Lock/Unlock Channel, Wait for Response (stores `{response}`, timeout → error port), HTTP Request (stores `{http_response}`/`{http_status}`), Set Variable, Random Number, Add/Remove Currency, Delay, Run Built-in Command (cooldowns/permissions/variables of the legacy engine all apply), Moderate Member (kick/ban/unban/timeout/purge/slowmode), Log, Note, Run a Loop (1-25 iterations), Stop a Loop.
+
+**Conditions** (11): If (Expression) — rule builder with and/or chains; If User Has Role; If Message Contains; If Variable Equals; If Time Between; If User Is Bot; Chance (%); Comparison (multi-rule with 14 canonical operators, `collection_contains` included); Permissions Condition; Channel Condition; User Condition.
+
+Branching: conditions expose True/False ports (False routes through the auto-attached Else card; Comparison manages its own case/Else ports). Any node can wire an **error branch** (`BranchError`), and the flow-level **Error Handler** chain runs when a failing node has none of its own (Workflow.cs:219-229, 135-136). The legacy `switch` block is no longer placeable but still opens and runs from saved flows (BlockCatalog.cs:270-273).
+
+### Runtime behavior and history
+
+- Variables resolve per node — context tokens (`{username}`, `{channel}`, `{platform}`, `{message}`, `{args}`, `{botid}`, …) plus flow-stored names (ExpressionEvaluator.cs:20; ExecutionContext.cs:84-86).
+- A run that exceeds 200 steps fails with "Maximum step count (200) exceeded — possible node cycle" (WorkflowRuntime.cs:263-268); loop counts clamp to 25 (WorkflowRuntime.cs:405-411).
+- **Every execution persists a history row** (WorkflowExecutions table — best effort, never fails the run) with the trigger summary, platform, duration and outcome; the Automation page shows a per-workflow HISTORY card and the editor's ⚠ Error Logs panel lists recent failures (WorkflowRuntime.cs:97, 175-198; IDataService.cs:96-99, 161-162).
+- Timer caveat (V1): last-run times are in-memory — a timer whose interval elapsed while the app was down fires on the first tick after start (WorkflowTriggerService.cs:66-71).
+- Command triggers are one hook into the shared chat pipeline and **consume the message** (CommandService, currency and auto-replies don't also fire for it) (WorkflowTriggerService.cs:28-33).
+
+## How It Works (Developer)
+
+- `NodeRegistry` maps each block type to its `INode` implementation (Nodes/ — DiscordNodes, CommandNodes, CurrencyNodes, ConditionNodes, LoopNodes, HttpNode, WaitResponseNode, SwitchNode, BuiltIn/*); `BlockCatalog` is the single source of truth for palette + settings + ports shared by desktop editor, Discord builder and canvas rendering (BlockCatalog.cs:78-100).
+- `WorkflowRuntime.ExecuteAsync` walks the graph from the pinned `EntryNodeId` (else the first node nobody routes to), threading an `ExecutionContext` (platform, channel, username, BotId, variables, origin reply callback); per-node config values get `{variable}` substitution before execution (Workflow.cs:113-133; FlowEditorViewModel.cs:5044-5059).
+- Discord surface area lives behind `IDiscordWorkflowBridge` (NodeBridges.cs) — the UI registers a bridge over `IDiscordBotManager`/`IDiscordService`; every method is `botId?`-parameterized so nodes target the origin bot or a pinned one.
+- `WorkflowTriggerService` owns the live trigger indexes (command-name map, slash map, single mod-verb map, event subscriptions, timer set), reloads them when workflows change, registers slash commands on every connected bot (deduplicated by BotId, including the setup wizard's bot), and gates mod verbs through the tier resolver (WorkflowTriggerService.cs:154-172, 1654-1727, 597-620).
+- Sends go through the runtime's MessageSender platform hook (installed by the UI at startup) plus the optional per-trigger origin reply callback, so nodes have a guaranteed reply path even outside Discord (WorkflowRuntime.cs:82; WorkflowTriggerService.cs:90-93, 425-434).
+
+## Files & Code
+
+| File | Role |
+|---|---|
+| [BlockCatalog.cs](../../src/VyralBot.Workflows/Abstractions/BlockCatalog.cs) | The 35 blocks, param-field kinds, option definitions, port colors/keys |
+| [Workflow.cs](../../src/VyralBot.Workflows/Models/Workflow.cs) | Trigger/node/option/parameter models + the 8 trigger and 6 option type keys |
+| [WorkflowRuntime.cs](../../src/VyralBot.Workflows/Runtime/WorkflowRuntime.cs) | Graph execution, 200-step / 25-iteration caps, error chains, history persistence |
+| [ExecutionContext.cs](../../src/VyralBot.Workflows/Runtime/ExecutionContext.cs) | Per-run state incl. Platform, BotId, variable resolution |
+| [WorkflowTriggerService.cs](../../src/VyralBot.UI/Services/WorkflowTriggerService.cs) | Live trigger matching: command/slash/component/mod/event/timer/manual + options enforcement |
+| [NodeBridges.cs](../../src/VyralBot.Workflows/Abstractions/NodeBridges.cs) | IDiscordWorkflowBridge — bot-scoped Discord operations for nodes |
+| [Nodes/](../../src/VyralBot.Workflows/Nodes) | The INode implementations behind each block |
+| [WorkflowJson.cs](../../src/VyralBot.Workflows/Persistence/WorkflowJson.cs) | Row ⇄ model (de)serialization |
+| [FlowEditorViewModel.cs](../../src/VyralBot.UI/ViewModels/FlowEditorViewModel.cs) | The visual editor (UI covered in [Automation](automation.md)) |
+| [AutomationViewModel.cs](../../src/VyralBot.UI/ViewModels/AutomationViewModel.cs) | Workflow list + per-workflow execution-history cards |
+
+## Data & Settings
+
+| Key / table | Store | Meaning |
+|---|---|---|
+| `Workflows` table | Per-profile SQLite | Id, name, enabled, category, TriggerJson, GraphJson, timestamps |
+| `WorkflowExecutions` table | Per-profile SQLite | One row per run: workflow, status, trigger summary, started/duration (IDataService.cs:96-99) |
+| `Automation.CommandTriggersEnabled` | Configs | Master switch for command triggers (default true) (WorkflowTriggerService.cs:120, 351) |
+| `Commands.Prefixes` | Configs | Shared prefix set ("!", "?", ".") kept in sync with the Core command engine (WorkflowTriggerService.cs:111-114) |
+
+## Status & Known Issues
+
+1. **Block count is 35, not 34** — 24 actions + 11 conditions in the catalog today; the "switch" block is runtime-supported but no longer placeable (BlockCatalog.cs:101-295, 270-273).
+2. **Command-trigger platform filtering is runtime-only for now** — `Trigger.Platform` is honored when matching commands, but the editor saves it only for event triggers (FlowEditorViewModel.cs:4999).
+3. **Timer state is volatile** — restarts forget last-run times; an elapsed interval fires on the first tick (WorkflowTriggerService.cs:66-71).
+4. **Permission option allows when roles are unavailable** — documented V1 behavior where a platform can't supply roles (WorkflowTriggerService.cs:435-445).
+5. **Cooldown map is in-memory** — a restart clears per-user cooldowns (WorkflowTriggerService.cs:171-172).
+
+### Verified against (2026-11-07)
+
+`BlockCatalog.cs` (block list :101-295 — 24 action + 11 condition entries counted; options :361-369; ports :411-452; comparison operators :314-320), `Workflow.cs` (trigger types :4-18, option types :21-40, parameters :56-86, trigger fields incl. Platform/MinimumTier :155-190, node branches :199-236), `WorkflowRuntime.cs` (MaxSteps/MaxLoopIterations :55-58, cycle guard :263-268, loop clamp :405-411, history :97, 175-198, SummarizeTrigger :632-641), `WorkflowTriggerService.cs` (header doc :28-101, command match + platform filter :446-529, mod gating :597-620, slash per-bot registration + dedup :43-44, 757, 1654-1727, prefixes :111-114), `ExecutionContext.cs` (:23-27, 84-86), `NodeBridges.cs` (botId-parameterized bridge), `FlowEditorViewModel.cs` (BuildTriggerDto :4988-5014, palette platforms :1475), `AutomationViewModel.cs` (history fields :310, 367-368).

@@ -150,6 +150,8 @@ public partial class StreamDeckViewModel : ViewModelBase, IDisposable
         {
             IsServerRunning = true;
             ServerStatusText = $"Server running on {LanAddressText} — {_server.ClientCount} client(s).";
+            // A PIN from an earlier session (singleton store) may still be live.
+            PairingPin = _pairingStore.CurrentPinDisplay;
         }
         else if (AutoStartOnLaunch)
         {
@@ -248,7 +250,14 @@ public partial class StreamDeckViewModel : ViewModelBase, IDisposable
             : "Server stopped";
     }
 
-    private void OnServerClientsChanged(object? sender, int count) => ClientsCount = count;
+    private void OnServerClientsChanged(object? sender, int count)
+    {
+        ClientsCount = count;
+
+        // Sessions changed — refresh the paired-device list so each row's
+        // "connected" badge reflects reality. (Dispatched internally.)
+        _ = ReloadPairedDevicesAsync();
+    }
 
     private void OnServerLogLine(string message) => ServerStatusText = message;
 
@@ -303,6 +312,31 @@ public partial class StreamDeckViewModel : ViewModelBase, IDisposable
             await ReloadPagesFromAsync(layout);
             SelectedPage = Pages.FirstOrDefault();
         }
+    }
+
+    [RelayCommand]
+    private async Task MovePageLeftAsync() => await MovePageAsync(-1).ConfigureAwait(true);
+
+    [RelayCommand]
+    private async Task MovePageRightAsync() => await MovePageAsync(1).ConfigureAwait(true);
+
+    /// <summary>Reorders pages (persisted + rebroadcast to phones like every edit).</summary>
+    private async Task MovePageAsync(int delta)
+    {
+        var layout = _layoutStore.Cached;
+        var index = layout.Pages.FindIndex(p => p.Id == SelectedPage?.PageId);
+        var target = index + delta;
+        if (index < 0 || target < 0 || target >= layout.Pages.Count)
+        {
+            return;
+        }
+
+        var page = layout.Pages[index];
+        layout.Pages.RemoveAt(index);
+        layout.Pages.Insert(target, page);
+        await PersistLayoutAsync(layout).ConfigureAwait(true);
+        RebuildPages(layout);
+        SelectedPage = Pages.FirstOrDefault(p => p.PageId == page.Id);
     }
 
     [RelayCommand]
@@ -479,6 +513,11 @@ public partial class StreamDeckViewModel : ViewModelBase, IDisposable
     private async Task ReloadPairedDevicesAsync()
     {
         var devices = await _pairingStore.GetDevicesAsync().ConfigureAwait(true);
+        foreach (var device in devices)
+        {
+            device.IsConnected = _server.IsDeviceConnected(device.Token);
+        }
+
         await Application.Current.Dispatcher.InvokeAsync(() =>
         {
             PairedDevices.Clear();

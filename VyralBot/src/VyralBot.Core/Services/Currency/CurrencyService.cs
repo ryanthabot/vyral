@@ -995,14 +995,31 @@ public class CurrencyService : ICurrencyService
 
     public async Task<int> GiveCurrencyToAllAsync(string platform, int amount, string reason)
     {
-        var leaderboard = await _dataService.GetCurrencyLeaderboardAsync(10000, platform);
-        var users = leaderboard.ToList();
+        // Page through ALL currency users on a stable identity key (Username,
+        // Platform) instead of a single capped leaderboard read: the old
+        // GetCurrencyLeaderboardAsync(10000) silently skipped every viewer past
+        // 10k. Stable-key paging also keeps OFFSET pagination correct while the
+        // awards themselves mutate balances (which would reshuffle Balance order).
+        const int pageSize = 500;
         int count = 0;
+        int offset = 0;
 
-        foreach (var user in users)
+        while (true)
         {
-            await AddCurrencyAsync(user.Username, user.Platform, amount, reason, "Admin");
-            count++;
+            var page = (await _dataService.GetCurrencyUsersPagedAsync(pageSize, offset, platform)).ToList();
+
+            foreach (var user in page)
+            {
+                await AddCurrencyAsync(user.Username, user.Platform, amount, reason, "Admin");
+                count++;
+            }
+
+            if (page.Count < pageSize)
+            {
+                break;
+            }
+
+            offset += pageSize;
         }
 
         _logger.LogInformation("Gave {Amount} currency to {Count} users on {Platform}: {Reason}",
@@ -1012,24 +1029,15 @@ public class CurrencyService : ICurrencyService
 
     public async Task<EconomyStats> GetEconomyStatsAsync()
     {
-        var allUsers = await _dataService.GetCurrencyLeaderboardAsync(100000);
-        var userList = allUsers.ToList();
-
-        var totalInCirculation = userList.Sum(u => (long)u.Balance);
-        var activeUsers = userList.Count;
+        // SQL-side aggregation (COUNT/SUM pushed into SQLite via IDataService) —
+        // the old implementation loaded up to 100k UserCurrency rows and only the
+        // newest 10k transactions, so totals went silently wrong past 10k/day.
+        var (userCount, totalInCirculation) = await _dataService.GetCurrencyEconomyTotalsAsync();
+        var activeUsers = (int)Math.Min(userCount, int.MaxValue);
         var averageBalance = activeUsers > 0 ? (double)totalInCirculation / activeUsers : 0;
 
         var todayStart = DateTime.UtcNow.Date;
-        var transactions = await _dataService.GetCurrencyTransactionsAsync(null, null, 10000);
-        var todayTransactions = transactions.Where(t => t.Timestamp >= todayStart).ToList();
-
-        var totalEarnedToday = todayTransactions
-            .Where(t => t.Amount > 0)
-            .Sum(t => (long)t.Amount);
-
-        var totalSpentToday = todayTransactions
-            .Where(t => t.Amount < 0)
-            .Sum(t => (long)Math.Abs(t.Amount));
+        var (totalEarnedToday, totalSpentToday) = await _dataService.GetCurrencyTransactionTotalsSinceAsync(todayStart);
 
         return new EconomyStats(totalInCirculation, totalEarnedToday, totalSpentToday, activeUsers, averageBalance);
     }

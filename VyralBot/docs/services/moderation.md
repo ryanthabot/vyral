@@ -27,7 +27,11 @@ card and the mod_command workflows (visual Flow editor).
   stale-sweep + wholesale-clear overflow handling, guarded by one lock held for
   O(1) work.
 - **Process-wide instance:** `ChatModerationEngine.Shared` — the chat pipelines
-  (ChatViewModel message handlers — wiring pending, see Wave 1 audit), the
+  (ChatViewModel message handlers — wired in Wave 2: each platform handler calls
+  `TryAutoModerateAsync` → `Evaluate` before display/processing and drops the
+  message on a verdict; the generic handler drops already-moderated messages and
+  evaluates only platforms without a dedicated handler, e.g. TikTok; own-account
+  senders and Discord DMs are exempt), the
   Moderator dashboard and tests all see one rule set / escalation state. DI may
   construct separate instances for tests.
 - **Rules** (priority order): BannedWords → Links → Caps → Emojis →

@@ -185,6 +185,13 @@ public partial class ChatHubViewModel : ViewModelBase
     /// <summary>True when the selected platform supports connect/disconnect from here (TikTok is not implemented yet).</summary>
     public bool IsCurrentPlatformManageable => SelectedPlatform is "Twitch" or "Kick" or "YouTube" or "Discord";
 
+    /// <summary>
+    /// True when the selected platform has a chat pipeline VyralBot can actually read and
+    /// send through (Twitch/Kick/YouTube/Discord do; TikTok has no chat service at all).
+    /// Gates the Chat Hub settings controls so they never imply live TikTok behavior.
+    /// </summary>
+    public bool IsCurrentPlatformChatAvailable => SelectedPlatform is not "TikTok";
+
     /// <summary>True when the selected platform supports manual OAuth token refresh (YouTube refreshes on connect; Discord bot tokens don't expire).</summary>
     public bool CanRefreshCurrentPlatformTokens => SelectedPlatform is "Twitch" or "Kick";
 
@@ -251,6 +258,7 @@ public partial class ChatHubViewModel : ViewModelBase
     {
         UpdateCurrentPlatform();
         OnPropertyChanged(nameof(IsCurrentPlatformManageable));
+        OnPropertyChanged(nameof(IsCurrentPlatformChatAvailable));
         OnPropertyChanged(nameof(CanRefreshCurrentPlatformTokens));
         OnPropertyChanged(nameof(IsTwitchSelected));
         OnPropertyChanged(nameof(IsKickSelected));

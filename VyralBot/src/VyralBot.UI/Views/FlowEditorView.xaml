@@ -2548,6 +2548,31 @@
                                         </StackPanel>
                                     </StackPanel>
 
+                                    <!-- prefix command only: platform filter chips —
+                                         none toggled on = the command fires on every platform -->
+                                    <StackPanel Margin="0,12,0,0"
+                                                Visibility="{Binding IsTriggerCommand, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="Platforms" Style="{StaticResource FlowFieldLabel}"/>
+                                        <ItemsControl ItemsSource="{Binding CommandPlatformChips}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox Content="{Binding Platform}"
+                                                              IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                                              Margin="0,0,14,4"
+                                                              ToolTip="Only let this command fire on the checked platforms"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Text="Leave all unchecked to run on every platform."
+                                                   FontSize="10.5"
+                                                   Foreground="{DynamicResource TextMutedBrush}"/>
+                                    </StackPanel>
+
                                     <!-- button / select hint -->
                                     <Border Background="{DynamicResource CardHoverBrush}"
                                             CornerRadius="4" Padding="10,8" Margin="0,12,0,0"

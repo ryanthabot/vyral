@@ -1790,6 +1790,7 @@ public class DiscordService : IDiscordService, IDisposable
                 Source = "Discord",
                 Platform = "Discord",
                 Channel = channelName,
+                ChannelId = channelId,
                 Username = username,
                 UserId = message.Author?.Id.ToString(),
                 Message = content,

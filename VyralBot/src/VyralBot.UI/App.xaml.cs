@@ -431,6 +431,22 @@ public partial class App : Application
                 services.AddSingleton<VyralBot.Core.Services.Moderation.ModCommandEngine>();
                 services.AddSingleton<VyralBot.Core.Services.Moderation.IModCommandEngine>(sp =>
                     sp.GetRequiredService<VyralBot.Core.Services.Moderation.ModCommandEngine>());
+                // Auto-moderation stack (Moderator page → Auto-Mod card + the
+                // chat pipelines): the synchronous rule engine, the persisted
+                // rule repository (Config key "Moderation.AutoModRules") and
+                // the verdict executor. All three resolve to the process-wide
+                // Shared instances so DI consumers, the Moderator dashboard
+                // and the chat pipelines share ONE rule snapshot, ONE
+                // escalation table and ONE adapter registry.
+                services.AddSingleton<VyralBot.Core.Services.Moderation.IChatModerationEngine>(
+                    _ => VyralBot.Core.Services.Moderation.ChatModerationEngine.Shared);
+                services.AddSingleton<VyralBot.Core.Services.Moderation.ModerationRulesRepository>(sp =>
+                    new VyralBot.Core.Services.Moderation.ModerationRulesRepository(
+                        sp.GetRequiredService<IDataService>(),
+                        sp.GetRequiredService<VyralBot.Core.Services.Moderation.IChatModerationEngine>(),
+                        sp.GetRequiredService<ILogger<VyralBot.Core.Services.Moderation.ModerationRulesRepository>>()));
+                services.AddSingleton<VyralBot.Core.Services.Moderation.ModerationActionService>(
+                    _ => VyralBot.Core.Services.Moderation.ModerationActionService.Shared);
                 services.AddSingleton<ModeratorViewModel>();
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<ProfileSelectorViewModel>();
@@ -650,6 +666,49 @@ public partial class App : Application
             // Initialize database schema
             var dataService = _host.Services.GetRequiredService<IDataService>();
             await dataService.EnsureDatabaseCreatedAsync();
+
+            // Auto-moderation: configure the shared action service with the
+            // profile's persistence + logging, register the per-platform
+            // adapters (capability flags follow ModerationPlatformParity —
+            // Twitch/Kick/YouTube are notice-only until their services gain
+            // per-viewer action APIs; Discord enforces ban/timeout by name)
+            // and load the saved rule set so the engine evaluates with the
+            // stored rules from the first chat message after startup.
+            // Best-effort — a failure must not break startup.
+            try
+            {
+                var autoModActions = _host.Services.GetRequiredService<VyralBot.Core.Services.Moderation.ModerationActionService>();
+                autoModActions.Configure(
+                    dataService,
+                    _host.Services.GetRequiredService<ILogger<VyralBot.Core.Services.Moderation.ModerationActionService>>());
+                autoModActions.RegisterAdapter(new TwitchModerationAdapter(
+                    _host.Services.GetRequiredService<ITwitchService>()));
+                autoModActions.RegisterAdapter(new DiscordModerationAdapter(
+                    _host.Services.GetRequiredService<IDiscordService>()));
+                autoModActions.RegisterAdapter(new KickModerationAdapter(
+                    _host.Services.GetRequiredService<IKickService>()));
+                autoModActions.RegisterAdapter(new YouTubeModerationAdapter(
+                    _host.Services.GetRequiredService<IYouTubeService>()));
+
+                var autoModRules = await _host.Services
+                    .GetRequiredService<VyralBot.Core.Services.Moderation.ModerationRulesRepository>()
+                    .LoadAsync();
+                var enabledAutoModRules = new[]
+                {
+                    autoModRules.BannedWords, autoModRules.Links, autoModRules.Caps,
+                    autoModRules.Emojis, autoModRules.RepeatedMessage, autoModRules.AsciiArt
+                }.Count(r => r.Enabled);
+
+                Log.Information("Auto-mod engine active: {AdapterCount} platform adapter(s) [{Platforms}], master switch {Master}, {EnabledRules}/6 rules enabled",
+                    autoModActions.GetAdapters().Count,
+                    string.Join(", ", autoModActions.GetAdapters().Select(a => a.Platform)),
+                    autoModRules.MasterEnabled ? "ON" : "OFF",
+                    enabledAutoModRules);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to activate the auto-moderation engine");
+            }
 
             // Social goals: seed the default goals once (no-op when any already exist).
             // Fire-and-forget — a failure must never block or break startup.
@@ -1212,6 +1271,192 @@ public partial class App : Application
             // Watchdog is already running (started at top of OnExit).
             // Nothing else to do here — if cleanup completed, the process
             // exits naturally; if it didn't, the watchdog kills it.
+        }
+    }
+
+    // ======================================================================
+    // Auto-moderation platform adapters (IModerationPlatformAdapter). They
+    // live in the composition root because VyralBot.Core cannot reference the
+    // integration services (reference direction is Integrations → Core).
+    // Capability flags follow the parity audit (ModerationPlatformParity):
+    // Twitch/Kick/YouTube expose no per-viewer timeout/ban/delete APIs yet,
+    // so their adapters only post warning notices and verdicts degrade
+    // delete→warn/timeout→warn per ModerationActionService's ladder; Discord
+    // can ban and timeout by name (no delete-by-id API — "trigger"-scope
+    // deletes track workflow triggers, not viewer messages). Every method is
+    // best-effort and NEVER throws.
+    // ======================================================================
+
+    /// <summary>Twitch adapter: notice-only (chat-wide APIs exist; per-viewer Helix actions are not wired yet).</summary>
+    internal sealed class TwitchModerationAdapter : VyralBot.Core.Services.Moderation.IModerationPlatformAdapter
+    {
+        private readonly ITwitchService _twitch;
+
+        public TwitchModerationAdapter(ITwitchService twitch)
+            => _twitch = twitch ?? throw new ArgumentNullException(nameof(twitch));
+
+        public string Platform => "Twitch";
+        public bool CanDeleteMessage => false;
+        public bool CanTimeout => false;
+        public bool CanBan => false;
+
+        public Task<bool> DeleteMessageAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message) => Task.FromResult(false);
+
+        public Task<bool> TimeoutAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, int seconds, string reason) => Task.FromResult(false);
+
+        public Task<bool> BanAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, string reason) => Task.FromResult(false);
+
+        public async Task<bool> SendNoticeAsync(string message)
+        {
+            if (!_twitch.IsConnected)
+            {
+                return false;
+            }
+
+            try
+            {
+                await _twitch.SendMessageAsync(message).ConfigureAwait(false);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>Kick adapter: notice-only (IKickService is connect/send only — outbound moderation is webhook-inbound).</summary>
+    internal sealed class KickModerationAdapter : VyralBot.Core.Services.Moderation.IModerationPlatformAdapter
+    {
+        private readonly IKickService _kick;
+
+        public KickModerationAdapter(IKickService kick)
+            => _kick = kick ?? throw new ArgumentNullException(nameof(kick));
+
+        public string Platform => "Kick";
+        public bool CanDeleteMessage => false;
+        public bool CanTimeout => false;
+        public bool CanBan => false;
+
+        public Task<bool> DeleteMessageAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message) => Task.FromResult(false);
+
+        public Task<bool> TimeoutAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, int seconds, string reason) => Task.FromResult(false);
+
+        public Task<bool> BanAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, string reason) => Task.FromResult(false);
+
+        public async Task<bool> SendNoticeAsync(string message)
+        {
+            if (!_kick.IsConnected)
+            {
+                return false;
+            }
+
+            try
+            {
+                await _kick.SendMessageAsync(message).ConfigureAwait(false);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>YouTube adapter: notice-only (IYouTubeService is connect/send + stream info only).</summary>
+    internal sealed class YouTubeModerationAdapter : VyralBot.Core.Services.Moderation.IModerationPlatformAdapter
+    {
+        private readonly IYouTubeService _youtube;
+
+        public YouTubeModerationAdapter(IYouTubeService youtube)
+            => _youtube = youtube ?? throw new ArgumentNullException(nameof(youtube));
+
+        public string Platform => "YouTube";
+        public bool CanDeleteMessage => false;
+        public bool CanTimeout => false;
+        public bool CanBan => false;
+
+        public Task<bool> DeleteMessageAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message) => Task.FromResult(false);
+
+        public Task<bool> TimeoutAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, int seconds, string reason) => Task.FromResult(false);
+
+        public Task<bool> BanAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, string reason) => Task.FromResult(false);
+
+        public async Task<bool> SendNoticeAsync(string message)
+        {
+            if (!_youtube.IsConnected)
+            {
+                return false;
+            }
+
+            try
+            {
+                await _youtube.SendMessageAsync(message).ConfigureAwait(false);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Discord adapter: the only platform able to enforce actions today —
+    /// ban + timeout by username on the primary bot. Message deletion is not
+    /// advertised (no delete-by-id/by-author API), so Delete verdicts degrade
+    /// to a warning notice in the selected channel.
+    /// </summary>
+    internal sealed class DiscordModerationAdapter : VyralBot.Core.Services.Moderation.IModerationPlatformAdapter
+    {
+        private readonly IDiscordService _discord;
+
+        public DiscordModerationAdapter(IDiscordService discord)
+            => _discord = discord ?? throw new ArgumentNullException(nameof(discord));
+
+        public string Platform => "Discord";
+        public bool CanDeleteMessage => false;
+        public bool CanTimeout => true;
+        public bool CanBan => true;
+
+        public Task<bool> DeleteMessageAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message) => Task.FromResult(false);
+
+        public async Task<bool> TimeoutAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, int seconds, string reason)
+        {
+            try
+            {
+                // Discord timeouts are minute-granular; round up, minimum 1.
+                var minutes = Math.Max(1, (int)Math.Ceiling(seconds / 60.0));
+                return await _discord.TimeoutMemberByNameAsync(message.Username, minutes, reason).ConfigureAwait(false);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> BanAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, string reason)
+        {
+            try
+            {
+                return await _discord.BanMemberByNameAsync(message.Username, reason).ConfigureAwait(false);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> SendNoticeAsync(string message)
+        {
+            try
+            {
+                return await _discord.SendMessageAsync(message).ConfigureAwait(false);
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

@@ -39,7 +39,9 @@ Files: `VyralBot.Integrations/Discord/DiscordService.cs` (one gateway session),
 - `RemoveBotAsync` (removing a bot from the Discord Bots page) also deletes
   the bot's SCOPED data so no orphans linger: Command rows pinned to the bot
   (`Commands.BotId`), command timers pinned to it, its Discord role→mod-tier
-  mappings and its monitored connected channels. Each group is best-effort
+  mappings, its monitored connected channels and its per-bot Configs rows
+  (`DiscordBot.{botId}.Integrations` / `.DisabledBuiltIns`, removed via
+  `IDataService.DeleteConfigValueAsync`). Each group is best-effort
   (a failing group is logged and never blocks the removal).
 - Tokens live in the per-profile SQLite DB (`DiscordBots.Token`, legacy
   `Platform` row `Name="Discord"`), masked in UI (PasswordBox) and never

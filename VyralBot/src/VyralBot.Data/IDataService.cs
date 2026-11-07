@@ -164,6 +164,12 @@ public interface IDataService
     // Configs
     Task<string?> GetConfigValueAsync(string key);
     Task SetConfigValueAsync(string key, string value, string? category = null);
+    /// <summary>
+    /// Deletes one Configs row by key (optionally restricted to a category, like
+    /// <see cref="SetConfigValueAsync"/>'s write path). Returns true when a row
+    /// was removed; false when the key did not exist.
+    /// </summary>
+    Task<bool> DeleteConfigValueAsync(string key, string? category = null);
     Task<IEnumerable<Config>> GetConfigsByCategoryAsync(string category);
 
     // Triggers
@@ -230,10 +236,17 @@ public interface IDataService
     Task<UserCurrency?> GetUserCurrencyAsync(string username, string platform);
     Task<IEnumerable<UserCurrency>> GetUserCurrenciesAsync(string username); // All platforms for user
     Task<IEnumerable<UserCurrency>> GetCurrencyLeaderboardAsync(int limit = 10, string? platform = null);
+    // Stable-key paging (Username+Platform order, balances may mutate mid-walk) for
+    // full-table walks like GiveCurrencyToAll — OFFSET paging over the leaderboard's
+    // Balance order would skip/duplicate rows as awards change the sort key.
+    Task<IEnumerable<UserCurrency>> GetCurrencyUsersPagedAsync(int limit, int offset, string? platform = null);
     Task SaveUserCurrencyAsync(UserCurrency currency);
 
     Task SaveCurrencyTransactionAsync(CurrencyTransaction transaction);
     Task<IEnumerable<CurrencyTransaction>> GetCurrencyTransactionsAsync(string? username = null, string? platform = null, int limit = 100);
+    // SQL-side aggregation (SUM/COUNT) for economy stats — never loads row lists.
+    Task<(long UserCount, long TotalBalance)> GetCurrencyEconomyTotalsAsync();
+    Task<(long Earned, long Spent)> GetCurrencyTransactionTotalsSinceAsync(DateTime since);
 
     Task<CurrencyReward?> GetCurrencyRewardAsync(string id);
     Task<IEnumerable<CurrencyReward>> GetCurrencyRewardsAsync(bool? enabledOnly = null);
@@ -397,6 +410,10 @@ public interface IDataService
     Task<int> GetTotalActiveViewersCountAsync();
     Task SaveUserWatchtimeAsync(UserWatchtime watchtime);
     Task DeactivateInactiveViewersAsync(DateTime inactiveSince);
+    /// <summary>Clears every IsActive flag (app startup) so viewers persisted as
+    /// active by the previous run cannot earn watchtime/points until they actually
+    /// re-appear in chat. Returns the number of rows deactivated.</summary>
+    Task<int> DeactivateAllViewersAsync();
     Task ResetStreamSessionMinutesAsync();
 
     // Mod system + platform earnings

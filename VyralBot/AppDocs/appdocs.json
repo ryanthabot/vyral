@@ -112,6 +112,10 @@
         {
           "path": "platforms/dashboards.md",
           "title": "Platform Dashboards"
+        },
+        {
+          "path": "platforms/multi-platform.md",
+          "title": "Multi-Platform Parity"
         }
       ]
     },
@@ -145,6 +149,10 @@
         {
           "path": "chat-features/automation.md",
           "title": "Automation"
+        },
+        {
+          "path": "chat-features/workflows.md",
+          "title": "Workflow Engine (Deep Guide)"
         },
         {
           "path": "chat-features/account-linking.md",
@@ -198,6 +206,18 @@
         {
           "path": "stream-tools/vyral-goals.md",
           "title": "Vyral Goals"
+        },
+        {
+          "path": "stream-tools/restream.md",
+          "title": "Restream (Multi-Platform)"
+        },
+        {
+          "path": "stream-tools/vyraldeck.md",
+          "title": "StreamDeck & VyralDeck Mobile"
+        },
+        {
+          "path": "stream-tools/obs.md",
+          "title": "OBS Integration"
         }
       ]
     },

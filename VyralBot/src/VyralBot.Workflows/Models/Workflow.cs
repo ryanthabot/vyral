@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace VyralBot.Workflows.Models;
 
 /// <summary>Well-known workflow trigger type strings.</summary>
@@ -180,6 +182,18 @@ public class WorkflowTrigger
 
     /// <summary>Platform filter: "Twitch", "Kick", "Discord", "YouTube" or "Any".</summary>
     public string? Platform { get; set; }
+
+    /// <summary>
+    /// Optional platform filter for COMMAND triggers (trigger-options field
+    /// "platforms"): the publishing platforms the command may fire from —
+    /// "Twitch", "Kick", "YouTube", "Discord", "TikTok". Null/empty/absent =
+    /// all platforms. Serialized inside TriggerJson via
+    /// <see cref="VyralBot.Workflows.Persistence.WorkflowJson"/>; the field is
+    /// omitted when null so pre-existing rows round-trip byte-identical, and
+    /// rows written before it existed deserialize to null (version tolerant).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? Platforms { get; set; }
 
     /// <summary>
     /// Optional guard expression for event triggers, evaluated with

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using VyralBot.Data;
 
@@ -24,6 +25,12 @@ public sealed class PairedDevice
     public DateTime PairedAtUtc { get; set; } = DateTime.UtcNow;
 
     public DateTime LastSeenUtc { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Runtime-only: does this device currently hold a WebSocket
+    /// session? Set by the StreamDeck page from <see cref="DeckServer"/>;
+    /// never persisted.</summary>
+    [JsonIgnore]
+    public bool IsConnected { get; set; }
 }
 
 /// <summary>
@@ -50,6 +57,10 @@ public sealed class DeckPairingStore
     private string? _pin;
     private DateTime _pinExpiresUtc;
     private readonly Queue<DateTime> _failedAttempts = new();
+
+    /// <summary>Raised with the device token after it was unpaired — lets the
+    /// server close that device's live WebSocket session immediately.</summary>
+    public event Action<string>? DeviceRemoved;
 
     public DeckPairingStore(IDataService data, ILogger<DeckPairingStore> logger)
     {
@@ -197,16 +208,24 @@ public sealed class DeckPairingStore
 
     public async Task RemoveDeviceAsync(string token)
     {
+        var removedAny = false;
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
             var devices = await LoadDevicesLockedAsync().ConfigureAwait(false);
-            devices.RemoveAll(d => d.Token == token);
+            removedAny = devices.RemoveAll(d => d.Token == token) > 0;
             await SaveDevicesLockedAsync(devices).ConfigureAwait(false);
         }
         finally
         {
             _gate.Release();
+        }
+
+        if (removedAny)
+        {
+            // Raised outside the gate so handlers (the server closing sockets)
+            // can take their time without blocking other pairing operations.
+            DeviceRemoved?.Invoke(token);
         }
     }
 

@@ -570,16 +570,36 @@ public class DapperDataService : IDataService
     {
         using var conn = CreateConnection();
 
+        // Tiebreakers (Username, Platform) make equal-balance ordering
+        // deterministic so paged/refreshed leaderboards don't reshuffle ties.
         if (string.IsNullOrEmpty(platform))
         {
             return await conn.QueryAsync<UserCurrency>(
-                "SELECT * FROM UserCurrency ORDER BY Balance DESC LIMIT @Limit",
+                "SELECT * FROM UserCurrency ORDER BY Balance DESC, Username COLLATE NOCASE ASC, Platform ASC LIMIT @Limit",
                 new { Limit = limit });
         }
 
         return await conn.QueryAsync<UserCurrency>(
-            "SELECT * FROM UserCurrency WHERE Platform = @Platform ORDER BY Balance DESC LIMIT @Limit",
+            "SELECT * FROM UserCurrency WHERE Platform = @Platform ORDER BY Balance DESC, Username COLLATE NOCASE ASC, Platform ASC LIMIT @Limit",
             new { Platform = platform, Limit = limit });
+    }
+
+    public async Task<IEnumerable<UserCurrency>> GetCurrencyUsersPagedAsync(int limit, int offset, string? platform = null)
+    {
+        using var conn = CreateConnection();
+
+        // Ordered by the STABLE identity key (never mutated mid-walk), so OFFSET
+        // paging stays correct even while a caller awards currency page by page.
+        if (string.IsNullOrEmpty(platform))
+        {
+            return await conn.QueryAsync<UserCurrency>(
+                "SELECT * FROM UserCurrency ORDER BY Username COLLATE NOCASE ASC, Platform ASC LIMIT @Limit OFFSET @Offset",
+                new { Limit = limit, Offset = offset });
+        }
+
+        return await conn.QueryAsync<UserCurrency>(
+            "SELECT * FROM UserCurrency WHERE Platform = @Platform ORDER BY Username COLLATE NOCASE ASC, Platform ASC LIMIT @Limit OFFSET @Offset",
+            new { Platform = platform, Limit = limit, Offset = offset });
     }
 
     public async Task SaveUserCurrencyAsync(UserCurrency currency)
@@ -658,6 +678,30 @@ public class DapperDataService : IDataService
         return await conn.QueryAsync<CurrencyTransaction>(
             "SELECT * FROM CurrencyTransactions ORDER BY Timestamp DESC LIMIT @Limit",
             new { Limit = limit });
+    }
+
+    public async Task<(long UserCount, long TotalBalance)> GetCurrencyEconomyTotalsAsync()
+    {
+        using var conn = CreateConnection();
+        // Aggregation pushed to SQLite: one row back instead of the whole
+        // UserCurrency table (the old stats path loaded 100k rows client-side).
+        return await conn.QuerySingleAsync<(long UserCount, long TotalBalance)>(
+            "SELECT COUNT(1) AS UserCount, COALESCE(SUM(Balance), 0) AS TotalBalance FROM UserCurrency");
+    }
+
+    public async Task<(long Earned, long Spent)> GetCurrencyTransactionTotalsSinceAsync(DateTime since)
+    {
+        using var conn = CreateConnection();
+        // Aggregation pushed to SQLite with a server-side date filter — the old
+        // path read only the newest 10k transactions, silently wrong past 10k/day.
+        // DateTime binds as the same TEXT format used by the date comparisons in
+        // DeactivateInactiveViewersAsync, so >= compares chronologically.
+        return await conn.QuerySingleAsync<(long Earned, long Spent)>(
+            @"SELECT
+                COALESCE(SUM(CASE WHEN Amount > 0 THEN Amount ELSE 0 END), 0) AS Earned,
+                COALESCE(SUM(CASE WHEN Amount < 0 THEN -Amount ELSE 0 END), 0) AS Spent
+              FROM CurrencyTransactions WHERE Timestamp >= @Since",
+            new { Since = since });
     }
 
     public async Task<CurrencyReward?> GetCurrencyRewardAsync(string id)
@@ -753,16 +797,21 @@ public class DapperDataService : IDataService
     {
         using var conn = CreateConnection();
 
+        // LIMIT sanity on the queue-shaped variants: they feed UI lists ordered
+        // newest-first, so a cap keeps the most recent rows. The username-only
+        // variant stays unbounded on purpose — CurrencyRewardsService counts a
+        // viewer's full redemption history there for per-user caps/cooldowns, and
+        // a LIMIT could let a heavy user exceed MaxRedemptionsPerUser.
         if (!string.IsNullOrEmpty(status) && !string.IsNullOrEmpty(username))
         {
             return await conn.QueryAsync<CurrencyRedemption>(
-                "SELECT * FROM CurrencyRedemptions WHERE Status = @Status AND Username = @Username ORDER BY RedeemedAt DESC",
+                "SELECT * FROM CurrencyRedemptions WHERE Status = @Status AND Username = @Username ORDER BY RedeemedAt DESC LIMIT 5000",
                 new { Status = status, Username = username });
         }
         else if (!string.IsNullOrEmpty(status))
         {
             return await conn.QueryAsync<CurrencyRedemption>(
-                "SELECT * FROM CurrencyRedemptions WHERE Status = @Status ORDER BY RedeemedAt DESC",
+                "SELECT * FROM CurrencyRedemptions WHERE Status = @Status ORDER BY RedeemedAt DESC LIMIT 5000",
                 new { Status = status });
         }
         else if (!string.IsNullOrEmpty(username))
@@ -773,7 +822,7 @@ public class DapperDataService : IDataService
         }
 
         return await conn.QueryAsync<CurrencyRedemption>(
-            "SELECT * FROM CurrencyRedemptions ORDER BY RedeemedAt DESC");
+            "SELECT * FROM CurrencyRedemptions ORDER BY RedeemedAt DESC LIMIT 5000");
     }
 
     public async Task SaveCurrencyRedemptionAsync(CurrencyRedemption redemption)
@@ -2270,6 +2319,17 @@ public class DapperDataService : IDataService
             new { InactiveSince = inactiveSince, Now = DateTime.UtcNow });
     }
 
+    public async Task<int> DeactivateAllViewersAsync()
+    {
+        using var conn = CreateConnection();
+        // Startup call: clears IsActive flags persisted by the previous app run so
+        // stale "active" viewers cannot accrue watchtime/points until they chat
+        // again (RecordUserActivityAsync re-activates them).
+        return await conn.ExecuteAsync(
+            "UPDATE UserWatchtime SET IsActive = 0, UpdatedAt = @Now WHERE IsActive = 1",
+            new { Now = DateTime.UtcNow });
+    }
+
     #endregion
 
     #region Variable Operations
@@ -2411,6 +2471,20 @@ public class DapperDataService : IDataService
         using var conn = CreateConnection();
         return await conn.QueryAsync<Config>(
             "SELECT * FROM Configs WHERE Category = @Category", new { Category = category });
+    }
+
+    public async Task<bool> DeleteConfigValueAsync(string key, string? category = null)
+    {
+        using var conn = CreateConnection();
+
+        // Key-only delete by default; a category restricts the match to rows
+        // written under that category (mirrors SetConfigValueAsync's handling).
+        string sql = category == null
+            ? "DELETE FROM Configs WHERE Key = @Key"
+            : "DELETE FROM Configs WHERE Key = @Key AND Category = @Category";
+
+        int rows = await conn.ExecuteAsync(sql, new { Key = key, Category = category });
+        return rows > 0;
     }
 
     #endregion

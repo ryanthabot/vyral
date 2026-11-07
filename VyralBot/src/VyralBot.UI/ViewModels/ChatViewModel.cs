@@ -25,6 +25,7 @@ using VyralBot.Core.Services.Currency;
 using VyralBot.Core.Services.EventBus;
 using VyralBot.Core.Services.EventBus.Events;
 using VyralBot.Core.Services.Linking;
+using VyralBot.Core.Services.Moderation;
 using VyralBot.Core.Services.StreamEffects;
 using VyralBot.Core.Services.Variables;
 using VyralBot.Data;
@@ -64,6 +65,10 @@ public class ChatViewModel : ViewModelBase
 	private readonly StreamEffectCommandRouter? _streamEffectRouter;
 
 	private readonly IConnectedChannelService? _connectedChannels;
+
+	private readonly IChatModerationEngine _chatModerationEngine;
+
+	private readonly ModerationActionService _moderationActionService;
 
 	private readonly KickSettingsViewModel _kickSettings;
 
@@ -231,6 +236,16 @@ public class ChatViewModel : ViewModelBase
 	private readonly object _lastDiscordDmByBotLock = new object();
 
 	private const int MAX_DISCORD_DM_ORIGINS = 200;
+
+	private readonly Dictionary<string, DateTime> _autoModeratedMessageKeys = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+
+	private readonly Queue<string> _autoModeratedKeyOrder = new Queue<string>();
+
+	private readonly object _autoModeratedKeysLock = new object();
+
+	private const int MAX_AUTO_MODERATED_KEYS = 256;
+
+	private static readonly TimeSpan AutoModeratedKeyWindow = TimeSpan.FromSeconds(60L);
 
 	private static readonly TimeSpan DiscordDmReplyWindow = TimeSpan.FromSeconds(30L);
 
@@ -2061,7 +2076,7 @@ public class ChatViewModel : ViewModelBase
 		return Task.CompletedTask;
 	}
 
-	public ChatViewModel(ILogger<ChatViewModel> logger, IEventBus eventBus, ITwitchService twitchService, IKickService kickService, IYouTubeService youtubeService, IDiscordService discordService, IDiscordBotManager discordBotManager, KickSettingsViewModel kickSettings, IChatMessageStore chatStore, IChatEventSettingsService eventSettingsService, IAutoReplyService autoReplyService, IDiscordCommandHandler? discordCommandHandler = null, ICurrencyService? currencyService = null, ICurrencyCommandService? currencyCommandService = null, ICommandService? commandService = null, ISoundService? soundService = null, IAlertService? alertService = null, GiveawayCommandService? giveawayCommandService = null, PollCommandService? pollCommandService = null, WatchtimeService? watchtimeService = null, WatchtimeCommandService? watchtimeCommandService = null, IVariableReplacementService? variableReplacementService = null, IDataService? dataService = null, CommandActionRunner? commandActionRunner = null, WorkflowTriggerService? workflowTriggerService = null, IResponseWaiterRegistry? responseWaiters = null, ILinkCodeService? linkCodeService = null, IViewerStatusService? viewerStatusService = null, ISocialGoalService? socialGoalService = null, StreamEffectCommandRouter? streamEffectRouter = null, IConnectedChannelService? connectedChannels = null)
+	public ChatViewModel(ILogger<ChatViewModel> logger, IEventBus eventBus, ITwitchService twitchService, IKickService kickService, IYouTubeService youtubeService, IDiscordService discordService, IDiscordBotManager discordBotManager, KickSettingsViewModel kickSettings, IChatMessageStore chatStore, IChatEventSettingsService eventSettingsService, IAutoReplyService autoReplyService, IDiscordCommandHandler? discordCommandHandler = null, ICurrencyService? currencyService = null, ICurrencyCommandService? currencyCommandService = null, ICommandService? commandService = null, ISoundService? soundService = null, IAlertService? alertService = null, GiveawayCommandService? giveawayCommandService = null, PollCommandService? pollCommandService = null, WatchtimeService? watchtimeService = null, WatchtimeCommandService? watchtimeCommandService = null, IVariableReplacementService? variableReplacementService = null, IDataService? dataService = null, CommandActionRunner? commandActionRunner = null, WorkflowTriggerService? workflowTriggerService = null, IResponseWaiterRegistry? responseWaiters = null, ILinkCodeService? linkCodeService = null, IViewerStatusService? viewerStatusService = null, ISocialGoalService? socialGoalService = null, StreamEffectCommandRouter? streamEffectRouter = null, IConnectedChannelService? connectedChannels = null, IChatModerationEngine? chatModerationEngine = null, ModerationActionService? moderationActionService = null)
 	{
 		_logger = logger ?? throw new ArgumentNullException("logger");
 		_eventBus = eventBus ?? throw new ArgumentNullException("eventBus");
@@ -2094,6 +2109,8 @@ public class ChatViewModel : ViewModelBase
 		_socialGoalService = socialGoalService;
 		_streamEffectRouter = streamEffectRouter;
 		_connectedChannels = connectedChannels;
+		_chatModerationEngine = chatModerationEngine ?? ChatModerationEngine.Shared;
+		_moderationActionService = moderationActionService ?? ModerationActionService.Shared;
 		_currencyService = currencyService;
 		_currencyCommandService = currencyCommandService;
 		_commandService = commandService;
@@ -2944,6 +2961,64 @@ public class ChatViewModel : ViewModelBase
 		PostChatStateSystemMessages(_twitchService.IsConnected, _twitchService.Channel, _kickService.IsConnected, _kickService.Channel, IsDiscordConnected, !string.IsNullOrEmpty(_discordBotManager.Primary?.SelectedChannelId ?? _discordService.SelectedChannelId));
 	}
 
+	private async Task<bool> TryAutoModerateAsync(ModerationIncomingMessage message)
+	{
+		try
+		{
+			ModerationVerdict? verdict = _chatModerationEngine.Evaluate(message);
+			if (verdict == null)
+			{
+				return false;
+			}
+			_logger.LogInformation("Auto-mod hit on {Platform}/{Username}: {Rule} -> {Action} (strike {Strikes}, {Reason})", message.Platform, message.Username, verdict.Rule, verdict.Action, verdict.Strikes, verdict.Reason);
+			RememberAutoModeratedKey(message.Platform, message.Username, message.Message);
+			await _moderationActionService.ExecuteAsync(message, verdict);
+			return true;
+		}
+		catch (Exception exception)
+		{
+			_logger.LogWarning(exception, "Auto-mod evaluation failed for {Platform}/{Username} — message allowed", message.Platform, message.Username);
+			return false;
+		}
+	}
+
+	private static string BuildAutoModerationKey(string platform, string username, string message)
+	{
+		return (platform ?? "").Trim().ToLowerInvariant() + "|" + (username ?? "").Trim().ToLowerInvariant() + "|" + (message ?? "").Trim().ToLowerInvariant().GetHashCode();
+	}
+
+	private void RememberAutoModeratedKey(string platform, string username, string message)
+	{
+		string key = BuildAutoModerationKey(platform, username, message);
+		lock (_autoModeratedKeysLock)
+		{
+			if (!_autoModeratedMessageKeys.ContainsKey(key))
+			{
+				_autoModeratedKeyOrder.Enqueue(key);
+			}
+			_autoModeratedMessageKeys[key] = DateTime.UtcNow;
+			while (_autoModeratedKeyOrder.Count > MAX_AUTO_MODERATED_KEYS)
+			{
+				string text = _autoModeratedKeyOrder.Dequeue();
+				_autoModeratedMessageKeys.Remove(text);
+			}
+		}
+	}
+
+	private bool IsRecentlyAutoModerated(string platform, string username, string message)
+	{
+		string key = BuildAutoModerationKey(platform, username, message);
+		lock (_autoModeratedKeysLock)
+		{
+			return _autoModeratedMessageKeys.TryGetValue(key, out DateTime moderatedAtUtc) && DateTime.UtcNow - moderatedAtUtc <= AutoModeratedKeyWindow;
+		}
+	}
+
+	private static bool HasDedicatedChatHandler(string? platform)
+	{
+		return string.Equals(platform, "Twitch", StringComparison.OrdinalIgnoreCase) || string.Equals(platform, "Kick", StringComparison.OrdinalIgnoreCase) || string.Equals(platform, "YouTube", StringComparison.OrdinalIgnoreCase) || string.Equals(platform, "Discord", StringComparison.OrdinalIgnoreCase);
+	}
+
 	private async Task OnTwitchChatMessageReceivedAsync(TwitchChatMessageEvent evt)
 	{
 		try
@@ -2986,6 +3061,21 @@ public class ChatViewModel : ViewModelBase
 			if (!TwitchFilterEnabled)
 			{
 				_logger.LogDebug("Twitch messages filtered out (TwitchFilterEnabled=false)");
+				return;
+			}
+			if (!IsOwnTwitchAccount(evt.Username) && await TryAutoModerateAsync(new ModerationIncomingMessage
+			{
+				Platform = "Twitch",
+				Username = evt.Username ?? string.Empty,
+				UserId = evt.UserId ?? string.Empty,
+				Message = evt.Message ?? string.Empty,
+				IsModerator = evt.IsModerator,
+				IsSubscriber = evt.IsSubscriber,
+				IsVip = evt.IsVip,
+				IsBroadcaster = evt.IsBroadcaster
+			}))
+			{
+				_logger.LogInformation("Twitch message from {Username} dropped by auto-mod", evt.Username);
 				return;
 			}
 			if (ConnectedPlatforms.Count == 0)
@@ -3052,12 +3142,36 @@ public class ChatViewModel : ViewModelBase
 			discordDmBotId = discordDmTarget.Value.BotId;
 		}
 		bool isDiscordDmMessage = discordDmChannelId != null || (string.Equals(evt.Platform, "Discord", StringComparison.OrdinalIgnoreCase) && string.Equals(evt.Channel, "DirectMessage", StringComparison.OrdinalIgnoreCase));
-		if (isDiscordDmMessage)
-		{
-			string dmEntryOriginBotId = discordDmBotId ?? discordBotId;
-			_logger.LogInformation("Discord DM from {Username} via bot {OriginId}: \"{Content}\"", evt.Username, string.IsNullOrEmpty(dmEntryOriginBotId) ? "unknown" : dmEntryOriginBotId, TruncateForLog(evt.Message, 80));
-		}
-		try
+			if (isDiscordDmMessage)
+			{
+				string dmEntryOriginBotId = discordDmBotId ?? discordBotId;
+				_logger.LogInformation("Discord DM from {Username} via bot {OriginId}: \"{Content}\"", evt.Username, string.IsNullOrEmpty(dmEntryOriginBotId) ? "unknown" : dmEntryOriginBotId, TruncateForLog(evt.Message, 80));
+			}
+			if (!isDiscordDmMessage)
+			{
+				if (IsRecentlyAutoModerated(evt.Platform, evt.Username, evt.Message))
+				{
+					_logger.LogInformation("{Platform} message from {Username} skipped by auto-mod (already acted on)", evt.Platform, evt.Username);
+					return;
+				}
+				if (!HasDedicatedChatHandler(evt.Platform) && await TryAutoModerateAsync(new ModerationIncomingMessage
+				{
+					Platform = evt.Platform ?? string.Empty,
+					Username = evt.Username ?? string.Empty,
+					UserId = evt.UserId ?? string.Empty,
+					Message = evt.Message ?? string.Empty,
+					MessageId = evt.MessageId ?? string.Empty,
+					IsModerator = evt.IsModerator,
+					IsSubscriber = evt.IsSubscriber,
+					IsVip = evt.IsVip,
+					IsBroadcaster = evt.IsBroadcaster
+				}))
+				{
+					_logger.LogInformation("{Platform} message from {Username} dropped by auto-mod", evt.Platform, evt.Username);
+					return;
+				}
+			}
+			try
 		{
 			_responseWaiters?.Feed(evt.Platform ?? string.Empty, evt.Username ?? string.Empty, channel ?? string.Empty, evt.Message ?? string.Empty);
 		}
@@ -3382,7 +3496,7 @@ public class ChatViewModel : ViewModelBase
 		{
 			try
 			{
-				await _currencyService.AwardChatActivityAsync(evt.Username, evt.Platform);
+				await _currencyService.AwardChatActivityAsync(evt.Username, evt.Platform, evt.ChannelId);
 			}
 			catch (Exception ex)
 			{
@@ -5369,6 +5483,21 @@ public class ChatViewModel : ViewModelBase
 			_logger.LogDebug("YouTube messages filtered out (YoutubeFilterEnabled=false)");
 			return;
 		}
+		if (!isOwnYoutubeMessage && await TryAutoModerateAsync(new ModerationIncomingMessage
+		{
+			Platform = "YouTube",
+			Username = evt.Username ?? string.Empty,
+			UserId = evt.UserId ?? string.Empty,
+			Message = evt.Message ?? string.Empty,
+			MessageId = evt.MessageId ?? string.Empty,
+			IsModerator = evt.IsModerator,
+			IsSubscriber = evt.IsMember,
+			IsBroadcaster = evt.IsOwner
+		}))
+		{
+			_logger.LogInformation("YouTube message from {Username} dropped by auto-mod", evt.Username);
+			return;
+		}
 		if (ConnectedPlatforms.Count == 0 || !ConnectedPlatforms.Any((PlatformOption p) => p.Name == "YouTube"))
 		{
 			_logger.LogInformation("YouTube not in platforms list, refreshing...");
@@ -5458,6 +5587,21 @@ public class ChatViewModel : ViewModelBase
 			_logger.LogDebug("Kick messages filtered out (KickFilterEnabled=false)");
 			return;
 		}
+		if (!isOwnKickMessage && await TryAutoModerateAsync(new ModerationIncomingMessage
+		{
+			Platform = "Kick",
+			Username = evt.Username ?? string.Empty,
+			UserId = evt.UserId ?? string.Empty,
+			Message = evt.Message ?? string.Empty,
+			MessageId = evt.MessageId ?? string.Empty,
+			IsModerator = evt.IsModerator,
+			IsSubscriber = evt.IsSubscriber,
+			IsBroadcaster = evt.IsOwner
+		}))
+		{
+			_logger.LogInformation("Kick message from {Username} dropped by auto-mod", evt.Username);
+			return;
+		}
 		string source = ((!string.IsNullOrEmpty(evt.MessageId) && evt.MessageId.StartsWith("history_")) ? "history" : "realtime");
 		_logger.LogInformation("Kick message ({Source}) from {Username} ({DisplayName}): {Message}", source, evt.Username, evt.DisplayName, evt.Message);
 		if (ConnectedPlatforms.Count == 0 || !ConnectedPlatforms.Any((PlatformOption p) => p.Name == "Kick"))
@@ -5513,6 +5657,21 @@ public class ChatViewModel : ViewModelBase
 		if (!DiscordFilterEnabled)
 		{
 			_logger.LogDebug("Discord messages filtered out (DiscordFilterEnabled=false)");
+			return;
+		}
+		bool isDiscordDm = string.Equals(evt.Channel, "DirectMessage", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(evt.GuildName);
+		if (!isDiscordDm && await TryAutoModerateAsync(new ModerationIncomingMessage
+		{
+			Platform = "Discord",
+			Username = evt.Username ?? string.Empty,
+			UserId = evt.SenderUserId ?? string.Empty,
+			Message = evt.Message ?? string.Empty,
+			MessageId = evt.MessageId ?? string.Empty,
+			IsModerator = evt.IsModerator,
+			IsBroadcaster = evt.IsBroadcaster
+		}))
+		{
+			_logger.LogInformation("Discord message from {Username} dropped by auto-mod", evt.Username);
 			return;
 		}
 		// Stream effects first: a recognized (and tier-allowed) "!flashlights" /

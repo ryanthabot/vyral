@@ -48,11 +48,24 @@ public class WebhooksController : ControllerBase
                 return BadRequest("Missing Kick-Event-Type header");
             }
 
-            // TODO: Validate signature (will be implemented in middleware)
+            // Signature, timestamp-freshness, replay and size validation happen in
+            // KickWebhookValidationMiddleware before this action runs.
 
-            // Parse and process based on event type
-            var jsonDoc = JsonDocument.Parse(body);
-            var root = jsonDoc.RootElement;
+            // Parse and process based on event type. Malformed JSON is a client
+            // error — answer 400 instead of falling into the generic 500 handler.
+            JsonDocument jsonDoc;
+            try
+            {
+                jsonDoc = JsonDocument.Parse(body);
+            }
+            catch (JsonException)
+            {
+                _logger.LogWarning("Kick webhook body is not valid JSON (length {Length})", body.Length);
+                return BadRequest("Invalid JSON payload");
+            }
+            using (jsonDoc)
+            {
+                var root = jsonDoc.RootElement;
 
             switch (eventType)
             {
@@ -109,6 +122,8 @@ public class WebhooksController : ControllerBase
                     _logger.LogWarning("Unknown event type: {EventType}", eventType);
                     break;
             }
+
+            } // using jsonDoc
 
             return Ok();
         }

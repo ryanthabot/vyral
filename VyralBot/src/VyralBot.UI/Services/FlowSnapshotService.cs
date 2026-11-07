@@ -39,6 +39,10 @@ public static class FlowSnapshotService
                 ["intervalMinutes"] = snapshot.Trigger.IntervalMinutes,
                 ["eventType"] = snapshot.Trigger.EventType,
                 ["platform"] = snapshot.Trigger.Platform,
+                // Command-trigger platform filter (null = all platforms) so
+                // exported/shared commands keep their scope; the parse side
+                // maps it back onto FlowTriggerDto.Platforms case-insensitively.
+                ["platforms"] = snapshot.Trigger.Platforms is { Count: > 0 } platforms ? platforms : null,
                 ["description"] = string.IsNullOrWhiteSpace(snapshot.Trigger.Description) ? null : snapshot.Trigger.Description.Trim()
             },
             ["options"] = (snapshot.Options ?? new List<FlowOptionDto>()).Select(o => new Dictionary<string, object?>

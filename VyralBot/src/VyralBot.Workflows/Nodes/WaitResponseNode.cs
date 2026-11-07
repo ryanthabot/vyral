@@ -8,15 +8,20 @@ namespace VyralBot.Workflows.Nodes;
 
 /// <summary>
 /// Pauses the flow until the triggering user posts another message on the same
-/// platform/channel. Config: "TimeoutSeconds" (default 30). The reply is stored
-/// in the "response" variable; a timeout produces a failed node result so the
-/// runtime's error branch can take over, while run-level cancellation rethrows
-/// so the runtime records the run as "Cancelled".
+/// platform/channel. Config: "TimeoutSeconds" (default 30, clamped to
+/// 0..<see cref="MaxTimeoutSeconds"/> — matching the Wait node's clamp style —
+/// so an authored runaway value cannot pin a workflow run forever). The reply
+/// is stored in the "response" variable; a timeout produces a failed node
+/// result so the runtime's error branch can take over, while run-level
+/// cancellation rethrows so the runtime records the run as "Cancelled".
 /// </summary>
 public class WaitResponseNode : INode
 {
     /// <summary>Default timeout when "TimeoutSeconds" is not configured.</summary>
     public const int DefaultTimeoutSeconds = 30;
+
+    /// <summary>Upper bound for "TimeoutSeconds" (sane maximum; 5 minutes).</summary>
+    public const int MaxTimeoutSeconds = 300;
 
     /// <summary>Variable name the received message is stored under.</summary>
     public const string ResponseVariable = "response";
@@ -45,6 +50,10 @@ public class WaitResponseNode : INode
             node, DefaultTimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), "TimeoutSeconds"));
         if (!int.TryParse(timeoutRaw, out var timeoutSeconds) || timeoutSeconds < 0)
             return NodeResult.Fail($"Cannot parse 'TimeoutSeconds' value '{timeoutRaw}' as a non-negative integer");
+
+        // Clamp runaway authored values (Wait-node clamp style): a huge timeout
+        // would otherwise pin the workflow run (and its cancellation slot) open.
+        timeoutSeconds = Math.Clamp(timeoutSeconds, 0, MaxTimeoutSeconds);
 
         string? response;
         try

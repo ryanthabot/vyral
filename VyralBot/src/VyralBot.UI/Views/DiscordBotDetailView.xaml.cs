@@ -31,11 +31,15 @@ public partial class DiscordBotDetailView : UserControl
         Unloaded += OnUnloaded;
     }
 
+    /// <summary>The bot row this dashboard shows (null before the first LoadAsync).</summary>
+    private string? PageBotId => (DataContext as DiscordBotDetailViewModel)?.BotId is { Length: > 0 } botId ? botId : null;
+
     /// <summary>Commands-card button: opens the visual editor on a new Discord flow.</summary>
     private async void OnVisualCommandBuilderClick(object sender, RoutedEventArgs e)
     {
-        // Discord is the platform context for anything authored on a bot page.
-        await OpenFlowEditorAsync(null, "Discord");
+        // Discord is the platform context for anything authored on a bot page;
+        // the page's bot scopes the command row the flow's save creates.
+        await OpenFlowEditorAsync(null, "Discord", PageBotId);
     }
 
     /// <summary>Built-in moderation row EDIT: opens (or seeds) the flow for that command.</summary>
@@ -62,7 +66,7 @@ public partial class DiscordBotDetailView : UserControl
     /// FlowEditorView in the overlay, then initializes the editor. The overlay
     /// hides again when the editor raises EditorClosed.
     /// </summary>
-    private async Task OpenFlowEditorAsync(Workflow? workflow, string? defaultPlatform)
+    private async Task OpenFlowEditorAsync(Workflow? workflow, string? defaultPlatform, string? ownerBotId)
     {
         var app = Application.Current as App;
         if (app?.Host == null)
@@ -82,8 +86,9 @@ public partial class DiscordBotDetailView : UserControl
             FlowEditorOverlay.Visibility = Visibility.Visible;
 
             // Discord is the platform context — the default trigger platform
-            // and role/channel pickers lean on the connected bots.
-            await _flowEditorViewModel.InitializeAsync(workflow, defaultPlatform);
+            // and role/channel pickers lean on the connected bots; ownerBotId
+            // scopes the command row the flow's save creates/adopts.
+            await _flowEditorViewModel.InitializeAsync(workflow, defaultPlatform, ownerBotId);
         }
         catch (Exception ex)
         {
@@ -123,11 +128,11 @@ public partial class DiscordBotDetailView : UserControl
 
             if (existingFlow != null)
             {
-                await _flowEditorViewModel.InitializeAsync(existingFlow, null);
+                await _flowEditorViewModel.InitializeAsync(existingFlow, null, PageBotId);
             }
             else
             {
-                await _flowEditorViewModel.InitializeFromCommandAsync(command);
+                await _flowEditorViewModel.InitializeFromCommandAsync(command, PageBotId);
             }
         }
         catch (Exception ex)

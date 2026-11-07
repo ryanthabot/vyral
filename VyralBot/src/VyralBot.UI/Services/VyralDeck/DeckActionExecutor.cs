@@ -28,6 +28,11 @@ public sealed class DeckActionExecutor
     private const string Kick = "kick";
     private const string YouTube = "youtube";
 
+    /// <summary>URI schemes a deck button may open — keeps a paired phone from
+    /// shelling out to local executables (file://, raw .exe paths, …).</summary>
+    private static readonly HashSet<string> AllowedUriSchemes =
+        new(StringComparer.OrdinalIgnoreCase) { "http", "https", "obs", "streamdeck" };
+
     private readonly IServiceProvider _services;
     private readonly ILogger<DeckActionExecutor> _logger;
     private readonly ObsRemoteBridge _obs;
@@ -151,12 +156,26 @@ public sealed class DeckActionExecutor
 
             // ── Advanced ─────────────────────────────────────────────────
             case DeckActionType.UriLaunch:
+            {
                 if (string.IsNullOrWhiteSpace(button.Param1))
                 {
                     return new DeckActionResult(false, "❌ This button has no URI — edit it first.");
                 }
-                Process.Start(new ProcessStartInfo(button.Param1.Trim()) { UseShellExecute = true });
-                return new DeckActionResult(true, $"✅ Launched {button.Param1.Trim()}.");
+
+                if (!Uri.TryCreate(button.Param1.Trim(), UriKind.Absolute, out var uri)
+                    || !AllowedUriSchemes.Contains(uri.Scheme))
+                {
+                    return new DeckActionResult(false, "❌ Only http(s):, obs: and streamdeck: links can be launched.");
+                }
+
+                // Deliberately NOT routed through ProcessManager: this is a
+                // shell hand-off (browser / Stream Deck app), not a VyralBot
+                // child process — tracking it would make the zero-orphan
+                // shutdown kill the user's browser. The scheme allowlist above
+                // is what keeps remote URIs from launching local executables.
+                Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
+                return new DeckActionResult(true, $"✅ Launched {uri}.");
+            }
 
             default:
                 return new DeckActionResult(false, $"❌ Unknown action {button.ActionType}.");

@@ -381,7 +381,8 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
     /// Deletes the removed bot's scoped data so it does not linger as orphans:
     /// Command rows pinned to the bot (they can never fire again — no bot row,
     /// no runtime), Command timers pinned to it, its Discord role→tier
-    /// mappings and its monitored connected channels. Each group is
+    /// mappings, its monitored connected channels and its per-bot Configs rows
+    /// ("DiscordBot.{botId}.Integrations" / ".DisabledBuiltIns"). Each group is
     /// best-effort: one failing group is logged and never blocks the others
     /// or the removal itself.
     /// </summary>
@@ -469,6 +470,36 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Could not clean up connected channels for removed bot {BotId}", botId);
+        }
+
+        // Per-bot Configs rows ("DiscordBot.{botId}.*"): the integrations list
+        // and disabled-built-ins written by the bot's integrations page and by
+        // flow saves. Without this the keys linger as orphans forever.
+        try
+        {
+            var configKeys = new[]
+            {
+                $"DiscordBot.{botId}.Integrations",
+                $"DiscordBot.{botId}.DisabledBuiltIns"
+            };
+
+            int deleted = 0;
+            foreach (string key in configKeys)
+            {
+                if (await _dataService.DeleteConfigValueAsync(key).ConfigureAwait(false))
+                {
+                    deleted++;
+                }
+            }
+
+            if (deleted > 0)
+            {
+                _logger.LogInformation("🧹 Deleted {Count} config key(s) scoped to removed bot {BotId}", deleted, botId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not clean up config keys scoped to removed bot {BotId}", botId);
         }
     }
 

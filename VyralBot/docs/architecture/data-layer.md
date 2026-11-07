@@ -166,6 +166,7 @@ Task DeletePlatformAsync(Guid id);
 ```csharp
 Task<string?> GetConfigValueAsync(string key);
 Task SetConfigValueAsync(string key, string value, string? category = null);
+Task<bool> DeleteConfigValueAsync(string key, string? category = null);
 Task<IEnumerable<Config>> GetConfigsByCategoryAsync(string category);
 ```
 

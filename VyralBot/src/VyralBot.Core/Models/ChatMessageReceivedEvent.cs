@@ -21,6 +21,14 @@ public record ChatMessageReceivedEvent : EventBase
     public string Channel { get; init; } = "";
 
     /// <summary>
+    /// Platform-assigned channel id when the source platform exposes one
+    /// (Discord snowflake id). Feeds assigned-channel gating such as Discord
+    /// chat-activity currency (AssignedChannelIds). Null for platforms without
+    /// channel ids — callers keep working ungated (back-compat).
+    /// </summary>
+    public string? ChannelId { get; init; }
+
+    /// <summary>
     /// Username (login name) of the sender.
     /// </summary>
     public required string Username { get; init; }

@@ -26,13 +26,30 @@ public class WatchtimeBackgroundService : BackgroundService
     {
         _logger.LogInformation("🕐 Watchtime Background Service started - will increment active viewers every {Interval}", _incrementInterval);
 
+        // Startup deactivation: IsActive persists in the database, so viewers that
+        // were chatting before an app restart would otherwise keep accruing
+        // watchtime/points for up to ~5-7 minutes (the inactive threshold plus tick
+        // cadence) without being in chat. Clear the flag up front; chatters
+        // re-activate on their next message via RecordUserActivityAsync.
+        try
+        {
+            await _watchtimeService.DeactivateAllViewersAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to deactivate stale viewers at startup - continuing");
+        }
+
         var lastCleanup = DateTime.UtcNow;
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                // Increment watchtime for all active viewers
+                // Increment watchtime for all active viewers. Each tick awards a
+                // fixed 1 minute and the loop waits a full interval AFTER the work,
+                // so the real cadence is interval + processing time (a slight
+                // under-award, never an over-award).
                 await _watchtimeService.IncrementActiveWatchtimeAsync(1);
 
                 // Periodically deactivate inactive viewers
@@ -53,8 +70,10 @@ public class WatchtimeBackgroundService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error in watchtime background service");
-                // Continue running even after errors
-                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+                // Retry after a FULL increment interval, not a few seconds: if the
+                // increment partially applied before throwing, a quick retry would
+                // re-award viewers that were already saved this pass.
+                await Task.Delay(_incrementInterval, stoppingToken);
             }
         }
 

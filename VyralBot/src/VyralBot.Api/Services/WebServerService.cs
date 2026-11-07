@@ -119,10 +119,41 @@ public class WebServerService : IDisposable
 
             // Minimal API for /audio-ws WebSocket endpoint
             var audioClients = new System.Collections.Concurrent.ConcurrentDictionary<System.Net.WebSockets.WebSocket, bool>();
+            const int MaxAudioWebSocketClients = 16; // OBS browser sources (a handful) — anything more is abuse
             _app.Map("/audio-ws", async context =>
             {
                 if (context.WebSockets.IsWebSocketRequest)
                 {
+                    // Origin check: legitimate clients are browser sources served
+                    // from this server (OBS loading http://localhost:<port>/audio.html),
+                    // so their Origin is loopback. Browsers do not apply CORS to
+                    // WebSockets, so without this check any web page open on the
+                    // user's machine could connect. Non-browser clients send no
+                    // Origin header and are allowed (the server binds loopback only).
+                    var origin = context.Request.Headers["Origin"].ToString();
+                    if (!string.IsNullOrEmpty(origin))
+                    {
+                        var isLoopbackOrigin = Uri.TryCreate(origin, UriKind.Absolute, out var originUri)
+                            && (originUri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                                || originUri.Host.Equals("127.0.0.1", StringComparison.Ordinal)
+                                || originUri.Host.Equals("::1", StringComparison.Ordinal));
+                        if (!isLoopbackOrigin)
+                        {
+                            _logger.LogWarning("Rejected audio WebSocket with non-loopback Origin: {Origin}", origin);
+                            context.Response.StatusCode = 403; // Forbidden
+                            return;
+                        }
+                    }
+
+                    // Connection cap so a looping/reconnecting page cannot exhaust
+                    // sockets and broadcast fan-out.
+                    if (audioClients.Count >= MaxAudioWebSocketClients)
+                    {
+                        _logger.LogWarning("Audio WebSocket connection limit reached ({Limit}) - rejecting new client", MaxAudioWebSocketClients);
+                        context.Response.StatusCode = 503; // Service Unavailable
+                        return;
+                    }
+
                     var ws = await context.WebSockets.AcceptWebSocketAsync();
                     audioClients[ws] = true;
                     VyralBot.Core.Services.Audio.AudioWebSocketBroadcaster.ClientConnected();

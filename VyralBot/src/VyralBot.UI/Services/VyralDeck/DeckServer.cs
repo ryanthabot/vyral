@@ -36,7 +36,15 @@ public sealed class DeckServer : IDisposable
 
     private static readonly string[] TrackedPlatforms = ["Twitch", "Kick", "YouTube"];
 
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    // Web defaults camel-case dictionary keys too, which would rename the
+    // live-state keys "Twitch"/"Kick"/"YouTube" to "twitch"/"kick"/"youTube" —
+    // the mobile app looks them up with their PascalCase names (PROTOCOL.md),
+    // so dictionary keys must keep their .NET spelling. Class properties still
+    // serialize camelCase per the protocol.
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
+    {
+        DictionaryKeyPolicy = null,
+    };
 
     private readonly ILogger<DeckServer> _logger;
     private readonly DeckPairingStore _pairing;
@@ -71,6 +79,9 @@ public sealed class DeckServer : IDisposable
         // Layout edits (desktop or phone) rebroadcast to every connected client.
         _layout.LayoutChanged += OnLayoutChanged;
         _liveRegistry.StreamLiveChanged += OnLiveChanged;
+
+        // Unpairing a device must also drop its live WebSocket session.
+        _pairing.DeviceRemoved += OnDeviceRemoved;
     }
 
     public bool IsRunning => _isRunning;
@@ -180,7 +191,14 @@ public sealed class DeckServer : IDisposable
                     return;
                 }
 
-                var ws = await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
+                // The mobile client offers the "vyraldeck" sub-protocol; echo it
+                // back when present (dart:io tolerates its absence, but strict
+                // clients — e.g. browsers — refuse a handshake that ignores it).
+                var offeredProtocols = context.Request.Headers.SecWebSocketProtocol.ToString();
+                var subProtocol = offeredProtocols.Contains("vyraldeck", StringComparison.OrdinalIgnoreCase)
+                    ? "vyraldeck"
+                    : null;
+                var ws = await context.WebSockets.AcceptWebSocketAsync(subProtocol).ConfigureAwait(false);
                 await HandleClientAsync(ws, device, context.RequestAborted).ConfigureAwait(false);
             });
 
@@ -277,7 +295,7 @@ public sealed class DeckServer : IDisposable
 
     private async Task HandleClientAsync(WebSocket socket, PairedDevice device, CancellationToken ct)
     {
-        var connection = new DeckClientConnection(socket, device.Name);
+        var connection = new DeckClientConnection(socket, device.Token, device.Name);
         _clients[connection] = 0;
         ClientsChanged?.Invoke(this, _clients.Count);
         Log($"'{device.Name}' connected ({_clients.Count} client(s)).");
@@ -430,6 +448,27 @@ public sealed class DeckServer : IDisposable
     }
 
     // ── push / broadcast ─────────────────────────────────────────────────
+
+    private void OnDeviceRemoved(string token) => _ = DisconnectDeviceAsync(token);
+
+    /// <summary>Closes every live session belonging to a just-unpaired device.</summary>
+    private async Task DisconnectDeviceAsync(string token)
+    {
+        foreach (var client in _clients.Keys.Where(c => c.Token == token).ToList())
+        {
+            await client.CloseAsync().ConfigureAwait(false);
+            if (_clients.TryRemove(client, out _))
+            {
+                ClientsChanged?.Invoke(this, _clients.Count);
+            }
+
+            Log($"Closed the session of unpaired device '{client.DeviceName}'.");
+        }
+    }
+
+    /// <summary>True while a paired device has a live WebSocket session.</summary>
+    public bool IsDeviceConnected(string token) =>
+        _clients.Keys.Any(c => string.Equals(c.Token, token, StringComparison.Ordinal));
 
     private void OnLayoutChanged(DeckLayout layout)
     {
@@ -646,6 +685,7 @@ public sealed class DeckServer : IDisposable
     {
         _layout.LayoutChanged -= OnLayoutChanged;
         _liveRegistry.StreamLiveChanged -= OnLiveChanged;
+        _pairing.DeviceRemoved -= OnDeviceRemoved;
         if (_isRunning)
         {
             StopAsync().GetAwaiter().GetResult();
@@ -660,11 +700,14 @@ public sealed class DeckServer : IDisposable
         private readonly WebSocket _socket;
         private readonly SemaphoreSlim _sendLock = new(1, 1);
 
-        public DeckClientConnection(WebSocket socket, string deviceName)
+        public DeckClientConnection(WebSocket socket, string token, string deviceName)
         {
             _socket = socket;
+            Token = token;
             DeviceName = deviceName;
         }
+
+        public string Token { get; }
 
         public string DeviceName { get; }
 

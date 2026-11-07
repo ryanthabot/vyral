@@ -235,8 +235,41 @@
                 <StackPanel Orientation="Horizontal">
                     <materialDesign:PackIcon Kind="AlertCircle" Width="20" Height="20"
                                              Foreground="{DynamicResource ErrorBrush}" Margin="0,0,10,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="Connect this platform in Connections to manage chat settings"
-                               FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <!-- For TikTok the generic advice is false — TikTok cannot be connected anywhere in this version. -->
+                    <TextBlock FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="Connect this platform in Connections to manage chat settings"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCurrentPlatformChatAvailable}" Value="False">
+                                        <Setter Property="Text" Value="TikTok chat is not available in this version"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!-- TikTok coming-soon banner: truthful gate — no TikTok chat pipeline exists yet. -->
+            <Border Margin="0,0,0,20"
+                    Background="{DynamicResource CardBackgroundBrush}" CornerRadius="8" Padding="16"
+                    BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsCurrentPlatformChatAvailable}" Value="False">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="ClockOutline" Width="20" Height="20"
+                                             Foreground="{DynamicResource WarningBrush}" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="TikTok chat integration is coming soon. VyralBot cannot read or send TikTok LIVE chat yet, so the settings below have no effect for TikTok."
+                               FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 
@@ -248,6 +281,11 @@
                         <Setter Property="Opacity" Value="1.0"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsCurrentPlatformConnected}" Value="False">
+                                <Setter Property="IsEnabled" Value="False"/>
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </DataTrigger>
+                            <!-- TikTok has no chat pipeline: settings would promise behavior that does not exist. -->
+                            <DataTrigger Binding="{Binding IsCurrentPlatformChatAvailable}" Value="False">
                                 <Setter Property="IsEnabled" Value="False"/>
                                 <Setter Property="Opacity" Value="0.4"/>
                             </DataTrigger>
@@ -720,15 +758,16 @@
                                 CornerRadius="8" Padding="20" Margin="0,0,0,8"
                                 BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="1">
                             <StackPanel>
-                                <TextBlock Text="TikTok LIVE chat display settings. Event-based auto-replies will be added in a future update."
+                                <TextBlock Text="TikTok chat is coming soon — VyralBot cannot display TikTok LIVE messages in this version. These settings take effect once TikTok chat support ships."
                                            FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,12" TextWrapping="Wrap"/>
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                     <StackPanel>
                                         <TextBlock Text="Show messages" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="Show TikTok messages in the unified chat" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
+                                        <TextBlock Text="Show TikTok messages in the unified chat (coming soon)" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
                                     </StackPanel>
-                                    <ToggleButton Grid.Column="1" IsChecked="{Binding TiktokSettings.IsChatEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}" VerticalAlignment="Center"/>
+                                    <!-- Disabled: no TikTok chat pipeline exists — the toggle must not promise live behavior. -->
+                                    <ToggleButton Grid.Column="1" IsChecked="{Binding TiktokSettings.IsChatEnabled, Mode=TwoWay}" IsEnabled="False" Style="{StaticResource MaterialDesignSwitchToggleButton}" VerticalAlignment="Center"/>
                                 </Grid>
                             </StackPanel>
                         </Border>

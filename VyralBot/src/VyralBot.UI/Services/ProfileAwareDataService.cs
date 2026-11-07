@@ -89,6 +89,7 @@ public class ProfileAwareDataService : IDataService
 
     public Task<string?> GetConfigValueAsync(string key) => GetCurrentService().GetConfigValueAsync(key);
     public Task SetConfigValueAsync(string key, string value, string? category = null) => GetCurrentService().SetConfigValueAsync(key, value, category);
+    public Task<bool> DeleteConfigValueAsync(string key, string? category = null) => GetCurrentService().DeleteConfigValueAsync(key, category);
     public Task<IEnumerable<Config>> GetConfigsByCategoryAsync(string category) => GetCurrentService().GetConfigsByCategoryAsync(category);
 
     // Data management (Settings → Data Management)
@@ -141,9 +142,12 @@ public class ProfileAwareDataService : IDataService
     public Task<UserCurrency?> GetUserCurrencyAsync(string username, string platform) => GetCurrentService().GetUserCurrencyAsync(username, platform);
     public Task<IEnumerable<UserCurrency>> GetUserCurrenciesAsync(string username) => GetCurrentService().GetUserCurrenciesAsync(username);
     public Task<IEnumerable<UserCurrency>> GetCurrencyLeaderboardAsync(int limit = 10, string? platform = null) => GetCurrentService().GetCurrencyLeaderboardAsync(limit, platform);
+    public Task<IEnumerable<UserCurrency>> GetCurrencyUsersPagedAsync(int limit, int offset, string? platform = null) => GetCurrentService().GetCurrencyUsersPagedAsync(limit, offset, platform);
     public Task SaveUserCurrencyAsync(UserCurrency currency) => GetCurrentService().SaveUserCurrencyAsync(currency);
     public Task SaveCurrencyTransactionAsync(CurrencyTransaction transaction) => GetCurrentService().SaveCurrencyTransactionAsync(transaction);
     public Task<IEnumerable<CurrencyTransaction>> GetCurrencyTransactionsAsync(string? username = null, string? platform = null, int limit = 100) => GetCurrentService().GetCurrencyTransactionsAsync(username, platform, limit);
+    public Task<(long UserCount, long TotalBalance)> GetCurrencyEconomyTotalsAsync() => GetCurrentService().GetCurrencyEconomyTotalsAsync();
+    public Task<(long Earned, long Spent)> GetCurrencyTransactionTotalsSinceAsync(DateTime since) => GetCurrentService().GetCurrencyTransactionTotalsSinceAsync(since);
     public Task<CurrencyReward?> GetCurrencyRewardAsync(string id) => GetCurrentService().GetCurrencyRewardAsync(id);
     public Task<IEnumerable<CurrencyReward>> GetCurrencyRewardsAsync(bool? enabledOnly = null) => GetCurrentService().GetCurrencyRewardsAsync(enabledOnly);
     public Task SaveCurrencyRewardAsync(CurrencyReward reward) => GetCurrentService().SaveCurrencyRewardAsync(reward);
@@ -298,6 +302,7 @@ public class ProfileAwareDataService : IDataService
     public Task<int> GetTotalActiveViewersCountAsync() => GetCurrentService().GetTotalActiveViewersCountAsync();
     public Task ResetStreamSessionMinutesAsync() => GetCurrentService().ResetStreamSessionMinutesAsync();
     public Task DeactivateInactiveViewersAsync(DateTime inactiveSince) => GetCurrentService().DeactivateInactiveViewersAsync(inactiveSince);
+    public Task<int> DeactivateAllViewersAsync() => GetCurrentService().DeactivateAllViewersAsync();
 
     // Variable operations
     public Task<Variable?> GetVariableAsync(string id) => GetCurrentService().GetVariableAsync(id);

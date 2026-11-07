@@ -28,9 +28,11 @@ public static class FlowCommandRowBuilder
     /// <summary>
     /// Builds the directory row for a command-triggered flow: disabled (the
     /// flow itself runs the command), never built-in, response text lifted
-    /// from the first send-message block for the list display.
+    /// from the first send-message block for the list display. An optional
+    /// <paramref name="botId"/> pins the row to one Discord bot (editor opened
+    /// from that bot's page); null keeps the "runs for every bot" scope.
     /// </summary>
-    public static Command BuildRow(Workflow workflow)
+    public static Command BuildRow(Workflow workflow, string? botId = null)
     {
         var now = DateTime.UtcNow;
         return new Command
@@ -41,6 +43,7 @@ public static class FlowCommandRowBuilder
             Permission = PermissionOption(workflow),
             IsEnabled = false, // the flow owns the command — the row is the directory entry
             IsBuiltIn = false,
+            BotId = string.IsNullOrWhiteSpace(botId) ? null : botId.Trim(),
             CreatedAt = now,
             UpdatedAt = now
         };

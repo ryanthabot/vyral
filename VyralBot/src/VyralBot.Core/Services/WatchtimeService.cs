@@ -159,6 +159,21 @@ public class WatchtimeService
     }
 
     /// <summary>
+    /// Deactivates EVERY viewer. Called once at app startup: the IsActive flag
+    /// persists in the database across restarts, so without this the first ticks
+    /// after a restart would keep awarding watchtime/points to viewers that were
+    /// chatting before the shutdown for up to <see cref="_inactiveThreshold"/>
+    /// minutes. RecordUserActivityAsync re-activates viewers as they chat.
+    /// </summary>
+    public async Task DeactivateAllViewersAsync()
+    {
+        var deactivated = await _dataService.DeactivateAllViewersAsync();
+        _logger.LogInformation(
+            "Startup: deactivated {Count} stale-active viewers (they re-activate on their next chat message)",
+            deactivated);
+    }
+
+    /// <summary>
     /// Gets a user's watchtime information
     /// </summary>
     public async Task<UserWatchtime?> GetUserWatchtimeAsync(string username, string platform)

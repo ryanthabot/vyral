@@ -14,6 +14,15 @@ public partial class TiktokChatSettingsViewModel : ViewModelBase
     private readonly IEventBus _eventBus;
     private bool _isInitialized;
 
+    /// <summary>
+    /// Coming-soon gate: no TikTok chat pipeline exists yet (no chat service, no
+    /// receive path, no send path — the raw-IRC stub in TikTokWebSetupViewModel
+    /// cannot work). The quick-settings controls bind IsEnabled to this flag so
+    /// the UI never promises live TikTok chat behavior. Flip to true when a real
+    /// TikTok chat client ships.
+    /// </summary>
+    public const bool ChatPipelineAvailable = false;
+
     [ObservableProperty]
     private bool _isChatEnabled;
 

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using System.Globalization;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -24,6 +26,17 @@ public class KickWebhookValidationMiddleware
     private static readonly SemaphoreSlim TestBypassFlagLock = new(1, 1);
     private static bool _allowTestWebhooks;
     private static DateTime _allowTestWebhooksExpiryUtc = DateTime.MinValue;
+
+    // Replay protection: Kick message IDs are unique per delivery, but a valid
+    // signature stays valid on replay, so recently processed IDs are tracked and
+    // duplicates are acknowledged without reprocessing. Combined with the
+    // timestamp freshness window below this bounds replay to the window itself.
+    private static readonly ConcurrentDictionary<string, DateTime> ProcessedMessageIds = new();
+    private const int MaxTrackedMessageIds = 5000;
+    private static readonly TimeSpan ReplayWindow = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan TimestampMaxAge = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan TimestampMaxFuture = TimeSpan.FromMinutes(2);
+    private const int MaxWebhookBodyBytes = 262_144; // 256 KB — webhooks are small JSON documents
 
     // IDataService is only registered in DI when the Api project hosts itself
     // (Program.cs). Inside the WPF host the middleware runs in a Kestrel mini-host
@@ -75,6 +88,42 @@ public class KickWebhookValidationMiddleware
             _logger.LogInformation("Received Kick webhook - MessageId: {MessageId}, Timestamp: {Timestamp}, BodyLength: {BodyLength}", 
                 messageId, timestamp, context.Request.ContentLength ?? 0);
 
+            // Freshness: the timestamp is covered by the signature, so rejecting
+            // stale or far-future timestamps bounds how long a captured delivery
+            // can be replayed, even before the message-ID dedup below.
+            if (!DateTimeOffset.TryParse(timestamp, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var sentAt))
+            {
+                _logger.LogWarning("Kick webhook has an unparseable timestamp header. MessageId: {MessageId}", messageId);
+                context.Response.StatusCode = 401;
+                await context.Response.WriteAsync("Invalid timestamp");
+                return;
+            }
+
+            var timestampAge = DateTimeOffset.UtcNow - sentAt;
+            if (timestampAge > TimestampMaxAge || timestampAge < -TimestampMaxFuture)
+            {
+                _logger.LogWarning("Kick webhook timestamp outside the allowed window (age {Age}). MessageId: {MessageId}", timestampAge, messageId);
+                context.Response.StatusCode = 401;
+                await context.Response.WriteAsync("Stale timestamp");
+                return;
+            }
+
+            // Payload size cap: webhooks are small JSON documents. Rejecting early
+            // (and lowering the Kestrel body limit for this request, which also
+            // covers chunked bodies) prevents memory-pressure abuse via the tunnel.
+            if (context.Request.ContentLength is > MaxWebhookBodyBytes)
+            {
+                _logger.LogWarning("Kick webhook body too large ({Length} bytes). MessageId: {MessageId}", context.Request.ContentLength, messageId);
+                context.Response.StatusCode = 413; // Payload Too Large
+                await context.Response.WriteAsync("Payload too large");
+                return;
+            }
+
+            if (context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { } bodySizeFeature)
+            {
+                bodySizeFeature.MaxRequestBodySize = MaxWebhookBodyBytes;
+            }
+
             // Read request body
             context.Request.EnableBuffering();
             using var reader = new StreamReader(context.Request.Body, Encoding.UTF8, leaveOpen: true);
@@ -112,7 +161,6 @@ public class KickWebhookValidationMiddleware
                 {
                     _logger.LogError("❌ WEBHOOK SIGNATURE VALIDATION FAILED - MessageId: {MessageId}, Timestamp: {Timestamp}, Signature (first 50 chars): {Signature}, Body length: {BodyLength}",
                         messageId, timestamp, signature.Length > 50 ? signature.Substring(0, 50) : signature, body.Length);
-                    _logger.LogError("Body preview (first 200 chars): {BodyPreview}", body.Length > 200 ? body.Substring(0, 200) : body);
                     context.Response.StatusCode = 401;
                     await context.Response.WriteAsync("Invalid signature");
                     return;
@@ -120,6 +168,20 @@ public class KickWebhookValidationMiddleware
 
                 _logger.LogDebug("Webhook signature validated successfully for message ID: {MessageId}", messageId);
             }
+
+            // Replay protection: acknowledge duplicate deliveries (Kick retries on
+            // non-2xx) but do not reprocess them, so captured valid payloads cannot
+            // re-trigger events. Runs after validation so only authentic (or
+            // explicitly test-bypassed) deliveries occupy the cache.
+            var receivedAtUtc = DateTime.UtcNow;
+            if (!ProcessedMessageIds.TryAdd(messageId!, receivedAtUtc))
+            {
+                _logger.LogInformation("Duplicate Kick webhook delivery acknowledged without processing (MessageId: {MessageId})", messageId);
+                context.Response.StatusCode = 200;
+                await context.Response.WriteAsync("Duplicate ignored");
+                return;
+            }
+            PruneProcessedMessageIds(receivedAtUtc);
 
             // Continue to next middleware
             await _next(context);
@@ -129,6 +191,27 @@ public class KickWebhookValidationMiddleware
             _logger.LogError(ex, "Error validating webhook signature");
             context.Response.StatusCode = 500;
             await context.Response.WriteAsync("Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Bounds the replay-protection cache: once over capacity, expired entries
+    /// (older than the replay window) are dropped. Best-effort and cheap — it
+    /// runs only when the cap is exceeded, not per request.
+    /// </summary>
+    private static void PruneProcessedMessageIds(DateTime nowUtc)
+    {
+        if (ProcessedMessageIds.Count <= MaxTrackedMessageIds)
+        {
+            return;
+        }
+
+        foreach (var (id, seenAt) in ProcessedMessageIds)
+        {
+            if (nowUtc - seenAt > ReplayWindow)
+            {
+                ProcessedMessageIds.TryRemove(id, out _);
+            }
         }
     }
 
@@ -305,7 +388,7 @@ public class KickWebhookValidationMiddleware
 
         try
         {
-            using var httpClient = new HttpClient();
+            using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             var response = await httpClient.GetAsync("https://api.kick.com/public/v1/public-key");
 
             if (!response.IsSuccessStatusCode)

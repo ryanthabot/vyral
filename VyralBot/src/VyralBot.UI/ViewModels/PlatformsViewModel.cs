@@ -1765,10 +1765,11 @@ public partial class PlatformsViewModel : ViewModelBase
                 // Coming-soon stub (mirrors SelectFacebookAsync/SelectRumbleAsync
                 // below): TikTok stream/OAuth connect is not implemented — the
                 // TikTokWebSetup wizard is a dead end, so never open it from this
-                // card. TikTok chat still works from Chat Hub.
+                // card. There is also NO TikTok chat pipeline (no service, no
+                // receive path, no send) — do not claim chat works anywhere.
                 await Task.CompletedTask;
-                _logger.LogInformation("TikTok stream connect is coming soon — setup wizard not opened");
-                StatusMessage = "TikTok stream connect is coming soon — chat is available in Chat Hub.";
+                _logger.LogInformation("TikTok integration is coming soon — setup wizard not opened");
+                StatusMessage = "TikTok integration is coming soon — chat is not available yet.";
             }
             else
             {

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -1398,8 +1399,38 @@ public class FlowTriggerDto
     public string? Platform { get; set; }
     public string? Description { get; set; }
 
+    /// <summary>
+    /// Platform filter for command triggers (List of "Twitch", "Kick",
+    /// "YouTube", "Discord", "TikTok"); null/empty = all platforms. Round-trips
+    /// through drafts / undo snapshots / exports next to the persisted
+    /// <see cref="WorkflowTrigger.Platforms"/>.
+    /// </summary>
+    public List<string>? Platforms { get; set; }
+
     /// <summary>Minimum mod tier (mod_command triggers); null for other trigger types.</summary>
     public string? MinimumTier { get; set; }
+}
+
+/// <summary>
+/// One toggle chip of the command-trigger platform filter
+/// (Twitch/Kick/YouTube/Discord/TikTok). None toggled on = the command runs on
+/// every platform.
+/// </summary>
+public partial class FlowPlatformChipViewModel : ObservableObject
+{
+    /// <summary>Canonical platform name persisted on the trigger.</summary>
+    public string Platform { get; }
+
+    [ObservableProperty]
+    private bool _isSelected;
+
+    public FlowPlatformChipViewModel(string platform, bool isSelected = false)
+    {
+        Platform = platform;
+        _isSelected = isSelected;
+    }
+
+    public override string ToString() => Platform;
 }
 
 /// <summary>One command-option row of an editor snapshot.</summary>
@@ -1465,7 +1496,7 @@ public class FlowEditorSnapshotDto
 /// save path as the structured builder (<see cref="AutomationViewModel"/>).
 /// <para>
 /// Hosts (overlay panels in AutomationView / DiscordBotDetailView) resolve this
-/// VM from DI, call <see cref="InitializeAsync(Workflow?, string?)"/> and hide
+/// VM from DI, call <see cref="InitializeAsync(Workflow?, string?, string?)"/> and hide
 /// their overlay when <see cref="EditorClosed"/> fires.
 /// </para>
 /// </summary>
@@ -1473,6 +1504,9 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
 {
     private const int MaxUndoSnapshots = 50;
     private static readonly string[] PalettePlatforms = { "Any", "Twitch", "Kick", "Discord", "YouTube" };
+
+    /// <summary>Platforms a command trigger can be filtered to (contract order); none = all.</summary>
+    private static readonly string[] CommandPlatforms = { "Twitch", "Kick", "YouTube", "Discord", "TikTok" };
 
     private readonly ILogger<FlowEditorViewModel> _logger;
     private readonly IDataService _dataService;
@@ -1497,6 +1531,15 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     /// can retire the legacy command row.
     /// </summary>
     private string? _sourceCommandId;
+
+    /// <summary>
+    /// Discord bot row id of the page the editor was opened from (Discord bot
+    /// dashboard), or null when opened generically (Automation / Commands
+    /// pages). Stamps the Command row the save path creates/adopts so a
+    /// command authored on a bot's page stops leaking to every bot; null keeps
+    /// the historic "all bots" scope.
+    /// </summary>
+    private string? _ownerBotId;
 
     /// <summary>Pinned entry node id (workflow.EntryNodeId on save; null = legacy auto-detection).</summary>
     private string? _entryNodeId;
@@ -1975,6 +2018,14 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
 
     public ObservableCollection<string> PlatformOptions { get; } = new(PalettePlatforms);
 
+    /// <summary>
+    /// Command-trigger platform filter chips (Twitch/Kick/YouTube/Discord/TikTok).
+    /// None selected = the command fires on every platform (persisted as a null
+    /// <see cref="WorkflowTrigger.Platforms"/>).
+    /// </summary>
+    public ObservableCollection<FlowPlatformChipViewModel> CommandPlatformChips { get; } =
+        new(CommandPlatforms.Select(platform => new FlowPlatformChipViewModel(platform)));
+
     /// <summary>Tier ladder for mod_command triggers, lowest rank first (ModTiers.TierNames).</summary>
     public ObservableCollection<string> TierOptions { get; } = new(ModTiers.TierNames);
 
@@ -2152,6 +2203,15 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         MarkDirty();
     }
 
+    /// <summary>A platform-filter chip toggled — the saved filter changes with it.</summary>
+    private void OnCommandPlatformChipChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(FlowPlatformChipViewModel.IsSelected))
+        {
+            MarkDirty();
+        }
+    }
+
     // ======================================================================
     // Command options
     // ======================================================================
@@ -2219,6 +2279,13 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             OnPropertyChanged(nameof(HasNoOptions));
             MarkDirty();
         };
+
+        // Platform-filter chips are fixed-identity rows: hook each once so a
+        // toggle marks the flow dirty (and therefore draft/undo-eligible).
+        foreach (FlowPlatformChipViewModel chip in CommandPlatformChips)
+        {
+            chip.PropertyChanged += OnCommandPlatformChipChanged;
+        }
 
         // Undo snapshots are debounced so a burst of graph edits (drag, wire,
         // config typing) lands as one history entry. The same tick refreshes
@@ -2295,15 +2362,19 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     /// <summary>
     /// Loads a workflow into the editor. A null workflow starts a fresh flow
     /// (fresh id, manual trigger, default platform); an unsaved draft for the
-    /// flow id is silently restored over the persisted state.
+    /// flow id is silently restored over the persisted state. An optional
+    /// <paramref name="ownerBotId"/> (Discord bot dashboard opens) scopes the
+    /// command row this flow's save creates/adopts to that bot; null keeps the
+    /// historic "all bots" scope.
     /// </summary>
-    public async Task InitializeAsync(Workflow? existingWorkflow, string? defaultPlatform)
+    public async Task InitializeAsync(Workflow? existingWorkflow, string? defaultPlatform, string? ownerBotId = null)
     {
         _existingWorkflow = existingWorkflow;
         _workflowId = existingWorkflow?.Id ?? Guid.NewGuid().ToString("N");
         _existingCategory = existingWorkflow?.Category;
         _existingCreatedAt = existingWorkflow?.CreatedAt ?? DateTime.UtcNow;
         _sourceCommandId = null;
+        _ownerBotId = string.IsNullOrWhiteSpace(ownerBotId) ? null : ownerBotId.Trim();
         _loadedFromImport = false;
         _cascadeCount = 0;
         _componentSubNodes.Clear();
@@ -2434,7 +2505,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     /// adoption (the legacy command row is retired so it never double-fires).
     /// </para>
     /// </summary>
-    public async Task InitializeFromCommandAsync(VyralBot.Data.Entities.Command command)
+    public async Task InitializeFromCommandAsync(VyralBot.Data.Entities.Command command, string? ownerBotId = null)
     {
         if (command == null)
         {
@@ -2442,7 +2513,14 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
 
         Workflow flow = CommandFlowTemplates.FromCommand(command);
-        await InitializeAsync(flow, null);
+        await InitializeAsync(flow, null, ownerBotId);
+
+        // The seeded row's own scope wins (the command may already be pinned to
+        // a different bot); the page context only backfills an unscoped row.
+        if (!string.IsNullOrWhiteSpace(command.BotId))
+        {
+            _ownerBotId = command.BotId;
+        }
 
         // InitializeAsync cleared the adoption marker — set it after the load
         // on both the working copy and the model held for the next save.
@@ -2475,6 +2553,14 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         }
         TriggerIntervalMinutes = (trigger.IntervalMinutes ?? 15).ToString();
         TriggerMinimumTier = ModTiers.NormalizeTier(trigger.MinimumTier) ?? "Mod";
+
+        // Command-trigger platform filter: map the persisted names onto the
+        // fixed chips (unknown values are ignored; null/empty leaves all off).
+        var selected = new HashSet<string>(trigger.Platforms ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+        foreach (FlowPlatformChipViewModel chip in CommandPlatformChips)
+        {
+            chip.IsSelected = selected.Contains(chip.Platform);
+        }
     }
 
     private void NotifyTriggerFlagsChanged()
@@ -2497,9 +2583,46 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         IntervalMinutes = trigger?.IntervalMinutes,
         EventType = trigger?.EventType,
         Platform = string.IsNullOrWhiteSpace(trigger?.Platform) ? (string.IsNullOrWhiteSpace(defaultPlatform) ? "Any" : defaultPlatform) : trigger!.Platform,
+        Platforms = NormalizePlatforms(trigger?.Platforms),
         Description = null,
         MinimumTier = trigger?.MinimumTier
     };
+
+    /// <summary>
+    /// Canonicalizes a persisted platform filter: trims, maps case-insensitively
+    /// onto the known platform spellings, drops unknowns/duplicates. Returns
+    /// null for empty/unknown-only lists ("all platforms").
+    /// </summary>
+    private static List<string>? NormalizePlatforms(List<string>? platforms)
+    {
+        if (platforms is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        var normalized = new List<string>(platforms.Count);
+        foreach (string raw in platforms)
+        {
+            string canonical = CommandPlatforms.FirstOrDefault(p => string.Equals(p, raw?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (canonical != null && !normalized.Contains(canonical))
+            {
+                normalized.Add(canonical);
+            }
+        }
+
+        return normalized.Count > 0 ? normalized : null;
+    }
+
+    /// <summary>
+    /// The selected platform filter for the command trigger, in chip order:
+    /// null when nothing is toggled on ("all platforms" — persisted as null so
+    /// pre-existing triggers round-trip byte-identical).
+    /// </summary>
+    private List<string>? SelectedCommandPlatforms()
+    {
+        List<string> selected = CommandPlatformChips.Where(c => c.IsSelected).Select(c => c.Platform).ToList();
+        return selected.Count > 0 ? selected : null;
+    }
 
     private void LoadOptionsIntoForm(IEnumerable<WorkflowOption>? options)
     {
@@ -4996,7 +5119,8 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 ? TriggerCommandPrefix.Trim()
                 : null,
             EventType = IsTriggerEvent && !string.IsNullOrWhiteSpace(TriggerEventType) ? TriggerEventType.Trim() : null,
-            Platform = IsTriggerEvent ? (string.IsNullOrWhiteSpace(TriggerPlatform) ? "Any" : TriggerPlatform.Trim()) : null
+            Platform = IsTriggerEvent ? (string.IsNullOrWhiteSpace(TriggerPlatform) ? "Any" : TriggerPlatform.Trim()) : null,
+            Platforms = IsTriggerCommand ? SelectedCommandPlatforms() : null
         };
 
         if (IsTriggerTimer && int.TryParse(TriggerIntervalMinutes, out int minutes) && minutes > 0)
@@ -5086,6 +5210,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 IntervalMinutes = trigger.IntervalMinutes,
                 EventType = trigger.EventType,
                 Platform = trigger.Platform,
+                Platforms = NormalizePlatforms(trigger.Platforms),
                 MinimumTier = trigger.MinimumTier ?? "Mod"
             },
             Nodes = workflowNodes,
@@ -5450,10 +5575,21 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             Command? existing = await _dataService.GetCommandByNameAsync(name);
             if (existing == null)
             {
-                existing = FlowCommandRowBuilder.BuildRow(workflow);
+                existing = FlowCommandRowBuilder.BuildRow(workflow, _ownerBotId);
                 await _dataService.SaveCommandAsync(existing);
                 _logger.LogInformation("Flow {WorkflowId} created command row {CommandName} ({CommandId})",
                     workflow.Id, existing.Name, existing.Id);
+            }
+            else if (_ownerBotId != null && string.IsNullOrWhiteSpace(existing.BotId))
+            {
+                // Same-named row adopted from a bot page: claim the previously
+                // unscoped ("all bots") row for the originating bot. Rows scoped
+                // to another bot are never stolen.
+                existing.BotId = _ownerBotId;
+                existing.UpdatedAt = DateTime.UtcNow;
+                await _dataService.SaveCommandAsync(existing);
+                _logger.LogInformation("Flow {WorkflowId} scoped adopted command row {CommandName} ({CommandId}) to bot {BotId}",
+                    workflow.Id, existing.Name, existing.Id, _ownerBotId);
             }
 
             workflow.SourceCommandId = existing.Id;

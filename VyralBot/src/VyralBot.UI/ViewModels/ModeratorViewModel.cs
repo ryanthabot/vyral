@@ -175,6 +175,8 @@ public partial class ModeratorViewModel : ViewModelBase
     private readonly IModRoleService _modRoleService;
     private readonly IConnectedChannelService _connectedChannelService;
     private readonly VyralBot.UI.Services.WorkflowTriggerService _triggerService;
+    private readonly ModerationRulesRepository _autoModRepository;
+    private readonly ModerationActionService _autoModActions;
 
     private bool _loaded;
 
@@ -185,7 +187,9 @@ public partial class ModeratorViewModel : ViewModelBase
         IModRoleService modRoleService,
         IConnectedChannelService connectedChannelService,
         VyralBot.UI.Services.WorkflowTriggerService triggerService,
-        FlowEditorViewModel flowEditor)
+        FlowEditorViewModel flowEditor,
+        ModerationRulesRepository autoModRepository,
+        ModerationActionService autoModActions)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
@@ -193,6 +197,8 @@ public partial class ModeratorViewModel : ViewModelBase
         _modRoleService = modRoleService ?? throw new ArgumentNullException(nameof(modRoleService));
         _connectedChannelService = connectedChannelService ?? throw new ArgumentNullException(nameof(connectedChannelService));
         _triggerService = triggerService ?? throw new ArgumentNullException(nameof(triggerService));
+        _autoModRepository = autoModRepository ?? throw new ArgumentNullException(nameof(autoModRepository));
+        _autoModActions = autoModActions ?? throw new ArgumentNullException(nameof(autoModActions));
         FlowEditor = flowEditor ?? throw new ArgumentNullException(nameof(flowEditor));
     }
 
@@ -689,18 +695,17 @@ public partial class ModeratorViewModel : ViewModelBase
     private ModerationRuleSet? _autoModRules;
 
     /// <summary>
-    /// Loads the persisted rule JSON, applies it to the shared engine and
-    /// fills the card. Also configures the shared action service so executed
-    /// verdicts land in the persistent mod-action log.
+    /// Loads the persisted rule JSON via the DI-registered repository (which
+    /// applies it to the shared engine) and fills the card. The action
+    /// service is configured with persistence + logging ONCE at app startup
+    /// (see App.OnStartup) — re-configuring here would drop its logger.
     /// </summary>
     [RelayCommand]
     private async Task LoadAutoModConfigAsync()
     {
         try
         {
-            var repository = new ModerationRulesRepository(_dataService);
-            var rules = await repository.LoadAsync();
-            ModerationActionService.Shared.Configure(_dataService);
+            var rules = await _autoModRepository.LoadAsync();
             PopulateAutoMod(rules);
             RefreshAutoModPlatformStatus();
         }
@@ -755,8 +760,7 @@ public partial class ModeratorViewModel : ViewModelBase
             rules.BannedWordList = SplitList(BannedWordsText);
             rules.ExemptUsers = SplitList(ExemptUsersText);
 
-            var repository = new ModerationRulesRepository(_dataService);
-            await repository.SaveAsync(rules);
+            await _autoModRepository.SaveAsync(rules);
             _autoModRules = rules.Clone();
 
             AutoModStatus = "Auto-mod rules saved — the engine evaluates with them now.";
@@ -835,7 +839,7 @@ public partial class ModeratorViewModel : ViewModelBase
                 "Max art %", "Min length", rules.AsciiArt)
         };
 
-        var platformLines = ModerationPlatformParity.Describe(ModerationActionService.Shared).ToList();
+        var platformLines = ModerationPlatformParity.Describe(_autoModActions).ToList();
 
         RunOnUi(() =>
         {
@@ -871,7 +875,7 @@ public partial class ModeratorViewModel : ViewModelBase
 
     private void RefreshAutoModPlatformStatus()
     {
-        var lines = ModerationPlatformParity.Describe(ModerationActionService.Shared).ToList();
+        var lines = ModerationPlatformParity.Describe(_autoModActions).ToList();
         RunOnUi(() =>
         {
             AutoModPlatformStatus.Clear();

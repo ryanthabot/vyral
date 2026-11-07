@@ -18,13 +18,13 @@ SQLite-based data access layer using Dapper ORM. `IDataService` defines 80+ meth
   - **ChatMessages:** `SaveChatMessageAsync(ChatMessage)`, `GetChatMessagesAsync(string,string,int,int)`, `GetChatMessageCountAsync(string,string)`
   - **ChatEventSettings:** `GetChatEventSettingsAsync()`, `GetChatEventSettingAsync(string,string)`, `SaveChatEventSettingAsync(ChatEventSetting)`, `DeleteChatEventSettingAsync(Guid)`
   - **EventStatistics:** `SaveEventStatisticAsync(EventStatistic)`, `GetEventStatisticsAsync(int,int)`, `GetEventStatisticsByTypeAsync(string,int,int)`, `GetEventStatisticsCountAsync()`
-  - **Currency:** Settings, UserCurrency, CurrencyTransaction, CurrencyReward, CurrencyRedemption methods
+  - **Currency:** Settings, UserCurrency, CurrencyTransaction, CurrencyReward, CurrencyRedemption methods. Includes SQL-aggregation stats queries (`GetCurrencyEconomyTotalsAsync` COUNT/SUM over UserCurrency, `GetCurrencyTransactionTotalsSinceAsync` SUM by sign with a date filter) and `GetCurrencyUsersPagedAsync` (LIMIT/OFFSET over the stable Username+Platform key, used by GiveCurrencyToAll to walk every user). Leaderboard ordering is `Balance DESC, Username COLLATE NOCASE, Platform` (deterministic ties).
   - **Commands:** `GetCommandsAsync()`, `GetCommandAsync(string)`, `SaveCommandAsync(Command)`, `DeleteCommandAsync(string)`
   - **CommandCooldowns:** Cooldown tracking methods
   - **AutoReplyRules:** Rule CRUD methods
   - **Giveaways/Entries:** Giveaway and entry CRUD methods
   - **Polls/Votes:** Poll and vote CRUD methods
-  - **Watchtime:** User watchtime CRUD methods
+  - **Watchtime:** User watchtime CRUD methods, plus `DeactivateAllViewersAsync` (clears every IsActive flag at app startup so viewers persisted as active by the previous run cannot accrue watchtime/points until they chat again)
   - **Variables:** Variable CRUD methods
 
 ### DapperDataService Implementation

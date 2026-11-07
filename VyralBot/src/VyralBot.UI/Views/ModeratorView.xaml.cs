@@ -54,7 +54,7 @@ public partial class ModeratorView : UserControl
     /// <summary>
     /// Shared overlay open path: hosts a fresh FlowEditorView in the overlay,
     /// then initializes the editor — <see cref="FlowEditorViewModel.StartNewModCommandAsync"/>
-    /// for a new command, <see cref="FlowEditorViewModel.InitializeAsync(Workflow?, string?)"/>
+    /// for a new command, <see cref="FlowEditorViewModel.InitializeAsync(Workflow?, string?, string?)"/>
     /// for an existing one. The overlay hides again when the editor raises EditorClosed.
     /// </summary>
     private async Task OpenFlowEditorAsync(Workflow? workflow)

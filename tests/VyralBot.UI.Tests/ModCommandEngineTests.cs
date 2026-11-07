@@ -807,6 +807,7 @@ public class FakeDataService : IDataService
     public Task SaveWorkflowExecutionAsync(WorkflowExecution execution) => throw new NotImplementedException(NotImplemented);
     public Task<string?> GetConfigValueAsync(string key) => throw new NotImplementedException(NotImplemented);
     public Task SetConfigValueAsync(string key, string value, string? category = null) => throw new NotImplementedException(NotImplemented);
+    public Task<bool> DeleteConfigValueAsync(string key, string? category = null) => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<Config>> GetConfigsByCategoryAsync(string category) => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<Trigger>> GetTriggersAsync(bool? enabledOnly = null) => throw new NotImplementedException(NotImplemented);
     public Task<Trigger?> GetTriggerByIdAsync(Guid id) => throw new NotImplementedException(NotImplemented);
@@ -846,9 +847,12 @@ public class FakeDataService : IDataService
     public Task<UserCurrency?> GetUserCurrencyAsync(string username, string platform) => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<UserCurrency>> GetUserCurrenciesAsync(string username) => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<UserCurrency>> GetCurrencyLeaderboardAsync(int limit = 10, string? platform = null) => throw new NotImplementedException(NotImplemented);
+    public Task<IEnumerable<UserCurrency>> GetCurrencyUsersPagedAsync(int limit, int offset, string? platform = null) => throw new NotImplementedException(NotImplemented);
     public Task SaveUserCurrencyAsync(UserCurrency currency) => throw new NotImplementedException(NotImplemented);
     public Task SaveCurrencyTransactionAsync(CurrencyTransaction transaction) => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<CurrencyTransaction>> GetCurrencyTransactionsAsync(string? username = null, string? platform = null, int limit = 100) => throw new NotImplementedException(NotImplemented);
+    public Task<(long UserCount, long TotalBalance)> GetCurrencyEconomyTotalsAsync() => throw new NotImplementedException(NotImplemented);
+    public Task<(long Earned, long Spent)> GetCurrencyTransactionTotalsSinceAsync(DateTime since) => throw new NotImplementedException(NotImplemented);
     public Task<CurrencyReward?> GetCurrencyRewardAsync(string id) => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<CurrencyReward>> GetCurrencyRewardsAsync(bool? enabledOnly = null) => throw new NotImplementedException(NotImplemented);
     public Task SaveCurrencyRewardAsync(CurrencyReward reward) => throw new NotImplementedException(NotImplemented);
@@ -957,6 +961,7 @@ public class FakeDataService : IDataService
     public Task<int> GetTotalActiveViewersCountAsync() => throw new NotImplementedException(NotImplemented);
     public Task SaveUserWatchtimeAsync(UserWatchtime watchtime) => throw new NotImplementedException(NotImplemented);
     public Task DeactivateInactiveViewersAsync(DateTime inactiveSince) => throw new NotImplementedException(NotImplemented);
+    public Task<int> DeactivateAllViewersAsync() => throw new NotImplementedException(NotImplemented);
     public Task ResetStreamSessionMinutesAsync() => throw new NotImplementedException(NotImplemented);
     public Task SavePlatformEarningsAsync(PlatformEarnings earnings) => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<PlatformEarnings>> GetPlatformEarningsAsync(string viewerId) => throw new NotImplementedException(NotImplemented);
