@@ -634,8 +634,12 @@ public partial class ModeratorViewModel : ViewModelBase
     /// <summary>Action options for every rule row (ModerationActionKind names).</summary>
     public IReadOnlyList<string> AutoModActionOptions { get; } = Enum.GetNames<ModerationActionKind>();
 
-    /// <summary>Per-platform enforcement parity lines (adapters vs built-ins).</summary>
-    public ObservableCollection<string> AutoModPlatformStatus { get; } = new();
+    /// <summary>
+    /// Per-platform enforcement parity rows, rendered straight from
+    /// <see cref="ModerationPlatformParity.Snapshot"/> (the audit Table merged
+    /// with live adapter registration) so the card never drifts from reality.
+    /// </summary>
+    public ObservableCollection<ModerationPlatformParityRow> AutoModPlatformStatus { get; } = new();
 
     [ObservableProperty]
     private bool _autoModEnabled;
@@ -839,7 +843,7 @@ public partial class ModeratorViewModel : ViewModelBase
                 "Max art %", "Min length", rules.AsciiArt)
         };
 
-        var platformLines = ModerationPlatformParity.Describe(_autoModActions).ToList();
+        var platformRows = ModerationPlatformParity.Snapshot(_autoModActions);
 
         RunOnUi(() =>
         {
@@ -866,22 +870,22 @@ public partial class ModeratorViewModel : ViewModelBase
             }
 
             AutoModPlatformStatus.Clear();
-            foreach (var line in platformLines)
+            foreach (var row in platformRows)
             {
-                AutoModPlatformStatus.Add(line);
+                AutoModPlatformStatus.Add(row);
             }
         });
     }
 
     private void RefreshAutoModPlatformStatus()
     {
-        var lines = ModerationPlatformParity.Describe(_autoModActions).ToList();
+        var rows = ModerationPlatformParity.Snapshot(_autoModActions);
         RunOnUi(() =>
         {
             AutoModPlatformStatus.Clear();
-            foreach (var line in lines)
+            foreach (var row in rows)
             {
-                AutoModPlatformStatus.Add(line);
+                AutoModPlatformStatus.Add(row);
             }
         });
     }

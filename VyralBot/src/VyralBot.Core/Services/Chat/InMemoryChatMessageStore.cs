@@ -36,8 +36,9 @@ public class InMemoryChatMessageStore : IChatMessageStore
                 var idVal = msgIdProp.GetValue(evt) as string;
                 if (!string.IsNullOrEmpty(idVal))
                 {
-                    var arr = q.ToArray();
-                    foreach (var existing in arr)
+                    // Enumerate the queue directly (thread-safe, no snapshot
+                    // allocation) — AddAsync runs per chat message.
+                    foreach (var existing in q)
                     {
                         try
                         {

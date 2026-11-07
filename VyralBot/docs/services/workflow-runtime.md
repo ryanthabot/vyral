@@ -25,13 +25,17 @@ registry):
 | `HasActiveRuns(workflowId)` | True while at least one run is in flight |
 | `ActiveRunCount` | Total in-flight runs (diagnostics) |
 
-### Seam (next wave)
+### Delete/disable wiring (2026-11-07)
 
-`WorkflowTriggerService` does not call these yet. Wire the delete/disable
-paths to `CancelWorkflowRuns(workflow.Id)` so a workflow deleted mid-run
-stops instead of running to its step cap. Second part of the seam: nodes
-observe `ctx.CancellationToken`, which is get-only on `ExecutionContext` —
-registry cancellation stops the interpreter **between** nodes but cannot
-interrupt an in-flight node await (`wait_for_response`, `http_request`).
-Surfacing the linked token to nodes needs an `ExecutionContext` change
-(mutable/linked token) together with the trigger-service call site.
+`WorkflowTriggerService.LoadWorkflowsAsync` snapshots the cached workflow ids
+before each reload and calls `CancelWorkflowRuns(id)` for every id that
+vanished after the reload. All delete paths (automation page, flow editor side
+panel, component orphan sweep, commands page) and the enable/disable toggle
+call `ReloadAsync` right after the row changes, so a workflow deleted or
+disabled mid-run stops at its next between-node check and its history row
+records Status `"Cancelled"`. Remaining seam: nodes observe
+`ctx.CancellationToken`, which is get-only on `ExecutionContext` — registry
+cancellation stops the interpreter **between** nodes but cannot interrupt an
+in-flight node await (`wait_for_response`, `http_request`). Surfacing the
+linked token to nodes needs an `ExecutionContext` change (mutable/linked
+token).

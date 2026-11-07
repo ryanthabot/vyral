@@ -51,6 +51,10 @@ public partial class MarketplaceViewModel : ObservableObject
     [ObservableProperty]
     private bool hasEntries;
 
+    /// <summary>True when the last listing fetch failed (offline / rate-limited) — drives the retry hint.</summary>
+    [ObservableProperty]
+    private bool hasLoadError;
+
     /// <summary>Editable marketplace connection settings (BotGhost webhook + repo).</summary>
     [ObservableProperty]
     private MarketplaceSettings settings = new();
@@ -77,16 +81,23 @@ public partial class MarketplaceViewModel : ObservableObject
         try
         {
             Settings = await _marketplace.LoadSettingsAsync();
-            _allEntries = (await _marketplace.ListAsync()).ToList();
+            var listing = await _marketplace.ListAsync();
+            _allEntries = listing.Entries.ToList();
             RebuildGroups();
-            StatusText = _allEntries.Count == 0
+            HasLoadError = listing.Error != null;
+            StatusText = listing.Error ?? (_allEntries.Count == 0
                 ? "No shared commands yet — be the first to share one."
-                : $"{_allEntries.Count} shared command{(_allEntries.Count == 1 ? "" : "s")}.";
+                : $"{_allEntries.Count} shared command{(_allEntries.Count == 1 ? "" : "s")}.");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Marketplace refresh failed");
-            StatusText = $"Could not load the marketplace: {ex.Message}";
+            HasLoadError = true;
+            StatusText = $"Could not load the marketplace: {MarketplaceService.DescribeImportError(ex)}";
         }
         finally
         {
@@ -187,10 +198,14 @@ public partial class MarketplaceViewModel : ObservableObject
 
             ImportRequested?.Invoke(this, (snapshot, $"{entry.Name} ({entry.Sharecode})"));
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Marketplace import failed for {Code}", entry.Sharecode);
-            StatusText = $"Import failed: {ex.Message}";
+            StatusText = $"Import failed: {MarketplaceService.DescribeImportError(ex)}";
         }
         finally
         {
@@ -212,6 +227,15 @@ public partial class MarketplaceViewModel : ObservableObject
         {
             try
             {
+                // Size ceiling before reading — a picked file is local, but a
+                // multi-gigabyte "flow.json" must not be slurped into memory.
+                var fileInfo = new System.IO.FileInfo(dialog.FilePath);
+                if (fileInfo.Length > MarketplaceService.MaxFlowJsonChars)
+                {
+                    StatusText = "Import failed: that file is too large to be a Vyral flow document.";
+                    return;
+                }
+
                 var fileSnapshot = FlowSnapshotService.ParseDocument(System.IO.File.ReadAllText(dialog.FilePath));
                 if (fileSnapshot == null)
                 {
@@ -224,7 +248,7 @@ public partial class MarketplaceViewModel : ObservableObject
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Marketplace file import failed");
-                StatusText = $"Import failed: {ex.Message}";
+                StatusText = $"Import failed: {MarketplaceService.DescribeImportError(ex)}";
             }
             return;
         }
@@ -246,6 +270,15 @@ public partial class MarketplaceViewModel : ObservableObject
             }
 
             ImportRequested?.Invoke(this, (result.Snapshot!, result.Label));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Marketplace code import failed");
+            StatusText = $"Import failed: {MarketplaceService.DescribeImportError(ex)}";
         }
         finally
         {

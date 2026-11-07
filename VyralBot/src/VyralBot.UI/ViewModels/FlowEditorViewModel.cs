@@ -5906,6 +5906,15 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         {
             try
             {
+                // Size ceiling before reading — a multi-gigabyte "flow.json"
+                // must not be slurped into memory.
+                var fileInfo = new FileInfo(dialog.FilePath);
+                if (fileInfo.Length > MarketplaceService.MaxFlowJsonChars)
+                {
+                    StatusText = "Import failed: that file is too large to be a Vyral flow document.";
+                    return;
+                }
+
                 TryImportSnapshot(
                     FlowSnapshotService.ParseDocument(File.ReadAllText(dialog.FilePath)),
                     Path.GetFileName(dialog.FilePath));
@@ -5913,7 +5922,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Flow import failed");
-                StatusText = $"Import failed: {ex.Message}";
+                StatusText = $"Import failed: {MarketplaceService.DescribeImportError(ex)}";
             }
             return;
         }
@@ -6107,7 +6116,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         catch (Exception ex)
         {
             _logger.LogError(ex, "Flow import failed for {Source}", sourceLabel);
-            StatusText = $"Import failed: {ex.Message}";
+            StatusText = $"Import failed: {MarketplaceService.DescribeImportError(ex)}";
             return false;
         }
     }

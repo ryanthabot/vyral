@@ -102,9 +102,11 @@ public static class BlockCatalog
     {
         // ============================== ACTIONS ==============================
         new("send_message", BlockGroup.Action, "📨", "Send Message",
-            "Send a text message to the origin channel (or an override channel). Supports {variables}.",
+            "Send a text message to the origin channel (or an override channel). Supports {variables}. On Discord slash/button runs, 'Ephemeral' replies only to the invoker.",
             ActionColor, false, BlockSections.Messaging,
-            new ParamField("text", "Message", ParamKind.Multiline, "Supports {username}, {channel}, {args}, ...")),
+            new ParamField("text", "Message", ParamKind.Multiline, "Supports {username}, {channel}, {args}, ..."),
+            new ParamField("Ephemeral", "Ephemeral (Discord only)", ParamKind.Boolean,
+                "Discord slash/button runs: reply as an interaction response visible only to the invoking user. Silently ignored for normal channel sends, Buttons/Menu messages, platform overrides and other platforms.")),
         new("send_embed", BlockGroup.Action, "🖼️", "Send Embed",
             "Send a rich embed (title, description, color, fields, footer) with a live Discord preview.",
             ActionColor, false, BlockSections.Messaging,

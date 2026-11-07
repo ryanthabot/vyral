@@ -170,6 +170,8 @@ public class ChatViewModel : ViewModelBase
 
 	private Guid _youTubeMembershipStatusSubscriptionId;
 
+	private Guid _youTubeSuperChatSubscriptionId;
+
 	private Guid _accountsLinkedSubscriptionId;
 
 	private Guid _viewerGoalCompletedSubscriptionId;
@@ -194,6 +196,10 @@ public class ChatViewModel : ViewModelBase
 	private string? _lastDiscordChatState = "disconnected";
 
 	private Guid _discordSubscriptionId;
+
+	private Guid _discordMemberJoinedSubscriptionId;
+
+	private Guid _discordBoostSubscriptionId;
 
 	private bool _isInitialized = false;
 
@@ -2142,6 +2148,10 @@ public class ChatViewModel : ViewModelBase
 		_logger.LogInformation("? Subscribed to YouTubeChatMessageEvent (ID: {SubscriptionId})", _youtubeSubscriptionId);
 		_discordSubscriptionId = await _eventBus.SubscribeAsync<DiscordChatMessageEvent>(OnDiscordChatMessageReceivedAsync);
 		_logger.LogInformation("? Subscribed to DiscordChatMessageEvent (ID: {SubscriptionId})", _discordSubscriptionId);
+		_discordMemberJoinedSubscriptionId = await _eventBus.SubscribeAsync<DiscordMemberJoinedEvent>(OnDiscordMemberJoinedAsync);
+		_logger.LogInformation("? Subscribed to DiscordMemberJoinedEvent (ID: {SubscriptionId})", _discordMemberJoinedSubscriptionId);
+		_discordBoostSubscriptionId = await _eventBus.SubscribeAsync<DiscordBoostEvent>(OnDiscordBoostAsync);
+		_logger.LogInformation("? Subscribed to DiscordBoostEvent (ID: {SubscriptionId})", _discordBoostSubscriptionId);
 		_genericSubscriptionId = await _eventBus.SubscribeAsync<ChatMessageReceivedEvent>(OnChatMessageReceivedAsync);
 		_logger.LogInformation("? Subscribed to ChatMessageReceivedEvent (ID: {SubscriptionId})", _genericSubscriptionId);
 		_routingSubscriptionId = await _eventBus.SubscribeAsync<PlatformChatRoutingChangedEvent>(OnPlatformRoutingChangedAsync);
@@ -2184,6 +2194,8 @@ public class ChatViewModel : ViewModelBase
 		_logger.LogInformation("? Subscribed to PollAutoEndedEvent (ID: {SubscriptionId})", _pollAutoEndedSubscriptionId);
 		_youTubeMembershipStatusSubscriptionId = await _eventBus.SubscribeAsync<YouTubeMembershipEvent>(OnYouTubeMembershipStatusAsync);
 		_logger.LogInformation("? Subscribed to YouTubeMembershipEvent (ID: {SubscriptionId})", _youTubeMembershipStatusSubscriptionId);
+		_youTubeSuperChatSubscriptionId = await _eventBus.SubscribeAsync<YouTubeSuperChatEvent>(OnYouTubeSuperChatAsync);
+		_logger.LogInformation("? Subscribed to YouTubeSuperChatEvent (ID: {SubscriptionId})", _youTubeSuperChatSubscriptionId);
 		_accountsLinkedSubscriptionId = await _eventBus.SubscribeAsync<AccountsLinkedEvent>(OnAccountsLinkedAsync);
 		_logger.LogInformation("? Subscribed to AccountsLinkedEvent (ID: {SubscriptionId})", _accountsLinkedSubscriptionId);
 		_viewerGoalCompletedSubscriptionId = await _eventBus.SubscribeAsync<ViewerGoalCompletedEvent>(OnViewerGoalCompletedAsync);
@@ -6916,6 +6928,127 @@ public class ChatViewModel : ViewModelBase
 		await SaveEventStatisticAsync("Twitch", "RewardRedeemed", evt.Username, variables, wasAutoReplied);
 	}
 
+	// Super Chats / Super Stickers are YouTube's cheer equivalent. The publisher
+	// (YouTubeChatService) already renders the 💎 chat line via the synthetic
+	// YouTubeChatMessageEvent it publishes alongside this event, so this handler
+	// deliberately does NOT add another chat line (that would double-render it).
+	// No YouTube ChatEventSetting rows exist (the settings UI is Twitch/Kick
+	// only), so the only VM-side gate is the platform filter; the alert-side
+	// gate is AlertSettings.CheerAlertsEnabled, enforced by AlertService.
+	private async Task OnYouTubeSuperChatAsync(YouTubeSuperChatEvent evt)
+	{
+		if (!YoutubeFilterEnabled)
+		{
+			_logger.LogDebug("YouTube super chat filtered out (YoutubeFilterEnabled=false)");
+			return;
+		}
+		if (_soundService != null)
+		{
+			try
+			{
+				await _soundService.PlayEventSoundAsync("cheer", "YouTube");
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Failed to play sound for YouTube super chat");
+			}
+		}
+		string alertMessage = $"{evt.AmountDisplayString} super chat!";
+		if (!string.IsNullOrEmpty(evt.Message))
+		{
+			alertMessage = alertMessage + " - " + evt.Message;
+		}
+		await ShowEventAlertAsync("Super Chat!", evt.Username, alertMessage, "YouTube");
+		if (_currencyService != null)
+		{
+			try
+			{
+				// Twitch cheers pass raw bits as the multiplier; 1 bit ≈ 1 cent, so
+				// the YouTube equivalent is cents = AmountMicros / 10_000
+				// (e.g. $5.00 = 5_000_000 micros → 500).
+				await _currencyService.AwardEventBonusAsync(evt.Username, "YouTube", "cheer", (int)(evt.AmountMicros / 10000L));
+			}
+			catch (Exception ex2)
+			{
+				_logger.LogError(ex2, "Failed to award currency bonus for YouTube super chat");
+			}
+		}
+		Dictionary<string, string> variables = new Dictionary<string, string>
+		{
+			{ "username", evt.Username },
+			{ "displayname", evt.Username },
+			{ "amount", evt.AmountDisplayString },
+			{ "currency", evt.Currency },
+			{ "message", evt.Message ?? (evt.StickerDisplayText ?? "") },
+			{ "platform", "YouTube" }
+		};
+		await SaveEventStatisticAsync("YouTube", "Cheer", evt.Username, variables, wasAutoReplied: false);
+	}
+
+	// Discord guild join = the platform's "new follower" moment. Mirrors the
+	// OnTwitchFollowAsync pipeline minus auto-reply (no Discord ChatEventSetting
+	// rows or auto-reply settings exist for this event): filter gate, sound,
+	// alert, statistics.
+	private async Task OnDiscordMemberJoinedAsync(DiscordMemberJoinedEvent evt)
+	{
+		if (!DiscordFilterEnabled)
+		{
+			return;
+		}
+		if (_soundService != null)
+		{
+			try
+			{
+				await _soundService.PlayEventSoundAsync("follow", "Discord");
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Failed to play sound for Discord member joined");
+			}
+		}
+		await ShowEventAlertAsync("New Member!", evt.DisplayName ?? evt.Username, evt.GuildName != null ? $"Welcome to {evt.GuildName}!" : null, "Discord");
+		Dictionary<string, string> variables = new Dictionary<string, string>
+		{
+			{ "username", evt.Username },
+			{ "displayname", evt.DisplayName ?? evt.Username },
+			{ "guild", evt.GuildName ?? (evt.GuildId ?? "") },
+			{ "platform", "Discord" }
+		};
+		await SaveEventStatisticAsync("Discord", "MemberJoined", evt.Username, variables, wasAutoReplied: false);
+	}
+
+	// Server boost = Discord's paid-support celebration. Sound uses the
+	// "subscribe" key (the closest existing event-sound vocabulary — boosts are
+	// the Discord counterpart of a sub, and SoundService resolves keys as
+	// EventSound_{platform}_{event} config rows, so no new key needs seeding).
+	private async Task OnDiscordBoostAsync(DiscordBoostEvent evt)
+	{
+		if (!DiscordFilterEnabled)
+		{
+			return;
+		}
+		if (_soundService != null)
+		{
+			try
+			{
+				await _soundService.PlayEventSoundAsync("subscribe", "Discord");
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Failed to play sound for Discord boost");
+			}
+		}
+		await ShowEventAlertAsync("Server Boosted!", evt.DisplayName ?? evt.Username, evt.GuildName, "Discord");
+		Dictionary<string, string> variables = new Dictionary<string, string>
+		{
+			{ "username", evt.Username },
+			{ "displayname", evt.DisplayName ?? evt.Username },
+			{ "guild", evt.GuildName ?? (evt.GuildId ?? "") },
+			{ "platform", "Discord" }
+		};
+		await SaveEventStatisticAsync("Discord", "Boost", evt.Username, variables, wasAutoReplied: false);
+	}
+
 	private async Task OnYouTubeLiveChatStateAsync(YouTubeLiveChatStateEvent stateEvent)
 	{
 		try
@@ -6976,6 +7109,14 @@ public class ChatViewModel : ViewModelBase
 		if (_discordSubscriptionId != Guid.Empty)
 		{
 			_eventBus.Unsubscribe(_discordSubscriptionId);
+		}
+		if (_discordMemberJoinedSubscriptionId != Guid.Empty)
+		{
+			_eventBus.Unsubscribe(_discordMemberJoinedSubscriptionId);
+		}
+		if (_discordBoostSubscriptionId != Guid.Empty)
+		{
+			_eventBus.Unsubscribe(_discordBoostSubscriptionId);
 		}
 		if (_genericSubscriptionId != Guid.Empty)
 		{
@@ -7061,6 +7202,10 @@ public class ChatViewModel : ViewModelBase
 		{
 			_eventBus.Unsubscribe(_youTubeMembershipStatusSubscriptionId);
 		}
+		if (_youTubeSuperChatSubscriptionId != Guid.Empty)
+		{
+			_eventBus.Unsubscribe(_youTubeSuperChatSubscriptionId);
+		}
 		if (_accountsLinkedSubscriptionId != Guid.Empty)
 		{
 			_eventBus.Unsubscribe(_accountsLinkedSubscriptionId);
@@ -7077,6 +7222,8 @@ public class ChatViewModel : ViewModelBase
 		_kickSubscriptionId = Guid.Empty;
 		_youtubeSubscriptionId = Guid.Empty;
 		_discordSubscriptionId = Guid.Empty;
+		_discordMemberJoinedSubscriptionId = Guid.Empty;
+		_discordBoostSubscriptionId = Guid.Empty;
 		_genericSubscriptionId = Guid.Empty;
 		_routingSubscriptionId = Guid.Empty;
 		_connectionSubscriptionId = Guid.Empty;
@@ -7098,6 +7245,7 @@ public class ChatViewModel : ViewModelBase
 		_giveawayAutoEndedSubscriptionId = Guid.Empty;
 		_pollAutoEndedSubscriptionId = Guid.Empty;
 		_youTubeMembershipStatusSubscriptionId = Guid.Empty;
+		_youTubeSuperChatSubscriptionId = Guid.Empty;
 		_accountsLinkedSubscriptionId = Guid.Empty;
 		_viewerGoalCompletedSubscriptionId = Guid.Empty;
 		_giveawayIntakeModeSubscriptionId = Guid.Empty;

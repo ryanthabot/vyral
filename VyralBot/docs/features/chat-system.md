@@ -1,7 +1,7 @@
 # Chat System
 
 ## Overview
-Multi-platform chat system supporting Twitch and Kick (with placeholders for YouTube, TikTok, Discord). Chat messages flow from platform integrations through the EventBus to the ChatViewModel for display. Includes auto-reply, chat event settings, and message storage.
+Multi-platform chat system supporting Twitch, Kick, YouTube and Discord (TikTok is web-setup only — no chat integration yet; all TikTok surfaces say coming-soon). Chat messages flow from platform integrations through the EventBus to the ChatViewModel for display. Includes auto-reply, chat event settings, message storage and auto-moderation (see `services/moderation.md`).
 
 ## Source Files
 

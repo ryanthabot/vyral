@@ -123,6 +123,7 @@ dotnet build src/VyralBot.sln
 - `chat-system.md` - Multi-platform chat (17+ deps ChatViewModel, message store, auto-reply)
 - `event-system.md` - All event types (3 core + 8 Kick + 9 Twitch) and EventBus flow
 - `kick-integration.md` - KickLib integration (KickLibChatService, KickLibOAuthService)
+- `marketplace-sharecodes.md` - Command marketplace (GitHub store + BotGhost relay), sharecode/offline-code import safety
 - `twitch-integration.md` - LightweightTwitchIrc + TwitchEventSubService + TwitchOAuthService
 - `platform-management.md` - Platform entity, PlatformsViewModel, connection flows
 - `profile-system.md` - ProfileService, portable storage, per-profile databases
@@ -214,20 +215,26 @@ dotnet build src/VyralBot.sln
 ## 🚀 VyralBot Architecture
 
 ### Technology Stack
-- **Framework:** .NET 9.0
-- **UI:** WPF (Windows Presentation Foundation) + MaterialDesignInXamlToolkit
+- **Framework:** .NET 10.0
+- **UI:** WPF (Windows Presentation Framework) + MaterialDesignInXamlToolkit
 - **Data:** SQLite + Dapper (no Entity Framework - 40MB memory savings)
 - **Real-time:** WebSocket (Twitch IRC), KickLib WebSocket (Kick), EventSub (Twitch)
-- **Encryption:** Windows DPAPI for credentials
+- **Encryption:** Windows DPAPI for credentials at rest (v1: envelope on
+  platform secrets + Discord bot tokens — see `services/data-service.md`)
 - **Patterns:** MVVM, Event Bus, Clean Architecture
 
 ### Supported Platforms
-- ✅ **Twitch:** OAuth 2.0, IRC WebSocket, Helix API, EventSub
-- 🔄 **Kick:** OAuth 2.1 with PKCE, KickLib WebSocket, REST API
-- 🔜 **YouTube:** Data API v3, LiveChat polling
-- 🔜 **TikTok:** Business API, webhook events
-- 🔜 **Discord:** Bot client, commands, message posting
-- 🔜 **OBS Studio:** WebSocket v5 (optional integration)
+- ✅ **Twitch:** OAuth 2.0, IRC WebSocket, Helix API, EventSub, full
+  auto-mod enforcement (Helix timeout/ban/delete)
+- 🔄 **Kick:** OAuth 2.1 with PKCE, KickLib WebSocket, REST API (auto-mod
+  notice-only)
+- ✅ **YouTube:** Data API v3, LiveChat polling, SuperChat events (auto-mod
+  notice-only)
+- ✅ **Discord:** Multi-bot gateway, commands, message posting, member/boost
+  events, full auto-mod enforcement (ban/timeout)
+- ✅ **OBS Studio:** Embedded libobs hosting + obs-websocket v5
+- 🔜 **TikTok:** Coming soon — web setup guide only today, no chat/API
+  integration yet (auto-mod logged-only)
 
 ### Project Structure
 ```

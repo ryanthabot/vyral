@@ -62,6 +62,29 @@ Files: `VyralBot.Integrations/Discord/DiscordService.cs` (one gateway session),
 channel: the selected channel is the SEND target only (`SendMessageAsync`,
 used by announcements); `AssignedChannelIds` gates currency earning only.
 
+## Workflow interactions (slash commands & vyralwf components)
+
+`SlashCommandExecuted` / component handlers (`HandleWorkflowSlashInvocationAsync`,
+`HandleWorkflowComponentInteractionAsync`) own the interaction respond path:
+
+- **Defer at entry:** `DeferInteractionAsync(interaction, label)` acknowledges
+  EVERY workflow interaction with an ephemeral defer ("thinking…") BEFORE the
+  engine runs, so flows slower than Discord's 3-second window (HTTP, wait,
+  loop nodes) never show "interaction failed". A lost ack is logged at debug
+  and swallowed.
+- **Ephemeral replies:** `RespondEphemeralAsync(interaction, message)`
+  (exposed to the engine as the `Respond` delegate on
+  `DiscordSlashInvocation`/`DiscordComponentInteraction`, mapped to `Reply` on
+  the engine records) sends `RespondAsync` when unacknowledged, else an
+  ephemeral `FollowupAsync` — both with `MessageFlags.Ephemeral` (invoker-only
+  visibility). Denials, cooldown notices and the end-of-run completion followup
+  all go through it.
+- **send_message "Ephemeral" param:** `SendMessageNode` honors the block's
+  optional `Ephemeral` bool on slash/component-triggered runs by replying
+  through that ephemeral interaction path instead of a channel send; the flag
+  is silently ignored for normal channel sends, Buttons/Menu messages,
+  platform overrides and non-Discord platforms (see BlockCatalog).
+
 ## Guild member events (joins & boosts)
 
 `UserJoined` (GUILD_MEMBER_ADD) publishes `DiscordMemberJoinedEvent`;

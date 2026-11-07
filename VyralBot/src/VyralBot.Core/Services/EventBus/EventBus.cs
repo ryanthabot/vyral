@@ -55,9 +55,9 @@ public class EventBus : IEventBus, IDisposable
     {
         if (@event == null) throw new ArgumentNullException(nameof(@event));
 
-        _logger.LogDebug("Publishing event {EventType} ({EventId}) from {Source}",
-            typeof(TEvent).Name, @event.EventId, @event.Source);
-
+        // NOTE: no per-event debug logging here — PublishAsync is the hottest
+        // path in the app (every chat message on every platform) and INFO-only
+        // logging is the repo rule.
         _metrics?.Increment("EventBus", "published");
         _metrics?.Increment(@event.Source, "events");
         _metrics?.Increment(@event.Source, "events:" + typeof(TEvent).Name);

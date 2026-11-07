@@ -88,7 +88,7 @@ When Kestrel starts, `WebServerService` assigns that delegate a lambda that send
 - Shows the status pill and hides it 5 seconds after connecting (audio.html:54, 108-113).
 - On each message, parses it as JSON and — only if it looks like `{ type: 'play', sound: '...' }` — plays `<base>/sounds/<file>` through a cached `Audio` element (audio.html:81-103), applying any `volume` field (0..1) to the element. `.play()` rejections are caught and logged.
 
-Sound files themselves are just static files: whatever you upload on the Sounds Management page lands in `src/VyralBot.Api/wwwroot/sounds/` and is served at `http://localhost:5000/sounds/<filename>`.
+Sound files themselves are just static files: whatever you upload on the [Sounds Management](sounds.md) page lands in the **current profile's `sounds` folder** (migrated there automatically from the old app-global location), and `/sounds/<filename>` is served from that directory — the wwwroot static provider remains as a fallback for files still living in the legacy path.
 
 ### The JSON contract (fixed 2026-08-15)
 
@@ -216,7 +216,7 @@ VyralBot.Core.Services.Audio.AudioWebSocketBroadcaster.BroadcastAsync = async (s
 | `WebServerSettings.CurrentTunnelUrl` | Per-profile SQLite | The ngrok https URL — for webhooks, not for the audio page |
 | `AudioSettings` (Configs key) | Per-profile SQLite | JSON blob with `StreamSoundsEnabled`, which gates whether broadcasts are sent at all — see [Audio Settings](audio.md) |
 | `EventSound_<Platform>_<event>` (Configs keys) | Per-profile SQLite | Which sound file each event plays — see [Sounds Management](sounds.md) |
-| Sound files | `src/VyralBot.Api/wwwroot/sounds/` on disk | Served as static files at `/sounds/<filename>` |
+| Sound files | Current profile's `sounds` folder on disk (legacy app-global folder as fallback) | Served as static files at `/sounds/<filename>` |
 
 The audio page itself stores nothing — it is stateless except for its sound cache.
 

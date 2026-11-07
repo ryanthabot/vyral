@@ -21,9 +21,10 @@ YouTube and Discord have no event ingestion (chat messages only), and TikTok has
 
 | Platform | Events with reactions |
 |---|---|
-| **Twitch** | Follow, Subscribe, Resub, Gift Sub, Raid, Cheer |
+| **Twitch** | Follow, Subscribe, Resub, Gift Sub, Raid, Cheer, **Reward Redeemed** (Channel Points — live since 2026-11-07) |
 | **Kick** | Follow, Subscribe, Gift Sub, Host, Kicks Gifted, Reward Redeemed, Stream Status (chat message only) |
-| **YouTube / Discord** | None (chat messages only — no event ingestion) |
+| **YouTube** | Membership (subscriber alert family) + **Super Chat / Super Sticker** (alert, cheer sound family, currency like bits, statistics) — see [YouTube](../platforms/youtube.md#super-chats--super-stickers) |
+| **Discord** | Member join (follow-style: sound, alert, statistics) — but dormant until the Server Members intent is enabled ([Discord](../platforms/discord.md#member-joins--boosts-intent-gated)) |
 | **TikTok** | None (no integration) |
 
 ### Where to configure each effect
@@ -63,6 +64,7 @@ Available variables per event (exactly what the handler passes):
 | Twitch | Gift Sub | `{gifter}`, `{count}`, `{username}`, `{platform}` |
 | Twitch | Raid | `{username}`, `{raider}`, `{viewers}`, `{platform}` |
 | Twitch | Cheer | `{username}`, `{bits}`, `{platform}` |
+| Twitch | Reward Redeemed | `{username}`, `{reward}`, `{cost}`, `{input}`, `{platform}` |
 
 Watch the spelling all the same: the processor replaces only the `{...}` part, so an `@` in front of a variable (in a template you wrote yourself) is sent literally if the event does not supply that key. The shipped defaults now use plain `{username}`-style tokens and `{raider}` is supplied by the raid handler.
 
@@ -221,5 +223,5 @@ public string ProcessTemplate(string template, Dictionary<string, string> variab
 - **DB/social variables still do not resolve in auto-reply templates** — see [Auto-Replies](../chat-features/auto-replies.md) (KI-28).
 - **Kick Pusher follow events carry `Username="Unknown"`**; the webhook path is the one that knows the real name. [Known issues](../reference/known-issues.md).
 - **The dormant rules engine**: conditional auto-reply rules ([Conditional Rules](../chat-features/conditional-rules.md)) are stored but never fire — `GetAutoReplyAsync` has no callers. [Known issues](../reference/known-issues.md).
-- **YouTube/Discord/TikTok have no event reactions** — only Twitch and Kick event types exist (Discord and YouTube carry chat only; TikTok has no integration). [Known issues](../reference/known-issues.md).
-- The legacy `USER_GUIDE_CHAT_EVENTS.md` (repo root) also lists a Twitch "Channel Points" event; no handler for it exists — only six Twitch event handlers are implemented.
+- **YouTube/Discord event reactions are newer than the rest** — YouTube memberships + Super Chats and (intent-gated) Discord member joins fire sound/alert/currency/statistics, but they have no per-event Chat Settings rows or auto-reply templates the way Twitch/Kick events do; TikTok has no integration at all. [Known issues](../reference/known-issues.md).
+- The legacy `USER_GUIDE_CHAT_EVENTS.md` "Channel Points" entry is finally true: the Twitch redemption handler exists and is live (2026-11-07) — seven Twitch event handlers now.

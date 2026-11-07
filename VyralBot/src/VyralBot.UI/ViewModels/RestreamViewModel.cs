@@ -119,6 +119,12 @@ public partial class RestreamDestinationItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _isStatusError;
 
+    // Live configuration feedback (why this row cannot go live right now) from
+    // the shared validator — shown under the server/key row, re-checked on
+    // every server/key edit and on the platform autofill.
+    [ObservableProperty]
+    private string? _validationMessage;
+
     partial void OnPlatformChanged(string value)
     {
         // Only platforms with a well-known ingest get an autofill — Kick/Custom
@@ -129,6 +135,14 @@ public partial class RestreamDestinationItemViewModel : ObservableObject
             ServerUrl = server;
         }
     }
+
+    partial void OnServerUrlChanged(string value) => RefreshValidation();
+
+    partial void OnStreamKeyChanged(string value) => RefreshValidation();
+
+    /// <summary>Re-runs the shared validator; public so the page ViewModel can show the hint the moment a row is added.</summary>
+    public void RefreshValidation() =>
+        ValidationMessage = RestreamValidation.Validate(ToModel());
 
     partial void OnResolutionChanged(RestreamChoice<RestreamResolution> value)
     {
@@ -178,6 +192,13 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
     private const string DestinationsFileName = "restream_destinations.json";
     private const int MaxLogLines = 300;
 
+    // Start/stop serialization at the page level: bumped by Stop so an
+    // in-flight Start (still awaiting the FFmpeg probe or persistence) can
+    // notice the user changed their mind and abort before touching the engine.
+    // The engine's own mutex serializes the calls that do reach it; this guard
+    // closes the "stop clicked during start, start wins anyway" window.
+    private int _sessionGeneration;
+
     private static readonly JsonSerializerOptions PersistenceJson = new()
     {
         WriteIndented = true,
@@ -224,6 +245,10 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private bool _isEngineStreaming;
+
+    /// <summary>True while a session runs and at least one destination was auto-disabled — drives the re-enable hint + restart action.</summary>
+    [ObservableProperty]
+    private bool _hasAutoDisabledDestinations;
 
     [ObservableProperty]
     private string _engineStateText = "Stopped";
@@ -427,6 +452,9 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
             Platform = platform,
             Name = $"{platform} {count}",
         };
+        // Show the row's validation hint immediately (a fresh row has no key
+        // yet) instead of waiting for the first edit.
+        item.RefreshValidation();
         Destinations.Add(item);
     }
 
@@ -436,15 +464,26 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
         Destinations.Remove(item);
     }
 
-    [RelayCommand]
+    // AllowConcurrentExecutions=false: a double-clicked Start/Restart or a
+    // Stop re-click while one is in flight is ignored at the command level;
+    // the generation guard below handles Stop racing an in-flight Start.
+    [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task StartRestreamAsync()
     {
+        var generation = Volatile.Read(ref _sessionGeneration);
+        var cancelled = () => Volatile.Read(ref _sessionGeneration) != generation;
+
         var install = await _ffmpegLocator.LocateAsync(
             string.IsNullOrWhiteSpace(FfmpegPathOverride) ? null : FfmpegPathOverride.Trim());
+        if (cancelled())
+        {
+            return; // the user pressed Stop while the FFmpeg probe ran
+        }
+
         if (install is null)
         {
             await RefreshFfmpegStatusAsync();
-            StatusMessage = "FFmpeg was not found — download it below or set a custom path, then try again.";
+            StatusMessage = "FFmpeg was not found — download it below or browse to ffmpeg.exe, then try again.";
             return;
         }
 
@@ -456,11 +495,15 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var invalid = active.FirstOrDefault(d => string.IsNullOrWhiteSpace(d.ServerUrl) || string.IsNullOrWhiteSpace(d.StreamKey));
-        if (invalid is not null)
+        // Same rules the rows show live (scheme + key/embedded-key) — gate the
+        // session on the shared validator so UI hints and reality can't drift.
+        foreach (var destination in active)
         {
-            StatusMessage = $"'{invalid.Name}' needs both a server URL and a stream key.";
-            return;
+            if (RestreamValidation.Validate(destination) is { } problem)
+            {
+                StatusMessage = $"'{destination.Name}': {problem}";
+                return;
+            }
         }
 
         StatusMessage = "";
@@ -477,6 +520,11 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
             _logger.LogWarning(ex, "Could not persist restream settings before starting the session");
         }
 
+        if (cancelled())
+        {
+            return;
+        }
+
         var source = new RestreamSourceConfig(
             IsTwoPcMode ? RestreamOperationMode.TwoPC : RestreamOperationMode.SinglePC,
             ParsedPort(),
@@ -486,9 +534,12 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
         _logger.LogInformation("Restream session started ({Mode}, {Count} destination(s))", source.Mode, active.Count);
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task StopRestreamAsync()
     {
+        // Invalidate any Start that is still between awaits — it will abort
+        // before reaching the engine instead of resurrecting the session.
+        Interlocked.Increment(ref _sessionGeneration);
         await _engine.StopAsync();
         _logger.LogInformation("Restream session stopped");
     }
@@ -529,6 +580,25 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
             IsAcquiringFfmpeg = false;
             CanDownloadFfmpeg = true;
             await RefreshFfmpegStatusAsync();
+        }
+    }
+
+    [RelayCommand]
+    private void BrowseFfmpeg()
+    {
+        // Same pattern as ObsStudioViewModel/ObsViewModel: the dialog is the
+        // only "UI in the VM" this codebase allows. Picking a file fills the
+        // override; OnFfmpegPathOverrideChanged re-probes immediately.
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Locate ffmpeg.exe",
+            Filter = "FFmpeg (ffmpeg.exe)|ffmpeg.exe|Executables (*.exe)|*.exe",
+            CheckFileExists = true,
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            FfmpegPathOverride = dialog.FileName;
         }
     }
 
@@ -660,6 +730,8 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
             _ => "Stopped",
         };
         EngineMessage = status.Message;
+        HasAutoDisabledDestinations = IsEngineRunning
+            && status.Destinations.Any(d => d.Health == RestreamDestinationHealth.AutoDisabled);
 
         BitrateText = status.Stats is { } stats && stats.BitrateKbps > 0 ? $"{stats.BitrateKbps:0} kbps" : "—";
         FpsText = status.Stats is { } s2 && s2.Fps > 0 ? $"{s2.Fps:0.0} fps" : "—";

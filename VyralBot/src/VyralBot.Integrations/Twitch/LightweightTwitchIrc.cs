@@ -180,8 +180,6 @@ public sealed class LightweightTwitchIrc : IDisposable
                 {
                     if (!string.IsNullOrWhiteSpace(line))
                     {
-                        // Log ALL IRC messages temporarily for debugging
-                        _logger.LogInformation("IRC RX: {Line}", line);
                         ProcessIrcMessage(line);
                     }
                 }
@@ -209,18 +207,12 @@ public sealed class LightweightTwitchIrc : IDisposable
             return;
         }
 
-        // Temporary logging to debug PING/PONG
-        if (line.Contains("PING") || line.Contains("PONG"))
-        {
-            _logger.LogInformation("IRC PING/PONG: {Line}", line);
-        }
-
         // Respond to PING
         if (line.StartsWith("PING"))
         {
             var server = line.Split(' ')[1];
             _ = SendRawAsync($"PONG {server}");
-            _logger.LogInformation("Sent PONG response to {Server}", server);
+            _logger.LogDebug("Sent PONG response to {Server}", server);
             return;
         }
 

@@ -27,6 +27,15 @@ Open **Settings** from the bottom of the sidebar. The page is a two-pane layout:
 
 Note that Audio, Alert, and Sounds settings do **not** live here — they are separate top-level pages in the sidebar ([Audio Settings](../stream-tools/audio.md), [Visual Alerts](../stream-tools/visual-alerts.md), [Sounds](../stream-tools/sounds.md)).
 
+### Security category: your data at rest
+
+The Security panel's token-storage blurb summarizes where credentials live (its text predates the 2026-11-07 encryption work — the data layer is now stricter than the blurb implies):
+
+- **Client secrets** (every platform's `ClientSecret` column in the per-profile database) and **Discord bot tokens** (`DiscordBots.Token`) are **encrypted at rest with Windows DPAPI** — CurrentUser scope plus an app-specific entropy constant, stored as a versioned `v1:` envelope (`SecretProtector`). A profile database copied off this machine is inert: the blobs only unwrap for the same Windows user running VyralBot.
+- **Legacy rows keep working**: values saved before the envelope existed are still read (returned unchanged) and are **re-encrypted lazily** the next time the row is saved — no migration step, no schema change.
+- Still plaintext: Twitch's OAuth access/refresh tokens have their own older DPAPI layer; Kick/YouTube access and refresh tokens, the setup wizard's Discord row token, and the on-disk `twitch_credentials.json` / `kick_credentials.json` / ngrok token files are not wrapped — the same advice stands: **protect the PC, not just the app.**
+- Profile PINs remain salted PBKDF2-SHA256 hashes (see the Profile category below).
+
 ## User Guide
 
 Themes apply **live** — picking a theme (or applying a custom one) re-colors the whole app instantly, no restart needed: every page, card, dialog, the Chat window, and even the flow editor's canvas/wires/cards re-skin in place. Built-in themes also clear any leftover custom-accent overrides, so switching from a Custom theme back to a built-in one is clean. A handful of colors are intentionally theme-independent: platform identity accents (Kick green, Twitch purple, Discord blurple), the flow editor's per-panel rail accents, alert-overlay colors (rendered over live video), and the color-picker swatches. The **Advanced** tab also has a **🔄 Restart App** button that closes Vyral and starts it again for you. The Theme page also has a **Brightness Levels** card with two sliders — one for dark themes, one for light — that darken or lighten the entire app's backgrounds, cards, borders, and canvas in real time as you drag (0 = the theme's native palette, up to ±100 toward black or white). Your level is remembered per base theme (dark and light separately), applies on startup, survives theme switches, and the flow editor's canvas follows it too. Custom themes also get a full **color picker** (saturation/value square + hue strip + live hex and RGB readout) — drag it and the entire app's accent recolors in real time.

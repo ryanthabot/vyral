@@ -116,6 +116,20 @@ The builder needs a connected bot and a configured mod channel — it tells you 
 - **Channel creation** lives on the Discord service (`CreateModChannelAsync(modRoleName)`): resolve the role first (so a typo never leaves a bot-only invisible channel behind), reuse an existing `#vyral-mods`, otherwise create it with permission overwrites denying `@everyone` and allowing only the mod role and the bot. The resulting snowflake is persisted to `Mod.ChannelId` and the bot's `DiscordBots.ModChannelId` column.
 - **The Moderator page** (`ModeratorViewModel` + `ModeratorView`) is navigation-scoped: MainViewModel builds it fresh on each visit and disposes it on leave. Its builder composes the preview string from `ModCommandTemplate` records and persists favorites as JSON in the `Mod.FavoriteCommands` config key.
 
+### Auto-mod platform parity
+
+The **auto-moderator** (`ModerationActionService`, `VyralBot.Core/Services/Moderation/`) executes rule-engine verdicts against per-platform adapters with graceful degradation: a platform without a needed API falls back through timeout → delete → warn, and a platform with no adapter at all is still logged. Since the Twitch Helix work (2026-11-07), enforcement is no longer notice-only on the big two. The Moderator dashboard renders this parity card live from `ModerationPlatformParity.Snapshot` (audit table merged with actual adapter registration), so what you see is what the build can do:
+
+| Platform | Enforcement level | What actually happens |
+|---|---|---|
+| **Twitch** | **Full** | `TwitchModerationAdapter` enforces ban / timeout / delete natively via Helix (`POST /moderation/bans`, `DELETE /moderation/chat`). The chat pipeline does not parse IRC message ids yet, so a Delete without a message id degrades to a **1-second timeout** — a timeout purges the sender's messages, which still removes the offending line. |
+| **Discord** | **Full** | `DiscordModerationAdapter` enforces **ban + timeout** by username (timeouts are minute-granular, rounded up, minimum 1). No delete-by-id/by-author API is exposed, so Delete verdicts degrade to a warning notice in the selected channel. |
+| **Kick** | **Notice-only** | `KickModerationAdapter` posts warn notices; the moderation webhooks ([Web Server & ngrok](../settings/web-server-ngrok.md)) are inbound notifications, not outbound actions — ban/timeout/delete degrade to warn. |
+| **YouTube** | **Notice-only** | `YouTubeModerationAdapter` posts warn notices; the YouTube service is connect/send + stream info only — ban/timeout/delete degrade to warn. |
+| **TikTok** | **None** | No chat service integration exists (web setup only) — auto-mod verdicts are logged only. |
+
+This table is the code's own audit-truth (`ModerationPlatformParity.Table` in ModerationActionService.cs); the dashboard card colors the level badge green (Full) / amber (Notice-only) / red (None).
+
 ## Data & Settings
 
 Per-profile config keys (see [Data Layer](data-layer.md)):

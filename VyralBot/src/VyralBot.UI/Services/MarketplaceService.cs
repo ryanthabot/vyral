@@ -123,6 +123,17 @@ public sealed class MarketplaceEntry
     }
 }
 
+/// <summary>
+/// Result of a marketplace listing fetch: the entries plus a friendly error
+/// when the store could not be reached (offline / rate-limited). A null error
+/// with zero entries means the store is genuinely empty; a non-null error
+/// means the shown entries may be stale cache (or none at all).
+/// </summary>
+public sealed record MarketplaceListing(IReadOnlyList<MarketplaceEntry> Entries, string? Error)
+{
+    public static MarketplaceListing Empty { get; } = new(Array.Empty<MarketplaceEntry>(), null);
+}
+
 /// <summary>Result of resolving a pasted share/offline code into an importable snapshot.</summary>
 public sealed record CodeImportResult(FlowEditorSnapshotDto? Snapshot, string Label, string? Error)
 {
@@ -264,6 +275,14 @@ public class MarketplaceService
         return new string(chars.ToArray());
     }
 
+    /// <summary>
+    /// Hard import ceilings for pasted codes: an offline code (base64 text)
+    /// may not exceed ~4 MB and its decompressed flow document ~4 MB — both to
+    /// keep a hostile paste (gzip bomb / oversized flow) from draining memory.
+    /// </summary>
+    public const int MaxOfflineCodeChars = 4_000_000;
+    public const int MaxFlowJsonChars = 4_000_000;
+
     /// <summary>Wraps a raw flow document into a fully self-contained paste-able code.</summary>
     public static string EncodeOfflineCode(string flowJson)
     {
@@ -287,6 +306,11 @@ public class MarketplaceService
         }
 
         string candidate = code.Trim();
+        if (candidate.Length > MaxOfflineCodeChars)
+        {
+            return false;
+        }
+
         int index = candidate.IndexOf(OfflinePrefix, StringComparison.OrdinalIgnoreCase);
         if (index < 0)
         {
@@ -299,7 +323,21 @@ public class MarketplaceService
             using var source = new MemoryStream(compressed);
             using var gzip = new GZipStream(source, CompressionMode.Decompress);
             using var output = new MemoryStream();
-            gzip.CopyTo(output);
+
+            // Bounded decompression: a small compressed payload can expand to
+            // gigabytes, so stop (and fail) once the flow document ceiling is passed.
+            byte[] buffer = new byte[64 * 1024];
+            int read;
+            while ((read = gzip.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                if (output.Length + read > MaxFlowJsonChars)
+                {
+                    return false;
+                }
+
+                output.Write(buffer, 0, read);
+            }
+
             flowJson = Encoding.UTF8.GetString(output.ToArray());
             return flowJson.Length > 0;
         }
@@ -368,6 +406,13 @@ public class MarketplaceService
                 return null;
             }
 
+            // Newer-schema documents (written by a future Vyral build) may carry
+            // node types this version cannot sanitize — refuse instead of crashing.
+            if (document.SchemaVersion > CurrentSchemaVersion || document.Flow.Length > MaxFlowJsonChars)
+            {
+                return null;
+            }
+
             document.Category = MarketplaceCategories.Normalize(document.Category);
             return document;
         }
@@ -376,6 +421,22 @@ public class MarketplaceService
             return null;
         }
     }
+
+    /// <summary>Schema version this build writes and understands.</summary>
+    public const int CurrentSchemaVersion = 1;
+
+    /// <summary>
+    /// Maps an import-time exception to a user-safe message — never surfaces
+    /// raw exception text (host names, stack details) in the UI; the full
+    /// exception is still logged by the caller.
+    /// </summary>
+    public static string DescribeImportError(Exception ex) => ex switch
+    {
+        HttpRequestException => "could not reach the marketplace — check your internet connection and try again.",
+        TaskCanceledException => "the request timed out — try again in a moment.",
+        IOException or UnauthorizedAccessException => ex.Message, // local file problems (locked, permissions) are safe and useful to show
+        _ => "an unexpected error occurred (details are in the log)."
+    };
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
@@ -393,6 +454,11 @@ public class MarketplaceService
         if (string.IsNullOrWhiteSpace(input))
         {
             return new CodeImportResult(null, string.Empty, "Paste a share code first.");
+        }
+
+        if (input.Trim().Length > MaxOfflineCodeChars)
+        {
+            return new CodeImportResult(null, string.Empty, "That code is too large to be a Vyral share code.");
         }
 
         if (LooksLikeOfflineCode(input))
@@ -425,10 +491,14 @@ public class MarketplaceService
 
             return new CodeImportResult(snapshot, $"{document!.Name} ({code})", null);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Import by code failed for {Code}", code);
-            return new CodeImportResult(null, string.Empty, $"Import failed: {ex.Message}");
+            return new CodeImportResult(null, string.Empty, $"Import failed: {DescribeImportError(ex)}");
         }
     }
 
@@ -436,19 +506,31 @@ public class MarketplaceService
     // Read path — GitHub (unauthenticated)
     // ==================================================================================
 
-    /// <summary>Lists all shared commands (10-minute cache). Empty list on any failure.</summary>
-    public async Task<IReadOnlyList<MarketplaceEntry>> ListAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Lists all shared commands (10-minute cache). Never throws for
+    /// store/network problems: the result carries the (possibly cached, possibly
+    /// empty) entries plus a friendly error explaining why the store could not
+    /// be refreshed — so the UI can distinguish "empty store" from "offline".
+    /// </summary>
+    public async Task<MarketplaceListing> ListAsync(CancellationToken cancellationToken = default)
     {
         var settings = await MarketplaceSettings.LoadAsync(_dataService);
         if (string.IsNullOrWhiteSpace(settings.GitHubOwner) || string.IsNullOrWhiteSpace(settings.GitHubRepo))
         {
-            return Array.Empty<MarketplaceEntry>();
+            return MarketplaceListing.Empty;
         }
 
         string cacheKey = $"{settings.GitHubOwner}/{settings.GitHubRepo}@{settings.Branch}";
         if (_listingCache is { } cache && cache.CacheKey == cacheKey && DateTime.UtcNow - cache.At < ListingCacheLifetime)
         {
-            return cache.Entries;
+            return new MarketplaceListing(cache.Entries, null);
+        }
+
+        MarketplaceListing Stale(string error)
+        {
+            IReadOnlyList<MarketplaceEntry> entries =
+                _listingCache?.CacheKey == cacheKey ? _listingCache.Value.Entries : Array.Empty<MarketplaceEntry>();
+            return new MarketplaceListing(entries, error);
         }
 
         try
@@ -460,20 +542,28 @@ public class MarketplaceService
             {
                 // Empty/new marketplace repo — normal, cache as empty.
                 _listingCache = (cacheKey, DateTime.UtcNow, new List<MarketplaceEntry>());
-                return Array.Empty<MarketplaceEntry>();
+                return MarketplaceListing.Empty;
+            }
+
+            if ((int)response.StatusCode is 403 or 429)
+            {
+                // GitHub's unauthenticated API rate limit (60 req/h/IP) — the
+                // per-entry raw fetches usually still work, so keep stale data.
+                _logger.LogWarning("Marketplace listing rate-limited ({Status}) for {Repo}", (int)response.StatusCode, cacheKey);
+                return Stale("GitHub is rate-limiting this connection — showing cached commands. Wait a minute, then press REFRESH.");
             }
 
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Marketplace listing returned {Status} for {Repo}", (int)response.StatusCode, cacheKey);
-                return _listingCache?.CacheKey == cacheKey ? _listingCache.Value.Entries : Array.Empty<MarketplaceEntry>();
+                return Stale($"Could not reach the GitHub store (HTTP {(int)response.StatusCode}) — press REFRESH to retry.");
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             using var json = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
             if (json.RootElement.ValueKind != JsonValueKind.Array)
             {
-                return Array.Empty<MarketplaceEntry>();
+                return MarketplaceListing.Empty;
             }
 
             var codes = json.RootElement.EnumerateArray()
@@ -496,7 +586,7 @@ public class MarketplaceService
                 .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             _listingCache = (cacheKey, DateTime.UtcNow, list);
-            return list;
+            return new MarketplaceListing(list, null);
         }
         catch (OperationCanceledException)
         {
@@ -505,7 +595,7 @@ public class MarketplaceService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Marketplace listing failed for {Repo}", cacheKey);
-            return _listingCache?.CacheKey == cacheKey ? _listingCache.Value.Entries : Array.Empty<MarketplaceEntry>();
+            return Stale("Could not reach the GitHub store — check your connection and press REFRESH.");
         }
     }
 

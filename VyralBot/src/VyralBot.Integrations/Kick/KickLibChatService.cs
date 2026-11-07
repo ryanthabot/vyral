@@ -338,11 +338,7 @@ public class KickLibChatService : IKickService, IDisposable
 
     private void OnChatMessage(object? sender, ChatMessageEventArgs e)
     {
-        _logger.LogInformation("🎯 OnChatMessage event FIRED! Sender: {Sender}", sender?.GetType().Name ?? "null");
-
         var msg = e.Data;
-        _logger.LogInformation("💬 Received message from {Username} (ID: {UserId}): {Message}",
-            msg.Sender.Username, msg.Sender.Id, msg.Content);
 
         var chatEvent = new KickChatMessageEvent
         {
@@ -361,8 +357,7 @@ public class KickLibChatService : IKickService, IDisposable
         };
 
         // Publish to EventBus (triggers ChatViewModel, TriggerEngine, etc.)
-        // Use Task.Run to avoid blocking the Pusher event thread and ensure delivery
-        _logger.LogInformation("📢 Publishing KickChatMessageEvent to EventBus for {Username}", msg.Sender.Username);
+        // SafePublishAsync offloads to avoid blocking the Pusher event thread
         SafePublishAsync(chatEvent, nameof(KickChatMessageEvent));
 
         // Also publish the platform-agnostic chat message event so unified
@@ -386,10 +381,7 @@ public class KickLibChatService : IKickService, IDisposable
         SafePublishAsync(genericEvent, nameof(ChatMessageReceivedEvent));
 
         // Store in database (always store for history, regardless of KickChatEnabled)
-        _logger.LogDebug("💾 Storing message in database for channel: {Channel}", _currentChannel ?? "Unknown");
         SafeStoreAsync("Kick", chatEvent);
-
-        _logger.LogInformation("✅ Chat message processed: {Username}: {Message}", msg.Sender.Username, msg.Content);
     }
 
     private void OnSubscription(object? sender, SubscriptionEventArgs e)

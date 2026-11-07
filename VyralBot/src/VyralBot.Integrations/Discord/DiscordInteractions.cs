@@ -41,10 +41,13 @@ public sealed record DiscordSlashInvocation
     public string? GuildName { get; set; }
 
     /// <summary>
-    /// Optional reply channel (interaction followup — already deferred, so this
-    /// works even when the workflow engine needs more than Discord's 3-second
-    /// response window). Best-effort: never throws. Null when the interaction
-    /// could not be captured.
+    /// Optional reply channel (interaction followup — the interaction is
+    /// already deferred at trigger entry, so this works even when the workflow
+    /// engine needs more than Discord's 3-second response window). Replies are
+    /// ephemeral (Discord MessageFlags.Ephemeral), visible only
+    /// to the invoking user (see DiscordService.RespondEphemeralAsync).
+    /// Best-effort: never throws. Null when the interaction could not be
+    /// captured.
     /// </summary>
     public Func<string, Task>? Respond { get; set; }
 }
@@ -76,10 +79,12 @@ public sealed record DiscordComponentInteraction
     public string[] Values { get; set; } = Array.Empty<string>();
 
     /// <summary>
-    /// Optional reply channel (interaction followup — already deferred, so this
-    /// works even when the workflow engine needs more than Discord's 3-second
-    /// response window). Best-effort: never throws. Null when the interaction
-    /// could not be captured.
+    /// Optional reply channel (interaction followup — the interaction is
+    /// already deferred at trigger entry, so this works even when the workflow
+    /// engine needs more than Discord's 3-second response window). Replies are
+    /// ephemeral (Discord MessageFlags.Ephemeral), visible only to the
+    /// invoking user (see DiscordService.RespondEphemeralAsync). Best-effort:
+    /// never throws. Null when the interaction could not be captured.
     /// </summary>
     public Func<string, Task>? Respond { get; set; }
 }

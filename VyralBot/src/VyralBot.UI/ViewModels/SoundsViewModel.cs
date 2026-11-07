@@ -139,7 +139,11 @@ public partial class SoundsViewModel : ViewModelBase
             ("Twitch", "resub", "Re-sub"),
             ("Twitch", "giftsub", "Gift Sub"),
             ("Twitch", "raid", "Raid"),
-            ("Twitch", "cheer", "Cheer")
+            ("Twitch", "cheer", "Cheer"),
+            // Twitch channel-points redemption — mirrors the Kick redemption
+            // row; ChatViewModel's OnTwitchChannelPointsRedeemAsync already
+            // plays it via PlayEventSoundAsync("redemption", "Twitch").
+            ("Twitch", "redemption", "Reward Redeemed")
         };
 
         foreach (var (platform, eventType, displayName) in eventTypes)

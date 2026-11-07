@@ -45,12 +45,21 @@ public static class RestreamArgumentBuilder
     /// already embeds the key (Kick and custom dashboards hand out ONE url
     /// with the key appended), appending the key again would publish to
     /// "<c>server/key/key</c>" — rejected by every platform — so the server is
-    /// used as the complete publish URL instead.
+    /// used as the complete publish URL instead. The same applies to a row
+    /// whose key is empty because the key IS the URL's tail: appending an
+    /// empty segment ("<c>server/</c>") is never publishable.
     /// </summary>
     public static string DestinationUrl(RestreamDestination destination)
     {
         var server = destination.ServerUrl.Trim().TrimEnd('/');
         var key = destination.StreamKey.Trim();
+
+        if (key.Length == 0)
+        {
+            // Key-less row: the server is the complete publish URL. Validation
+            // only lets this through when the URL embeds a key-shaped path.
+            return server;
+        }
 
         if (key.Length >= 8 && server.Contains(key, StringComparison.OrdinalIgnoreCase))
         {
@@ -221,6 +230,20 @@ public static class RestreamArgumentBuilder
             var key = destination.StreamKey?.Trim();
             if (string.IsNullOrEmpty(key))
             {
+                // A key-less row carries its secret inside the server URL
+                // (Kick style): FFmpeg log lines name the full URL, so mask
+                // the embedded path down to scheme://host/***.
+                var trimmedServer = destination.ServerUrl.Trim();
+                if (RestreamValidation.ServerEmbedsKey(trimmedServer)
+                    && Uri.TryCreate(trimmedServer, UriKind.Absolute, out var embedded)
+                    && !string.IsNullOrEmpty(embedded.Authority))
+                {
+                    text = text.Replace(
+                        trimmedServer,
+                        $"{embedded.Scheme}://{embedded.Authority}/***",
+                        StringComparison.OrdinalIgnoreCase);
+                }
+
                 continue;
             }
 

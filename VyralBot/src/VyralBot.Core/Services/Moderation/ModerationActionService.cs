@@ -308,54 +308,142 @@ public sealed class ModerationActionService
     }
 }
 
+/// <summary>Coarse enforcement level a platform offers the auto-moderator.</summary>
+public enum ModerationEnforcementLevel
+{
+    /// <summary>No moderation surface at all — verdicts are logged only.</summary>
+    None,
+
+    /// <summary>Adapter posts warning notices; no native per-viewer actions.</summary>
+    NoticeOnly,
+
+    /// <summary>Ban / timeout / delete (or the platform equivalent) enforced natively.</summary>
+    Full
+}
+
+/// <summary>
+/// One platform's parity row for the Moderator dashboard's enforcement card —
+/// the audit level from <see cref="ModerationPlatformParity.Table"/> merged
+/// with live adapter registration.
+/// </summary>
+public sealed record ModerationPlatformParityRow(
+    string Platform,
+    ModerationEnforcementLevel Level,
+    string Capabilities,
+    string Note,
+    bool AdapterRegistered)
+{
+    /// <summary>Short badge text ("Full" / "Notice-only" / "None").</summary>
+    public string LevelText => Level switch
+    {
+        ModerationEnforcementLevel.Full => "Full",
+        ModerationEnforcementLevel.NoticeOnly => "Notice-only",
+        _ => "None"
+    };
+
+    /// <summary>Live registration state of the platform adapter.</summary>
+    public string Registration => AdapterRegistered ? "adapter registered" : "no adapter registered";
+
+    /// <summary>One-line detail under the platform name + level badge.</summary>
+    public string Detail => $"{Registration} — {Capabilities}. {Note}";
+}
+
 /// <summary>
 /// Static per-platform moderation parity table — the audit-truth for what each
 /// integration can enforce TODAY (see the service interfaces in
-/// VyralBot.Integrations). Used by the Moderator dashboard to show which
-/// platforms degrade, and by future waves when adapters get wired.
+/// VyralBot.Integrations and the adapters in App.xaml.cs). The Moderator
+/// dashboard's parity card renders <see cref="Snapshot"/> rows so its display
+/// can never drift from this table.
 /// </summary>
 public static class ModerationPlatformParity
 {
-    /// <summary>Platform, native per-viewer capability summary, audit note.</summary>
-    public static readonly (string Platform, string BuiltIn, string Note)[] Table =
+    /// <summary>Platform, enforcement level, native capability summary, audit note.</summary>
+    public static readonly (string Platform, ModerationEnforcementLevel Level, string BuiltIn, string Note)[] Table =
     {
-        ("Twitch", "chat clear / chat modes only",
-            "ITwitchService has no per-viewer timeout/ban/delete API yet (Helix automod scopes are requested in TwitchOAuthService but unused) — auto-mod degrades to warn"),
-        ("Discord", "full",
-            "IDiscordService: ban/unban/timeout/purge/delete-by-scope — the only platform able to enforce all actions once an adapter is registered"),
-        ("Kick", "none",
-            "IKickService is connect/send only; moderation webhooks (WebhooksController) are inbound notifications, not outbound actions — auto-mod degrades to warn"),
-        ("YouTube", "none",
-            "IYouTubeService is connect/send + stream info only — auto-mod degrades to warn"),
-        ("TikTok", "none",
-            "No chat service integration exists (web setup only) — no moderation surface at all; auto-mod degrades to logged-only")
+        ("Twitch", ModerationEnforcementLevel.Full,
+            "ban / timeout / delete via Helix (POST /moderation/bans, DELETE /moderation/chat)",
+            "TwitchModerationAdapter enforces every verdict natively; the chat pipeline does not parse IRC message ids yet, so a Delete without a message id degrades to a 1-second timeout — a timeout purges the sender's messages, which still removes the offending line"),
+        ("Discord", ModerationEnforcementLevel.Full,
+            "ban / timeout by username (minute-granular)",
+            "DiscordModerationAdapter enforces ban + timeout natively; no delete-by-id/by-author API is exposed, so Delete verdicts degrade to a warning notice"),
+        ("Kick", ModerationEnforcementLevel.NoticeOnly,
+            "connect/send only",
+            "KickModerationAdapter posts warn notices; moderation webhooks (WebhooksController) are inbound notifications, not outbound actions — ban/timeout/delete degrade to warn"),
+        ("YouTube", ModerationEnforcementLevel.NoticeOnly,
+            "connect/send + stream info only",
+            "YouTubeModerationAdapter posts warn notices; IYouTubeService has no per-viewer action API — ban/timeout/delete degrade to warn"),
+        ("TikTok", ModerationEnforcementLevel.None,
+            "none",
+            "No chat service integration exists (web setup only) — auto-mod verdicts are logged only")
     };
 
     /// <summary>
-    /// One status line per known platform: registered adapter vs. built-in
-    /// capability — "no adapter (built-in: …)" makes the degradation visible.
+    /// Structured rows for the Moderator dashboard's parity card: one per
+    /// known platform (Table order) plus any registered adapter the Table
+    /// doesn't cover yet, each carrying the Table's enforcement level merged
+    /// with live adapter registration.
+    /// </summary>
+    public static IReadOnlyList<ModerationPlatformParityRow> Snapshot(ModerationActionService? service)
+    {
+        var adapters = service?.GetAdapters() ??
+            (IReadOnlyList<IModerationPlatformAdapter>)Array.Empty<IModerationPlatformAdapter>();
+        var registered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var adapter in adapters)
+        {
+            registered.Add(adapter.Platform);
+        }
+
+        var rows = new List<ModerationPlatformParityRow>(Table.Length);
+        foreach (var (platform, level, builtIn, note) in Table)
+        {
+            rows.Add(new ModerationPlatformParityRow(
+                platform, level, builtIn, note, registered.Remove(platform)));
+        }
+
+        // Adapters for platforms not yet audited into the Table (future
+        // integrations): derive the level from the advertised capabilities so
+        // they still appear on the card instead of being invisible.
+        foreach (var adapter in adapters)
+        {
+            if (registered.Remove(adapter.Platform))
+            {
+                rows.Add(new ModerationPlatformParityRow(
+                    adapter.Platform,
+                    LevelForCapabilities(adapter),
+                    DescribeCapabilities(adapter),
+                    "Platform not yet in the parity audit table — level derived from the adapter's capability flags",
+                    true));
+            }
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    /// One status line per known platform (text form of <see cref="Snapshot"/>),
+    /// e.g. for logs: enforcement level, adapter registration, degradation.
     /// </summary>
     public static IEnumerable<string> Describe(ModerationActionService service)
     {
         ArgumentNullException.ThrowIfNull(service);
-        var registered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var adapter in service.GetAdapters())
+        foreach (var row in Snapshot(service))
         {
-            registered.Add(adapter.Platform);
-            yield return
-                $"{adapter.Platform} — adapter registered ({DescribeCapabilities(adapter)}); verdicts enforce natively";
-        }
-
-        foreach (var (platform, builtIn, note) in Table)
-        {
-            if (registered.Contains(platform))
+            yield return row.Level switch
             {
-                continue;
-            }
-
-            yield return $"{platform} — no adapter (built-in: {builtIn}); actions degrade to warn — {note}";
+                ModerationEnforcementLevel.Full =>
+                    $"{row.Platform} — FULL enforcement ({row.Registration}; {row.Capabilities}) — {row.Note}",
+                ModerationEnforcementLevel.NoticeOnly =>
+                    $"{row.Platform} — NOTICE-ONLY ({row.Registration}; {row.Capabilities}) — ban/timeout/delete degrade to warn — {row.Note}",
+                _ =>
+                    $"{row.Platform} — NO enforcement surface ({row.Registration}) — actions are logged only — {row.Note}"
+            };
         }
     }
+
+    private static ModerationEnforcementLevel LevelForCapabilities(IModerationPlatformAdapter adapter)
+        => adapter.CanBan || adapter.CanTimeout || adapter.CanDeleteMessage
+            ? ModerationEnforcementLevel.Full
+            : ModerationEnforcementLevel.NoticeOnly;
 
     private static string DescribeCapabilities(IModerationPlatformAdapter adapter)
     {
@@ -363,6 +451,6 @@ public static class ModerationPlatformParity
         if (adapter.CanDeleteMessage) parts.Add("delete");
         if (adapter.CanTimeout) parts.Add("timeout");
         if (adapter.CanBan) parts.Add("ban");
-        return parts.Count == 0 ? "no actions" : string.Join("/", parts);
+        return parts.Count == 0 ? "notice-only" : string.Join("/", parts);
     }
 }

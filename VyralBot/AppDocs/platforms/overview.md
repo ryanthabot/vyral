@@ -12,10 +12,10 @@ Current connection status at a glance:
 
 | Platform | Chat in | Chat out | Events | State |
 |---|---|---|---|---|
-| [Twitch](twitch.md) | Yes (WebSocket IRC) | Yes | Follow/sub/resub/gift/raid/cheer via EventSub WebSocket | Fully implemented |
+| [Twitch](twitch.md) | Yes (WebSocket IRC) | Yes | Follow/sub/resub/gift/raid/cheer/**channel-points redemption** via EventSub WebSocket; full Helix mod enforcement (timeout/ban/delete) | Fully implemented |
 | [Kick](kick.md) | Yes (Pusher WebSocket) | Yes (sent as the broadcaster) | Hybrid: Pusher + webhooks via ngrok | Fully implemented |
-| [YouTube](youtube.md) | Yes (polling, only while live) | Yes (only while live) | Chat messages only | Implemented, chat only |
-| [Discord](discord.md) | Yes (Discord.Net gateway, every guild channel + DMs, multiple bots) | Yes (per bot, to that bot's selected channel) | Chat messages only | Implemented, chat only — bot-token wizard + multi-bot manager |
+| [YouTube](youtube.md) | Yes (polling, only while live) | Yes (only while live) | Chat messages + memberships + structured Super Chat/Super Sticker events; command timers (while live) | Implemented, chat + special events |
+| [Discord](discord.md) | Yes (Discord.Net gateway, every guild channel + DMs, multiple bots) | Yes (per bot, to that bot's selected channel) | Chat messages; member-join/boost events wired but **intent-gated off** (see [Discord](discord.md#member-joins--boosts-intent-gated)) | Implemented, chat + multi-bot manager |
 | [TikTok](tiktok-discord-obs.md) | No | No | No | UI shell only — backend not built (wizard saves "Coming Soon") |
 | OBS | — | — | — | Placeholder card on this page — OBS itself is integrated via the sidebar **OBS** page (Full OBS hosting, Bot Studio, Collections; see [TikTok & OBS](tiktok-discord-obs.md)) |
 
@@ -83,7 +83,7 @@ The lifecycle differs per platform in ways that matter:
 | Twitch | `ConnectTwitchAsync` (`PlatformsViewModel.cs:638`) — OAuth, tokens stored **DPAPI-encrypted** | `LoadTwitchPlatformAsync` (`PlatformsViewModel.cs:564`) decrypts and connects; on failure status shows "Connected (Chat offline)" | **Deletes the Platform row entirely** and disposes the wizard's WebView2 (`PlatformsViewModel.cs:828`) |
 | Kick | Wizard + `KickLibOAuthService`; tokens stored **unencrypted** | Attempts a token refresh first, then connects | Keeps the row, nulls AccessToken/RefreshToken/UserId/ChannelId/ChatroomId/ClientId/ClientSecret (`PlatformsViewModel.cs:1232`) |
 | YouTube | Wizard saves tokens; auto-connect with stored tokens | Yes (chat only) | Keeps the row, nulls credentials |
-| Discord | Wizard validates the bot token, then `DiscordService.ConnectAsync` (setup-bot token stored on the row, plaintext); additional bots via Quick Add on the [Discord Bots page](discord.md#multiple-bots) (`DiscordBots` rows) | Yes — `LoadAndConnectDiscordAsync` (`MainViewModel.cs:579`) connects the setup bot from the stored token, then `StartAllSavedAsync` (`MainViewModel.cs:298`) starts every saved bot (duplicate tokens skipped) | Keeps the row, nulls token/identity fields (the selected channel survives). Bots page **REMOVE** deletes the bot's `DiscordBots` row (after stopping it); **STOP** keeps the row with its token |
+| Discord | Wizard validates the bot token, then `DiscordService.ConnectAsync` (setup-bot token stored on the row, plaintext; every managed bot's `DiscordBots.Token` is DPAPI-wrapped); additional bots via Quick Add on the [Discord Bots page](discord.md#multiple-bots) (`DiscordBots` rows) | Yes — `LoadAndConnectDiscordAsync` (`MainViewModel.cs:579`) connects the setup bot from the stored token, then `StartAllSavedAsync` (`MainViewModel.cs:298`) starts every saved bot (duplicate tokens skipped) | Keeps the row, nulls token/identity fields (the selected channel survives). Bots page **REMOVE** deletes the bot's `DiscordBots` row (after stopping it); **STOP** keeps the row with its token |
 | TikTok | Wizard stub writes `Status="Coming Soon"` with empty tokens | No real service exists | Keeps the row, nulls credentials |
 
 `ReconnectTwitchAsync` (`PlatformsViewModel.cs:775`) deliberately re-opens the wizard at step 3 (the OAuth step) instead of silently refreshing.
@@ -167,7 +167,7 @@ platform.ClientSecret = null;
 
 ## Data & Settings
 
-Each platform is one row in the per-profile `Platforms` table (see [Data Layer](../architecture/data-layer.md) and the [database reference](../reference/database-reference.md)). Key fields on [Platform.cs](../../src/VyralBot.Data/Entities/Platform.cs): `Name`, `Status` ("Connected"/"Disconnected"/"Error"), `AccessToken`/`RefreshToken` (encrypted for Twitch, plaintext for Kick/YouTube/Discord), `TokenExpiresAt`, `Username`, `UserId`, `ChannelId` (the selected channel for Discord), `ChatroomId` (Kick only), `ClientId`/`ClientSecret`, plus per-platform `*ChatEnabled` / `*ChatAutoStart` flags.
+Each platform is one row in the per-profile `Platforms` table (see [Data Layer](../architecture/data-layer.md) and the [database reference](../reference/database-reference.md)). Key fields on [Platform.cs](../../src/VyralBot.Data/Entities/Platform.cs): `Name`, `Status` ("Connected"/"Disconnected"/"Error"), `AccessToken`/`RefreshToken` (DPAPI-encrypted for Twitch, plaintext for Kick/YouTube/Discord), `TokenExpiresAt`, `Username`, `UserId`, `ChannelId` (the selected channel for Discord), `ChatroomId` (Kick only), `ClientId`/`ClientSecret` (the **ClientSecret column is DPAPI-wrapped at rest** for every platform via `SecretProtector` — see [Settings → Security](../settings/overview.md#security-category)), plus per-platform `*ChatEnabled` / `*ChatAutoStart` flags.
 
 Credential files on disk, under the current [profile](../getting-started/profiles.md) folder: `twitch_credentials.json` (Client ID/Secret, plaintext JSON) and `kick_credentials.json` (probed by `PlatformsViewModel`; the active Kick wizard saves credentials to the DB row). Per-platform chat display settings live in [Chat Settings](../chat/chat-settings.md); the webhook/ngrok side of Kick lives in [Web Server & ngrok](../settings/web-server-ngrok.md).
 

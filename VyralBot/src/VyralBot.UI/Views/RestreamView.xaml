@@ -13,6 +13,7 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <converters:InvertBooleanToVisibilityConverter x:Key="InvertBoolToVis"/>
+        <converters:NullOrEmptyToVisibilityConverter x:Key="NonNullToVis"/>
     </UserControl.Resources>
 
     <DockPanel Margin="24">
@@ -74,13 +75,29 @@
                             </StackPanel>
 
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- Always visible: while a session runs the same command acts as
+                                     Restart (stop + fresh start), which is also the re-enable path
+                                     for destinations the engine auto-disabled mid-session. The
+                                     generated AsyncRelayCommand disables the button while a
+                                     start/stop is in flight. -->
                                 <Button Command="{Binding StartRestreamCommand}"
                                         Style="{StaticResource MaterialDesignRaisedButton}"
-                                        Visibility="{Binding IsEngineRunning, Converter={StaticResource InvertBoolToVis}}"
-                                        Margin="0,0,8,0">
+                                        Margin="0,0,8,0"
+                                        ToolTip="While running: stops and restarts the session with your current settings — destinations auto-disabled after repeated failures are re-included.">
                                     <StackPanel Orientation="Horizontal">
                                         <materialDesign:PackIcon Kind="Play" Width="18" Height="18" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Start Restream" Margin="6,0,0,0"/>
+                                        <TextBlock Margin="6,0,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="Start Restream"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEngineRunning}" Value="True">
+                                                            <Setter Property="Text" Value="Restart Restream"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </StackPanel>
                                 </Button>
                                 <Button Command="{Binding StopRestreamCommand}"
@@ -123,6 +140,22 @@
                                            Foreground="{DynamicResource TextPrimaryBrush}"/>
                             </StackPanel>
                         </Grid>
+
+                        <!-- Re-enable path: the engine excluded a failing destination so the
+                             others keep streaming; a restart of the session re-includes it. -->
+                        <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                CornerRadius="6" Padding="12,8" Margin="0,10,0,0"
+                                Visibility="{Binding HasAutoDisabledDestinations, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="A destination was auto-disabled after repeated failures. Fix its key/URL, then restart the session to re-include it."
+                                           Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                           VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <Button Content="Restart &amp; Re-enable"
+                                        Command="{Binding StartRestreamCommand}"
+                                        Style="{StaticResource MaterialDesignOutlinedButton}"
+                                        VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
 
                         <TextBlock Text="{Binding StatusMessage, Mode=OneWay}"
                                    Foreground="{DynamicResource ErrorRedBrush}"
@@ -336,13 +369,21 @@
                                                 </Grid.ColumnDefinitions>
                                                 <TextBox Grid.Column="0" Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}"
                                                          Style="{StaticResource MaterialDesignOutlinedTextBox}"
-                                                         materialDesign:HintAssist.Hint="RTMP server URL"
+                                                         materialDesign:HintAssist.Hint="RTMP server URL (rtmp://… or rtmps://…)"
                                                          Margin="0,0,8,0"/>
                                                 <PasswordBox Grid.Column="1"
                                                          PasswordChanged="StreamKeyBox_PasswordChanged"
                                                          Loaded="StreamKeyBox_Loaded"
                                                          materialDesign:HintAssist.Hint="Stream key"/>
                                             </Grid>
+
+                                            <!-- Live validation for this row (scheme, missing key,
+                                                 key-embedded URLs) — the same rules the start gate
+                                                 enforces, shown as the user types. -->
+                                            <TextBlock Text="{Binding ValidationMessage, Mode=OneWay}"
+                                                       Foreground="{DynamicResource ErrorRedBrush}"
+                                                       FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                       Visibility="{Binding ValidationMessage, Converter={StaticResource NonNullToVis}}"/>
 
                                             <!-- Row 3: resolution / bitrate / preset / audio -->
                                             <Grid Margin="0,10,0,0">
@@ -379,7 +420,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <TextBlock Text="No destinations yet — add one above. Kick gives you the full RTMP URL + key in its Stream Dashboard; paste the URL part in the server field."
+                        <TextBlock Text="No destinations yet — add one above. Twitch/YouTube: paste the well-known server and your stream key. Kick/Custom: paste the full RTMP URL from the dashboard (key included) and leave the key field empty."
                                    Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"
                                    Visibility="{Binding IsDestinationsEmpty, Converter={StaticResource BoolToVis}}"
                                    Margin="0,4,0,0"/>
@@ -440,6 +481,11 @@
                             <TextBox Text="{Binding FfmpegPathOverride}"
                                      Style="{StaticResource MaterialDesignOutlinedTextBox}"
                                      materialDesign:HintAssist.Hint="Optional: custom ffmpeg.exe path (used instead of the bundled copy / PATH)"/>
+                            <Button Grid.Column="1" Content="Browse…"
+                                    Command="{Binding BrowseFfmpegCommand}"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                                    Margin="12,0,0,0"
+                                    ToolTip="Pick an existing ffmpeg.exe on disk"/>
                         </Grid>
 
                         <TextBlock Text="FFmpeg is also used from the system PATH if it is already installed. The restream engine uses the official gyan.dev build (GPL, includes x264)."

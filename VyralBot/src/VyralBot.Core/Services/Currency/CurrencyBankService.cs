@@ -30,10 +30,61 @@ public class CurrencyBankService : ICurrencyBankService
     // never deadlock against CurrencyService's own account gates.
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _bankAccountGates = new();
 
+    // Bounded eviction (mirrors CurrencyService._accountGates): this static map
+    // would otherwise grow forever — one semaphore per viewer ever seen — in a
+    // 24/7 process. Past the threshold, a rate-limited sweep on gate access
+    // removes gates nobody holds (CurrentCount == 1); held gates are never
+    // evicted, so in-flight bank mutations stay serialized. An evicted idle
+    // viewer simply gets a fresh gate on its next deposit/withdraw.
+    private const int BankGateEvictionThreshold = 10_000;
+    private static readonly long BankGateSweepIntervalTicks = TimeSpan.FromMinutes(1).Ticks;
+    private static long _nextBankGateSweepTicksUtc;
+
     private static SemaphoreSlim GetBankAccountGate(string username, string platform)
-        => _bankAccountGates.GetOrAdd(
+    {
+        var gate = _bankAccountGates.GetOrAdd(
             $"{username.ToLowerInvariant()}:{platform.ToLowerInvariant()}",
             _ => new SemaphoreSlim(1, 1));
+        EvictIdleBankGatesIfNeeded();
+        return gate;
+    }
+
+    /// <summary>
+    /// Trims <see cref="_bankAccountGates"/> when it grows past
+    /// <see cref="BankGateEvictionThreshold"/>: at most one sweep per minute
+    /// (Interlocked claim on the next-sweep timestamp), removing only
+    /// semaphores nobody holds. Best-effort and allocation-free when idle.
+    /// </summary>
+    private static void EvictIdleBankGatesIfNeeded()
+    {
+        if (_bankAccountGates.Count <= BankGateEvictionThreshold)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow.Ticks;
+        var next = Interlocked.Read(ref _nextBankGateSweepTicksUtc);
+        if (now < next)
+        {
+            return;
+        }
+
+        // Claim the sweep slot; concurrent callers keep using their gates.
+        if (Interlocked.CompareExchange(
+                ref _nextBankGateSweepTicksUtc, now + BankGateSweepIntervalTicks, next) != next)
+        {
+            return;
+        }
+
+        foreach (var pair in _bankAccountGates)
+        {
+            if (pair.Value.CurrentCount == 1)
+            {
+                // Nothing to dispose: an unheld SemaphoreSlim owns no handles.
+                _bankAccountGates.TryRemove(pair.Key, out _);
+            }
+        }
+    }
 
     public CurrencyBankService(
         ILogger<CurrencyBankService> logger,

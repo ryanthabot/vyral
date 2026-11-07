@@ -84,7 +84,10 @@ public class AlertService : IAlertService
         ["Gift Subs!"] = "giftsub",
         ["New Host!"] = "host",
         ["Raid!"] = "raid",
-        ["Bits!"] = "cheer"
+        ["Bits!"] = "cheer",
+        ["Super Chat!"] = "cheer",
+        ["New Member!"] = "follow",
+        ["Server Boosted!"] = "subscribe"
     };
 
     private readonly ILogger<AlertService> _logger;

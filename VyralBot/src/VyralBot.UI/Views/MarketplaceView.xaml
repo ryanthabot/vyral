@@ -213,10 +213,21 @@
                                 <DataTrigger Binding="{Binding HasEntries}" Value="False">
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </DataTrigger>
+                                <DataTrigger Binding="{Binding HasLoadError}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
+
+                <!-- Offline / rate-limited: the listing could not be refreshed (cached rows may still show) -->
+                <TextBlock Text="Could not load the marketplace right now (offline or rate-limited by GitHub). Press REFRESH to retry."
+                           FontSize="13.5"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Margin="4,8"
+                           Visibility="{Binding HasLoadError, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
                 <ItemsControl ItemsSource="{Binding Groups}">
                     <ItemsControl.ItemTemplate>

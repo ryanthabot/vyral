@@ -25,15 +25,26 @@ namespace VyralBot.UI.Controls.FlowCanvas;
 /// <para>
 /// INTERACTION MODEL (summary for docs):
 /// • Canvas: 6000x4000 world surface with a dot grid that scales with zoom,
-///   hosted in a ScrollViewer — drag empty canvas to pan or use the scrollbars.
-/// • Zoom: mouse wheel zooms 25%–200% around the cursor; ZoomIn/ZoomOut step
+///   hosted in a ScrollViewer — MIDDLE-drag (or the scrollbars) pans; a
+///   LEFT-drag on empty canvas rubber-band multi-selects. Zoom: mouse wheel
+///   zooms 25%–200% around the cursor; ZoomIn/ZoomOut step
 ///   ±10% around the viewport center; ResetZoom returns to 100%;
 ///   FitToContent frames every node. Shift+wheel scrolls horizontally.
+/// • Rubber band: left-drag on empty canvas draws a dashed selection
+///   rectangle (FlowCanvasSelection style); on release every node whose
+///   bounds intersect it is selected — ADDITIVE (union) while Ctrl/Shift is
+///   held, replace otherwise. A plain left click (no drag) still deselects.
 /// • Nodes: click to select (blue highlight, raises NodeSelected), click the
 ///   background to deselect (NodeSelected(null)), drag the body to move
-///   (wires follow live; GraphChanged fires once at drag end), double-click to
-///   rename in place, Ctrl+D to duplicate (+24/+24, new id, no wires),
-///   Delete to remove (also clears every wire/routing field referencing it).
+///   (wires follow live; GraphChanged fires once at drag end — dragging a
+///   node inside a MULTI-selection moves the whole group, one GraphChanged),
+///   double-click to rename in place, Ctrl/Shift+click to toggle one node in
+///   or out of the multi-selection, Ctrl+D to duplicate (+24/+24, new id, no
+///   wires — duplicates every selected duplicatable node), Ctrl+C/Ctrl+V to
+///   copy/paste the selection through the same duplicate machinery
+///   (canvas-local clipboard, pastes cascade +24/+24), Delete to remove ALL
+///   selected nodes (also clears every wire/routing field referencing them;
+///   one GraphChanged for the whole batch).
 /// • Ports/wires: drag from a colored output port (bottom of a node) to
 ///   another node's input port to connect — self-connects, duplicates,
 ///   cycles and wires landing on attachment/component cards are rejected
@@ -207,6 +218,7 @@ public class FlowCanvasControl : Control
     private FlowPinnedWireVisual? _errorWire;
     private List<FlowParameterCardInfo> _parameterCards = new(); // last SetParameterCards snapshot (drives the row above the trigger card)
 
+    private readonly List<FlowCanvasNode> _selectedNodes = new(); // ordered multi-selection (includes the primary _selectedNode)
     private DragMode _mode = DragMode.None;
     private Point _panStartScreen;
     private double _panStartOffsetX;
@@ -214,9 +226,14 @@ public class FlowCanvasControl : Control
     private bool _panMoved;
     private FlowNodeVisual? _dragVisual;
     private Point _dragStartWorld;
-    private double _nodeStartX;
-    private double _nodeStartY;
     private bool _nodeMoved;
+    private bool _dragKeepsSelection;          // plain press on a node already inside a MULTI-selection → keep the set for a group drag
+    private readonly Dictionary<FlowCanvasNode, Point> _dragGroupStarts = new(); // node → start X/Y snapshot for single- AND multi-node drags
+    private Point _selectStartWorld;           // rubber-band anchor (world coordinates)
+    private bool _selectMoved;                 // rubber band crossed the 3px click threshold
+    private Rectangle? _rubberBand;            // live selection rectangle on the overlay layer
+    private bool _suppressGraphChanged;        // batching (multi delete/paste): ONE GraphChanged per user action
+    private List<FlowNodeCopy>? _copyClipboard; // Ctrl+C snapshot (canvas-local; not the OS clipboard)
     private FlowCanvasNode? _connectNode;
     private Point _pendingStart; // world point the pending wire leaves from (cached at drag start)
     private bool _pendingOrthogonal; // pending wire previews the elbow style for grey attachment ports
@@ -315,8 +332,16 @@ public class FlowCanvasControl : Control
         }
     }
 
-    /// <summary>The currently selected node, or null.</summary>
+    /// <summary>The currently selected node (the primary — last interacted), or null.</summary>
     public FlowCanvasNode? SelectedNode => _selectedNode;
+
+    /// <summary>
+    /// The full multi-selection (rubber band, Ctrl/Shift+click, group
+    /// paste/duplicate). The last entry is the primary
+    /// (<see cref="SelectedNode"/>); the list is empty when nothing is
+    /// selected. Order is interaction order.
+    /// </summary>
+    public IReadOnlyList<FlowCanvasNode> SelectedNodes => _selectedNodes;
 
     /// <summary>
     /// Id of the node wired to the trigger card's output port (the main-flow
@@ -953,8 +978,10 @@ public class FlowCanvasControl : Control
             {
                 _contentCanvas = contentCanvas;
                 contentCanvas.MouseLeftButtonDown += OnCanvasMouseDown;
+                contentCanvas.MouseDown += OnCanvasAnyMouseDown; // middle-button pan (left now rubber-band selects)
                 contentCanvas.MouseMove += OnCanvasMouseMove;
                 contentCanvas.MouseLeftButtonUp += OnCanvasMouseUp;
+                contentCanvas.MouseUp += OnCanvasMouseUpAny; // middle-release ends pan (WPF routes middle through MouseUp.ChangedButton)
                 contentCanvas.LostMouseCapture += OnCanvasLostCapture;
                 contentCanvas.DragOver += OnCanvasDragOver;
                 contentCanvas.Drop += OnCanvasDrop;
@@ -1838,13 +1865,17 @@ public class FlowCanvasControl : Control
         _wires.Clear();
         _selectedWire = null;
         _selectedNode = null;
+        _selectedNodes.Clear();
 
         foreach (FlowCanvasNode node in _nodes)
         {
             node.PropertyChanged += OnNodePropertyChanged;
             AddVisualCore(node);
             if (node.IsSelected)
-                _selectedNode = node;
+            {
+                _selectedNodes.Add(node);
+                _selectedNode = node; // last pre-selected node wins (same as before)
+            }
         }
 
         // Pre-routed loads (DB workflows, drafts, imports) carry their routing
@@ -1928,10 +1959,13 @@ public class FlowCanvasControl : Control
             ErrorNodeChanged?.Invoke(this, null);
         }
 
+        _selectedNodes.Remove(node);
         if (ReferenceEquals(_selectedNode, node))
         {
-            _selectedNode = null;
-            NodeSelected?.Invoke(this, null);
+            // The deleted primary hands the primary role to the next selected
+            // node (multi-delete keeps the host's settings target truthful).
+            _selectedNode = _selectedNodes.Count > 0 ? _selectedNodes[^1] : null;
+            NodeSelected?.Invoke(this, _selectedNode);
         }
 
         UpdateTriggerCardPosition(); // also refreshes the pinned wire geometry
@@ -2492,16 +2526,52 @@ public class FlowCanvasControl : Control
             return;
         }
 
-        SelectNode(visual.Node);
+        bool additive = (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != ModifierKeys.None;
+        if (additive)
+        {
+            ToggleNodeSelection(visual.Node); // Ctrl/Shift+click: toggle one node in/out of the multi-selection
+        }
+        else if (!_selectedNodes.Contains(visual.Node))
+        {
+            SelectNode(visual.Node); // plain click on an unselected node — single selection
+        }
+
+        // Plain click on a node that is already inside a MULTI-selection keeps
+        // the set so the whole group drags together; if the pointer never moves,
+        // mouse-up collapses the selection back to just this node (Windows
+        // convention — no accidental multi-delete after a stray click).
+        _dragKeepsSelection = !additive && _selectedNodes.Contains(visual.Node) && _selectedNodes.Count > 1;
 
         _mode = DragMode.NodeDrag;
         _dragVisual = visual;
         _dragStartWorld = _contentCanvas != null ? e.GetPosition(_contentCanvas) : e.GetPosition(visual);
-        _nodeStartX = visual.Node.X;
-        _nodeStartY = visual.Node.Y;
         _nodeMoved = false;
+        SnapshotDragGroup();
         visual.CaptureMouse();
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Snapshots the start position of every node this drag must move: the
+    /// WHOLE selection when the pressed node belongs to one (multi-node drag),
+    /// just the pressed node otherwise. Single- and multi-node drags then share
+    /// the same mouse-move math.
+    /// </summary>
+    private void SnapshotDragGroup()
+    {
+        _dragGroupStarts.Clear();
+        if (_dragVisual == null)
+            return;
+
+        if (_selectedNodes.Contains(_dragVisual.Node))
+        {
+            foreach (FlowCanvasNode node in _selectedNodes)
+                _dragGroupStarts[node] = new Point(node.X, node.Y);
+        }
+        else
+        {
+            _dragGroupStarts[_dragVisual.Node] = new Point(_dragVisual.Node.X, _dragVisual.Node.Y);
+        }
     }
 
     private void OnNodeMouseMove(object? sender, MouseEventArgs e)
@@ -2519,10 +2589,13 @@ public class FlowCanvasControl : Control
         if (!_nodeMoved)
             return;
 
-        double width = visual.ActualWidth > 0 ? visual.ActualWidth : FlowNodeVisual.WidthFor(visual.Node);
-        double height = visual.ActualHeight > 0 ? visual.ActualHeight : FlowNodeVisual.DefaultHeightFor(visual.Node);
-        visual.Node.X = ClampX(_nodeStartX + dx, width);
-        visual.Node.Y = ClampY(_nodeStartY + dy, height);
+        foreach (KeyValuePair<FlowCanvasNode, Point> start in _dragGroupStarts)
+        {
+            FlowCanvasNode node = start.Key;
+            node.X = ClampX(start.Value.X + dx, FlowNodeVisual.WidthFor(node));
+            node.Y = ClampY(start.Value.Y + dy, FlowNodeVisual.DefaultHeightFor(node));
+        }
+
         e.Handled = true;
     }
 
@@ -2536,7 +2609,10 @@ public class FlowCanvasControl : Control
         _mode = DragMode.None;
         _dragVisual = null;
         if (_nodeMoved)
-            RaiseGraphChanged(); // move events throttle to drag end
+            RaiseGraphChanged(); // move events throttle to drag end (one event for the whole group)
+        else if (_dragKeepsSelection)
+            SelectNode(visual.Node); // plain click without a drag collapses the multi-selection to this node
+        _dragGroupStarts.Clear();
         e.Handled = true;
     }
 
@@ -2549,6 +2625,7 @@ public class FlowCanvasControl : Control
         _dragVisual = null;
         if (_nodeMoved)
             RaiseGraphChanged();
+        _dragGroupStarts.Clear();
     }
 
     private void SelectNode(FlowCanvasNode? node) => SelectNode(node, raiseEvent: true);
@@ -2561,24 +2638,14 @@ public class FlowCanvasControl : Control
         _selectionSync = true;
         try
         {
-            if (!ReferenceEquals(_selectedNode, node))
+            if (node == null)
             {
-                FlowCanvasNode? previous = _selectedNode;
-                _selectedNode = node;
-
-                if (previous != null)
-                {
-                    previous.IsSelected = false;
-                    if (_visuals.TryGetValue(previous.Id, out FlowNodeVisual? oldVisual))
-                        oldVisual.RefreshChrome();
-                }
-
-                if (node != null)
-                {
-                    node.IsSelected = true;
-                    if (_visuals.TryGetValue(node.Id, out FlowNodeVisual? newVisual))
-                        newVisual.RefreshChrome();
-                }
+                ClearNodeSelectionCore();
+            }
+            else if (_selectedNodes.Count != 1 || !ReferenceEquals(_selectedNodes[0], node))
+            {
+                ClearNodeSelectionCore();
+                AddNodeSelectionCore(node);
             }
 
             SelectWire(null);
@@ -2591,6 +2658,98 @@ public class FlowCanvasControl : Control
         }
     }
 
+    /// <summary>
+    /// Applies a rubber-band or toggle multi-selection: replaces the selection,
+    /// or unions into it when <paramref name="additive"/>. Raises
+    /// <see cref="NodeSelected"/> with the node when EXACTLY ONE ends up
+    /// selected, null otherwise (a multi-selection has no single
+    /// settings-panel target).
+    /// </summary>
+    private void ApplyNodeSelection(IReadOnlyList<FlowCanvasNode> nodes, bool additive)
+    {
+        if (_selectionSync)
+            return;
+
+        _selectionSync = true;
+        try
+        {
+            if (!additive)
+                ClearNodeSelectionCore();
+
+            foreach (FlowCanvasNode node in nodes)
+            {
+                if (!_selectedNodes.Contains(node))
+                    AddNodeSelectionCore(node);
+            }
+
+            SelectWire(null);
+            NodeSelected?.Invoke(this, _selectedNodes.Count == 1 ? _selectedNode : null);
+        }
+        finally
+        {
+            _selectionSync = false;
+        }
+    }
+
+    /// <summary>Ctrl/Shift+click: toggles one node in/out of the multi-selection.</summary>
+    private void ToggleNodeSelection(FlowCanvasNode node)
+    {
+        if (_selectionSync)
+            return;
+
+        _selectionSync = true;
+        try
+        {
+            if (_selectedNodes.Contains(node))
+                RemoveNodeSelectionCore(node);
+            else
+                AddNodeSelectionCore(node);
+
+            SelectWire(null);
+            NodeSelected?.Invoke(this, _selectedNodes.Count == 1 ? _selectedNode : null);
+        }
+        finally
+        {
+            _selectionSync = false;
+        }
+    }
+
+    /// <summary>
+    /// Clears every selected node. Core helpers assume the
+    /// <c>_selectionSync</c> guard is held by their callers.
+    /// </summary>
+    private void ClearNodeSelectionCore()
+    {
+        foreach (FlowCanvasNode selected in _selectedNodes)
+        {
+            selected.IsSelected = false;
+            if (_visuals.TryGetValue(selected.Id, out FlowNodeVisual? visual))
+                visual.RefreshChrome();
+        }
+
+        _selectedNodes.Clear();
+        _selectedNode = null;
+    }
+
+    private void AddNodeSelectionCore(FlowCanvasNode node)
+    {
+        node.IsSelected = true;
+        if (_visuals.TryGetValue(node.Id, out FlowNodeVisual? visual))
+            visual.RefreshChrome();
+        _selectedNodes.Add(node);
+        _selectedNode = node; // most recently added becomes the primary
+    }
+
+    private void RemoveNodeSelectionCore(FlowCanvasNode node)
+    {
+        node.IsSelected = false;
+        if (_visuals.TryGetValue(node.Id, out FlowNodeVisual? visual))
+            visual.RefreshChrome();
+        _selectedNodes.Remove(node);
+        if (ReferenceEquals(_selectedNode, node))
+            _selectedNode = _selectedNodes.Count > 0 ? _selectedNodes[^1] : null;
+    }
+
     private void SyncSelectionFromNode(FlowCanvasNode node)
     {
         if (_selectionSync)
@@ -2598,31 +2757,67 @@ public class FlowCanvasControl : Control
 
         if (node.IsSelected)
         {
-            SelectNode(node);
+            SelectNode(node); // external IsSelected=true adopts as the single selection (unchanged behavior)
         }
-        else if (ReferenceEquals(_selectedNode, node))
+        else if (_selectedNodes.Contains(node))
         {
-            _selectedNode = null;
-            if (_visuals.TryGetValue(node.Id, out FlowNodeVisual? visual))
-                visual.RefreshChrome();
-            NodeSelected?.Invoke(this, null);
+            _selectionSync = true;
+            try
+            {
+                RemoveNodeSelectionCore(node);
+                if (_selectedNode == null)
+                    NodeSelected?.Invoke(this, null); // the primary went away and nothing replaces it
+            }
+            finally
+            {
+                _selectionSync = false;
+            }
         }
     }
 
     // =====================================================================================
-    // Pan
+    // Pan (middle button) + rubber-band selection (left button on empty canvas)
     // =====================================================================================
 
+    /// <summary>
+    /// LEFT button on the bare canvas background (no node/port/wire under the
+    /// pointer, no wire drag in progress): starts a rubber-band multi-select.
+    /// While the pointer stays within the 3px click threshold nothing changes;
+    /// crossing it draws the selection rectangle, and mouse-up applies the
+    /// selection — every node whose bounds intersect the rectangle, ADDITIVE
+    /// (union with the existing selection) while Ctrl/Shift is held. A plain
+    /// click without movement keeps the classic clear-selection behavior.
+    /// </summary>
     private void OnCanvasMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (_contentCanvas == null || _scrollViewer == null)
+        if (_contentCanvas == null)
             return;
         if (!ReferenceEquals(e.OriginalSource, _contentCanvas))
             return; // bare canvas background only — nodes/ports/wires handle themselves
+        if (_mode != DragMode.None)
+            return; // a wire/node/rubber-band drag is already in flight
 
         Focus();
-        SelectNode(null);
-        SelectWire(null);
+
+        _mode = DragMode.Select;
+        _selectStartWorld = e.GetPosition(_contentCanvas);
+        _selectMoved = false;
+        _contentCanvas.CaptureMouse();
+        Cursor = Cursors.Cross;
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// MIDDLE button anywhere on the canvas surface: pans (the classic
+    /// left-drag pan handed the left button over to rubber-band selection).
+    /// Scrollbars and wheel-zoom panning are unchanged.
+    /// </summary>
+    private void OnCanvasAnyMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Middle || _scrollViewer == null || _contentCanvas == null)
+            return;
+        if (_mode != DragMode.None)
+            return;
 
         _mode = DragMode.Pan;
         _panStartScreen = e.GetPosition(_scrollViewer);
@@ -2636,9 +2831,27 @@ public class FlowCanvasControl : Control
 
     private void OnCanvasMouseMove(object sender, MouseEventArgs e)
     {
-        if (_mode != DragMode.Pan || _scrollViewer == null || _contentCanvas == null)
+        if (_contentCanvas == null || !_contentCanvas.IsMouseCaptured)
             return;
-        if (!_contentCanvas.IsMouseCaptured)
+
+        if (_mode == DragMode.Select)
+        {
+            Point world = e.GetPosition(_contentCanvas);
+            if (!_selectMoved)
+            {
+                if (Math.Abs(world.X - _selectStartWorld.X) <= 3d && Math.Abs(world.Y - _selectStartWorld.Y) <= 3d)
+                    return; // still within the click threshold — not a rubber band yet
+
+                _selectMoved = true;
+                EnsureRubberBand();
+            }
+
+            UpdateRubberBand(_selectStartWorld, world);
+            e.Handled = true;
+            return;
+        }
+
+        if (_mode != DragMode.Pan || _scrollViewer == null)
             return;
 
         Point current = e.GetPosition(_scrollViewer);
@@ -2654,6 +2867,35 @@ public class FlowCanvasControl : Control
 
     private void OnCanvasMouseUp(object sender, MouseButtonEventArgs e)
     {
+        if (_mode != DragMode.Select)
+            return; // pan ends on middle-up / capture loss
+
+        if (_contentCanvas != null && _contentCanvas.IsMouseCaptured)
+            _contentCanvas.ReleaseMouseCapture();
+        Cursor = null;
+        _mode = DragMode.None;
+
+        bool additive = (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != ModifierKeys.None;
+        if (_selectMoved)
+        {
+            Point world = _contentCanvas != null ? e.GetPosition(_contentCanvas) : _selectStartWorld;
+            SelectNodesInRectangle(_selectStartWorld, world, additive);
+        }
+        else if (!additive)
+        {
+            SelectNode(null); // plain click on empty canvas — the classic deselect
+            SelectWire(null);
+        }
+
+        DestroyRubberBand();
+        e.Handled = true;
+    }
+
+    private void OnCanvasMouseUpAny(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Middle)
+            return; // left-button release has its own handler
+
         if (_mode != DragMode.Pan)
             return;
 
@@ -2671,6 +2913,91 @@ public class FlowCanvasControl : Control
             _mode = DragMode.None;
             Cursor = null;
         }
+        else if (_mode == DragMode.Select)
+        {
+            // Aborted rubber band (capture stolen): cancel without changing the selection.
+            _mode = DragMode.None;
+            Cursor = null;
+            DestroyRubberBand();
+        }
+    }
+
+    // =====================================================================================
+    // Rubber-band helpers
+    // =====================================================================================
+
+    /// <summary>Creates the dashed selection rectangle on the overlay layer (world coordinates).</summary>
+    private void EnsureRubberBand()
+    {
+        if (_overlayLayer == null)
+            return;
+        if (_rubberBand != null)
+        {
+            if (ReferenceEquals(_rubberBand.Parent, _overlayLayer))
+                return;
+            DestroyRubberBand(); // stale rect from a template rebuild — recreate against the live layer
+        }
+
+        Color selection = FlowCanvasPalette.Color(FlowCanvasPalette.Selection);
+        SolidColorBrush fill = new(Color.FromArgb(36, selection.R, selection.G, selection.B)); // ~14% tint
+        fill.Freeze();
+        _rubberBand = new Rectangle
+        {
+            Stroke = FlowCanvasPalette.Brush(selection),
+            Fill = fill,
+            StrokeThickness = 1d,
+            StrokeDashArray = new DoubleCollection { 4d, 2d }, // matches the node selection outline
+            IsHitTestVisible = false,
+        };
+        _overlayLayer.Children.Add(_rubberBand);
+    }
+
+    /// <summary>Positions/sizes the rubber band across the two world points.</summary>
+    private void UpdateRubberBand(Point a, Point b)
+    {
+        if (_rubberBand == null)
+            return;
+
+        Canvas.SetLeft(_rubberBand, Math.Min(a.X, b.X));
+        Canvas.SetTop(_rubberBand, Math.Min(a.Y, b.Y));
+        _rubberBand.Width = Math.Max(1d, Math.Abs(a.X - b.X));
+        _rubberBand.Height = Math.Max(1d, Math.Abs(a.Y - b.Y));
+    }
+
+    private void DestroyRubberBand()
+    {
+        if (_rubberBand == null)
+            return;
+
+        _overlayLayer?.Children.Remove(_rubberBand);
+        _rubberBand = null;
+    }
+
+    /// <summary>
+    /// Selects every node whose bounds intersect the world rectangle spanned by
+    /// the two points (replace — or union, with <paramref name="additive"/>).
+    /// </summary>
+    private void SelectNodesInRectangle(Point start, Point end, bool additive)
+    {
+        Rect rect = new(
+            Math.Min(start.X, end.X),
+            Math.Min(start.Y, end.Y),
+            Math.Abs(end.X - start.X),
+            Math.Abs(end.Y - start.Y));
+
+        List<FlowCanvasNode> hits = new();
+        foreach (KeyValuePair<string, FlowNodeVisual> entry in _visuals)
+        {
+            FlowNodeVisual visual = entry.Value;
+            double width = visual.ActualWidth > 0 ? visual.ActualWidth : FlowNodeVisual.WidthFor(visual.Node);
+            double height = visual.ActualHeight > 0 ? visual.ActualHeight : FlowNodeVisual.DefaultHeightFor(visual.Node);
+            Rect bounds = new(visual.Node.X, visual.Node.Y, width, height);
+            if (rect.IntersectsWith(bounds))
+                hits.Add(visual.Node);
+        }
+
+        ApplyNodeSelection(hits, additive);
+        SelectWire(null);
     }
 
     // =====================================================================================
@@ -2733,15 +3060,12 @@ public class FlowCanvasControl : Control
         if (Keyboard.FocusedElement is TextBoxBase)
             return; // let the in-place label editor edit its text
 
+        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
         if (e.Key == Key.Delete)
         {
-            if (_selectedNode != null)
+            if (_selectedNodes.Count > 0)
             {
-                // Attachment cards ("loop_after"/"loop_body"/"comparison_case"/
-                // "comparison_else") are PROTECTED: Delete never removes them —
-                // their lifecycle belongs to the editor (parent node / routing).
-                if (!FlowNodeVisual.IsProtectedType(_selectedNode.BlockType))
-                    DeleteNode(_selectedNode.Id);
+                DeleteSelectedNodes();
                 e.Handled = true;
             }
             else if (_selectedWire != null)
@@ -2753,39 +3077,168 @@ public class FlowCanvasControl : Control
                 e.Handled = true;
             }
         }
-        else if (e.Key == Key.D && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        else if (e.Key == Key.D && ctrl)
         {
             // Attachment cards AND component sub-nodes are excluded: a component
             // copy would be an unwired orphan (its only legit inbound is the
             // parent's programmatic drop-dot elbow).
-            if (_selectedNode != null
-                && !FlowNodeVisual.IsProtectedType(_selectedNode.BlockType)
-                && !FlowNodeVisual.IsComponentType(_selectedNode.BlockType))
+            if (HasDuplicatableSelection())
             {
                 DuplicateSelected();
                 e.Handled = true;
             }
         }
+        else if (e.Key == Key.C && ctrl)
+        {
+            if (CopySelection())
+                e.Handled = true;
+        }
+        else if (e.Key == Key.V && ctrl)
+        {
+            if (PasteCopiedNodes())
+                e.Handled = true;
+        }
+    }
+
+    /// <summary>True when at least one selected node passes the Ctrl+D guards (not protected, not a component sub-node).</summary>
+    private bool HasDuplicatableSelection()
+    {
+        foreach (FlowCanvasNode node in _selectedNodes)
+        {
+            if (!FlowNodeVisual.IsProtectedType(node.BlockType) && !FlowNodeVisual.IsComponentType(node.BlockType))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Deletes EVERY selected node in one batch — single selection included —
+    /// raising ONE <see cref="GraphChanged"/> so undo captures the whole
+    /// delete. Protected attachment cards
+    /// ("loop_after"/"loop_body"/"comparison_case"/"comparison_else") are
+    /// skipped exactly like the single-node Delete always did — their
+    /// lifecycle belongs to the editor (parent node / routing). The pinned
+    /// trigger/error cards are not canvas nodes and can never be selected.
+    /// </summary>
+    private void DeleteSelectedNodes()
+    {
+        string[] ids = new string[_selectedNodes.Count];
+        for (int i = 0; i < ids.Length; i++)
+            ids[i] = _selectedNodes[i].Id;
+
+        _suppressGraphChanged = true; // DeleteNode's own raises are swallowed — one at the end
+        bool deleted = false;
+        try
+        {
+            foreach (string id in ids)
+            {
+                FlowCanvasNode? node = FindNode(id);
+                if (node == null || FlowNodeVisual.IsProtectedType(node.BlockType))
+                    continue;
+
+                DeleteNode(id);
+                deleted = true;
+            }
+        }
+        finally
+        {
+            _suppressGraphChanged = false;
+        }
+
+        if (deleted) // all-protected selections must not dirty the graph (matches the old single-delete)
+            RaiseGraphChanged();
+    }
+
+    /// <summary>
+    /// Ctrl+C: snapshots the selected duplicatable nodes (action/condition
+    /// blocks — protected attachment cards and component sub-nodes are excluded
+    /// by the same guards as Ctrl+D) into the CANVAS-LOCAL clipboard. Returns
+    /// true when something was copied.
+    /// </summary>
+    private bool CopySelection()
+    {
+        List<FlowNodeCopy> copies = new();
+        foreach (FlowCanvasNode node in _selectedNodes)
+        {
+            if (FlowNodeVisual.IsProtectedType(node.BlockType) || FlowNodeVisual.IsComponentType(node.BlockType))
+                continue;
+
+            copies.Add(new FlowNodeCopy(node.BlockType, node.Label, new Dictionary<string, string>(node.Config), node.X, node.Y));
+        }
+
+        if (copies.Count == 0)
+            return false;
+
+        _copyClipboard = copies;
+        return true;
+    }
+
+    /// <summary>
+    /// Ctrl+V: pastes the canvas-local clipboard through the Ctrl+D duplicate
+    /// machinery — fresh ids, +24/+24 offset (repeated pastes cascade from the
+    /// last paste), config copied, wires intentionally NOT copied — then
+    /// multi-selects the pasted nodes and raises ONE
+    /// <see cref="GraphChanged"/>. Returns true when nodes were created.
+    /// </summary>
+    private bool PasteCopiedNodes()
+    {
+        if (_copyClipboard == null || _copyClipboard.Count == 0)
+            return false;
+
+        List<FlowCanvasNode> pasted = new();
+        List<FlowNodeCopy> cascaded = new();
+        foreach (FlowNodeCopy copy in _copyClipboard)
+        {
+            FlowCanvasNode node = new()
+            {
+                BlockType = copy.BlockType,
+                Label = copy.Label,
+                Config = new Dictionary<string, string>(copy.Config),
+            };
+            node.X = ClampX(copy.X + 24d, FlowNodeVisual.WidthFor(node));
+            node.Y = ClampY(copy.Y + 24d, FlowNodeVisual.DefaultHeightFor(node));
+
+            _nodes.Add(node);
+            pasted.Add(node);
+            cascaded.Add(new FlowNodeCopy(node.BlockType, node.Label, new Dictionary<string, string>(node.Config), node.X, node.Y));
+        }
+
+        _copyClipboard = cascaded; // the next Ctrl+V offsets from THIS paste
+
+        ApplyNodeSelection(pasted, additive: false);
+        RaiseGraphChanged();
+        return true;
     }
 
     private void DuplicateSelected()
     {
-        FlowCanvasNode? source = _selectedNode;
-        if (source == null || FlowNodeVisual.IsProtectedType(source.BlockType) || FlowNodeVisual.IsComponentType(source.BlockType))
+        // Attachment cards AND component sub-nodes are excluded (see
+        // OnKeyDown): a component copy would be an unwired orphan.
+        List<FlowCanvasNode> copies = new();
+        foreach (FlowCanvasNode source in _selectedNodes)
+        {
+            if (FlowNodeVisual.IsProtectedType(source.BlockType) || FlowNodeVisual.IsComponentType(source.BlockType))
+                continue;
+
+            FlowCanvasNode copy = new()
+            {
+                BlockType = source.BlockType,
+                Label = source.Label,
+                X = ClampX(source.X + 24d, FlowNodeVisual.WidthFor(source)),
+                Y = ClampY(source.Y + 24d, FlowNodeVisual.DefaultHeightFor(source)),
+                Config = new Dictionary<string, string>(source.Config),
+            };
+            // Id defaults to a fresh GUID "N"; wires are intentionally not copied.
+
+            _nodes.Add(copy);
+            copies.Add(copy);
+        }
+
+        if (copies.Count == 0)
             return;
 
-        FlowCanvasNode copy = new()
-        {
-            BlockType = source.BlockType,
-            Label = source.Label,
-            X = ClampX(source.X + 24d, FlowNodeVisual.WidthFor(source)),
-            Y = ClampY(source.Y + 24d, FlowNodeVisual.DefaultHeightFor(source)),
-            Config = new Dictionary<string, string>(source.Config),
-        };
-        // Id defaults to a fresh GUID "N"; wires are intentionally not copied.
-
-        _nodes.Add(copy);
-        SelectNode(copy);
+        ApplyNodeSelection(copies, additive: false); // single copy → same NodeSelected(copy) as before
         RaiseGraphChanged();
     }
 
@@ -3023,7 +3476,11 @@ public class FlowCanvasControl : Control
 
     private FlowNodeVisual? GetVisual(string nodeId) => _visuals.TryGetValue(nodeId, out FlowNodeVisual? visual) ? visual : null;
 
-    private void RaiseGraphChanged() => GraphChanged?.Invoke(this, EventArgs.Empty);
+    private void RaiseGraphChanged()
+    {
+        if (!_suppressGraphChanged)
+            GraphChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     private static double ClampX(double value, double width)
     {
@@ -3046,5 +3503,9 @@ public class FlowCanvasControl : Control
         Connect,
         ConnectEntry, // dragging the trigger card's output port (sets EntryTargetId)
         ConnectError, // dragging the error card's output port (sets ErrorTargetId)
+        Select,       // rubber-band multi-select on empty canvas (left button)
     }
+
+    /// <summary>Internal Ctrl+C snapshot: block type, label, config and world position per node.</summary>
+    private sealed record FlowNodeCopy(string BlockType, string Label, Dictionary<string, string> Config, double X, double Y);
 }

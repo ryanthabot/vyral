@@ -14,6 +14,13 @@ Custom Twitch integration using LightweightTwitchIrc (custom WebSocket IRC clien
   - `ConnectAsync(string username, string accessToken, string? refreshToken, string channel)`
   - `DisconnectAsync()`
   - `SendMessageAsync(string message)`
+- **Helix moderation (Wave 3, used by auto-mod — see `services/moderation.md`):**
+  `TimeoutUserAsync(username, duration, reason)` and
+  `BanUserAsync(username, reason)` (POST `/helix/moderation/bans`, username
+  resolved via `/helix/users`), `DeleteMessageAsync(messageId)`
+  (DELETE `/helix/moderation/chat`), plus `ClearChatAsync` /
+  `SetChatModeAsync` / `SetShieldModeAsync` / raid start-stop. All
+  best-effort: return false, never throw.
 
 ### TwitchService (Implementation)
 - **File:** `src/VyralBot.Integrations/Twitch/TwitchService.cs` (~418 lines)

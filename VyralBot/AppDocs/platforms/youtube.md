@@ -1,6 +1,6 @@
 # YouTube
 
-> YouTube is a polling integration: the app asks the YouTube Data API for new live-chat messages every few seconds — which means it only works while you are actually live (or have an upcoming broadcast), and it delivers chat messages only, no follow/sub events.
+> YouTube is a polling integration: the app asks the YouTube Data API for new live-chat messages every few seconds — which means it only works while you are actually live (or have an upcoming broadcast). Chat messages, memberships, and **Super Chats / Super Stickers as structured events** (alert, sound family, currency bonus, statistics) all flow from that one poll loop; there are still no follow/raid events.
 
 ## Overview
 
@@ -50,9 +50,10 @@ YouTube's chat only exists while your stream is live, so Vyral tells you exactly
 ### What "connected" means for YouTube
 
 - While you are **live** (or have an upcoming/testing broadcast): chat messages appear in the [Chat Window](../chat/chat-window.md), you can send from the app ([Sending Messages](../chat/sending-messages.md)), and chat commands work — the poll loop also publishes the platform-agnostic `ChatMessageReceivedEvent` that feeds the command/currency/giveaway/poll/watchtime pipeline (entries and votes are recorded; the bot's *replies* are only sent to Twitch/Kick).
+- **Command timers can now target YouTube** (since 2026-11-07): the timer editor offers YouTube alongside Twitch/Kick/Discord, and the timer engine sends through the connected YouTube channel while it is live. A timer tick while you are offline is skipped with a log line and **not** stamped as run, so it fires on the next tick once the broadcast starts.
 - While **offline**: the app stays connected and quietly checks for a broadcast every 30 seconds. Your stream's chat picks up automatically when you go live.
 - Chat history now persists and reloads for YouTube like the other platforms (fixed 2026-08-15).
-- YouTube contributes **chat messages only** — no follow/sub events exist in this integration, so YouTube viewers do not trigger [event reactions](../chat/event-reactions.md).
+- **Memberships and Super Chats trigger event reactions.** A member joining (or a member-milestone message) fires the subscriber alert family; a **Super Chat or Super Sticker** is published as a structured `YouTubeSuperChatEvent` — amount, currency, display string, and comment — in addition to the 💎 chat line. See [Super Chats](#super-chats--super-stickers).
 
 ### Reconnecting and disconnecting
 
@@ -91,7 +92,27 @@ if (root.TryGetProperty("pollingIntervalMillis", out var intervalProp))
 ```
 
 4. **Handle stream end.** A 403/404 during polling clears the cached `liveChatId` and returns to broadcast discovery, retrying every 30 seconds (`YouTubeChatService.cs:281-289`).
-5. **Filter to text messages.** Only items with `snippet.type == "textMessageEvent"` are processed (line 382) — super chats, memberships, and other message types are dropped, and only `YouTubeChatMessageEvent` is ever published (author details like moderator/owner/member badges are carried on the event).
+5. **Special events are mapped, not dropped.** Text messages publish `YouTubeChatMessageEvent` (author details like moderator/owner/member badges are carried on the event). Non-text message types are mapped by shape (`YouTubeChatService.cs`):
+
+   | Live-chat message type | Mapped to |
+   |---|---|
+   | `textMessageEvent` | `YouTubeChatMessageEvent` |
+   | `superChatEvent` / `superStickerEvent` | a synthetic `YouTubeChatMessageEvent` (the 💎 chat line) **plus** the structured `YouTubeSuperChatEvent` |
+   | `newSponsorEvent` / `memberMilestoneChatEvent` | `YouTubeMembershipEvent` (new member / milestone text) |
+
+### Super Chats & Super Stickers
+
+Super Chats are YouTube's cheer equivalent, and they are now **first-class** (structured event since 2026-11-07): the publisher parses `superChatDetails` / `superStickerDetails` into `YouTubeSuperChatEvent` with `AmountMicros` (raw micros, tolerant of string-typed values), `AmountDisplayString` ("$5.00"), `Currency`, and the user's comment (Super Chats; stickers carry `StickerDisplayText` instead).
+
+Consumers — all wired in `ChatViewModel.OnYouTubeSuperChatAsync`:
+
+- **Chat line** — the 💎 line ("💎 {user} super chat $5.00! - {comment}") is rendered by the synthetic chat message the publisher sends alongside; the event handler deliberately does not add a second line.
+- **Alert** — "Super Chat!" alert with the amount display string and comment; gated by the alerts-side cheer toggle (`AlertSettings.CheerAlertsEnabled`).
+- **Sound** — plays the **cheer** sound mapping for YouTube (`PlayEventSoundAsync("cheer", "YouTube")`). Note the [Sounds page](../stream-tools/sounds.md) has no YouTube rows yet, so this only plays if the underlying config key is set — the alert itself always fires.
+- **Currency** — awards the cheer bonus with `cents = AmountMicros / 10 000` (1 bit ≈ 1 cent on Twitch, so $5.00 → 500) — exactly the "awards points like bits" rule.
+- **Statistics** — a `YouTube / Cheer` statistics row with `username`, `amount`, `currency`, `message`, `platform` variables.
+
+There is **no workflow trigger key** for Super Chats yet — the event is consumed by the reaction pipeline only.
 
 ### Sending
 
@@ -109,9 +130,11 @@ if (root.TryGetProperty("pollingIntervalMillis", out var intervalProp))
 
 | File | Role |
 |---|---|
-| [YouTubeChatService.cs](../../src/VyralBot.Integrations/YouTube/YouTubeChatService.cs) | Poll loop, broadcast discovery, send, token refresh |
+| [YouTubeChatService.cs](../../src/VyralBot.Integrations/YouTube/YouTubeChatService.cs) | Poll loop, broadcast discovery, send, token refresh, special-event mapping (Super Chat / membership) |
 | [IYouTubeService.cs](../../src/VyralBot.Integrations/YouTube/IYouTubeService.cs) | Service interface |
-| [Events/YouTubeChatMessageEvent.cs](../../src/VyralBot.Integrations/YouTube/Events/YouTubeChatMessageEvent.cs) | The only event type YouTube emits |
+| [Events/YouTubeChatMessageEvent.cs](../../src/VyralBot.Integrations/YouTube/Events/YouTubeChatMessageEvent.cs) | Chat-message event |
+| [Events/YouTubeSuperChatEvent.cs](../../src/VyralBot.Integrations/YouTube/Events/YouTubeSuperChatEvent.cs) | Structured Super Chat / Super Sticker event (amount, currency, comment) |
+| [CommandTimerService.cs](../../src/VyralBot.UI/Services/CommandTimerService.cs) | Timer sends: the YouTube case sends via the connected service and skips (unstamped) while offline |
 | [YouTubeWebSetupViewModel.cs](../../src/VyralBot.UI/ViewModels/YouTubeWebSetupViewModel.cs) | Wizard **and** the OAuth flow itself (URL building, code exchange, channel lookup) |
 | [YouTubeWebSetupView.xaml](../../src/VyralBot.UI/Views/YouTubeWebSetupView.xaml) | 4-step wizard UI with Google Cloud deep links |
 | [PlatformsViewModel.cs](../../src/VyralBot.UI/ViewModels/PlatformsViewModel.cs) | Card state, auto-connect, disconnect (~line 1409) |
@@ -152,15 +175,15 @@ if (string.IsNullOrEmpty(_liveChatId))
 
 ## Data & Settings
 
-- **`Platform` row (Name="YouTube")**: AccessToken/RefreshToken (**plaintext**), TokenExpiresAt, Username (channel title), ClientId/ClientSecret, a Google Project ID, Status, `YoutubeChatEnabled` / `YoutubeChatAutoStart`.
+- **`Platform` row (Name="YouTube")**: AccessToken/RefreshToken (**plaintext**), TokenExpiresAt, Username (channel title), ClientId/ClientSecret (the secret column is DPAPI-wrapped via `SecretProtector` — see [Settings → Security](../settings/overview.md#security-category)), a Google Project ID, Status, `YoutubeChatEnabled` / `YoutubeChatAutoStart`.
 - No credential JSON file — unlike Twitch, everything lives in the DB row.
 - No webhook subscriptions, no ngrok dependency. See [Web Server & ngrok](../settings/web-server-ngrok.md) for what does need it.
 - The YouTube chat-settings toggle persists `YoutubeChatEnabled` and publishes a `PlatformChatRoutingChangedEvent`; see [Chat Settings](../chat/chat-settings.md).
 
 ## Status & Known Issues
 
-- **Chat-only integration** — no follow/sub/super-chat/membership events; YouTube viewers cannot trigger [event reactions](../chat/event-reactions.md), and only `textMessageEvent` messages arrive (super chats are filtered out). YouTube also has no follower concept, so follower-based giveaway/poll eligibility passes `false` (KI-31).
-- **Works only while a broadcast exists** — sending fails with "You must be streaming live" when offline; the service otherwise idles in a 30-second discovery loop, which is by design.
+- **No follow/raid events** — memberships and Super Chats/Super Stickers are surfaced (alerts, sounds family, currency, statistics — see [Super Chats](#super-chats--super-stickers)), but YouTube has no follow/raid concept in this integration, so no such triggers exist; follower-based giveaway/poll eligibility passes `false` (KI-31). Super Chats do not dispatch a workflow trigger key yet.
+- **Works only while a broadcast exists** — sending (and command timers) fail or skip with "You must be streaming live" when offline; the service otherwise idles in a 30-second discovery loop, which is by design. Timer ticks while offline are skipped and retried on the next tick.
 - **Tokens stored unencrypted in the DB** — same caveat as Kick; inconsistent with Twitch's DPAPI-encrypted tokens. See the [known issues ledger](../reference/known-issues.md).
 - **Chat history is persisted (fixed 2026-08-15)** — `DataChatMessageStore` maps YouTube events both directions and the Chat Window's Load History loads them (KI-9 resolved).
 - **OAuth lives in the UI layer** — the auth flow is implemented in `YouTubeWebSetupViewModel` rather than an Integrations service, so it is untestable without the wizard and duplicates patterns held elsewhere.

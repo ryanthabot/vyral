@@ -4772,15 +4772,7 @@ public class DiscordService : IDiscordService, IDisposable
     {
         try
         {
-            try
-            {
-                await command.DeferAsync(ephemeral: true).ConfigureAwait(false);
-            }
-            catch (Exception deferEx)
-            {
-                // A lost ack only costs the "thinking…" indicator, never the app
-                _logger.LogDebug(deferEx, "Workflow slash ack (defer) failed for '/{Command}'", command?.CommandName);
-            }
+            await DeferInteractionAsync(command, $"slash '/{command?.CommandName}'");
 
             var guild = (command?.Channel as SocketGuildChannel)?.Guild;
             TrackWorkflowOriginFromInteraction(
@@ -4831,14 +4823,7 @@ public class DiscordService : IDiscordService, IDisposable
                 return;
             }
 
-            try
-            {
-                await component.DeferAsync(ephemeral: true).ConfigureAwait(false);
-            }
-            catch (Exception deferEx)
-            {
-                _logger.LogDebug(deferEx, "Workflow component ack (defer) failed for '{CustomId}'", component.Data.CustomId);
-            }
+            await DeferInteractionAsync(component, $"component '{component.Data.CustomId}'");
 
             var guild = (component.Channel as SocketGuildChannel)?.Guild;
             TrackWorkflowOriginFromInteraction(
@@ -4995,34 +4980,68 @@ public class DiscordService : IDiscordService, IDisposable
     /// <summary>
     /// Reply channel for interaction payloads: the interaction is already
     /// deferred, so replies go out as ephemeral followups (with a
-    /// RespondAsync fallback for the race where the ack failed). Best-effort —
-    /// never throws, so a failing reply can never break a workflow node.
+    /// RespondAsync fallback for the race where the ack failed) via
+    /// <see cref="RespondEphemeralAsync"/>. Best-effort — never throws, so a
+    /// failing reply can never break a workflow node.
     /// </summary>
     private Func<string, Task> BuildInteractionResponder(SocketInteraction? interaction)
-    {
-        return async message =>
-        {
-            try
-            {
-                if (interaction == null || string.IsNullOrWhiteSpace(message))
-                {
-                    return;
-                }
+        => message => RespondEphemeralAsync(interaction, message);
 
-                if (!interaction.HasResponded)
-                {
-                    await interaction.RespondAsync(message, ephemeral: true).ConfigureAwait(false);
-                }
-                else
-                {
-                    await interaction.FollowupAsync(message, ephemeral: true).ConfigureAwait(false);
-                }
-            }
-            catch (Exception ex)
+    /// <summary>
+    /// Ephemeral interaction reply (Discord.Net maps <c>ephemeral:</c> onto
+    /// <see cref="MessageFlags.Ephemeral"/> — visible only to the invoking
+    /// user): <c>RespondAsync</c> when the interaction has not been
+    /// acknowledged yet, else an ephemeral followup. Best-effort — never
+    /// throws, so a failing reply can never break a workflow run/node.
+    /// </summary>
+    private async Task RespondEphemeralAsync(SocketInteraction? interaction, string message)
+    {
+        try
+        {
+            if (interaction == null || string.IsNullOrWhiteSpace(message))
             {
-                _logger.LogWarning(ex, "⚠️ Workflow interaction reply failed");
+                return;
             }
-        };
+
+            if (!interaction.HasResponded)
+            {
+                await interaction.RespondAsync(message, ephemeral: true).ConfigureAwait(false);
+            }
+            else
+            {
+                await interaction.FollowupAsync(message, ephemeral: true).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ Workflow interaction reply failed");
+        }
+    }
+
+    /// <summary>
+    /// Acknowledges an interaction with an ephemeral defer (Discord's
+    /// "thinking…" state) BEFORE the workflow engine runs, so flows slower
+    /// than Discord's 3-second response window (HTTP calls, waits, loops,
+    /// ...) never surface "interaction failed" — the final message then goes
+    /// out as a followup through <see cref="RespondEphemeralAsync"/>. A lost
+    /// ack only costs the indicator, never the app: logged at debug and
+    /// swallowed. Never throws.
+    /// </summary>
+    private async Task DeferInteractionAsync(SocketInteraction? interaction, string label)
+    {
+        if (interaction == null)
+        {
+            return;
+        }
+
+        try
+        {
+            await interaction.DeferAsync(ephemeral: true).ConfigureAwait(false);
+        }
+        catch (Exception deferEx)
+        {
+            _logger.LogDebug(deferEx, "Workflow {Label} ack (defer) failed", label);
+        }
     }
 
     #endregion

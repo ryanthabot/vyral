@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using VyralBot.UI.Services;
@@ -391,5 +392,150 @@ public class FlowSnapshotServiceTests
     {
         Assert.Null(FlowSnapshotService.ParseDocument("not json at all"));
         Assert.Null(FlowSnapshotService.ParseDocument("[1, 2, 3]"));
+    }
+}
+
+/// <summary>
+/// Import-safety hardening: unknown node types must be dropped (never reach
+/// the canvas/runtime), dangling routing must be cleared, oversized documents
+/// rejected, and offline codes must not decompress past the size ceiling.
+/// </summary>
+public class MarketplaceImportSafetyTests
+{
+    [Fact]
+    public void ParseDocument_drops_unknown_node_types_and_clears_dangling_routing()
+    {
+        const string hostileDraft = """
+            {
+              "id": "hostile1",
+              "name": "Hostile Flow",
+              "nodes": [
+                { "id": "a", "blockType": "send_message", "config": {}, "next": "evil" },
+                { "id": "evil", "blockType": "format_c_drive", "config": {}, "next": "b" },
+                { "id": "b", "blockType": "wait", "config": {} }
+              ],
+              "entryNodeId": "evil"
+            }
+            """;
+
+        var parsed = FlowSnapshotService.ParseDocument(hostileDraft);
+        Assert.NotNull(parsed);
+        Assert.Equal(2, parsed!.Nodes!.Count);
+        Assert.All(parsed.Nodes, n => Assert.NotEqual("format_c_drive", n.BlockType));
+
+        // Routing that pointed at the dropped node is cleared, not kept dangling.
+        Assert.Null(parsed.Nodes.Single(n => n.Id == "a").Next);
+        Assert.Null(parsed.EntryNodeId);
+    }
+
+    [Fact]
+    public void ParseDocument_drops_unknown_nodes_from_file_shapes_too()
+    {
+        const string document = """
+            {
+              "name": "Mixed",
+              "nodes": [
+                { "id": "ok", "blockType": "log", "position": { "x": 1, "y": 2 }, "parameters": { "text": "hi" } },
+                { "id": "bad", "blockType": "exfiltrate", "position": { "x": 3, "y": 4 }, "parameters": { "url": "http://x" } }
+              ],
+              "connections": [ { "source": "ok:next", "target": "bad:in" } ]
+            }
+            """;
+
+        var parsed = FlowSnapshotService.ParseDocument(document);
+        Assert.NotNull(parsed);
+        var node = Assert.Single(parsed!.Nodes!);
+        Assert.Equal("ok", node.Id);
+        Assert.Equal("hi", node.Config["text"]);
+        Assert.Null(node.Next); // connection into the dropped node must not wire up
+    }
+
+    [Fact]
+    public void ParseDocument_rejects_documents_beyond_the_node_ceiling()
+    {
+        var oversized = new FlowEditorSnapshotDto
+        {
+            Name = "Too big",
+            Nodes = Enumerable.Range(0, FlowSnapshotService.MaxImportNodes + 1)
+                .Select(i => new FlowNodeDto { Id = $"n{i}", BlockType = "wait" })
+                .ToList()
+        };
+
+        string json = JsonSerializer.Serialize(oversized); // PascalCase keys still match (case-insensitive opts)
+        Assert.Null(FlowSnapshotService.ParseDocument(json));
+
+        // Right at the ceiling it still imports.
+        oversized.Nodes = oversized.Nodes.Take(FlowSnapshotService.MaxImportNodes).ToList();
+        Assert.NotNull(FlowSnapshotService.ParseDocument(JsonSerializer.Serialize(oversized)));
+    }
+
+    [Fact]
+    public void TryDecodeOfflineCode_rejects_decompression_bombs()
+    {
+        // 5 MB of highly compressible data in a ~5 KB code — must be refused
+        // instead of expanding into memory.
+        byte[] bomb = System.Text.Encoding.UTF8.GetBytes(new string('a', 5_000_000));
+        using var compressed = new MemoryStream();
+        using (var gzip = new System.IO.Compression.GZipStream(compressed, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+        {
+            gzip.Write(bomb, 0, bomb.Length);
+        }
+
+        string code = MarketplaceService.OfflinePrefix + Convert.ToBase64String(compressed.ToArray())
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        Assert.False(MarketplaceService.TryDecodeOfflineCode(code, out _));
+    }
+
+    [Fact]
+    public void ParseShareDocument_rejects_future_schema_versions()
+    {
+        string future = JsonSerializer.Serialize(new
+        {
+            sharecode = "VYRAL-7K3F9M2Q4D",
+            name = "Future",
+            schemaVersion = 99,
+            flow = "{ \"name\": \"x\" }"
+        });
+        Assert.Null(MarketplaceService.ParseShareDocument(future));
+    }
+}
+
+/// <summary>
+/// Export fidelity: every field the editor snapshot carries must survive the
+/// portable-document round trip (wave-4 audit: description, enabled, platform
+/// filter and mod tier were being dropped by BuildDocument).
+/// </summary>
+public class FlowSnapshotRoundTripFidelityTests
+{
+    [Fact]
+    public void BuildDocument_then_ParseDocument_preserves_description_enabled_platforms_and_tier()
+    {
+        var snapshot = new FlowEditorSnapshotDto
+        {
+            Id = "rt1",
+            Name = "Round Trip",
+            Description = "Keeps its description",
+            Enabled = false,
+            Trigger = new FlowTriggerDto
+            {
+                Type = "mod_command",
+                CommandName = "ban",
+                CommandPrefix = "!",
+                Platforms = new List<string> { "Twitch", "Kick" },
+                MinimumTier = "Admin"
+            },
+            Nodes = new List<FlowNodeDto>
+            {
+                new() { Id = "n1", BlockType = "log", X = 5, Y = 6, Config = new Dictionary<string, string> { ["text"] = "x" } }
+            }
+        };
+
+        var parsed = FlowSnapshotService.ParseDocument(FlowSnapshotService.BuildDocument(snapshot));
+        Assert.NotNull(parsed);
+        Assert.Equal("Keeps its description", parsed!.Description);
+        Assert.False(parsed.Enabled);
+        Assert.Equal(new[] { "Twitch", "Kick" }, parsed.Trigger!.Platforms);
+        Assert.Equal("Admin", parsed.Trigger.MinimumTier);
+        Assert.Equal("ban", parsed.Trigger.CommandName);
     }
 }

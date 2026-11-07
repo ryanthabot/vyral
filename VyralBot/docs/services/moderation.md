@@ -45,17 +45,26 @@ card and the mod_command workflows (visual Flow editor).
 
 ### ModerationActionService (`ModerationActionService.cs`)
 - `IModerationPlatformAdapter` — the per-platform seam (delete/timeout/ban/
-  notice + capability flags). Adapters are registered by the composition root
-  or a chat pipeline; **none are wired yet** (Wave 1 built the engine + router).
+  notice + capability flags). The composition root (`App.OnStartup`) registers
+  four adapters: `TwitchModerationAdapter` (full), `DiscordModerationAdapter`
+  (full), `KickModerationAdapter` + `YouTubeModerationAdapter` (notice-only).
 - `ExecuteAsync(message, verdict)` — degrades Ban → Timeout → Delete → Warn,
   Timeout → Delete → Warn; a platform with no adapter is logged-only. Never
   throws (per-call try/catch). Every action — executed, degraded or logged-only
   — is written via `IDataService.SaveModActionAsync` (actor `AutoMod`), so the
   log survives restarts and renders in the dashboard Action Log.
 - `ModerationPlatformParity.Table` — the audit-truth for per-platform
-  capability: Discord full; Twitch/Kick/YouTube/TikTok have no per-viewer
-  moderation API wired today (Twitch Helix automod scopes are requested but
-  unused; Kick webhooks are inbound-only) — verdicts degrade to warn there.
+  enforcement (Wave 3): **Twitch full** (Helix ban/timeout/delete via
+  `ITwitchService.TimeoutUserAsync`/`BanUserAsync`/`DeleteMessageAsync`; the
+  chat pipeline does not parse IRC message ids, so a Delete without one
+  degrades to a 1s purge-timeout — timeouts purge the sender's messages);
+  **Discord full** (ban/timeout by username, minute-granular; no delete-by-id
+  API, so Delete verdicts degrade to warn); **Kick/YouTube notice-only**
+  (adapters post warn notices; Kick webhooks are inbound-only); **TikTok none**
+  (no chat integration — verdicts logged only). The Moderator dashboard's
+  parity card renders `ModerationPlatformParity.Snapshot` rows (the Table
+  merged with live adapter registration), so it can never drift from the
+  Table.
 
 ### ModerationRulesRepository (`ModerationRulesRepository.cs`)
 Persists the `ModerationRuleSet` as JSON under config key
@@ -64,13 +73,16 @@ Persists the `ModerationRuleSet` as JSON under config key
 back to `ModerationRuleSet.CreateDefault()` (master switch OFF — opt-in).
 
 ### ModeratorViewModel Auto-Moderation card
-`LoadAutoModConfigCommand` (page init) loads + applies the rules and
-configures `ModerationActionService.Shared` with the profile `IDataService`;
+The action service is configured with the profile `IDataService` + logging
+ONCE at app startup (`App.OnStartup`) — never on page init (that would drop
+its logger). `LoadAutoModConfigCommand` (page init) loads + applies the rules;
 `SaveAutoModConfigCommand` normalizes + persists + applies; exemption toggles
 are uniform across rules in the UI (config stores them per rule);
 `TestAutoModMessageCommand` evaluates a sample message without executing
 anything; `ResetAutoModEscalationCommand` clears all viewer state. The parity
-list renders `ModerationPlatformParity.Describe`.
+card renders `ModerationPlatformParity.Snapshot` rows — platform name,
+enforcement-level badge (Full / Notice-only / None) and a detail line — so the
+display always mirrors the audit Table.
 
 ## Mod commands (!mod)
 
@@ -86,9 +98,14 @@ list renders `ModerationPlatformParity.Describe`.
 - `IModTierResolver` — explicit assignment vs highest Discord role→tier
   mapping, whichever ranks higher.
 
-## Wiring status (Wave 1, 2026-11-07)
-- Done: engine, action router + degradation, rule persistence, dashboard card.
-- Pending (next waves): evaluate `ChatModerationEngine.Shared` in the
-  ChatViewModel message handlers (Twitch/Kick/YouTube/Discord/generic paths —
-  currently ALL platforms bypass auto-mod) and register platform adapters
-  (Discord first via `IDiscordService`).
+## Wiring status (Wave 3, 2026-11-07)
+- Done: engine, action router + degradation, rule persistence, dashboard card
+  (Wave 1); auto-mod evaluated on every platform in the ChatViewModel message
+  handlers — Twitch/Kick/YouTube/Discord dedicated paths plus the generic
+  handler for platforms without one (Wave 2); all four platform adapters
+  registered at startup with Twitch upgraded to full Helix enforcement
+  (timeout/ban/delete, delete-without-id → 1s purge-timeout) (Wave 3).
+- Remaining seams: parse IRC message ids in the Twitch pipeline so Delete
+  verdicts call `DELETE /helix/moderation/chat` directly; Kick/YouTube
+  per-viewer action APIs when their services gain them; TikTok has no chat
+  integration to enforce through.

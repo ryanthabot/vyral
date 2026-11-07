@@ -10,6 +10,11 @@ public class AutoReplyRateLimiter
 {
     private readonly ConcurrentDictionary<string, DateTime> _lastReplyPerUser = new();
     private readonly TimeSpan _minDelay;
+    private DateTime _lastCleanupUtc = DateTime.UtcNow;
+
+    // The 10-minute cutoff is far above the default 30s min delay, so pruning
+    // can never cut an active cooldown short.
+    private static readonly TimeSpan CleanupInterval = TimeSpan.FromMinutes(10);
 
     public AutoReplyRateLimiter(TimeSpan? minDelay = null)
     {
@@ -37,6 +42,16 @@ public class AutoReplyRateLimiter
         }
 
         _lastReplyPerUser[key] = now;
+
+        // Opportunistic prune: the limiter lives on a singleton service, so
+        // without this the per-user map grows unbounded for the process
+        // lifetime (unique viewers x platforms x event types).
+        if (now - _lastCleanupUtc >= CleanupInterval)
+        {
+            _lastCleanupUtc = now;
+            CleanupExpired();
+        }
+
         return true;
     }
 

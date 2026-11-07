@@ -359,8 +359,17 @@ public sealed class RestreamEngine : IDisposable
             }
 
             // A clean exit after a real session is just the publisher stopping:
-            // re-listen immediately; OBS's auto-reconnect republishes.
-            if (exitCode == 0 && sawPublisher)
+            // re-listen immediately; OBS's auto-reconnect republishes. The
+            // exit code is often UNKNOWN on this path — the ProcessManager
+            // disposes the Process in its own Exited handler before this read,
+            // so ExitCode throws and reads as null — so a post-publisher exit
+            // with no implicated destination and no port conflict is treated
+            // as a publisher stop whenever the run was not quick; a sub-10s
+            // run is a crash even if the publisher had connected (that one
+            // keeps the backoff ladder and the unattributed-failure budget).
+            // Without this, three healthy OBS reconnect cycles would fault
+            // the session as "FFmpeg keeps exiting".
+            if (sawPublisher && implicatedId is null && !portInUse && exitCode is 0 or null && ranFor >= QuickFailureWindow)
             {
                 quickFailureStreak = 0;
                 unattributedStreak = 0;

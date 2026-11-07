@@ -79,6 +79,17 @@ public class LinkedAccountService : ILinkedAccountService
         var code = Random.Shared.Next(100000, 999999).ToString();
         var key = $"{targetUsername}:{targetPlatform}".ToLowerInvariant();
 
+        // Prune expired pendings so abandoned link attempts don't accumulate
+        // on this singleton service — until now they were only removed when
+        // the target user actually attempted verification.
+        foreach (var pair in _pendingLinks)
+        {
+            if (DateTime.UtcNow > pair.Value.ExpiresAt)
+            {
+                _pendingLinks.TryRemove(pair.Key, out _);
+            }
+        }
+
         _pendingLinks[key] = new PendingLink(fromViewerId, targetUsername, targetPlatform, code, DateTime.UtcNow.AddMinutes(5));
 
         _logger.LogInformation("Link initiated from {From} ({FromPlatform}) to {Target} ({TargetPlatform}), code: {Code}",

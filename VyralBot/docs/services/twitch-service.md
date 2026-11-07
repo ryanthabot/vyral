@@ -14,6 +14,21 @@ Twitch chat integration using a custom WebSocket IRC client (`LightweightTwitchI
   - `ConnectAsync(string username, string accessToken, string? refreshToken, string channel)` — also connects EventSub
   - `DisconnectAsync()`
   - `SendMessageAsync(string message)`
+- **Helix moderation APIs (Wave 3 — drive auto-mod via
+  `TwitchModerationAdapter`, see `services/moderation.md`):**
+  - `TimeoutUserAsync(string username, TimeSpan duration, string reason)` —
+    POST `/helix/moderation/bans` with a duration (username resolved to a user
+    id via GET `/helix/users`; duration clamped to Twitch's 1s–14d window;
+    scope `moderator:manage:banned_users`). Returns false, never throws.
+  - `BanUserAsync(string username, string reason)` — same endpoint, no
+    duration. Returns false, never throws.
+  - `DeleteMessageAsync(string messageId)` — DELETE `/helix/moderation/chat`
+    (scope `moderator:manage:chat_messages`). The IRC pipeline does not parse
+    message ids yet, so the auto-mod adapter's delete-without-id falls back to
+    a 1-second timeout (a timeout purges the sender's messages).
+  - Chat-surface helpers on the same interface: `ClearChatAsync`,
+    `SetChatModeAsync` (emote/follower-only), `SetShieldModeAsync`,
+    raid start/stop.
 
 ### TwitchService Implementation
 - **File:** `src/VyralBot.Integrations/Twitch/TwitchService.cs` (~418 lines)

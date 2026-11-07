@@ -99,6 +99,14 @@ public class CurrencyService : ICurrencyService
     private DateTime _unifiedConfigCheckedAtUtc = DateTime.MinValue;
     private bool _unifiedConfigEnabled = true;
 
+    // Opportunistic prune for _unifiedCache: entries past the TTL are never
+    // served (they are re-resolved on next access) but were never removed, so
+    // the per-viewer map would grow for the process lifetime on a 24/7
+    // stream. At most one sweep per minute; the O(n) scan over small tuples
+    // is negligible next to the DB round-trip it accompanies.
+    private static readonly long UnifiedCacheSweepIntervalTicks = TimeSpan.FromMinutes(1).Ticks;
+    private static long _nextUnifiedCacheSweepTicksUtc;
+
     private async Task<bool> IsUnifiedBalancesEnabledAsync()
     {
         if (DateTime.UtcNow - _unifiedConfigCheckedAtUtc < UnifiedConfigCacheTtl)
@@ -131,6 +139,8 @@ public class CurrencyService : ICurrencyService
             return cached.Target.Username == username && cached.Target.Platform == platform ? null : cached.Target;
         }
 
+        PruneExpiredUnifiedCacheEntries();
+
         UnifiedTarget? result = null;
         try
         {
@@ -159,6 +169,35 @@ public class CurrencyService : ICurrencyService
 
         _unifiedCache[cacheKey] = (new UnifiedTarget(result?.Username ?? username, result?.Platform ?? platform), DateTime.UtcNow);
         return result;
+    }
+
+    /// <summary>
+    /// Drops unified-target cache entries past <see cref="UnifiedCacheTtl"/>.
+    /// Rate-limited to one sweep per minute via an Interlocked claim; best-effort
+    /// and lock-free. Runs only on cache misses, which already pay a DB round-trip.
+    /// </summary>
+    private void PruneExpiredUnifiedCacheEntries()
+    {
+        var now = DateTime.UtcNow.Ticks;
+        var next = Interlocked.Read(ref _nextUnifiedCacheSweepTicksUtc);
+        if (now < next)
+        {
+            return;
+        }
+
+        if (Interlocked.CompareExchange(
+                ref _nextUnifiedCacheSweepTicksUtc, now + UnifiedCacheSweepIntervalTicks, next) != next)
+        {
+            return;
+        }
+
+        foreach (var pair in _unifiedCache)
+        {
+            if (DateTime.UtcNow - pair.Value.At >= UnifiedCacheTtl)
+            {
+                _unifiedCache.TryRemove(pair.Key, out _);
+            }
+        }
     }
 
     /// <summary>Row read that follows unified-balance redirection.</summary>

@@ -31,6 +31,10 @@ public static class FlowSnapshotService
         {
             ["id"] = snapshot.Id,
             ["name"] = snapshot.Name,
+            // Top-level description/enabled round-trip with the snapshot DTO
+            // (the DTO deserializer reads both keys case-insensitively).
+            ["description"] = string.IsNullOrWhiteSpace(snapshot.Description) ? null : snapshot.Description.Trim(),
+            ["enabled"] = snapshot.Enabled,
             ["trigger"] = snapshot.Trigger == null ? null : new Dictionary<string, object?>
             {
                 ["type"] = snapshot.Trigger.Type,
@@ -43,6 +47,9 @@ public static class FlowSnapshotService
                 // exported/shared commands keep their scope; the parse side
                 // maps it back onto FlowTriggerDto.Platforms case-insensitively.
                 ["platforms"] = snapshot.Trigger.Platforms is { Count: > 0 } platforms ? platforms : null,
+                // Mod-command minimum tier — without it a shared !mod command
+                // silently falls back to "Mod" on import.
+                ["minimumTier"] = string.IsNullOrWhiteSpace(snapshot.Trigger.MinimumTier) ? null : snapshot.Trigger.MinimumTier.Trim(),
                 ["description"] = string.IsNullOrWhiteSpace(snapshot.Trigger.Description) ? null : snapshot.Trigger.Description.Trim()
             },
             ["options"] = (snapshot.Options ?? new List<FlowOptionDto>()).Select(o => new Dictionary<string, object?>
@@ -82,10 +89,58 @@ public static class FlowSnapshotService
         return JsonSerializer.Serialize(document, JsonOpts.Indented);
     }
 
+    /// <summary>Hard import ceilings — anything larger is rejected, not truncated.</summary>
+    public const int MaxImportNodes = 500;
+    public const int MaxImportOptions = 100;
+    public const int MaxImportParameters = 100;
+    public const int MaxImportConfigValueLength = 100_000;
+    public const int MaxImportNodeIdLength = 256;
+    public const int MaxConfigKeysPerNode = 64;
+
+    /// <summary>
+    /// Block types that are valid in an import but NOT in <see cref="BlockCatalog.Blocks"/>:
+    /// "switch" (legacy, runtime-supported but no longer placeable), the four
+    /// loop/comparison attachment-card types and the component (button/menu)
+    /// sub-node cards the canvas spawns next to message blocks.
+    /// </summary>
+    private static readonly HashSet<string> ExtraImportableTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "switch", "loop_after", "loop_body", "comparison_case", "comparison_else",
+        "menu_start", "button_start"
+    };
+
+    /// <summary>True when a node type is known to this build (palette, legacy switch or canvas card).</summary>
+    private static bool IsKnownNodeType(string? blockType) =>
+        !string.IsNullOrWhiteSpace(blockType) &&
+        (BlockCatalog.Find(blockType!) != null || ExtraImportableTypes.Contains(blockType!));
+
+    /// <summary>Clamps a node config to the import ceilings (key count + value length).</summary>
+    private static Dictionary<string, string> SanitizeConfig(Dictionary<string, string> config, int maxKeys)
+    {
+        var safe = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (KeyValuePair<string, string> entry in config)
+        {
+            if (safe.Count >= maxKeys)
+            {
+                break;
+            }
+
+            safe[entry.Key] = entry.Value is { Length: > MaxImportConfigValueLength }
+                ? entry.Value[..MaxImportConfigValueLength]
+                : entry.Value ?? string.Empty;
+        }
+
+        return safe;
+    }
+
     /// <summary>
     /// Parses a portable document (or a raw draft-shaped snapshot) into a full
     /// snapshot DTO — canvas positions, node parameters and port routing
     /// included. Returns null when the payload is not a flow document.
+    /// Shared/imported documents are sanitized first: unknown node types,
+    /// duplicate/empty ids, oversized node lists and routing references to
+    /// dropped nodes are removed so a hostile or newer-version document cannot
+    /// inject nodes this build cannot render or execute.
     /// </summary>
     public static FlowEditorSnapshotDto? ParseDocument(string json)
     {
@@ -102,6 +157,11 @@ public static class FlowSnapshotService
         if (dto == null)
         {
             return null;
+        }
+
+        if (!SanitizeImportedSnapshot(dto))
+        {
+            return null; // oversized beyond the import ceilings — treat as invalid
         }
 
         try
@@ -126,6 +186,99 @@ public static class FlowSnapshotService
         }
 
         return dto;
+    }
+
+    /// <summary>
+    /// Clamps an imported snapshot to the safe shape: drops unknown node types,
+    /// duplicate/oversized ids and pathological config payloads, then clears
+    /// every routing reference that no longer resolves (draft-shaped payloads
+    /// carry routing on the DTO; file-shaped ones are wired later from the
+    /// <c>connections</c> array, which drops orphans on its own). Returns false
+    /// when the document exceeds the node ceiling and must be rejected whole.
+    /// </summary>
+    private static bool SanitizeImportedSnapshot(FlowEditorSnapshotDto dto)
+    {
+        if (dto.Options is { Count: > MaxImportOptions })
+        {
+            dto.Options = dto.Options.Take(MaxImportOptions).ToList();
+        }
+
+        if (dto.Parameters is { Count: > MaxImportParameters })
+        {
+            dto.Parameters = dto.Parameters.Take(MaxImportParameters).ToList();
+        }
+
+        if (dto.Nodes is not { Count: > 0 })
+        {
+            return true;
+        }
+
+        if (dto.Nodes.Count > MaxImportNodes)
+        {
+            return false;
+        }
+
+        const int maxNodeIdLength = MaxImportNodeIdLength;
+
+        var kept = new List<FlowNodeDto>(dto.Nodes.Count);
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (FlowNodeDto node in dto.Nodes)
+        {
+            if (node == null ||
+                string.IsNullOrWhiteSpace(node.Id) ||
+                node.Id.Length > maxNodeIdLength ||
+                !IsKnownNodeType(node.BlockType) ||
+                !ids.Add(node.Id))
+            {
+                // Unknown/injected node type, duplicate or malformed id — drop.
+                // ids.Add stays LAST so a dropped id never masquerades as a
+                // resolvable routing target in the dangling-wire sweep below.
+                continue;
+            }
+
+            if (node.Config is { Count: > 0 })
+            {
+                node.Config = SanitizeConfig(node.Config, MaxConfigKeysPerNode);
+            }
+
+            kept.Add(node);
+        }
+
+        if (kept.Count != dto.Nodes.Count)
+        {
+            foreach (FlowNodeDto node in kept)
+            {
+                if (node.Next != null && !ids.Contains(node.Next)) node.Next = null;
+                if (node.BranchTrue != null && !ids.Contains(node.BranchTrue)) node.BranchTrue = null;
+                if (node.BranchFalse != null && !ids.Contains(node.BranchFalse)) node.BranchFalse = null;
+                if (node.BranchError != null && !ids.Contains(node.BranchError)) node.BranchError = null;
+                if (node.Branches is { Count: > 0 })
+                {
+                    foreach (string caseKey in node.Branches.Where(b => !ids.Contains(b.Value)).Select(b => b.Key).ToList())
+                    {
+                        node.Branches.Remove(caseKey);
+                    }
+
+                    if (node.Branches.Count == 0)
+                    {
+                        node.Branches = null;
+                    }
+                }
+            }
+        }
+
+        if (dto.EntryNodeId != null && !ids.Contains(dto.EntryNodeId))
+        {
+            dto.EntryNodeId = null;
+        }
+
+        if (dto.ErrorHandlerEntryId != null && !ids.Contains(dto.ErrorHandlerEntryId))
+        {
+            dto.ErrorHandlerEntryId = null;
+        }
+
+        dto.Nodes = kept;
+        return true;
     }
 
     /// <summary>
@@ -168,13 +321,17 @@ public static class FlowSnapshotService
             if (element.TryGetProperty("parameters", out var parameters) &&
                 parameters.ValueKind == JsonValueKind.Object)
             {
-                node.Config = new Dictionary<string, string>(StringComparer.Ordinal);
+                var config = new Dictionary<string, string>(StringComparer.Ordinal);
                 foreach (var property in parameters.EnumerateObject())
                 {
-                    node.Config[property.Name] = property.Value.ValueKind == JsonValueKind.String
+                    config[property.Name] = property.Value.ValueKind == JsonValueKind.String
                         ? property.Value.GetString() ?? string.Empty
                         : property.Value.GetRawText();
                 }
+
+                // Same ceilings as the sanitize pass — the file shape REPLACES
+                // the DTO config, so pathological values must be clamped here too.
+                node.Config = SanitizeConfig(config, MaxConfigKeysPerNode);
             }
         }
     }

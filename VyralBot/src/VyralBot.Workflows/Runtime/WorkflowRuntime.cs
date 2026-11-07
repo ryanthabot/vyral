@@ -87,11 +87,12 @@ public class WorkflowRuntime
     /// workflow so the interpreter stops at the next between-node check (the
     /// run ends as "Cancelled"). The runtime is a DI SINGLETON, so the registry
     /// is shared with every caller (WorkflowTriggerService, manual runs).
-    /// SEAM (next wave): nodes observe <c>ctx.CancellationToken</c>, which is
-    /// get-only on <see cref="ExecutionContext"/> — registry cancellation stops
-    /// the interpreter BETWEEN nodes but cannot interrupt an in-flight node
-    /// await (wait/http). Surfacing the linked token to nodes needs an
-    /// ExecutionContext change plus a WorkflowTriggerService call on delete.
+    /// WorkflowTriggerService.LoadWorkflowsAsync cancels vanished ids on every
+    /// cache reload (delete/disable paths). SEAM: nodes observe
+    /// <c>ctx.CancellationToken</c>, which is get-only on <see cref="ExecutionContext"/> —
+    /// registry cancellation stops the interpreter BETWEEN nodes but cannot
+    /// interrupt an in-flight node await (wait/http); surfacing the linked
+    /// token to nodes needs an ExecutionContext change.
     /// </summary>
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<Guid, CancellationTokenSource>> _activeRuns = new(StringComparer.Ordinal);
 
@@ -114,8 +115,9 @@ public class WorkflowRuntime
     /// deleted or disabled mid-run). Each registered run's linked token flips,
     /// so its interpreter stops at the next between-node check and the run
     /// ends with Status "Cancelled". Returns the number of runs signalled
-    /// (0 when the workflow is not currently running). SEAM: call this from
-    /// WorkflowTriggerService's delete/disable path next wave; in-node awaits
+    /// (0 when the workflow is not currently running). Called by
+    /// WorkflowTriggerService.LoadWorkflowsAsync for ids that vanished across
+    /// a cache reload (workflow deleted or disabled); in-node awaits still
     /// need the ExecutionContext token change noted on <see cref="_activeRuns"/>.
     /// </summary>
     public int CancelWorkflowRuns(string? workflowId)

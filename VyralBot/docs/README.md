@@ -1,17 +1,17 @@
 # VyralBot Documentation
 
 ## Overview
-VyralBot is a WPF streaming bot application supporting Twitch and Kick with multi-profile support, custom triggers/actions, currency, commands, giveaways, polls, watchtime tracking, and more.
+VyralBot is a WPF streaming bot application supporting Twitch, Kick, YouTube, Discord and TikTok (TikTok is web-setup only — coming soon) with multi-profile support, custom triggers/actions, workflows, currency, commands, giveaways, polls, watchtime tracking, auto-moderation, embedded OBS, restreaming and a mobile StreamDeck companion.
 
 ## Tech Stack
-- **Framework:** WPF (.NET 9), CommunityToolkit.Mvvm (MVVM pattern)
+- **Framework:** WPF (.NET 10), CommunityToolkit.Mvvm (MVVM pattern)
 - **DI/Hosting:** Microsoft.Extensions.Hosting, Serilog logging
-- **Database:** SQLite via Dapper (per-profile databases)
-- **Twitch:** Custom LightweightTwitchIrc (WebSocket IRC), TwitchLib.EventSub.Websockets
+- **Database:** SQLite via Dapper (per-profile databases, DPAPI-encrypted secrets at rest)
+- **Twitch:** Custom LightweightTwitchIrc (WebSocket IRC), TwitchLib.EventSub.Websockets, Helix moderation APIs
 - **Kick:** KickLib NuGet package (WebSocket chat + REST API)
 - **EventBus:** System.Threading.Channels (bounded, throttled)
 - **Web Server:** Kestrel (port 5000) for webhooks and API
-- **Storage:** Portable at `{projectRoot}/appdata/` (not %AppData%)
+- **Storage:** `appdata` next to the exe when writable, else `%LOCALAPPDATA%\VyralBot` (never scattered)
 
 ## Project Structure
 ```
@@ -19,7 +19,7 @@ src/
   VyralBot.UI/          → WPF app, ViewModels, Views, Converters, Services
   VyralBot.Core/        → EventBus, services (Chat, Commands, Currency, Triggers, etc.)
   VyralBot.Data/        → IDataService, DapperDataService, Entities
-  VyralBot.Integrations/→ Twitch and Kick platform integrations
+  VyralBot.Integrations/→ Twitch, Kick, YouTube, Discord, OBS, Restream, lights integrations
   VyralBot.Api/         → ASP.NET controllers (webhooks, API)
   VyralBot.Plugins/     → Plugin system
   VyralBot.Scripting/   → Scripting support
@@ -110,7 +110,8 @@ src/
 | [features/chat-system.md](features/chat-system.md) | Multi-platform chat |
 | [features/event-system.md](features/event-system.md) | Event types and flow |
 | [features/kick-integration.md](features/kick-integration.md) | KickLib integration |
-| [features/twitch-integration.md](features/twitch-integration.md) | Twitch IRC + EventSub |
+| [features/twitch-integration.md](features/twitch-integration.md) | Twitch IRC + EventSub + Helix moderation |
+| [features/youtube-integration.md](features/youtube-integration.md) | YouTube chat + SuperChat |
 | [features/platform-management.md](features/platform-management.md) | Platform config |
 | [features/profile-system.md](features/profile-system.md) | Profile management |
 | [features/settings-system.md](features/settings-system.md) | Settings and config |
@@ -129,6 +130,9 @@ src/
 | [services/kick-oauth-service.md](services/kick-oauth-service.md) | KickLibOAuthService |
 | [services/twitch-service.md](services/twitch-service.md) | TwitchService |
 | [services/lightweight-twitch-irc.md](services/lightweight-twitch-irc.md) | LightweightTwitchIrc |
+| [services/moderation.md](services/moderation.md) | Auto-moderation + mod commands + platform parity |
+| [services/discord-bot-runtime.md](services/discord-bot-runtime.md) | Discord gateway + multi-bot manager |
+| [services/embedded-web-server.md](services/embedded-web-server.md) | Embedded Kestrel web server |
 | [services/performance-monitor.md](services/performance-monitor.md) | Performance + pooling |
 | [services/profile-service.md](services/profile-service.md) | ProfileService |
 | [services/process-management.md](services/process-management.md) | Process management |

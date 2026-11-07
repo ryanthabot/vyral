@@ -1572,6 +1572,17 @@ public class WorkflowTriggerService
             return Task.CompletedTask;
         });
 
+        // Twitch channel-points redemption (EventSub publishes it live since the
+        // wave-3 wiring). Dispatches the SAME canonical "rewardredeemed" key as
+        // KickRewardRedeemedEvent below with the same variable shape
+        // (userId/reward/cost), so one workflow serves both platforms.
+        await Subscribe<TwitchChannelPointsRedeemEvent>(e =>
+        {
+            DispatchEvent("rewardredeemed", "Twitch", e.Username, e.UserInput, e,
+                Vars(("userId", e.UserId), ("reward", e.RewardTitle), ("cost", e.RewardCost)));
+            return Task.CompletedTask;
+        });
+
         // --- Kick (phase 15) ---
         await Subscribe<KickFollowEvent>(e =>
         {
@@ -1601,10 +1612,10 @@ public class WorkflowTriggerService
             return Task.CompletedTask;
         });
 
-        // Kick rewards / Kicks gifting (KickLibChatService publishes both;
-        // TwitchChannelPointsRedeemEvent is upstream-dead — nothing subscribes
-        // to it by design). Canonical keys are separator-free like every other
-        // dispatch key, so authored "RewardRedeemed" / "reward_redeemed" /
+        // Kick rewards / Kicks gifting (KickLibChatService publishes both; the
+        // Twitch twin above dispatches the same canonical "rewardredeemed"
+        // key). Canonical keys are separator-free like every other dispatch
+        // key, so authored "RewardRedeemed" / "reward_redeemed" /
         // "KicksGifted" all normalize onto them (see NormalizeEventType).
         await Subscribe<KickKicksGiftedEvent>(e =>
         {
@@ -1969,9 +1980,11 @@ public class WorkflowTriggerService
         // (WorkflowJson.FromRow materializes them). Only ENABLED workflows are
         // cached; disabled ones can never match.
         List<string> previousSlashNames;
+        List<string> previousWorkflowIds;
         lock (_sync)
         {
             previousSlashNames = _slashIndex.Keys.ToList();
+            previousWorkflowIds = _workflowById.Keys.ToList();
         }
 
         var rows = await _dataService.GetWorkflowsAsync();
@@ -2110,6 +2123,25 @@ public class WorkflowTriggerService
             // Timer last-run bookkeeping survives a cache reload (same profile).
             // Option cooldowns survive too (a reload must not reset a running
             // cooldown for the same workflow id).
+        }
+
+        // DELETE-MID-RUN CANCELLATION: every workflow-delete path (automation
+        // page, flow editor side panel, component orphan sweep, commands page)
+        // and the disable toggle call ReloadAsync right after the row changes,
+        // so ids that vanished across this reload are exactly the workflows
+        // that must not keep running. Signal their active runs via
+        // WorkflowRuntime.CancelWorkflowRuns — each run stops at the next
+        // between-node check and its execution history row records Status
+        // "Cancelled" (persisted by the runtime). No-op when nothing is in
+        // flight. A disabled-then-re-enabled id is unaffected: cancellation
+        // only touches runs that were in flight at this moment.
+        var runtime = ResolveRuntime();
+        if (runtime != null)
+        {
+            foreach (var vanishedId in previousWorkflowIds.Where(id => !workflowById.ContainsKey(id)))
+            {
+                runtime.CancelWorkflowRuns(vanishedId);
+            }
         }
 
         // SLASH AUTO-REGISTRATION (best-effort, fire-and-forget): push every
@@ -2395,9 +2427,12 @@ public class WorkflowTriggerService
             "host" or "hosted" or "hosting" => "host",
             "raid" or "raided" => "raid",
             "follow" or "followed" => "follow",
-            // "rewardredeemed" needs no case — the default branch's separator
-            // strip already maps "reward_redeemed"/"Reward Redeemed" onto it.
-            "reward" or "redeem" or "rewardredeem" => "rewardredeemed",
+            // "rewardredeemed" needs no case for the spelled-out forms — the
+            // default branch's separator strip already maps "reward_redeemed" /
+            // "Reward Redeemed" onto it. The compressed aliases cover the
+            // SoundSettings-style "redemption" and bare "Redeemed" spellings so
+            // Twitch + Kick redemptions fire the same workflows.
+            "reward" or "redeem" or "rewardredeem" or "redemption" or "redeemed" => "rewardredeemed",
             "kicksgift" or "kicks" => "kicksgifted",
             // Discord member events ("discord member joined" / "Discord
             // Boost" need no case — the default separator strip maps them).

@@ -40,18 +40,35 @@ ConditionBuilder / ComparisonBuilder view models instead of plain rows.
 
 ## Interaction model
 
-- Selection is single-node (`SelectedNode`, `IsSelected`); click background to
-  deselect, double-click to rename in place. Rubber-band drag-select and
-  multi-select delete are NOT implemented (the single-selection model runs
-  through the control, its events and the editor VM — an architectural change).
-- Delete key removes the selected node (attachment cards
-  `loop_after`/`loop_body`/`comparison_case`/`comparison_else` are protected;
-  component sub-nodes are deletable). Wires are locked: disconnect via the ⊗
+- **Selection is multi-node** (`SelectedNodes`, primary = last interacted,
+  exposed as `SelectedNode`; each node's `IsSelected` drives the dashed
+  indigo highlight). Left-drag on empty canvas rubber-band selects every node
+  whose bounds intersect the dashed `FlowCanvasSelection` rectangle
+  (additive — union — while Ctrl/Shift is held; a plain left click still
+  deselects). Ctrl/Shift+click toggles a single node in/out of the set;
+  clicking a node inside a multi-selection without dragging keeps the set
+  (collapse happens on release without movement, Windows-style). With more
+  than one node selected, `NodeSelected` raises null — the settings panel has
+  no single target.
+- **Pan** is MIDDLE-drag (or scrollbars/wheel); the left button on empty
+  canvas belongs to the rubber band.
+- Dragging any selected node moves the whole selection (per-node clamping,
+  wires follow live, one `GraphChanged` at drag end).
+- Delete key removes ALL selected nodes in one batch (ONE `GraphChanged` so
+  undo captures the whole delete). Protected attachment cards
+  (`loop_after`/`loop_body`/`comparison_case`/`comparison_else`) are skipped
+  by the same guard single-delete always used; component sub-nodes are
+  deletable. Wires are locked: disconnect via the ⊗
   midpoint marker or by re-dragging the port.
-- Ctrl+D duplicates the selected block (+24/+24, fresh id, no wires);
-  attachment cards and component sub-nodes are excluded from duplication
+- Ctrl+D duplicates every selected duplicatable block (+24/+24, fresh ids, no
+  wires) and selects the copies; attachment cards and component sub-nodes are
+  excluded from duplication
   (canvas `OnKeyDown`/`DuplicateSelected` and VM `DuplicateSelectedBlock`) —
   a component copy would be an unwired orphan.
+- Ctrl+C/Ctrl+V copy/paste the selection through the same duplicate machinery
+  (canvas-local clipboard — not the OS clipboard; fresh ids, config copied,
+  no wires, +24/+24 offset that cascades on repeated pastes, one
+  `GraphChanged` per paste, pasted nodes become the new selection).
 - Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y (undo/redo) and Ctrl+S (save) are bound in
   `FlowEditorView.OnPreviewKeyDown`; undo snapshots are debounced 400 ms.
 - Zoom clamps 25%–200%; wheel zooms at the cursor, Shift+wheel scrolls.
