@@ -104,6 +104,30 @@ public class DiscordService : IDiscordService, IDisposable
     /// <summary>The client instance whose guild cache already seeded <see cref="_seenBots"/>.</summary>
     private DiscordSocketClient? _seenBotsSeededFrom;
 
+    // --- Guild member events (joins & boosts) state ---
+    // Dedup/transition bookkeeping for DiscordMemberJoinedEvent /
+    // DiscordBoostEvent publishing. Both are cleared on a manual disconnect
+    // (per-session state) and survive Discord.Net auto-reconnects, so a
+    // session resume cannot re-publish an already-published join/boost.
+
+    /// <summary>
+    /// Most recent join per (guild id, user id), used to swallow duplicate
+    /// GUILD_MEMBER_ADD deliveries around reconnect handshakes.
+    /// </summary>
+    private readonly ConcurrentDictionary<(ulong GuildId, ulong UserId), DateTimeOffset> _recentMemberJoins = new();
+
+    /// <summary>
+    /// Last observed PremiumSince per (guild id, user id); a null entry means
+    /// the member was seen WITHOUT a boost. Only a KNOWN null → value
+    /// transition publishes a <see cref="Events.DiscordBoostEvent"/>; unknown
+    /// priors (first sight of a member, e.g. a reconnect snapshot) are
+    /// recorded and never published.
+    /// </summary>
+    private readonly ConcurrentDictionary<(ulong GuildId, ulong UserId), DateTimeOffset?> _premiumSinceByMember = new();
+
+    /// <summary>Window in which an identical (guild, user) join is treated as a replay.</summary>
+    private static readonly TimeSpan MemberJoinDedupWindow = TimeSpan.FromMinutes(10);
+
     // --- Workflow execution surface (node editor) state ---
 
     /// <summary>
@@ -682,6 +706,13 @@ public class DiscordService : IDiscordService, IDisposable
                 // force slash command re-sync on the next connect.
                 _workflowOrigin = null;
                 _workflowSlashSyncedGuilds.Clear();
+
+                // Member-event dedup state is per-session too: a fresh connect
+                // starts from snapshots (never stale transitions). Discord.Net
+                // auto-reconnects do NOT pass through here, so a resume keeps
+                // the map and cannot re-publish a known join/boost.
+                _recentMemberJoins.Clear();
+                _premiumSinceByMember.Clear();
             }
 
             // Free the token's gateway slot so a later connect (this service or
@@ -1507,6 +1538,15 @@ public class DiscordService : IDiscordService, IDisposable
 
     private static DiscordSocketClient CreateClient() => new(new DiscordSocketConfig
     {
+        // NOTE: the privileged GuildMembers intent is deliberately NOT
+        // requested here. GUILD_MEMBER_ADD / GUILD_MEMBER_UPDATE (the member
+        // join + boost sources, see the "Guild member events" region) are only
+        // delivered with it — but IDENTIFYing with an intent the bot does not
+        // have toggled in the Discord Developer Portal ("Server Members
+        // Intent") is rejected with close code 4014 and would kill ALL
+        // Discord connectivity for every bot. Enable the portal toggle first,
+        // then add `| GatewayIntents.GuildMembers` above; the handlers are
+        // already wired and start firing with no other code change.
         GatewayIntents = GatewayIntents.Guilds
                        | GatewayIntents.GuildMessages
                        | GatewayIntents.MessageContent
@@ -1523,6 +1563,12 @@ public class DiscordService : IDiscordService, IDisposable
         client.JoinedGuild += OnGuildListChangedAsync;
         client.LeftGuild += OnGuildListChangedAsync;
         client.MessageReceived += OnMessageReceivedAsync;
+
+        // Guild member events: joins (UserJoined = GUILD_MEMBER_ADD) and boost
+        // transitions (GuildMemberUpdated PremiumSince null → value). Only
+        // delivered with the privileged GuildMembers intent (see CreateClient).
+        client.UserJoined += OnGuildMemberJoinedAsync;
+        client.GuildMemberUpdated += OnGuildMemberUpdatedAsync;
 
         // Workflow surface: slash commands, workflow component interactions and
         // per-guild slash command re-registration on (re)connect.
@@ -1543,6 +1589,9 @@ public class DiscordService : IDiscordService, IDisposable
         client.JoinedGuild -= OnGuildListChangedAsync;
         client.LeftGuild -= OnGuildListChangedAsync;
         client.MessageReceived -= OnMessageReceivedAsync;
+
+        client.UserJoined -= OnGuildMemberJoinedAsync;
+        client.GuildMemberUpdated -= OnGuildMemberUpdatedAsync;
 
         client.SlashCommandExecuted -= OnWorkflowSlashCommandExecutedAsync;
         client.ButtonExecuted -= OnWorkflowButtonExecutedAsync;
@@ -1819,6 +1868,171 @@ public class DiscordService : IDiscordService, IDisposable
         {
             _logger.LogError(ex, "❌ Error handling Discord message received");
             return Task.CompletedTask;
+        }
+    }
+
+    #endregion
+
+    #region Guild member events (joins & boosts)
+
+    // Publishes DiscordMemberJoinedEvent (member joins a guild) and
+    // DiscordBoostEvent (member starts boosting, PremiumSince null → value)
+    // through the same EventBus pattern the chat pipeline uses. Both are only
+    // delivered by the gateway with the privileged GuildMembers intent (see
+    // CreateClient); the handlers are wired regardless so flipping the intent
+    // on needs no further code change.
+
+    private Task OnGuildMemberJoinedAsync(SocketGuildUser user)
+    {
+        try
+        {
+            if (user == null)
+            {
+                return Task.CompletedTask;
+            }
+
+            var key = (user.Guild.Id, user.Id);
+            var now = DateTimeOffset.UtcNow;
+
+            // Replay guard: the same (guild, user) join inside the dedup
+            // window is a reconnect-handshake duplicate, not a new member.
+            if (_recentMemberJoins.TryGetValue(key, out var lastJoin)
+                && now - lastJoin < MemberJoinDedupWindow)
+            {
+                _logger.LogDebug("Skipping duplicate Discord join event for user {UserId} in guild {GuildId}", user.Id, user.Guild.Id);
+                return Task.CompletedTask;
+            }
+
+            _recentMemberJoins[key] = now;
+            PruneStaleJoinEntries(now);
+
+            var joinedEvent = new DiscordMemberJoinedEvent
+            {
+                Source = "Discord",
+                BotId = BotId,
+                GuildId = user.Guild.Id.ToString(),
+                GuildName = user.Guild.Name,
+                Username = user.Username ?? "Unknown",
+                DisplayName = user.DisplayName,
+                UserId = user.Id.ToString()
+            };
+
+            _logger.LogInformation("👋 {DisplayName} joined {Guild}",
+                joinedEvent.DisplayName ?? joinedEvent.Username, joinedEvent.GuildName);
+
+            // Fire-and-forget so the gateway thread never blocks (matches the chat pipeline)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _eventBus.PublishAsync(joinedEvent).ConfigureAwait(false);
+                }
+                catch (Exception publishEx)
+                {
+                    _logger.LogError(publishEx, "❌ Failed to publish DiscordMemberJoinedEvent for {Username}", joinedEvent.Username);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ Error handling Discord guild member join");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task OnGuildMemberUpdatedAsync(Cacheable<SocketGuildUser, ulong> before, SocketGuildUser after)
+    {
+        try
+        {
+            if (after == null)
+            {
+                return Task.CompletedTask;
+            }
+
+            var key = (after.Guild.Id, after.Id);
+            var newPremiumSince = after.PremiumSince;
+
+            // Prior boost state: the cached before-user is authoritative; on a
+            // cache miss fall back to the map built from earlier updates.
+            DateTimeOffset? priorPremiumSince;
+            bool priorKnown;
+            if (before.HasValue)
+            {
+                priorPremiumSince = before.Value.PremiumSince;
+                priorKnown = true;
+            }
+            else
+            {
+                priorKnown = _premiumSinceByMember.TryGetValue(key, out priorPremiumSince);
+            }
+
+            // Snapshot the new state for future transition detection (always,
+            // including the no-boost case, so a later boost is detectable).
+            _premiumSinceByMember[key] = newPremiumSince;
+
+            // Publish ONLY on a KNOWN null → value transition. An unknown prior
+            // (first sight of the member — e.g. a reconnect snapshot carrying
+            // premium_since for an already-existing booster) is never published,
+            // which is what keeps reconnect replays silent.
+            if (newPremiumSince == null || !priorKnown || priorPremiumSince != null)
+            {
+                return Task.CompletedTask;
+            }
+
+            var boostEvent = new DiscordBoostEvent
+            {
+                Source = "Discord",
+                BotId = BotId,
+                GuildId = after.Guild.Id.ToString(),
+                GuildName = after.Guild.Name,
+                Username = after.Username ?? "Unknown",
+                DisplayName = after.DisplayName,
+                UserId = after.Id.ToString(),
+                PremiumSince = newPremiumSince
+            };
+
+            _logger.LogInformation("🚀 {DisplayName} boosted {Guild}",
+                boostEvent.DisplayName ?? boostEvent.Username, boostEvent.GuildName);
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _eventBus.PublishAsync(boostEvent).ConfigureAwait(false);
+                }
+                catch (Exception publishEx)
+                {
+                    _logger.LogError(publishEx, "❌ Failed to publish DiscordBoostEvent for {Username}", boostEvent.Username);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ Error handling Discord guild member update");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Bounds <see cref="_recentMemberJoins"/>: entries older than the dedup
+    /// window are worthless, so once the map grows past a safety cap the
+    /// stale entries are dropped (best-effort, lock-free).
+    /// </summary>
+    private void PruneStaleJoinEntries(DateTimeOffset now)
+    {
+        if (_recentMemberJoins.Count < 512)
+        {
+            return;
+        }
+
+        foreach (var pair in _recentMemberJoins)
+        {
+            if (now - pair.Value >= MemberJoinDedupWindow)
+            {
+                _recentMemberJoins.TryRemove(pair.Key, out _);
+            }
         }
     }
 

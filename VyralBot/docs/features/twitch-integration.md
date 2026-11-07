@@ -69,6 +69,7 @@ Custom Twitch integration using LightweightTwitchIrc (custom WebSocket IRC clien
   - `channel.subscription.gift` (v1)
   - `channel.raid` (v1)
   - `channel.cheer` (v1)
+  - `channel.channel_points_custom_reward_redemption.add` (v1, own try/catch — requires `channel:read:redemptions` scope)
 - **Event handlers → EventBus:**
   - `OnChannelFollow` → `TwitchFollowEvent` (also updates `twitch-followercount` variable)
   - `OnChannelSubscribe` → `TwitchSubscribeEvent` (also updates `twitch-subscribercount` variable)
@@ -76,6 +77,7 @@ Custom Twitch integration using LightweightTwitchIrc (custom WebSocket IRC clien
   - `OnChannelSubscriptionGift` → `TwitchGiftSubEvent`
   - `OnChannelRaid` → `TwitchRaidEvent`
   - `OnChannelCheer` → `TwitchCheerEvent`
+  - `OnChannelPointsCustomRewardRedemptionAdd` → `TwitchChannelPointsRedeemEvent` (dedicated redeem event only — never published as `ChatMessageReceivedEvent`; ChatViewModel handles alerts/auto-replies/stats under `Twitch`/`RewardRedeemed`)
 - **Reconnection:** `OnWebsocketDisconnected` → `ReconnectAsync()` after 2-second delay
 
 ### TwitchOAuthService

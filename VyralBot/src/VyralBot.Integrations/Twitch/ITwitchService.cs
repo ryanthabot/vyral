@@ -101,6 +101,29 @@ public interface ITwitchService
     Task<TwitchActionResponse> ClearChatAsync();
 
     /// <summary>
+    /// Times a viewer out via POST /helix/moderation/bans (duration in seconds,
+    /// clamped to Twitch's 1s–14d window). The username is resolved to a user
+    /// id through GET /helix/users. Requires moderator:manage:banned_users.
+    /// Returns false (never throws) when the viewer can't be resolved or
+    /// Twitch rejects the call.
+    /// </summary>
+    Task<bool> TimeoutUserAsync(string username, TimeSpan duration, string reason);
+
+    /// <summary>
+    /// Bans a viewer via POST /helix/moderation/bans (no duration). The
+    /// username is resolved to a user id through GET /helix/users. Requires
+    /// moderator:manage:banned_users. Returns false (never throws) on failure.
+    /// </summary>
+    Task<bool> BanUserAsync(string username, string reason);
+
+    /// <summary>
+    /// Deletes a single chat message via DELETE /helix/moderation/chat with a
+    /// message_id. Requires moderator:manage:chat_messages. Returns false
+    /// (never throws) when no id is given or Twitch rejects the call.
+    /// </summary>
+    Task<bool> DeleteMessageAsync(string messageId);
+
+    /// <summary>
     /// Updates chat moderation modes via PUT /helix/chat/settings. Only the
     /// provided fields are changed; pass null to leave a mode untouched.
     /// </summary>

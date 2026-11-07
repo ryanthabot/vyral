@@ -51,6 +51,7 @@ public class TwitchEventSubService : ITwitchEventSubService
         _eventSubClient.ChannelSubscriptionGift += async (sender, args) => await OnChannelSubscriptionGift(sender, args);
         _eventSubClient.ChannelRaid += async (sender, args) => await OnChannelRaid(sender, args);
         _eventSubClient.ChannelCheer += async (sender, args) => await OnChannelCheer(sender, args);
+        _eventSubClient.ChannelPointsCustomRewardRedemptionAdd += async (sender, args) => await OnChannelPointsCustomRewardRedemptionAdd(sender, args);
         _eventSubClient.StreamOnline += async (sender, args) => await OnStreamOnline(sender, args);
         _eventSubClient.StreamOffline += async (sender, args) => await OnStreamOffline(sender, args);
     }
@@ -177,6 +178,24 @@ public class TwitchEventSubService : ITwitchEventSubService
                 EventSubTransportMethod.Websocket,
                 _eventSubClient.SessionId);
             _logger.LogInformation("✅ Subscribed to stream.offline");
+
+            // Subscribe to Channel Points Custom Reward Redemption events.
+            // Wrapped in its own try/catch so a missing scope on older tokens
+            // (requires channel:read:redemptions) cannot starve the other
+            // subscriptions — redemptions are additive functionality.
+            try
+            {
+                await _twitchApi.Helix.EventSub.CreateEventSubSubscriptionAsync(
+                    "channel.channel_points_custom_reward_redemption.add", "1",
+                    new Dictionary<string, string> { { "broadcaster_user_id", _userId! } },
+                    EventSubTransportMethod.Websocket,
+                    _eventSubClient.SessionId);
+                _logger.LogInformation("✅ Subscribed to channel.channel_points_custom_reward_redemption.add");
+            }
+            catch (Exception redemptionEx)
+            {
+                _logger.LogError(redemptionEx, "Failed to subscribe to channel points redemption events (token may lack channel:read:redemptions scope)");
+            }
 
             _logger.LogInformation("🎉 Successfully subscribed to all Twitch EventSub topics");
         }
@@ -344,6 +363,31 @@ public class TwitchEventSubService : ITwitchEventSubService
         };
 
         _logger.LogInformation("Twitch Cheer: {Username} cheered {Bits} bits", evt.Username, evt.Bits);
+        return _eventBus.PublishAsync(evt);
+    }
+
+    private Task OnChannelPointsCustomRewardRedemptionAdd(object? sender, ChannelPointsCustomRewardRedemptionArgs e)
+    {
+        var payload = e.Notification.Payload.Event;
+
+        // Redemptions are NOT chat messages — publish the dedicated redeem
+        // event only (mirrors Kick's OnRewardRedeemed) so the generic
+        // ChatMessageReceivedEvent is not spammed by reward redemptions.
+        var evt = new TwitchChannelPointsRedeemEvent
+        {
+            Source = "Twitch",
+            Username = payload.UserName,
+            UserId = payload.UserId,
+            RewardId = payload.Reward.Id,
+            RewardTitle = payload.Reward.Title,
+            RewardCost = payload.Reward.Cost,
+            UserInput = string.IsNullOrEmpty(payload.UserInput) ? null : payload.UserInput,
+            Status = payload.Status,
+            RedeemedAt = payload.RedeemedAt.UtcDateTime
+        };
+
+        _logger.LogInformation("Twitch Channel Points Redeem: {Username} redeemed \"{RewardTitle}\" ({Cost} points)",
+            evt.Username, evt.RewardTitle, evt.RewardCost);
         return _eventBus.PublishAsync(evt);
     }
 

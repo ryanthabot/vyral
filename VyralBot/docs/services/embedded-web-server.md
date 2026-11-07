@@ -14,7 +14,7 @@ off by default, PIN-paired device tokens).
 | `/webhooks/kick` | POST | RSA-SHA256 signature (`KickWebhookValidationMiddleware`) | Publishes Kick platform events to `IEventBus` (bot actions, currency). |
 | `/webhooks/health` | GET | none | Static health JSON. |
 | `/audio-ws` | WS | loopback Origin check + 16-connection cap | One-way push of sound-play messages for OBS browser sources. |
-| `/*` (static) | GET | none | Serves `wwwroot` (`audio.html`, `/sounds/*`) from `AppContext.BaseDirectory` only. |
+| `/*` (static) | GET | none | `/sounds/*` is served first from the active profile's sounds folder (`ISoundService.GetSoundsDirectory()` — `appdata/profiles/<name>/data/sounds`), then falls back to `wwwroot` (`audio.html`, legacy `/sounds/*`) from `AppContext.BaseDirectory`. |
 
 ## Webhook pipeline (order matters)
 

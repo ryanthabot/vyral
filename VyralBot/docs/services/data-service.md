@@ -36,6 +36,25 @@ SQLite-based data access layer using Dapper ORM. `IDataService` defines 80+ meth
 - **Connection:** `new SqliteConnection(_connectionString)` per query
 - **Custom type handler:** `GuidTypeHandler` for SQLite TEXT ↔ Guid mapping
 - **Database initialization:** Creates all tables on first use
+- **Secrets at rest:** `Platforms.ClientSecret` and `DiscordBots.Token` are
+  DPAPI-wrapped on write and unwrapped on read via `SecretProtector` (see
+  below) — callers always handle plaintext in memory, never the stored blob.
+  `AccessToken`/`RefreshToken` are intentionally NOT wrapped here because
+  `TwitchOAuthService` already DPAPI-encrypts those at the caller.
+
+### SecretProtector (DPAPI secrets at rest)
+- **File:** `src/VyralBot.Data/SecretProtector.cs`
+- **Namespace:** `VyralBot.Data`
+- **Static helper** over `System.Security.Cryptography.ProtectedData`
+  (CurrentUser scope + app entropy constant, never logged).
+- **Format:** `"v1:" + base64(DPAPI blob)`; `Protect` is idempotent (an
+  already-wrapped value is returned unchanged — no double-wrap).
+- **Legacy migration:** values without the `v1:` prefix (pre-wave-3 plaintext
+  rows) are returned as-is on read and lazily re-encrypted on the next save —
+  no schema change, no destructive migration. Unrecoverable blobs (different
+  Windows user / corrupt row) are returned unchanged instead of throwing.
+- **Tests:** `tests/VyralBot.UI.Tests/SecretProtectorTests.cs` (real-DPAPI
+  round-trip, idempotence, legacy passthrough, malformed-blob tolerance).
 
 ### ProfileAwareDataService
 - **File:** `src/VyralBot.UI/Services/ProfileAwareDataService.cs` (~195 lines)

@@ -102,7 +102,27 @@
                         Style="{StaticResource MaterialDesignOutlinedButton}" Margin="0,0,8,0">
                     <StackPanel Orientation="Horizontal">
                         <materialDesign:PackIcon Kind="Restart" Width="16" Height="16" VerticalAlignment="Center"/>
-                        <TextBlock Text="Replay Buffer" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        <TextBlock Margin="6,0,0,0" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                    <Setter Property="Text" Value="Start Replay Buffer"/>
+                                    <Style.Triggers>
+                                        <!-- Transition flag is set only while starting (the stop path
+                                             clears it immediately), so the ramp label is "Starting…". -->
+                                        <DataTrigger Binding="{Binding ReplayStarting}" Value="True">
+                                            <Setter Property="Text" Value="Starting…"/>
+                                        </DataTrigger>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding ReplayActive}" Value="True"/>
+                                                <Condition Binding="{Binding ReplayStarting}" Value="False"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Text" Value="Replay Buffer ACTIVE…"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
                 </Button>
 
@@ -113,6 +133,11 @@
                         <TextBlock Text="Save Replay" Margin="6,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
+
+                <!-- Result of the last Save Replay (clears with the next save) -->
+                <TextBlock Text="{Binding ReplaySavedText}" Margin="4,0,8,0" FontSize="12" TextWrapping="Wrap"
+                           VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"
+                           Visibility="{Binding ReplaySavedText, Converter={StaticResource StringToVisibilityConverter}}"/>
 
                 <Button Command="{Binding LoadCollectionFromFileCommand}"
                         Style="{StaticResource MaterialDesignOutlinedButton}">

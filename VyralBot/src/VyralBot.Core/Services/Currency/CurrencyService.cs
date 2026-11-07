@@ -264,10 +264,62 @@ public class CurrencyService : ICurrencyService
     // parallel. Keyed on the lower-cased "username:platform" identity.
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _accountGates = new();
 
+    // Bounded eviction: a channel with millions of viewers would otherwise grow
+    // _accountGates forever (one semaphore per viewer ever seen, and the map is
+    // static). When the map exceeds the threshold, a rate-limited sweep on gate
+    // access removes entries whose semaphore is unheld (CurrentCount == 1);
+    // held gates are never evicted, so in-flight mutations stay serialized and
+    // an evicted idle viewer simply gets a fresh gate on its next award. Known
+    // benign race: a caller between GetOrAdd and WaitAsync can lose its entry —
+    // that microsecond window only opens above 10k entries and self-heals.
+    private const int AccountGateEvictionThreshold = 10_000;
+    private static readonly long GateSweepIntervalTicks = TimeSpan.FromMinutes(1).Ticks;
+    private static long _nextGateSweepTicksUtc;
+
     private static SemaphoreSlim GetAccountGate(string username, string platform)
-        => _accountGates.GetOrAdd(
+    {
+        var gate = _accountGates.GetOrAdd(
             $"{username.ToLowerInvariant()}:{platform.ToLowerInvariant()}",
             _ => new SemaphoreSlim(1, 1));
+        EvictIdleAccountGatesIfNeeded();
+        return gate;
+    }
+
+    /// <summary>
+    /// Trims <see cref="_accountGates"/> when it grows past
+    /// <see cref="AccountGateEvictionThreshold"/>: at most one sweep per
+    /// minute (Interlocked claim on the next-sweep timestamp), removing only
+    /// semaphores nobody holds. Best-effort and allocation-free when idle.
+    /// </summary>
+    private static void EvictIdleAccountGatesIfNeeded()
+    {
+        if (_accountGates.Count <= AccountGateEvictionThreshold)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow.Ticks;
+        var next = Interlocked.Read(ref _nextGateSweepTicksUtc);
+        if (now < next)
+        {
+            return;
+        }
+
+        // Claim the sweep slot; concurrent callers keep using their gates.
+        if (Interlocked.CompareExchange(ref _nextGateSweepTicksUtc, now + GateSweepIntervalTicks, next) != next)
+        {
+            return;
+        }
+
+        foreach (var pair in _accountGates)
+        {
+            if (pair.Value.CurrentCount == 1)
+            {
+                // Nothing to dispose: an unheld SemaphoreSlim owns no handles.
+                _accountGates.TryRemove(pair.Key, out _);
+            }
+        }
+    }
 
     /// <summary>
     /// Saturating add for the int balance/total columns: at the int ceiling a

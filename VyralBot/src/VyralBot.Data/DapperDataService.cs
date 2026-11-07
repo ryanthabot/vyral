@@ -49,42 +49,84 @@ public class DapperDataService : IDataService
 
     private IDbConnection CreateConnection() => new SqliteConnection(_connectionString);
 
+    // Secrets at rest: Platforms.ClientSecret and DiscordBots.Token are stored
+    // DPAPI-wrapped (SecretProtector "v1:" envelope, CurrentUser scope). Reads
+    // unwrap before handing entities to callers; writes wrap again — callers
+    // always see plaintext in memory, never the blob. Rows written before this
+    // seam (plaintext) still read fine and are re-encrypted lazily on their
+    // next save. AccessToken/RefreshToken are intentionally NOT wrapped here:
+    // TwitchOAuthService already DPAPI-encrypts those at the caller.
+    private static void UnprotectPlatformSecrets(IEnumerable<Platform> platforms)
+    {
+        foreach (var platform in platforms)
+        {
+            platform.ClientSecret = SecretProtector.Unprotect(platform.ClientSecret);
+        }
+    }
+
+    private static void UnprotectBotTokens(IEnumerable<DiscordBot> bots)
+    {
+        foreach (var bot in bots)
+        {
+            bot.Token = SecretProtector.Unprotect(bot.Token);
+        }
+    }
+
     #region Platform Operations
 
     public async Task<IEnumerable<Platform>> GetPlatformsAsync()
     {
         using var conn = CreateConnection();
-        return await conn.QueryAsync<Platform>("SELECT * FROM Platforms ORDER BY Name");
+        var platforms = (await conn.QueryAsync<Platform>("SELECT * FROM Platforms ORDER BY Name")).ToList();
+        UnprotectPlatformSecrets(platforms);
+        return platforms;
     }
 
     public async Task<Platform?> GetPlatformByNameAsync(string name)
     {
         using var conn = CreateConnection();
-        return await conn.QueryFirstOrDefaultAsync<Platform>(
+        var platform = await conn.QueryFirstOrDefaultAsync<Platform>(
             "SELECT * FROM Platforms WHERE Name = @Name", new { Name = name });
+        if (platform != null)
+        {
+            platform.ClientSecret = SecretProtector.Unprotect(platform.ClientSecret);
+        }
+        return platform;
     }
 
     public async Task<Platform?> GetPlatformByIdAsync(Guid id)
     {
         using var conn = CreateConnection();
-        return await conn.QueryFirstOrDefaultAsync<Platform>(
+        var platform = await conn.QueryFirstOrDefaultAsync<Platform>(
             "SELECT * FROM Platforms WHERE Id = @Id", new { Id = id });
+        if (platform != null)
+        {
+            platform.ClientSecret = SecretProtector.Unprotect(platform.ClientSecret);
+        }
+        return platform;
     }
 
     public async Task SavePlatformAsync(Platform platform)
     {
         platform.UpdatedAt = DateTime.UtcNow;
 
-        using var conn = CreateConnection();
-
-        // Check if exists
-        var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(1) FROM Platforms WHERE Id = @Id", new { platform.Id });
-
-        if (exists > 0)
+        // Secrets at rest: write the DPAPI envelope, keep plaintext on the
+        // caller's entity. finally-restore guarantees the in-memory object is
+        // never left holding the blob even when the SQL throws.
+        var plainClientSecret = platform.ClientSecret;
+        platform.ClientSecret = SecretProtector.Protect(plainClientSecret);
+        try
         {
-            // Update
-            await conn.ExecuteAsync(@"
+            using var conn = CreateConnection();
+
+            // Check if exists
+            var exists = await conn.ExecuteScalarAsync<int>(
+                "SELECT COUNT(1) FROM Platforms WHERE Id = @Id", new { platform.Id });
+
+            if (exists > 0)
+            {
+                // Update
+                await conn.ExecuteAsync(@"
                 UPDATE Platforms SET
                     Name = @Name,
                     Enabled = @Enabled,
@@ -116,11 +158,11 @@ public class DapperDataService : IDataService
                     RumbleChatAutoStart = @RumbleChatAutoStart,
                     UpdatedAt = @UpdatedAt
                 WHERE Id = @Id", platform);
-        }
-        else
-        {
-            // Insert
-            await conn.ExecuteAsync(@"
+            }
+            else
+            {
+                // Insert
+                await conn.ExecuteAsync(@"
                 INSERT INTO Platforms (
                     Id, Name, Enabled, AccessToken, RefreshToken, TokenExpiresAt,
                     Username, UserId, ChannelId, ChatroomId, ClientId, ClientSecret, Status, LastError,
@@ -144,6 +186,11 @@ public class DapperDataService : IDataService
                     @RumbleChatEnabled, @RumbleChatAutoStart,
                     @CreatedAt, @UpdatedAt
                 )", platform);
+            }
+        }
+        finally
+        {
+            platform.ClientSecret = plainClientSecret;
         }
     }
 
@@ -160,21 +207,29 @@ public class DapperDataService : IDataService
     public async Task<IEnumerable<DiscordBot>> GetDiscordBotsAsync()
     {
         using var conn = CreateConnection();
-        return await conn.QueryAsync<DiscordBot>("SELECT * FROM DiscordBots ORDER BY CreatedAt");
+        var bots = (await conn.QueryAsync<DiscordBot>("SELECT * FROM DiscordBots ORDER BY CreatedAt")).ToList();
+        UnprotectBotTokens(bots);
+        return bots;
     }
 
     public async Task SaveDiscordBotAsync(DiscordBot bot)
     {
         bot.UpdatedAt = DateTime.UtcNow;
 
-        using var conn = CreateConnection();
-
-        var exists = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(1) FROM DiscordBots WHERE Id = @Id", new { bot.Id });
-
-        if (exists > 0)
+        // Secrets at rest: write the DPAPI envelope, keep plaintext on the
+        // caller's entity (see SavePlatformAsync for the finally-restore note).
+        var plainToken = bot.Token;
+        bot.Token = SecretProtector.Protect(plainToken);
+        try
         {
-            await conn.ExecuteAsync(@"
+            using var conn = CreateConnection();
+
+            var exists = await conn.ExecuteScalarAsync<int>(
+                "SELECT COUNT(1) FROM DiscordBots WHERE Id = @Id", new { bot.Id });
+
+            if (exists > 0)
+            {
+                await conn.ExecuteAsync(@"
                 UPDATE DiscordBots SET
                     Name = @Name,
                     Token = @Token,
@@ -191,10 +246,10 @@ public class DapperDataService : IDataService
                     AssignedChannelIds = @AssignedChannelIds,
                     UpdatedAt = @UpdatedAt
                 WHERE Id = @Id", bot);
-        }
-        else
-        {
-            await conn.ExecuteAsync(@"
+            }
+            else
+            {
+                await conn.ExecuteAsync(@"
                 INSERT INTO DiscordBots (
                     Id, Name, Token, Status, SelectedChannelId,
                     ApplicationId, BotUsername, AvatarUrl, RoleLinking, RoleGiveaway,
@@ -208,6 +263,11 @@ public class DapperDataService : IDataService
                     @ModChannelId, @ModChannelEnabled, @AssignedChannelIds,
                     @CreatedAt, @UpdatedAt
                 )", bot);
+            }
+        }
+        finally
+        {
+            bot.Token = plainToken;
         }
     }
 

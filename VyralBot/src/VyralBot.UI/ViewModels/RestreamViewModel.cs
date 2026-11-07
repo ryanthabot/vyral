@@ -439,8 +439,8 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task StartRestreamAsync()
     {
-        var install = await Task.Run(() => _ffmpegLocator.Locate(
-            string.IsNullOrWhiteSpace(FfmpegPathOverride) ? null : FfmpegPathOverride.Trim()));
+        var install = await _ffmpegLocator.LocateAsync(
+            string.IsNullOrWhiteSpace(FfmpegPathOverride) ? null : FfmpegPathOverride.Trim());
         if (install is null)
         {
             await RefreshFfmpegStatusAsync();
@@ -608,10 +608,10 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
 
     private async Task RefreshFfmpegStatusAsync()
     {
-        // Locate() probes the binary with "ffmpeg -version" (up to a 5s hang
-        // guard for a broken exe) — keep that off the UI thread.
-        var install = await Task.Run(() => _ffmpegLocator.Locate(
-            string.IsNullOrWhiteSpace(FfmpegPathOverride) ? null : FfmpegPathOverride.Trim()));
+        // LocateAsync probes the binary with "ffmpeg -version" (up to a 5s hang
+        // guard for a broken exe) — its exit wait runs on the thread pool.
+        var install = await _ffmpegLocator.LocateAsync(
+            string.IsNullOrWhiteSpace(FfmpegPathOverride) ? null : FfmpegPathOverride.Trim());
         if (install is null)
         {
             IsFfmpegFound = false;

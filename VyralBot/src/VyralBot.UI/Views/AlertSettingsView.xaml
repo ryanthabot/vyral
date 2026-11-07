@@ -11,7 +11,7 @@
         <StackPanel Margin="20">
             
             <!-- Header -->
-            <materialDesign:Card Padding="20" Margin="0,0,0,20">
+            <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}" Padding="20" Margin="0,0,0,20">
                 <StackPanel>
                     <TextBlock Text="Visual Alerts Settings" 
                               Style="{StaticResource MaterialDesignHeadline5TextBlock}"
@@ -23,7 +23,7 @@
             </materialDesign:Card>
 
             <!-- General Settings -->
-            <materialDesign:Card Padding="20" Margin="0,0,0,20">
+            <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}" Padding="20" Margin="0,0,0,20">
                 <StackPanel>
                     <TextBlock Text="General Settings" 
                               Style="{StaticResource MaterialDesignHeadline6TextBlock}"
@@ -118,7 +118,7 @@
             </materialDesign:Card>
 
             <!-- Event Type Toggles -->
-            <materialDesign:Card Padding="20" Margin="0,0,0,20">
+            <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}" Padding="20" Margin="0,0,0,20">
                 <StackPanel>
                     <TextBlock Text="Alert Events" 
                               Style="{StaticResource MaterialDesignHeadline6TextBlock}"

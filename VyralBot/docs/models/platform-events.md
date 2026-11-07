@@ -10,7 +10,8 @@
 2. [Base Types](#base-types)
 3. [Twitch Events](#twitch-events)
 4. [Kick Events](#kick-events)
-5. [System Events](#system-events)
+5. [Discord Events](#discord-events)
+6. [System Events](#system-events)
 
 ---
 
@@ -18,7 +19,7 @@
 
 All platform events are immutable `record` types that inherit from `EventBase`, which implements `IEvent`. Events are published to the `IEventBus` and consumed by the trigger engine, chat UI, statistics tracker, and other subscribers.
 
-**Total event files:** 20 (9 Twitch + 8 Kick + 3 System)
+**Total event files:** 23 (9 Twitch + 8 Kick + 3 Discord + 3 System)
 
 ---
 
@@ -376,6 +377,77 @@ Fired when stream status changes (goes live or offline).
 | Category | `string?` | — | `null` | Stream category |
 | ViewerCount | `int?` | — | `null` | Current viewer count |
 | StatusChangedAt | `DateTime` | — | `DateTime.UtcNow` | When status changed |
+
+---
+
+## Discord Events
+
+**Directory:** `src/VyralBot.Integrations/Discord/Events/`
+**Namespace:** `VyralBot.Integrations.Discord.Events`
+
+All Discord events are `record : EventBase` with `Source` set to `"Discord"`,
+published by `DiscordService` and tagged with the observing bot's `BotId`.
+
+---
+
+### DiscordChatMessageEvent
+
+**File:** `DiscordChatMessageEvent.cs`
+
+Fired for every user message the bot receives (guild text channels and DMs);
+published alongside the platform-agnostic `ChatMessageReceivedEvent`.
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| BotId | `string?` | — | Observing bot's DiscordBots row id ("primary" for the wizard singleton) |
+| GuildName | `string?` | — | Guild name (null for DMs) |
+| GuildId | `string?` | — | Guild snowflake ID (null for DMs) |
+| Channel | `string` | **required** | Channel name ("DirectMessage" for DMs) |
+| ChannelId | `string?` | — | Channel snowflake ID |
+| Username | `string` | **required** | Sender username |
+| SenderUserId | `string?` | — | Sender snowflake ID |
+| Message | `string` | **required** | Raw message text |
+| IsModerator | `bool` | — | Sender has ManageMessages |
+| IsBroadcaster | `bool` | — | Sender is guild owner / Administrator |
+| MessageId | `string?` | — | "discord:{snowflake}" |
+
+---
+
+### DiscordMemberJoinedEvent
+
+**File:** `DiscordMemberJoinedEvent.cs`
+
+Fired when a member joins a guild the bot is in (GUILD_MEMBER_ADD /
+Discord.Net `UserJoined`). Requires the privileged `GuildMembers` gateway
+intent (see `DiscordService.CreateClient`).
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| BotId | `string?` | — | Observing bot's DiscordBots row id |
+| GuildId | `string?` | — | Guild snowflake ID joined |
+| GuildName | `string?` | — | Guild name joined |
+| Username | `string` | **required** | Joining member's username |
+| DisplayName | `string?` | — | Nickname / global display name |
+| UserId | `string?` | — | Joining member's snowflake ID |
+
+---
+
+### DiscordBoostEvent
+
+**File:** `DiscordBoostEvent.cs`
+
+Fired when a member starts boosting a server — ONLY on the observed
+`PremiumSince` null → value transition, never on reconnect snapshots.
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| BotId | `string?` | — | Observing bot's DiscordBots row id |
+| GuildId | `string?` | — | Boosted guild's snowflake ID |
+| GuildName | `string?` | — | Boosted guild's name |
+| Username | `string` | **required** | Boosting member's username |
+| DisplayName | `string?` | — | Nickname / global display name |
+| UserId | `string?` | — | Boosting member's snowflake ID |
+| PremiumSince | `DateTimeOffset?` | — | When the boost started |
 
 ---
 

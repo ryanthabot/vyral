@@ -12,11 +12,15 @@ typedef LiveState = Map<String, bool>;
 sealed class DeckEvent {}
 
 class WelcomeEvent extends DeckEvent {
-  WelcomeEvent(this.serverName, this.layout, this.state, this.catalog);
+  WelcomeEvent(this.serverName, this.layout, this.state, this.catalog,
+      {this.protocol = 0});
   final String serverName;
   final DeckLayoutData layout;
   final LiveState state;
   final List<ActionInfo> catalog;
+
+  /// Protocol version the server reports (0 when absent/unreadable).
+  final int protocol;
 }
 
 class ConfigEvent extends DeckEvent {
@@ -140,6 +144,7 @@ class DeckConnection {
           layout,
           parseLiveState(message['state']),
           catalogJson.isEmpty ? defaultActionCatalog : catalogJson,
+          protocol: parseProtocolVersion(message['protocol']),
         ));
         break;
       case 'config':
@@ -177,6 +182,12 @@ class DeckConnection {
     }
     return map;
   }
+
+  /// `protocol` rides on the pair response and every `welcome` frame.
+  /// Returns 0 when the field is missing or not a number so callers only ever
+  /// compare against [knownProtocolVersion].
+  static int parseProtocolVersion(dynamic raw) =>
+      raw is num ? raw.toInt() : int.tryParse('$raw') ?? 0;
 
   void press(String buttonId) => _send({
         'type': 'press',

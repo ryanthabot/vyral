@@ -636,6 +636,15 @@ public class YouTubeChatService : IYouTubeService, IDisposable
             PublishMembershipEvent(messageType, channelId, displayName, snippet);
         }
 
+        // Super Chats / Super Stickers (YouTube's cheer equivalent) likewise
+        // publish a structured event with the raw amount, currency and comment
+        // so alerts, statistics and currency pipelines don't have to parse the
+        // display string. Same fire-before-the-gate pattern as membership.
+        if (messageType is "superChatEvent" or "superStickerEvent")
+        {
+            PublishSuperChatEvent(messageType, channelId, displayName, snippet, publishedAt);
+        }
+
         if (string.IsNullOrEmpty(messageText))
             return;
 
@@ -767,6 +776,83 @@ public class YouTubeChatService : IYouTubeService, IDisposable
     }
 
     /// <summary>
+    /// Publishes a structured <see cref="YouTubeSuperChatEvent"/> for a Super Chat
+    /// ("superChatEvent") or Super Sticker ("superStickerEvent") live chat event —
+    /// YouTube's cheer equivalent. Fire-and-forget on the thread pool with the same
+    /// try/catch logging the chat message publishes use, so a publish failure never
+    /// breaks the poll loop.
+    /// </summary>
+    private void PublishSuperChatEvent(string messageType, string channelId, string displayName, JsonElement snippet, DateTime? publishedAt)
+    {
+        // superChatEvent → superChatDetails; superStickerEvent → superStickerDetails.
+        var details = messageType == "superChatEvent"
+            ? snippet.TryGetProperty("superChatDetails", out var superChatDetails) ? superChatDetails : default
+            : snippet.TryGetProperty("superStickerDetails", out var superStickerDetails) ? superStickerDetails : default;
+        if (details.ValueKind == JsonValueKind.Undefined)
+            return;
+
+        // Google serializes 64-bit ints as JSON numbers, but protobuf-JSON
+        // conventions allow strings — accept both so the amount never reads 0.
+        var amountMicros = 0L;
+        if (details.TryGetProperty("amountMicros", out var microsProp))
+        {
+            if (microsProp.ValueKind == JsonValueKind.Number)
+            {
+                amountMicros = microsProp.GetInt64();
+            }
+            else if (microsProp.ValueKind == JsonValueKind.String &&
+                     long.TryParse(microsProp.GetString(), out var parsedMicros))
+            {
+                amountMicros = parsedMicros;
+            }
+        }
+        var amountDisplayString = details.TryGetProperty("amountDisplayString", out var amountProp)
+            ? amountProp.GetString() ?? ""
+            : "";
+        var currency = details.TryGetProperty("currency", out var currencyProp)
+            ? currencyProp.GetString() ?? ""
+            : "";
+        // Only Super Chats carry a user comment; Super Stickers have sticker art.
+        var comment = messageType == "superChatEvent" &&
+                      details.TryGetProperty("userComment", out var commentProp)
+            ? commentProp.GetString()
+            : null;
+        var stickerText = messageType == "superStickerEvent" &&
+                          details.TryGetProperty("superStickerMetadata", out var metadata) &&
+                          metadata.TryGetProperty("stickerDisplayText", out var stickerProp)
+            ? stickerProp.GetString()
+            : null;
+
+        var superChatEvent = new YouTubeSuperChatEvent
+        {
+            Source = "YouTube",
+            Username = displayName,
+            UserId = channelId,
+            AmountMicros = amountMicros,
+            AmountDisplayString = amountDisplayString,
+            Currency = currency,
+            Message = comment,
+            IsSuperSticker = messageType == "superStickerEvent",
+            StickerDisplayText = stickerText,
+            CheeredAt = publishedAt
+        };
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _eventBus.PublishAsync(superChatEvent);
+                _logger.LogDebug("✅ Published YouTubeSuperChatEvent for {Username} ({Amount} {Currency}, sticker: {IsSticker})",
+                    displayName, superChatEvent.AmountDisplayString, superChatEvent.Currency, superChatEvent.IsSuperSticker);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Failed to publish YouTubeSuperChatEvent for {Username}", displayName);
+            }
+        });
+    }
+
+    /// <summary>
     /// Builds a synthetic chat message for YouTube special events (superchat,
     /// super sticker, new member, member milestone) from the event snippet.
     /// Returns an empty string when the payload can't be mapped.
@@ -789,11 +875,14 @@ public class YouTubeChatService : IYouTubeService, IDisposable
                         ? amountProp.GetString() : null;
                     var comment = details.TryGetProperty("userComment", out var commentProp)
                         ? commentProp.GetString() : null;
-                    var kind = messageType == "superChatEvent" ? "superchatted" : "sent a Super Sticker";
+                    var kind = messageType == "superChatEvent" ? "super chatted" : "sent a Super Sticker";
 
+                    // 💎 prefix + "!"/" - " separators mirror how the Twitch cheer
+                    // handler renders bits messages (ChatViewModel.OnTwitchCheerAsync),
+                    // so unified chat shows cheers and Super Chats identically.
                     return string.IsNullOrEmpty(comment)
                         ? $"💎 {displayName} {kind} {amount ?? "a gift"}!"
-                        : $"💎 {displayName} {kind} {amount ?? "a gift"}: {comment}";
+                        : $"💎 {displayName} {kind} {amount ?? "a gift"}! - {comment}";
 
                 case "newSponsorEvent":
                     return $"🌟 {displayName} became a member!";

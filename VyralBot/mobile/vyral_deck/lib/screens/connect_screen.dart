@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/models.dart';
 import '../services/discovery.dart';
 import '../services/pairing.dart';
 import 'deck_screen.dart';
@@ -162,6 +163,17 @@ class _ConnectScreenState extends State<ConnectScreen> {
       // Prefs failed — pairing still worked on the PC, just not saved locally.
     }
     if (!mounted) return;
+    // Non-blocking hint only — the deck session itself still opens. The root
+    // messenger keeps this bar visible across the route replacement below,
+    // and DeckScreen's welcome hint (same info) replaces it shortly after.
+    if (result.protocol > knownProtocolVersion) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('VyralBot runs a newer deck protocol '
+            '(v${result.protocol}, app knows v$knownProtocolVersion) — '
+            'update VyralDeck when convenient.'),
+        duration: const Duration(seconds: 4),
+      ));
+    }
     _openDeck(token: newToken);
   }
 

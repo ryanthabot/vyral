@@ -71,7 +71,11 @@ internal sealed class FlowWireVisual : Canvas
         PortKey = portKey ?? throw new ArgumentNullException(nameof(portKey));
         TargetId = targetId ?? throw new ArgumentNullException(nameof(targetId));
 
+        // Frozen: the wire never restyles this brush (selection swaps in a new
+        // brightened instance), and a frozen brush can be used by the render
+        // thread without a copy — one per wire, 100+ wires per canvas.
         _baseBrush = new SolidColorBrush(color);
+        _baseBrush.Freeze();
         _strokePath = new Path
         {
             Stroke = _baseBrush,

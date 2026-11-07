@@ -160,6 +160,8 @@ public class ChatViewModel : ViewModelBase
 
 	private Guid _twitchCheerSubscriptionId;
 
+	private Guid _twitchChannelPointsRedeemSubscriptionId;
+
 	private Guid _twitchStreamStatusSubscriptionId;
 
 	private Guid _giveawayAutoEndedSubscriptionId;
@@ -2172,6 +2174,8 @@ public class ChatViewModel : ViewModelBase
 		_logger.LogInformation("? Subscribed to TwitchRaidEvent (ID: {SubscriptionId})", _twitchRaidSubscriptionId);
 		_twitchCheerSubscriptionId = await _eventBus.SubscribeAsync<TwitchCheerEvent>(OnTwitchCheerAsync);
 		_logger.LogInformation("? Subscribed to TwitchCheerEvent (ID: {SubscriptionId})", _twitchCheerSubscriptionId);
+		_twitchChannelPointsRedeemSubscriptionId = await _eventBus.SubscribeAsync<TwitchChannelPointsRedeemEvent>(OnTwitchChannelPointsRedeemAsync);
+		_logger.LogInformation("? Subscribed to TwitchChannelPointsRedeemEvent (ID: {SubscriptionId})", _twitchChannelPointsRedeemSubscriptionId);
 		_twitchStreamStatusSubscriptionId = await _eventBus.SubscribeAsync<TwitchStreamStatusEvent>(OnTwitchStreamStatusAsync);
 		_logger.LogInformation("? Subscribed to TwitchStreamStatusEvent (ID: {SubscriptionId})", _twitchStreamStatusSubscriptionId);
 		_giveawayAutoEndedSubscriptionId = await _eventBus.SubscribeAsync<GiveawayAutoEndedEvent>(OnGiveawayAutoEndedAsync);
@@ -6128,6 +6132,17 @@ public class ChatViewModel : ViewModelBase
 		{
 			await AddSystemMessageAsync("Kick", message);
 		}
+		if (_soundService != null)
+		{
+			try
+			{
+				await _soundService.PlayEventSoundAsync("kicks_gifted", "Kick");
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Failed to play sound for Kick kicks gifted");
+			}
+		}
 		await ShowEventAlertAsync("Kicks Gifted!", evt.SenderUsername, $"{evt.Amount} kicks!", "Kick");
 		Dictionary<string, string> variables = new Dictionary<string, string>
 		{
@@ -6186,6 +6201,17 @@ public class ChatViewModel : ViewModelBase
 		if (_showEventsInChat && settings.ShowInChat)
 		{
 			await AddSystemMessageAsync("Kick", message);
+		}
+		if (_soundService != null)
+		{
+			try
+			{
+				await _soundService.PlayEventSoundAsync("redemption", "Kick");
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Failed to play sound for Kick reward redeemed");
+			}
 		}
 		await ShowEventAlertAsync("Reward Redeemed!", evt.Username, evt.RewardName, "Kick");
 		Dictionary<string, string> variables = new Dictionary<string, string>
@@ -6820,6 +6846,76 @@ public class ChatViewModel : ViewModelBase
 		await SaveEventStatisticAsync("Twitch", "Cheer", evt.Username, variables, wasAutoReplied);
 	}
 
+	private async Task OnTwitchChannelPointsRedeemAsync(TwitchChannelPointsRedeemEvent evt)
+	{
+		if (!TwitchFilterEnabled)
+		{
+			return;
+		}
+		ChatEventSetting settings = (await _eventSettingsService.GetSettingAsync("Twitch", "RewardRedeemed")) ?? new ChatEventSetting
+		{
+			Platform = "Twitch",
+			EventType = "RewardRedeemed",
+			ShowInChat = true,
+			AutoReplyEnabled = false,
+			SoundEnabled = false
+		};
+		bool wasAutoReplied = false;
+		string message = $"\ud83c\udfaf {evt.Username} redeemed \"{evt.RewardTitle}\" ({evt.RewardCost} points)";
+		if (!string.IsNullOrEmpty(evt.UserInput))
+		{
+			message = message + " - " + evt.UserInput;
+		}
+		if (_showEventsInChat && settings.ShowInChat)
+		{
+			await AddSystemMessageAsync("Twitch", message);
+		}
+		if (_soundService != null)
+		{
+			try
+			{
+				await _soundService.PlayEventSoundAsync("redemption", "Twitch");
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Failed to play sound for Twitch reward redeemed");
+			}
+		}
+		await ShowEventAlertAsync("Reward Redeemed!", evt.Username, evt.RewardTitle, "Twitch");
+		Dictionary<string, string> variables = new Dictionary<string, string>
+		{
+			{ "username", evt.Username },
+			{ "reward", evt.RewardTitle },
+			{
+				"cost",
+				evt.RewardCost.ToString()
+			},
+			{
+				"input",
+				evt.UserInput ?? ""
+			},
+			{ "platform", "Twitch" }
+		};
+		if (_twitchAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.Username, "Twitch", "RewardRedeemed"))
+		{
+			string reply = await BuildAutoReplyTextAsync("Twitch", "RewardRedeemed", evt.Username, settings.AutoReplyMessage, variables);
+			try
+			{
+				await _twitchService.SendMessageAsync(reply);
+				_logger.LogInformation("Auto-reply sent for Twitch reward redeemed: {Reply}", reply);
+				wasAutoReplied = true;
+			}
+			catch (Exception ex)
+			{
+				Exception ex2 = ex;
+				Exception ex3 = ex2;
+				Exception ex4 = ex3;
+				_logger.LogError(ex4, "Failed to send auto-reply for Twitch reward redeemed");
+			}
+		}
+		await SaveEventStatisticAsync("Twitch", "RewardRedeemed", evt.Username, variables, wasAutoReplied);
+	}
+
 	private async Task OnYouTubeLiveChatStateAsync(YouTubeLiveChatStateEvent stateEvent)
 	{
 		try
@@ -6945,6 +7041,10 @@ public class ChatViewModel : ViewModelBase
 		{
 			_eventBus.Unsubscribe(_twitchCheerSubscriptionId);
 		}
+		if (_twitchChannelPointsRedeemSubscriptionId != Guid.Empty)
+		{
+			_eventBus.Unsubscribe(_twitchChannelPointsRedeemSubscriptionId);
+		}
 		if (_twitchStreamStatusSubscriptionId != Guid.Empty)
 		{
 			_eventBus.Unsubscribe(_twitchStreamStatusSubscriptionId);
@@ -6993,6 +7093,7 @@ public class ChatViewModel : ViewModelBase
 		_twitchGiftSubSubscriptionId = Guid.Empty;
 		_twitchRaidSubscriptionId = Guid.Empty;
 		_twitchCheerSubscriptionId = Guid.Empty;
+		_twitchChannelPointsRedeemSubscriptionId = Guid.Empty;
 		_twitchStreamStatusSubscriptionId = Guid.Empty;
 		_giveawayAutoEndedSubscriptionId = Guid.Empty;
 		_pollAutoEndedSubscriptionId = Guid.Empty;

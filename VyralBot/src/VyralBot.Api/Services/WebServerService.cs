@@ -109,6 +109,22 @@ public class WebServerService : IDisposable
             // does not apply in Production runs of this in-process host.
             var wwwrootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot");
             Directory.CreateDirectory(wwwrootPath);
+
+            // Sounds now default to the current profile's data folder (migrated from
+            // wwwroot/sounds), so serve /sounds from there first; the wwwroot provider
+            // below remains the fallback for files left in the legacy app-global path.
+            var soundsPath = _parentServices
+                .GetService<VyralBot.Core.Services.Audio.ISoundService>()
+                ?.GetSoundsDirectory();
+            if (!string.IsNullOrEmpty(soundsPath) && Directory.Exists(soundsPath))
+            {
+                _app.UseStaticFiles(new StaticFileOptions
+                {
+                    RequestPath = "/sounds",
+                    FileProvider = new PhysicalFileProvider(soundsPath)
+                });
+            }
+
             _app.UseStaticFiles(new StaticFileOptions
             {
                 FileProvider = new PhysicalFileProvider(wwwrootPath)

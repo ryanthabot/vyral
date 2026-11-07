@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using VyralBot.Core.Services.ProcessManagement;
 
 namespace VyralBot.Integrations.Restream;
 
@@ -13,6 +14,18 @@ public sealed record RestreamFfmpegInstall(string FfmpegPath, string Source, str
 /// </summary>
 public sealed class RestreamFfmpegLocator
 {
+    private readonly IProcessManager _processManager;
+
+    /// <param name="processManager">
+    /// Spawns the tracked <c>ffmpeg -version</c> probe (zero-orphan policy —
+    /// no direct <c>Process.Start</c> anywhere in the restream stack). Same
+    /// wiring as <see cref="RestreamEngine"/>.
+    /// </param>
+    public RestreamFfmpegLocator(IProcessManager processManager)
+    {
+        _processManager = processManager ?? throw new ArgumentNullException(nameof(processManager));
+    }
+
     /// <summary>
     /// Root used for app-portable storage — the same deterministic resolution
     /// as ProfileService (appdata next to the exe when writable, else
@@ -50,27 +63,28 @@ public sealed class RestreamFfmpegLocator
     /// <summary>
     /// Locates FFmpeg. The override comes from the user's saved settings (passed
     /// by the caller), not the constructor, so changes apply without re-creating
-    /// the singleton.
+    /// the singleton. The only blocking step (the version probe's exit wait)
+    /// stays on the thread pool, so this is safe to await from the UI thread.
     /// </summary>
-    public RestreamFfmpegInstall? Locate(string? overridePath = null)
+    public async Task<RestreamFfmpegInstall?> LocateAsync(string? overridePath = null, CancellationToken ct = default)
     {
         if (!string.IsNullOrWhiteSpace(overridePath) && File.Exists(overridePath))
         {
-            return new RestreamFfmpegInstall(overridePath, "custom path", TryGetVersion(overridePath));
+            return new RestreamFfmpegInstall(overridePath, "custom path", await TryGetVersionAsync(overridePath, ct: ct).ConfigureAwait(false));
         }
 
         foreach (var candidate in CandidateFfmpegPaths())
         {
             if (File.Exists(candidate))
             {
-                return new RestreamFfmpegInstall(candidate, "bundled download", TryGetVersion(candidate));
+                return new RestreamFfmpegInstall(candidate, "bundled download", await TryGetVersionAsync(candidate, ct: ct).ConfigureAwait(false));
             }
         }
 
         var onPath = FindOnPath();
         if (onPath is not null)
         {
-            return new RestreamFfmpegInstall(onPath, "system PATH", TryGetVersion(onPath));
+            return new RestreamFfmpegInstall(onPath, "system PATH", await TryGetVersionAsync(onPath, ct: ct).ConfigureAwait(false));
         }
 
         return null;
@@ -104,35 +118,47 @@ public sealed class RestreamFfmpegLocator
         return null;
     }
 
-    /// <summary>Runs <c>ffmpeg -version</c> and returns the first line (e.g. "ffmpeg version 7.1…").</summary>
-    public static string? TryGetVersion(string ffmpegPath, int timeoutMs = 5000)
+    /// <summary>
+    /// Runs a tracked <c>ffmpeg -version</c> probe and returns the first line
+    /// (e.g. "ffmpeg version 7.1…"). Best-effort: any failure (missing exe,
+    /// disposal race with the manager's exit handler, hung process) yields
+    /// null — the version string is cosmetic, never load-bearing.
+    /// </summary>
+    public async Task<string?> TryGetVersionAsync(string ffmpegPath, int timeoutMs = 5000, CancellationToken ct = default)
     {
         try
         {
-            using var process = Process.Start(new ProcessStartInfo
+            var startInfo = new ProcessStartInfo(ffmpegPath)
             {
-                FileName = ffmpegPath,
                 Arguments = "-version",
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
-            });
-            if (process is null)
+            };
+
+            // Tracked spawn: the manager owns the process lifetime and disposes
+            // the Process object the moment it exits, so nothing here may touch
+            // the object after the exit wait — only the pid and the stream
+            // reader captured up front.
+            var process = await _processManager.StartProcessAsync(startInfo, ct).ConfigureAwait(false);
+            var pid = process.Id;
+
+            // Start the read FIRST, then wait for exit: ffmpeg writes its
+            // version line before exiting, so an in-flight read drains the
+            // buffered pipe data even though the exit handler disposes the
+            // Process right after.
+            var firstLineTask = process.StandardOutput.ReadLineAsync(ct);
+            var exited = await Task.Run(() => process.WaitForExit(timeoutMs), CancellationToken.None).ConfigureAwait(false);
+
+            if (!exited)
             {
+                // Broken exe that hangs instead of printing — reap it so the
+                // probe never leaves a tracked child behind.
+                await _processManager.KillProcessAsync(pid, ct).ConfigureAwait(false);
                 return null;
             }
 
-            string? firstLine = null;
-            if (process.WaitForExit(timeoutMs))
-            {
-                firstLine = process.StandardOutput.ReadLine()?.Trim();
-            }
-            else
-            {
-                try { process.Kill(entireProcessTree: true); } catch { }
-            }
-
-            return firstLine;
+            return (await firstLineTask.ConfigureAwait(false))?.Trim();
         }
         catch
         {

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -79,6 +80,22 @@ public class WorkflowRuntime
     private readonly ILogger<WorkflowRuntime> _logger;
 
     /// <summary>
+    /// ACTIVE-RUN REGISTRY (per-workflow cancellation): workflow id → the
+    /// linked CTS of every in-flight <see cref="ExecuteAsync"/> run. A run
+    /// registers after its entry node resolves and unregisters in its
+    /// <c>finally</c>; <see cref="CancelWorkflowRuns"/> flips every CTS of one
+    /// workflow so the interpreter stops at the next between-node check (the
+    /// run ends as "Cancelled"). The runtime is a DI SINGLETON, so the registry
+    /// is shared with every caller (WorkflowTriggerService, manual runs).
+    /// SEAM (next wave): nodes observe <c>ctx.CancellationToken</c>, which is
+    /// get-only on <see cref="ExecutionContext"/> — registry cancellation stops
+    /// the interpreter BETWEEN nodes but cannot interrupt an in-flight node
+    /// await (wait/http). Surfacing the linked token to nodes needs an
+    /// ExecutionContext change plus a WorkflowTriggerService call on delete.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<Guid, CancellationTokenSource>> _activeRuns = new(StringComparer.Ordinal);
+
+    /// <summary>
     /// Platform send hook installed by the UI layer at startup (the UI owns the
     /// platform senders; the engine has no platform dependencies). Receives the
     /// execution context and the fully substituted message text; returns true when
@@ -90,6 +107,60 @@ public class WorkflowRuntime
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _logger = logger ?? NullLogger<WorkflowRuntime>.Instance;
+    }
+
+    /// <summary>
+    /// Cancels every in-flight run of one workflow (e.g. the workflow is being
+    /// deleted or disabled mid-run). Each registered run's linked token flips,
+    /// so its interpreter stops at the next between-node check and the run
+    /// ends with Status "Cancelled". Returns the number of runs signalled
+    /// (0 when the workflow is not currently running). SEAM: call this from
+    /// WorkflowTriggerService's delete/disable path next wave; in-node awaits
+    /// need the ExecutionContext token change noted on <see cref="_activeRuns"/>.
+    /// </summary>
+    public int CancelWorkflowRuns(string? workflowId)
+    {
+        if (string.IsNullOrEmpty(workflowId) ||
+            !_activeRuns.TryGetValue(workflowId, out var runs) ||
+            runs.IsEmpty)
+        {
+            return 0;
+        }
+
+        int signalled = 0;
+        foreach (var pair in runs)
+        {
+            try
+            {
+                pair.Value.Cancel();
+                signalled++;
+            }
+            catch (ObjectDisposedException)
+            {
+                // The run finished concurrently with this call — nothing to signal.
+            }
+        }
+
+        _logger.LogInformation("Cancellation requested for {Count} active run(s) of workflow {WorkflowId}", signalled, workflowId);
+        return signalled;
+    }
+
+    /// <summary>True when at least one run of the workflow is currently in flight.</summary>
+    public bool HasActiveRuns(string? workflowId) =>
+        !string.IsNullOrEmpty(workflowId) &&
+        _activeRuns.TryGetValue(workflowId, out var runs) &&
+        !runs.IsEmpty;
+
+    /// <summary>Total number of in-flight runs across all workflows (diagnostics).</summary>
+    public int ActiveRunCount
+    {
+        get
+        {
+            var total = 0;
+            foreach (var pair in _activeRuns)
+                total += pair.Value.Count;
+            return total;
+        }
     }
 
     /// <summary>
@@ -144,9 +215,29 @@ public class WorkflowRuntime
 
             var budget = new StepBudget();
 
-            var outcome = await RunChainAsync(
-                current, nodesById, workflow, ctx, result, budget,
-                allowGlobalErrorHandler: true).ConfigureAwait(false);
+            // Register the run for per-workflow cancellation (CancelWorkflowRuns):
+            // the linked token carries the caller's ctx token AND this run's own
+            // cancel signal; the interpreter checks it between nodes. Deliberately
+            // NOT disposed in finally — a concurrent CancelWorkflowRuns could hit a
+            // disposed CTS, and a token-less CTS holds no timer resources.
+            var runCts = CancellationTokenSource.CreateLinkedTokenSource(ctx.CancellationToken);
+            var runKey = Guid.NewGuid();
+            var workflowRuns = _activeRuns.GetOrAdd(workflow.Id, _ => new ConcurrentDictionary<Guid, CancellationTokenSource>());
+            workflowRuns[runKey] = runCts;
+
+            ChainOutcome outcome;
+            try
+            {
+                outcome = await RunChainAsync(
+                    current, nodesById, workflow, ctx, result, budget,
+                    runCts.Token, allowGlobalErrorHandler: true).ConfigureAwait(false);
+            }
+            finally
+            {
+                workflowRuns.TryRemove(runKey, out _);
+                if (workflowRuns.IsEmpty)
+                    _activeRuns.TryRemove(workflow.Id, out _);
+            }
 
             // A chain that simply walked off the graph completes the run; every
             // other outcome (failure, cancellation, dangling reference) keeps the
@@ -244,6 +335,7 @@ public class WorkflowRuntime
         ExecutionContext ctx,
         WorkflowExecutionResult result,
         StepBudget budget,
+        CancellationToken runToken,
         bool allowGlobalErrorHandler,
         string? stopAtNodeId = null)
     {
@@ -253,7 +345,9 @@ public class WorkflowRuntime
             if (stopAtNodeId is not null && string.Equals(current.Id, stopAtNodeId, StringComparison.Ordinal))
                 return ChainOutcome.ChainEnded;
 
-            if (ctx.CancellationToken.IsCancellationRequested)
+            // runToken is the run's linked token: the caller's ctx token (app
+            // shutdown) PLUS this run's per-workflow cancel signal.
+            if (runToken.IsCancellationRequested)
             {
                 result.Status = "Cancelled";
                 result.Error = "Execution cancelled";
@@ -275,7 +369,7 @@ public class WorkflowRuntime
             if (string.Equals(node.Type, "loop", StringComparison.OrdinalIgnoreCase))
             {
                 return await RunLoopAsync(
-                    node, nodesById, workflow, ctx, result, budget,
+                    node, nodesById, workflow, ctx, result, budget, runToken,
                     allowGlobalErrorHandler).ConfigureAwait(false);
             }
 
@@ -354,7 +448,7 @@ public class WorkflowRuntime
                         node.Type, node.Id, workflow.Name, nodeResult.Error ?? "unknown error");
 
                     var handlerOutcome = await RunChainAsync(
-                        handlerEntry, nodesById, workflow, ctx, result, budget,
+                        handlerEntry, nodesById, workflow, ctx, result, budget, runToken,
                         allowGlobalErrorHandler: false).ConfigureAwait(false);
 
                     if (handlerOutcome == ChainOutcome.Cancelled)
@@ -400,6 +494,7 @@ public class WorkflowRuntime
         ExecutionContext ctx,
         WorkflowExecutionResult result,
         StepBudget budget,
+        CancellationToken runToken,
         bool allowGlobalErrorHandler)
     {
         var loopStopwatch = Stopwatch.StartNew();
@@ -419,7 +514,7 @@ public class WorkflowRuntime
         for (var iteration = 0; iteration < count && bodyEntry is not null; iteration++)
         {
             var bodyOutcome = await RunChainAsync(
-                bodyEntry, nodesById, workflow, ctx, result, budget,
+                bodyEntry, nodesById, workflow, ctx, result, budget, runToken,
                 allowGlobalErrorHandler, stopAtNodeId: node.Id).ConfigureAwait(false);
 
             if (bodyOutcome == ChainOutcome.StopLoopRequested)
@@ -446,7 +541,7 @@ public class WorkflowRuntime
             return allowGlobalErrorHandler && result.Error is not null ? ChainOutcome.RunFailed : ChainOutcome.ChainEnded;
 
         return await RunChainAsync(
-            next, nodesById, workflow, ctx, result, budget,
+            next, nodesById, workflow, ctx, result, budget, runToken,
             allowGlobalErrorHandler).ConfigureAwait(false);
     }
 

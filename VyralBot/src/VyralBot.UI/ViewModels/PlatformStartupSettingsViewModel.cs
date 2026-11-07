@@ -57,18 +57,40 @@ public partial class PlatformStartupItem : ObservableObject
 
     partial void OnAutoConnectOnStartupChanged(bool value)
     {
-        if (_isInitialized)
+        if (!_isInitialized)
         {
-            _ = _owner.PersistAutoConnectAsync(PlatformName, value);
+            return;
         }
+
+        if (!IsImplemented)
+        {
+            // TikTok has no chat pipeline yet — the auto-start toggle must not
+            // promise (nor persist) a connection nothing can start. Reject the
+            // change and say why (same honesty as the ChatHub TikTok treatment).
+            if (value)
+            {
+                _owner.StatusMessage = $"{PlatformName} chat is coming soon — auto-connect takes effect once {PlatformName} support ships.";
+                AutoConnectOnStartup = false; // re-enters with false, which is allowed
+            }
+            return;
+        }
+
+        _ = _owner.PersistAutoConnectAsync(PlatformName, value);
     }
 
     partial void OnRefreshTokensOnStartupChanged(bool value)
     {
-        if (_isInitialized)
+        if (!_isInitialized)
         {
-            _ = _owner.PersistRefreshTokensAsync(PlatformName, value);
+            return;
         }
+
+        if (!IsImplemented)
+        {
+            return; // TikTok: no token pipeline — nothing to refresh or persist
+        }
+
+        _ = _owner.PersistRefreshTokensAsync(PlatformName, value);
     }
 
     public void BeginInit() => _isInitialized = false;
@@ -126,7 +148,7 @@ public partial class PlatformStartupSettingsViewModel : ViewModelBase
         Platforms.Add(new PlatformStartupItem(this, "Kick", "Kick chat + webhooks", supportsTokenRefresh: true));
         Platforms.Add(new PlatformStartupItem(this, "YouTube", "YouTube Live Chat", supportsTokenRefresh: false));
         Platforms.Add(new PlatformStartupItem(this, "Discord", "Primary Discord bot", supportsTokenRefresh: false));
-        Platforms.Add(new PlatformStartupItem(this, "TikTok", "Not available yet", supportsTokenRefresh: false, isImplemented: false));
+        Platforms.Add(new PlatformStartupItem(this, "TikTok", "TikTok LIVE chat — coming soon", supportsTokenRefresh: false, isImplemented: false));
         Platforms.Add(new PlatformStartupItem(this, "Facebook", "Not available yet", supportsTokenRefresh: false, isImplemented: false));
         Platforms.Add(new PlatformStartupItem(this, "Rumble", "Not available yet", supportsTokenRefresh: false, isImplemented: false));
     }
@@ -226,7 +248,8 @@ public partial class PlatformStartupSettingsViewModel : ViewModelBase
                 case "Twitch": platform.TwitchChatAutoStart = value; break;
                 case "Kick": platform.KickChatAutoStart = value; break;
                 case "YouTube": platform.YoutubeChatAutoStart = value; break;
-                case "TikTok": platform.TiktokChatAutoStart = value; break;
+                // No "TikTok" arm: TiktokChatAutoStart is never persisted — no
+                // TikTok pipeline reads it, so writing it would be a no-op promise.
                 case "Discord": platform.DiscordChatAutoStart = value; break;
             }
 
@@ -321,7 +344,8 @@ public partial class PlatformStartupSettingsViewModel : ViewModelBase
             "Twitch" => platform?.TwitchChatAutoStart ?? false,
             "Kick" => platform?.KickChatAutoStart ?? false,
             "YouTube" => platform?.YoutubeChatAutoStart ?? false,
-            "TikTok" => platform?.TiktokChatAutoStart ?? false,
+            // No "TikTok" arm: a stale TiktokChatAutoStart flag must not render
+            // as a live promise — unimplemented platforms always read false.
             "Discord" => platform?.DiscordChatAutoStart ?? false,
             _ => false,
         };

@@ -153,7 +153,7 @@ public partial class CommandsViewModel : ViewModelBase
     public ObservableCollection<DiscordBotScopeOption> BotScopes { get; } = new();
 
     /// <summary>Timer platform choices.</summary>
-    public ObservableCollection<string> TimerPlatforms { get; } = new() { "Twitch", "Kick", "Discord" };
+    public ObservableCollection<string> TimerPlatforms { get; } = new() { "Twitch", "Kick", "Discord", "YouTube" };
 
     /// <summary>Every enabled command name (built-in + custom) a timer can fire.</summary>
     public ObservableCollection<string> TimerCommandNames { get; } = new();

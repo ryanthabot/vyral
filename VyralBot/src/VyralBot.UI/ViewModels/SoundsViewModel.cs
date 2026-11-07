@@ -129,6 +129,11 @@ public partial class SoundsViewModel : ViewModelBase
             ("Kick", "subscribe", "Subscribe"),
             ("Kick", "giftsub", "Gift Sub"),
             ("Kick", "host", "Host"),
+            // Kick donation/redemption (KickKicksGiftedEvent / KickRewardRedeemedEvent);
+            // shaped like the Twitch cheer row — playback wired in ChatViewModel's
+            // OnKickKicksGiftedAsync / OnKickRewardRedeemedAsync handlers.
+            ("Kick", "kicks_gifted", "Kicks Gifted"),
+            ("Kick", "redemption", "Reward Redeemed"),
             ("Twitch", "follow", "Follow"),
             ("Twitch", "subscribe", "Subscribe"),
             ("Twitch", "resub", "Re-sub"),

@@ -2,7 +2,15 @@
 /// (see VyralBot.UI/Services/VyralDeck/DeckModels.cs and PROTOCOL.md).
 library;
 
+import 'dart:math';
+
 const int slotsPerPage = 12;
+
+/// Deck protocol version this app understands (see PROTOCOL.md and
+/// DeckServer.ProtocolVersion). The server reports its own version in the
+/// pair response and the `welcome` frame; a NEWER server version is surfaced
+/// as a non-blocking "update the app" hint, never a hard failure.
+const int knownProtocolVersion = 1;
 
 class DeckButtonData {
   DeckButtonData({
@@ -141,8 +149,16 @@ class DeckLayoutData {
       );
 }
 
+final Random _idRandom = Random.secure();
+
+/// Random UUID v4 — collision-free even when several ids are minted in the
+/// same microsecond (empty pages pre-create 12 button ids at once). Matches
+/// the GUID ids the desktop generates; no extra package needed.
 String _newId() {
-  final now = DateTime.now().microsecondsSinceEpoch;
-  return now.toRadixString(16) +
-      (now * 31 + DateTime.now().hashCode).toRadixString(16);
+  final bytes = List<int>.generate(16, (_) => _idRandom.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 4122 variant
+  final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+      '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
 }

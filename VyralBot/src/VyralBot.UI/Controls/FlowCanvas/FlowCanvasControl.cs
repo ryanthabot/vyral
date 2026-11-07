@@ -35,8 +35,9 @@ namespace VyralBot.UI.Controls.FlowCanvas;
 ///   rename in place, Ctrl+D to duplicate (+24/+24, new id, no wires),
 ///   Delete to remove (also clears every wire/routing field referencing it).
 /// • Ports/wires: drag from a colored output port (bottom of a node) to
-///   another node's input port to connect — self-connects, duplicates and
-///   cycles are rejected (rejected wires flash red briefly). Output ports
+///   another node's input port to connect — self-connects, duplicates,
+///   cycles and wires landing on attachment/component cards are rejected
+///   (rejected wires flash red briefly). Output ports
 ///   replace their wire when re-dragged; INPUT ports hold at most one wire —
 ///   a new connection landing on an occupied input displaces the old one
 ///   (the previous source's routing entry is cleared). Wire/port colors
@@ -167,6 +168,7 @@ public class FlowCanvasControl : Control
     private const string PartOrganizeButton = "PART_OrganizeButton";
 
     private readonly Dictionary<string, FlowNodeVisual> _visuals = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, FlowCanvasNode> _nodesById = new(StringComparer.Ordinal);
     private readonly List<FlowWireVisual> _wires = new();
     private readonly ScaleTransform _scaleTransform = new(1d, 1d);
 
@@ -307,6 +309,7 @@ public class FlowCanvasControl : Control
 
             _nodes.CollectionChanged -= OnNodesCollectionChanged;
             _nodes = collection;
+            RebuildNodeIndex();
             _nodes.CollectionChanged += OnNodesCollectionChanged;
             RebuildAllVisuals();
         }
@@ -1287,6 +1290,13 @@ public class FlowCanvasControl : Control
         if (target == null)
             return; // released over empty canvas — just cancel
 
+        // Same type check as TryConnect: the entry/error chain must start on a
+        // real block, not on an attachment card or component sub-node (those
+        // only hang off their parent's drop dot).
+        if (FlowNodeVisual.IsAttachmentCardType(target.BlockType) ||
+            FlowNodeVisual.IsComponentType(target.BlockType))
+            return;
+
         if (mode == DragMode.ConnectEntry)
             SetEntryTarget(target.Id);
         else
@@ -1762,7 +1772,10 @@ public class FlowCanvasControl : Control
                 if (e.NewItems != null)
                 {
                     foreach (FlowCanvasNode node in e.NewItems)
+                    {
+                        _nodesById[node.Id] = node;
                         AddNodeVisual(node);
+                    }
                 }
                 break;
 
@@ -1770,7 +1783,11 @@ public class FlowCanvasControl : Control
                 if (e.OldItems != null)
                 {
                     foreach (FlowCanvasNode node in e.OldItems)
+                    {
+                        if (_nodesById.TryGetValue(node.Id, out var indexed) && ReferenceEquals(indexed, node))
+                            _nodesById.Remove(node.Id);
                         DetachNodeVisual(node);
+                    }
                 }
                 break;
 
@@ -1782,8 +1799,25 @@ public class FlowCanvasControl : Control
         }
     }
 
+    /// <summary>
+    /// Rebuilds the id→node index from <see cref="_nodes"/>. FindNode is a hot
+    /// path (wire rebuilds, cycle checks, auto-organize, displacement all look
+    /// targets up per wire) — the dictionary keeps those O(1) instead of O(n)
+    /// per lookup (O(n²) per operation on 100+ node graphs). Ids are assigned
+    /// in object initializers before collection add and never mutated after,
+    /// so indexing at collection-change time stays exact.
+    /// </summary>
+    private void RebuildNodeIndex()
+    {
+        _nodesById.Clear();
+        foreach (FlowCanvasNode node in _nodes)
+            _nodesById[node.Id] = node;
+    }
+
     private void RebuildAllVisuals()
     {
+        RebuildNodeIndex(); // Reset/Replace collection events and template application re-sync the index
+
         if (_nodeLayer == null)
             return;
 
@@ -2257,6 +2291,19 @@ public class FlowCanvasControl : Control
             return;
         }
 
+        // TYPE CHECK: attachment cards ("loop_after"/"loop_body"/
+        // "comparison_case"/"comparison_else") and component sub-nodes
+        // ("button_start"/"menu_start") only ever receive their parent's
+        // programmatic attachment elbow (WireParentPort) — a user-drawn wire
+        // would displace that elbow via the single-input rule and orphan a
+        // Delete-protected card. Reject the edge instead (red flash).
+        if (FlowNodeVisual.IsAttachmentCardType(target.BlockType) ||
+            FlowNodeVisual.IsComponentType(target.BlockType))
+        {
+            FlashRejected(source, portKey, target);
+            return;
+        }
+
         if (string.Equals(source.GetTarget(portKey), target.Id, StringComparison.Ordinal))
             return; // duplicate of the existing wire — silently ignore
 
@@ -2708,7 +2755,12 @@ public class FlowCanvasControl : Control
         }
         else if (e.Key == Key.D && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {
-            if (_selectedNode != null && !FlowNodeVisual.IsProtectedType(_selectedNode.BlockType))
+            // Attachment cards AND component sub-nodes are excluded: a component
+            // copy would be an unwired orphan (its only legit inbound is the
+            // parent's programmatic drop-dot elbow).
+            if (_selectedNode != null
+                && !FlowNodeVisual.IsProtectedType(_selectedNode.BlockType)
+                && !FlowNodeVisual.IsComponentType(_selectedNode.BlockType))
             {
                 DuplicateSelected();
                 e.Handled = true;
@@ -2719,7 +2771,7 @@ public class FlowCanvasControl : Control
     private void DuplicateSelected()
     {
         FlowCanvasNode? source = _selectedNode;
-        if (source == null)
+        if (source == null || FlowNodeVisual.IsProtectedType(source.BlockType) || FlowNodeVisual.IsComponentType(source.BlockType))
             return;
 
         FlowCanvasNode copy = new()
@@ -2966,16 +3018,8 @@ public class FlowCanvasControl : Control
     // Helpers
     // =====================================================================================
 
-    private FlowCanvasNode? FindNode(string id)
-    {
-        foreach (FlowCanvasNode node in _nodes)
-        {
-            if (string.Equals(node.Id, id, StringComparison.Ordinal))
-                return node;
-        }
-
-        return null;
-    }
+    private FlowCanvasNode? FindNode(string id) =>
+        _nodesById.TryGetValue(id, out FlowCanvasNode? node) ? node : null;
 
     private FlowNodeVisual? GetVisual(string nodeId) => _visuals.TryGetValue(nodeId, out FlowNodeVisual? visual) ? visual : null;
 

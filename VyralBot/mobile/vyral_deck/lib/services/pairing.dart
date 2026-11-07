@@ -2,11 +2,14 @@ import 'dart:convert';
 import 'dart:io';
 
 class PairResult {
-  PairResult(this.ok, {this.token, this.serverName, this.error});
+  PairResult(this.ok, {this.token, this.serverName, this.error, this.protocol = 0});
   final bool ok;
   final String? token;
   final String? serverName;
   final String? error;
+
+  /// Protocol version the server reports (0 when absent/unreadable).
+  final int protocol;
 }
 
 /// One-shot PIN pairing over HTTP (POST /vyraldeck/pair).
@@ -40,10 +43,14 @@ class DeckPairing {
         }
 
         if (response.statusCode == 200 && json['ok'] == true) {
+          final protocol = json['protocol'];
           return PairResult(
             true,
             token: (json['token'] ?? '').toString(),
             serverName: (json['serverName'] ?? 'Vyral PC').toString(),
+            protocol: protocol is num
+                ? protocol.toInt()
+                : int.tryParse('${protocol ?? ''}') ?? 0,
           );
         }
         return PairResult(false, error: (json['error'] ?? 'Pairing failed.').toString());

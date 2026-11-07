@@ -415,6 +415,33 @@ public class TwitchService : ITwitchService, IDisposable
         return null;
     }
 
+    /// <summary>Resolves a login name to its Twitch user id via GET /helix/users?login=….</summary>
+    private async Task<string?> ResolveUserIdByLoginAsync(string login)
+    {
+        var lookup = await SendHelixAsync(HttpMethod.Get,
+            $"users?login={Uri.EscapeDataString(login.Trim().TrimStart('@'))}", null);
+        if (!lookup.Success)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(lookup.Body);
+            if (doc.RootElement.TryGetProperty("data", out var data) && data.GetArrayLength() > 0 &&
+                data[0].TryGetProperty("id", out var id))
+            {
+                return id.GetString();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse the Twitch user lookup response");
+        }
+
+        return null;
+    }
+
     /// <summary>Extracts Twitch's human-readable error message from a Helix error body.</summary>
     private static string? TryExtractTwitchErrorMessage(string body)
     {
@@ -668,6 +695,117 @@ public class TwitchService : ITwitchService, IDisposable
         }
 
         return new TwitchActionResponse(true, "Twitch chat cleared.");
+    }
+
+    /// <summary>
+    /// Shared POST /helix/moderation/bans path for ban + timeout (timeout =
+    /// same endpoint with a duration in seconds). Best-effort: returns false
+    /// with an info log on any failure so auto-mod callers can degrade.
+    /// </summary>
+    private async Task<bool> BanOrTimeoutUserAsync(string username, string? reason, int? durationSeconds)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            _logger.LogInformation("Twitch ban/timeout skipped - no username provided");
+            return false;
+        }
+
+        try
+        {
+            var broadcasterId = await ResolveBroadcasterIdAsync();
+            if (string.IsNullOrEmpty(broadcasterId))
+            {
+                _logger.LogInformation("Twitch ban/timeout for {Username} skipped - could not resolve the broadcaster id",
+                    username);
+                return false;
+            }
+
+            var target = username.Trim().TrimStart('@');
+            var targetId = await ResolveUserIdByLoginAsync(target);
+            if (string.IsNullOrEmpty(targetId))
+            {
+                _logger.LogInformation("Twitch ban/timeout skipped - could not resolve user id for {Username}", target);
+                return false;
+            }
+
+            var payload = new Dictionary<string, object>
+            {
+                ["user_id"] = targetId,
+                ["reason"] = string.IsNullOrWhiteSpace(reason) ? string.Empty : reason.Trim()
+            };
+            if (durationSeconds.HasValue)
+            {
+                payload["duration"] = durationSeconds.Value;
+            }
+
+            var response = await SendHelixAsync(HttpMethod.Post,
+                $"moderation/bans?broadcaster_id={broadcasterId}&moderator_id={broadcasterId}",
+                JsonSerializer.Serialize(payload));
+            if (!response.Success)
+            {
+                _logger.LogInformation("Twitch {Action} for {Username} not applied: {Failure}",
+                    durationSeconds is null ? "ban" : "timeout", target, MapHelixFailure(response));
+                return false;
+            }
+
+            _logger.LogInformation("Twitch {Action} applied to {Username}",
+                durationSeconds is null ? "ban" : $"timeout ({durationSeconds}s)", target);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Twitch ban/timeout for {Username} failed", username);
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<bool> TimeoutUserAsync(string username, TimeSpan duration, string reason)
+    {
+        // Helix timeouts accept 1 second to 14 days; clamp before the shared call.
+        var seconds = Math.Clamp((int)Math.Round(duration.TotalSeconds), 1, 1209600);
+        return BanOrTimeoutUserAsync(username, reason, seconds);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> BanUserAsync(string username, string reason)
+        => BanOrTimeoutUserAsync(username, reason, null);
+
+    /// <inheritdoc />
+    public async Task<bool> DeleteMessageAsync(string messageId)
+    {
+        if (string.IsNullOrWhiteSpace(messageId))
+        {
+            _logger.LogInformation("Twitch message delete skipped - no message id provided");
+            return false;
+        }
+
+        try
+        {
+            var broadcasterId = await ResolveBroadcasterIdAsync();
+            if (string.IsNullOrEmpty(broadcasterId))
+            {
+                _logger.LogInformation("Twitch message delete skipped - could not resolve the broadcaster id");
+                return false;
+            }
+
+            var response = await SendHelixAsync(HttpMethod.Delete,
+                $"moderation/chat?broadcaster_id={broadcasterId}&moderator_id={broadcasterId}" +
+                $"&message_id={Uri.EscapeDataString(messageId.Trim())}", null);
+            if (!response.Success)
+            {
+                _logger.LogInformation("Twitch message delete not applied: {Failure}", MapHelixFailure(response));
+                return false;
+            }
+
+            _logger.LogInformation("Deleted a Twitch chat message by id");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Twitch message delete failed");
+            return false;
+        }
     }
 
     /// <inheritdoc />

@@ -266,7 +266,8 @@ public partial class KickWebSetupViewModel : ObservableObject
             if (platform != null)
             {
                 platform.ClientId = _savedClientId;
-                platform.ClientSecret = _savedClientSecret; // TODO: Should be encrypted
+                // Stored DPAPI-wrapped at the persistence seam (DapperDataService/SecretProtector)
+                platform.ClientSecret = _savedClientSecret;
                 await _dataService.SavePlatformAsync(platform);
                 _logger.LogInformation("✅ Client credentials saved to database");
             }

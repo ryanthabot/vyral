@@ -7,6 +7,7 @@ using VyralBot.Data.Entities;
 using VyralBot.Integrations.Discord;
 using VyralBot.Integrations.Kick;
 using VyralBot.Integrations.Twitch;
+using VyralBot.Integrations.YouTube;
 
 namespace VyralBot.UI.Services;
 
@@ -34,6 +35,9 @@ public class CommandTimerService
     private readonly ITwitchService _twitchService;
     private readonly IKickService _kickService;
     private readonly IDiscordBotManager _discordBotManager;
+    // Same singleton the Platforms page connects, so timer messages land in the
+    // connected YouTube channel's live chat.
+    private readonly IYouTubeService _youTubeService;
     private readonly IVariableReplacementService _variableReplacementService;
     // Runs action-sequence commands (Command.ActionsJson) — the same executor
     // the chat command path uses. Null when DI skipped it: those commands are
@@ -53,6 +57,7 @@ public class CommandTimerService
         ITwitchService twitchService,
         IKickService kickService,
         IDiscordBotManager discordBotManager,
+        IYouTubeService youTubeService,
         IVariableReplacementService variableReplacementService,
         CommandActionRunner? commandActionRunner = null)
     {
@@ -61,6 +66,7 @@ public class CommandTimerService
         _twitchService = twitchService ?? throw new ArgumentNullException(nameof(twitchService));
         _kickService = kickService ?? throw new ArgumentNullException(nameof(kickService));
         _discordBotManager = discordBotManager ?? throw new ArgumentNullException(nameof(discordBotManager));
+        _youTubeService = youTubeService ?? throw new ArgumentNullException(nameof(youTubeService));
         _variableReplacementService = variableReplacementService ?? throw new ArgumentNullException(nameof(variableReplacementService));
         _commandActionRunner = commandActionRunner;
     }
@@ -162,6 +168,7 @@ public class CommandTimerService
         {
             "Twitch" => _twitchService.Channel,
             "Kick" => _kickService.Channel,
+            "YouTube" => _youTubeService.Channel,
             _ => null
         };
 
@@ -264,6 +271,19 @@ public class CommandTimerService
                 }
 
                 await _kickService.SendMessageAsync(message);
+                return true;
+
+            case "YouTube":
+                if (!_youTubeService.IsConnected)
+                {
+                    _logger.LogWarning("Command timer {TimerName} skipped: YouTube is not connected", timer.Name);
+                    return false;
+                }
+
+                // Throws (caught by the tick's per-timer handler) when the
+                // channel isn't live — LastRunAt stays unstamped so the timer
+                // retries on the next tick once the broadcast starts.
+                await _youTubeService.SendMessageAsync(message);
                 return true;
 
             case "Discord":

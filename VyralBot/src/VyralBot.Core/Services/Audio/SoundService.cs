@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Logging;
 using VyralBot.Data;
 using System.Globalization;
-using System.Media;
 using System.Windows.Media;
 using System.Windows.Threading;
 using VyralBot.Core.Services.Audio;
+using VyralBot.Core.Services.Profiles;
 
 namespace VyralBot.Core.Services.Audio;
 
@@ -19,39 +19,86 @@ public class SoundService : ISoundService
 
     public SoundService(
         ILogger<SoundService> logger,
-        IDataService dataService)
+        IDataService dataService,
+        IProfileService? profileService = null)
     {
         _logger = logger;
         _dataService = dataService;
-        // Use wwwroot/sounds under the app output so /sounds/<file> is served by the
-        // embedded web server's static root (wwwroot) for browser-source compatibility.
-        _soundsDirectory = Path.Combine(AppContext.BaseDirectory, "wwwroot", "sounds");
+
+        // Legacy app-global location: wwwroot/sounds under the app output. Still used
+        // verbatim on first run (before any profile exists) and kept as the static-root
+        // fallback for browser sources.
+        var globalDirectory = Path.Combine(AppContext.BaseDirectory, "wwwroot", "sounds");
+
+        // Sounds are user data, so the default location is the current profile's data
+        // folder (profiles are the app's user-data boundary). Profile switching requires
+        // an app restart, so resolving the directory once at construction is safe.
+        var profileName = profileService?.GetCurrentProfileName();
+        _soundsDirectory = string.IsNullOrWhiteSpace(profileName)
+            ? globalDirectory
+            : Path.Combine(profileService!.GetProfileDataPath(profileName), "sounds");
+
         Directory.CreateDirectory(_soundsDirectory);
-        MigrateLegacySounds();
+        MigrateLegacySounds(globalDirectory);
     }
 
     /// <summary>
-    /// One-time best-effort migration: uploads made before the sounds folder moved to
-    /// wwwroot/sounds lived in VyralBot.Api/wwwroot/sounds next to the app output.
-    /// Copies any files found there into the new location (no overwrite, never throws).
+    /// One-time best-effort migration into the per-profile sounds folder. Sources are
+    /// the app-global wwwroot/sounds under the app output and (older still) the
+    /// VyralBot.Api/wwwroot/sounds folder next to it. Copies files over only while the
+    /// profile folder is still empty (no overwrite, never deletes the old location,
+    /// never throws).
     /// </summary>
-    private void MigrateLegacySounds()
+    private void MigrateLegacySounds(string globalDirectory)
     {
         try
         {
-            var legacyDirectory = Path.Combine(AppContext.BaseDirectory, "..", "VyralBot.Api", "wwwroot", "sounds");
-            if (!Directory.Exists(legacyDirectory))
+            var legacyDirectories = new[]
+            {
+                globalDirectory,
+                Path.Combine(AppContext.BaseDirectory, "..", "VyralBot.Api", "wwwroot", "sounds")
+            };
+
+            // Running against the app-global location (first run, no profile yet):
+            // that IS the legacy location — nothing to migrate.
+            var destinationRoot = Path.GetFullPath(_soundsDirectory);
+            if (legacyDirectories.Any(d =>
+                    string.Equals(Path.GetFullPath(d), destinationRoot, StringComparison.OrdinalIgnoreCase)))
             {
                 return;
             }
 
-            foreach (var file in Directory.GetFiles(legacyDirectory))
+            // Only migrate the first time: once the profile has any sound file, the
+            // profile folder is authoritative and the old location is left untouched.
+            if (Directory.GetFiles(_soundsDirectory).Any(IsSupportedAudioFile))
             {
-                var destination = Path.Combine(_soundsDirectory, Path.GetFileName(file));
-                if (!File.Exists(destination))
+                return;
+            }
+
+            var migrated = 0;
+            foreach (var legacyDirectory in legacyDirectories)
+            {
+                if (!Directory.Exists(legacyDirectory))
                 {
-                    File.Copy(file, destination);
+                    continue;
                 }
+
+                foreach (var file in Directory.GetFiles(legacyDirectory))
+                {
+                    var destination = Path.Combine(_soundsDirectory, Path.GetFileName(file));
+                    if (!File.Exists(destination))
+                    {
+                        File.Copy(file, destination);
+                        migrated++;
+                    }
+                }
+            }
+
+            if (migrated > 0)
+            {
+                _logger.LogInformation(
+                    "Migrated {Count} sound file(s) from the app-global sounds folder into {Directory} (originals kept)",
+                    migrated, _soundsDirectory);
             }
         }
         catch (Exception ex)
@@ -350,33 +397,21 @@ public class SoundService : ISoundService
         return 1.0f;
     }
 
-    private async Task PlayLocalSoundAsync(string filePath, float volume)
+    private Task PlayLocalSoundAsync(string filePath, float volume)
     {
-        try
-        {
-            // For .wav files, use SoundPlayer (built-in Windows API)
-            if (filePath.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
-            {
-                using var player = new SoundPlayer(filePath);
-                player.PlaySync(); // Play synchronously on background thread
-            }
-            else
-            {
-                // .mp3/.ogg/.m4a need WPF's MediaPlayer (SoundPlayer is .wav-only)
-                PlayWithMediaPlayer(filePath, volume);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error playing local sound: {FilePath}", filePath);
-        }
+        // All supported formats (including .wav) play through WPF MediaPlayer so the
+        // volume setting is honored — System.Media.SoundPlayer has no volume API,
+        // which made .wav event sounds ignore master/per-event volume. Each playback
+        // runs on its own short-lived STA thread with its own MediaPlayer instance,
+        // so simultaneous sounds still overlap.
+        PlayWithMediaPlayer(filePath, volume);
 
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     /// <summary>
-    /// Plays non-.wav formats (.mp3/.ogg/.m4a) via WPF <see cref="MediaPlayer"/> on a
-    /// dedicated STA background thread. MediaPlayer's media clock needs a Dispatcher
+    /// Plays all supported formats (.wav/.mp3/.ogg/.m4a) via WPF <see cref="MediaPlayer"/>
+    /// on a dedicated STA background thread. MediaPlayer's media clock needs a Dispatcher
     /// pump, so the thread runs a Dispatcher that is shut down on MediaEnded/MediaFailed.
     /// </summary>
     private void PlayWithMediaPlayer(string filePath, float volume)

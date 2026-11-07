@@ -14,7 +14,9 @@ public class DiscordBot
     /// <summary>Display name of the bot.</summary>
     public required string Name { get; set; }
 
-    /// <summary>Raw bot token (stored as-is, like the legacy Discord Platform row).</summary>
+    /// <summary>Bot token. Plain text in memory; persisted DPAPI-wrapped by
+    /// DapperDataService (SecretProtector "v1:" envelope, CurrentUser scope).
+    /// Legacy plaintext rows are unwrapped on read as-is and re-wrapped on save.</summary>
     public string? Token { get; set; }
 
     /// <summary>Last known status: "Connected", "Disconnected" or "Error".</summary>

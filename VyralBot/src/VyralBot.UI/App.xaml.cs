@@ -670,10 +670,11 @@ public partial class App : Application
             // Auto-moderation: configure the shared action service with the
             // profile's persistence + logging, register the per-platform
             // adapters (capability flags follow ModerationPlatformParity —
-            // Twitch/Kick/YouTube are notice-only until their services gain
-            // per-viewer action APIs; Discord enforces ban/timeout by name)
-            // and load the saved rule set so the engine evaluates with the
-            // stored rules from the first chat message after startup.
+            // Twitch enforces ban/timeout/delete via Helix; Discord enforces
+            // ban/timeout by name; Kick/YouTube are notice-only until their
+            // services gain per-viewer action APIs) and load the saved rule
+            // set so the engine evaluates with the stored rules from the first
+            // chat message after startup.
             // Best-effort — a failure must not break startup.
             try
             {
@@ -1279,32 +1280,84 @@ public partial class App : Application
     // live in the composition root because VyralBot.Core cannot reference the
     // integration services (reference direction is Integrations → Core).
     // Capability flags follow the parity audit (ModerationPlatformParity):
-    // Twitch/Kick/YouTube expose no per-viewer timeout/ban/delete APIs yet,
-    // so their adapters only post warning notices and verdicts degrade
-    // delete→warn/timeout→warn per ModerationActionService's ladder; Discord
-    // can ban and timeout by name (no delete-by-id API — "trigger"-scope
-    // deletes track workflow triggers, not viewer messages). Every method is
-    // best-effort and NEVER throws.
+    // Twitch enforces ban/timeout/delete per viewer through the Helix
+    // moderation APIs (delete without a message id degrades to a 1s timeout);
+    // Discord can ban and timeout by name (no delete-by-id API — "trigger"-
+    // scope deletes track workflow triggers, not viewer messages). Kick and
+    // YouTube remain notice-only — their services expose no per-viewer action
+    // APIs, so verdicts degrade delete→warn/timeout→warn per
+    // ModerationActionService's ladder. Every method is best-effort and NEVER
+    // throws.
     // ======================================================================
 
-    /// <summary>Twitch adapter: notice-only (chat-wide APIs exist; per-viewer Helix actions are not wired yet).</summary>
+    /// <summary>
+    /// Twitch adapter: full enforcement via the Helix per-viewer moderation
+    /// APIs (POST /moderation/bans for ban + timeout, DELETE /moderation/chat
+    /// for delete). The Twitch chat pipeline does not surface IRC message ids,
+    /// so a Delete verdict without a message id degrades to a 1-second timeout
+    /// — a timeout purges the offender's messages, which removes the offending
+    /// chat line instead of only warning.
+    /// </summary>
     internal sealed class TwitchModerationAdapter : VyralBot.Core.Services.Moderation.IModerationPlatformAdapter
     {
+        // Message-delete stand-in when no message id is available: the
+        // shortest timeout Twitch accepts still purges the sender's messages.
+        private static readonly TimeSpan DeleteFallbackTimeout = TimeSpan.FromSeconds(1);
+
         private readonly ITwitchService _twitch;
 
         public TwitchModerationAdapter(ITwitchService twitch)
             => _twitch = twitch ?? throw new ArgumentNullException(nameof(twitch));
 
         public string Platform => "Twitch";
-        public bool CanDeleteMessage => false;
-        public bool CanTimeout => false;
-        public bool CanBan => false;
+        public bool CanDeleteMessage => true;
+        public bool CanTimeout => true;
+        public bool CanBan => true;
 
-        public Task<bool> DeleteMessageAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message) => Task.FromResult(false);
+        public async Task<bool> DeleteMessageAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(message.MessageId))
+                {
+                    return await _twitch.DeleteMessageAsync(message.MessageId).ConfigureAwait(false);
+                }
 
-        public Task<bool> TimeoutAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, int seconds, string reason) => Task.FromResult(false);
+                // No message id from the Twitch pipeline yet — degrade delete
+                // to a 1s timeout (purges the message) rather than warn-only.
+                return await _twitch.TimeoutUserAsync(message.Username, DeleteFallbackTimeout,
+                    "auto-mod: message removed").ConfigureAwait(false);
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
-        public Task<bool> BanAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, string reason) => Task.FromResult(false);
+        public async Task<bool> TimeoutAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, int seconds, string reason)
+        {
+            try
+            {
+                return await _twitch.TimeoutUserAsync(message.Username, TimeSpan.FromSeconds(seconds), reason)
+                    .ConfigureAwait(false);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> BanAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, string reason)
+        {
+            try
+            {
+                return await _twitch.BanUserAsync(message.Username, reason).ConfigureAwait(false);
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         public async Task<bool> SendNoticeAsync(string message)
         {

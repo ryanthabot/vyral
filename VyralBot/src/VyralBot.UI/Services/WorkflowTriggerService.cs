@@ -7,6 +7,7 @@ using VyralBot.Core.Services.EventBus;
 using VyralBot.Core.Services.Moderation;
 using VyralBot.Data;
 using VyralBot.Integrations.Discord;
+using VyralBot.Integrations.Discord.Events;
 using VyralBot.Integrations.Kick;
 using VyralBot.Integrations.Kick.Events;
 using VyralBot.Integrations.Twitch;
@@ -54,11 +55,12 @@ namespace VyralBot.UI.Services;
 ///    Foreign or unknown custom ids are silently ignored (debug log).
 ///
 ///  • EVENT triggers — typed EventBus subscriptions (IEventBus.SubscribeAsync)
-///    for Twitch follow/subscribe/resub/gift-sub/raid/cheer and Kick
-///    follow/subscribe/gift-sub/host/reward-redeemed/kicks-gifted records.
-///    Workflow EventType values are
+///    for Twitch follow/subscribe/resub/gift-sub/raid/cheer, Kick
+///    follow/subscribe/gift-sub/host/reward-redeemed/kicks-gifted records,
+///    and Discord member-joined/boost records. Workflow EventType values are
 ///    normalized case-insensitively with a few aliases ("sub"→subscribe,
-///    "bits"→cheer, "gift"/"gifted"→giftsub, "hosted"→host, "raided"→raid).
+///    "bits"→cheer, "gift"/"gifted"→giftsub, "hosted"→host, "raided"→raid,
+///    "join"/"memberjoined"→discordmemberjoined, "boost"→discordboost).
 ///    Platform filtering: workflow Trigger.Platform null/empty/"Any"/"All"
 ///    matches every platform, otherwise an exact case-insensitive match is
 ///    required. YouTube is chat-message-only in V1 (no non-message event
@@ -1618,6 +1620,25 @@ public class WorkflowTriggerService
             return Task.CompletedTask;
         });
 
+        // --- Discord member events (joins + boosts) ---
+        // Canonical dispatch keys are separator-free ("discordmemberjoined" /
+        // "discordboost"); authored "Discord Member Joined" / "server boost"
+        // normalize onto them (see NormalizeEventType). Delivered only while
+        // the gateway runs the privileged GuildMembers intent (DiscordService).
+        await Subscribe<DiscordMemberJoinedEvent>(e =>
+        {
+            DispatchEvent("discordmemberjoined", "Discord", e.Username, null, e,
+                Vars(("userId", e.UserId), ("displayName", e.DisplayName), ("guildId", e.GuildId), ("guildName", e.GuildName)));
+            return Task.CompletedTask;
+        });
+
+        await Subscribe<DiscordBoostEvent>(e =>
+        {
+            DispatchEvent("discordboost", "Discord", e.Username, null, e,
+                Vars(("userId", e.UserId), ("displayName", e.DisplayName), ("guildId", e.GuildId), ("guildName", e.GuildName), ("premiumSince", e.PremiumSince)));
+            return Task.CompletedTask;
+        });
+
         _logger.LogInformation("WorkflowTriggerService subscribed to {Count} event types", _subscriptionIds.Count);
     }
 
@@ -2378,6 +2399,10 @@ public class WorkflowTriggerService
             // strip already maps "reward_redeemed"/"Reward Redeemed" onto it.
             "reward" or "redeem" or "rewardredeem" => "rewardredeemed",
             "kicksgift" or "kicks" => "kicksgifted",
+            // Discord member events ("discord member joined" / "Discord
+            // Boost" need no case — the default separator strip maps them).
+            "join" or "joined" or "memberjoin" or "memberjoined" or "discordjoin" => "discordmemberjoined",
+            "boost" or "boosted" or "serverboost" or "serverboosted" => "discordboost",
             _ => t.Replace("-", string.Empty).Replace("_", string.Empty).Replace(" ", string.Empty)
         };
     }

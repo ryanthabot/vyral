@@ -2,7 +2,8 @@
 
 Files: `VyralBot.Integrations/Discord/DiscordService.cs` (one gateway session),
 `VyralBot.Integrations/Discord/DiscordBotManager.cs` (N sessions + persistence),
-`Events/DiscordChatMessageEvent.cs`. UI: `DiscordBotsViewModel` (list),
+`Events/DiscordChatMessageEvent.cs`, `Events/DiscordMemberJoinedEvent.cs`,
+`Events/DiscordBoostEvent.cs`. UI: `DiscordBotsViewModel` (list),
 `DiscordBotDetailViewModel` (per-bot dashboard).
 
 ## Gateway session (DiscordService)
@@ -44,8 +45,11 @@ Files: `VyralBot.Integrations/Discord/DiscordService.cs` (one gateway session),
   `IDataService.DeleteConfigValueAsync`). Each group is best-effort
   (a failing group is logged and never blocks the removal).
 - Tokens live in the per-profile SQLite DB (`DiscordBots.Token`, legacy
-  `Platform` row `Name="Discord"`), masked in UI (PasswordBox) and never
-  logged; error paths surface `ex.Message` only (no token material).
+  `Platform` row `Name="Discord"`), stored DPAPI-wrapped at rest by
+  `DapperDataService`/`SecretProtector` (`"v1:"` envelope; plaintext rows are
+  unwrapped on read as-is and re-wrapped on next save), masked in UI
+  (PasswordBox) and never logged; error paths surface `ex.Message` only (no
+  token material).
 - Home/"primary" connection is funneled through `AdoptPlatformTokenAsync`
   (single gateway per token across legacy and manager worlds).
 
@@ -57,6 +61,32 @@ Files: `VyralBot.Integrations/Discord/DiscordService.cs` (one gateway session),
 `DiscordFilterEnabled` filter). Listening is NOT restricted to the selected
 channel: the selected channel is the SEND target only (`SendMessageAsync`,
 used by announcements); `AssignedChannelIds` gates currency earning only.
+
+## Guild member events (joins & boosts)
+
+`UserJoined` (GUILD_MEMBER_ADD) publishes `DiscordMemberJoinedEvent`;
+`GuildMemberUpdated` publishes `DiscordBoostEvent` ONLY on an observed
+`PremiumSince` null → value transition (a boost started).
+
+- **Dedup:** joins are deduped per (guild, user) inside a 10-minute window
+  (`_recentMemberJoins`, pruned past 512 entries), so reconnect-handshake
+  replays never double-fire. Boosts use `_premiumSinceByMember` (last seen
+  PremiumSince per member): a KNOWN null → value transition publishes, an
+  unknown prior (first sight of a member — e.g. a reconnect snapshot of an
+  existing booster) is recorded silently and never published. Both maps are
+  cleared on manual disconnect but survive Discord.Net auto-reconnects.
+- **Publishing** mirrors the chat pipeline (fire-and-forget `Task.Run` +
+  `IEventBus.PublishAsync`, info-level logs, `BotId` tagging).
+- **INTENT GATE:** GUILD_MEMBER_ADD / GUILD_MEMBER_UPDATE are only delivered
+  with the privileged `GatewayIntents.GuildMembers`, which is deliberately
+  NOT requested in `CreateClient` — requesting it without the "Server Members
+  Intent" toggle in the Discord Developer Portal gets the IDENTIFY rejected
+  (close 4014) and kills ALL connectivity. Handlers are wired regardless:
+  enable the portal toggle, then add the intent flag; no other code change.
+- **Consumers:** `WorkflowTriggerService` dispatches workflow event triggers
+  `discordmemberjoined` / `discordboost` (aliases "join", "memberjoined",
+  "boost", "serverboost", ...). Alerts/stats are NOT wired yet — they live in
+  `ChatViewModel` (see `OnTwitchFollowAsync` for the pattern to mirror).
 
 ## Lifecycle at app level
 

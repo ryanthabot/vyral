@@ -46,6 +46,7 @@ class _DeckScreenState extends State<DeckScreen> {
   StreamSubscription<DeckEvent>? _subscription;
   bool _connecting = true;
   bool _openingSession = false;
+  bool _updateHintShown = false;
   String? _connectError;
 
   DeckPageData get _page {
@@ -124,6 +125,16 @@ class _DeckScreenState extends State<DeckScreen> {
       _state = event.state;
       if (_pageIndex >= _layout.pages.length) _pageIndex = 0;
     });
+    _maybeHintNewerProtocol(event.protocol);
+  }
+
+  /// A newer server protocol means newer desktop features exist — hint, never
+  /// block. Shown once per session (reconnects re-send the welcome).
+  void _maybeHintNewerProtocol(int serverProtocol) {
+    if (serverProtocol <= knownProtocolVersion || _updateHintShown) return;
+    _updateHintShown = true;
+    _snack('VyralBot runs a newer deck protocol (v$serverProtocol, app knows '
+        'v$knownProtocolVersion) — update VyralDeck when convenient.');
   }
 
   void _onEvent(DeckEvent event) {

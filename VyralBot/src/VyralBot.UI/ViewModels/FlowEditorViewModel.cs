@@ -2036,7 +2036,8 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     /// </summary>
     public ObservableCollection<string> TriggerEventTypeOptions { get; } = new()
     {
-        "follow", "subscribe", "resub", "giftsub", "raid", "cheer", "host"
+        "follow", "subscribe", "resub", "giftsub", "raid", "cheer", "host",
+        "discordmemberjoined", "discordboost"
     };
 
     public bool IsTriggerCommand => SelectedTriggerType?.Key == WorkflowTriggerTypes.Command;
@@ -4131,6 +4132,16 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     {
         FlowCanvasNode? source = SelectedNode;
         if (source == null)
+        {
+            return;
+        }
+
+        // Special non-palette cards never duplicate: attachment cards are
+        // editor-owned (parent/routing lifecycle) and a component sub-node copy
+        // would be an unwired orphan (its only inbound is the parent's
+        // programmatic drop-dot elbow) — same guard as the canvas's Ctrl+D.
+        if (FlowNodeVisual.IsProtectedType(source.BlockType)
+            || FlowNodeVisual.IsComponentType(source.BlockType))
         {
             return;
         }

@@ -114,11 +114,13 @@ src/
 | [features/platform-management.md](features/platform-management.md) | Platform config |
 | [features/profile-system.md](features/profile-system.md) | Profile management |
 | [features/settings-system.md](features/settings-system.md) | Settings and config |
+| [features/flow-editor-canvas.md](features/flow-editor-canvas.md) | Visual flow editor canvas |
 
 ### Services
 | Doc | Description |
 |-----|-------------|
 | [services/action-dispatcher.md](services/action-dispatcher.md) | Action execution |
+| [services/workflow-runtime.md](services/workflow-runtime.md) | Workflow graph interpreter + run cancellation |
 | [services/trigger-engine.md](services/trigger-engine.md) | Trigger system |
 | [services/data-service.md](services/data-service.md) | Data service overview |
 | [services/data-services-detailed.md](services/data-services-detailed.md) | Detailed data reference |
