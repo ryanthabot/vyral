@@ -1,6 +1,6 @@
 # Known Issues Ledger
 
-The numbered, severity-tagged inventory of every known defect, wiring gap, dead surface, and doc-drift item in the current build — verified against code by the six-pass review that produced this documentation, and re-verified after the 2026-08-15 fix pass.
+The numbered, severity-tagged inventory of every known defect, wiring gap, dead surface, and doc-drift item in the current build — verified against code by the six-pass review that produced this documentation, re-verified after the 2026-08-15 fix pass, and reconciled again against the 2026-11-07 production-marathon waves (0–5).
 
 **Every feature page in these docs references this ledger** rather than repeating caveats inline. If a page says "see the Known Issues Ledger", the relevant entry is here. Severity meanings:
 
@@ -8,9 +8,10 @@ The numbered, severity-tagged inventory of every known defect, wiring gap, dead 
 - **Wiring gap** — the feature runs but a connection, persistence, or plumbing step is missing or wrong.
 - **Dead surface** — UI or code that renders/exists but does nothing.
 - **Security** — hardening or trust concern, not necessarily a functional break.
+- **Limitation** — an honest current-state boundary (an API that does not exist, a deliberate degradation), documented rather than promised.
 - **Doc drift** — shipped root documents that disagree with the code.
 
-Counts (as of 2026-09-01, after the YouTube re-auth pass): 47 entries — **21 resolved**, **6 partially resolved**, **1 intended behavior (documented)**, and **19 open newly-documented limitations** (KI-26–KI-47; KI-35, KI-39 and KI-43 in that range are already counted as resolved). Original severity split of the 25 pre-fix entries: 7 Critical, 9 Wiring gaps, 2 Dead surface, 6 Security, 1 Doc drift.
+Counts (as of 2026-11-07, after marathon wave 5): 53 entries — **23 resolved**, **6 partially resolved**, **1 intended behavior (documented)**, and **23 open limitations** (KI-26–KI-28, KI-30–KI-33, KI-36–KI-38, KI-40–KI-42, KI-44–KI-47, KI-50–KI-53; KI-29, KI-35, KI-39 and KI-43 in that first range are counted as resolved). Original severity split of the 25 pre-fix entries: 7 Critical, 9 Wiring gaps, 2 Dead surface, 6 Security, 1 Doc drift.
 
 Resolved entries are kept below (never deleted) with a ✅ marker and a one-line description of the fix; partially resolved entries carry ◐ with what remains.
 
@@ -46,6 +47,12 @@ Resolved entries are kept below (never deleted) with a ✅ marker and a one-line
 | [KI-45](#ki-45-wiring-gap--botghost-musicvoicepremium-blocks-are-not-implemented) | Wiring gap | Workflows / Discord | The music/voice/premium BotGhost block suite (Create Music Player, voice actions, IFTTT, transcripts, Components V2, Premium Check) has no Vyral counterpart; "Music Smart Search" is a plain text parameter | [Automation](../chat-features/automation.md), [Discord](../platforms/discord.md) |
 | [KI-46](#ki-46-wiring-gap--component-button-ids-are-positional-and-renumber-on-reorder) | Wiring gap | Workflows / Discord | Component button ids are positional (`btn0`, `btn1`, …) — reordering or removing buttons renumbers them, breaking `{buttonId}` comparisons until re-edited | [Automation](../chat-features/automation.md), [Discord](../platforms/discord.md) |
 | [KI-47](#ki-47-wiring-gap--google-refresh-tokens-expire-in-testing-mode-youtube-needs-periodic-re-authorization) | Wiring gap | YouTube | Google Testing-mode refresh tokens expire after 7 days — YouTube auto-connect fails with `invalid_grant` until the user re-authorizes; the Platforms page now shows the live status and "Re-authorization required" instead of a false Connected | [YouTube](../platforms/youtube.md) |
+| [KI-48](#ki-48-critical--alert-queue-stalled-after-the-first-alert) | Critical ✅ | Visual Alerts | RESOLVED: auto-close now `Close()`s (was `Hide()`) and alerts flow through a bounded FIFO (cap 10, drop-oldest) — alerts fire every time instead of stalling after the first | [Visual Alerts](../stream-tools/visual-alerts.md) |
+| [KI-49](#ki-49-wiring-gap--auto-replies-master-toggle-was-dead-on-4-platforms) | Wiring gap ✅ | Chat settings / Auto-replies | RESOLVED: the Chat-Hub Auto-Replies master toggle loads + persists on Kick/YouTube/TikTok/Discord (Kick's gates the handlers, Twitch publishes the routing event) | [Chat Settings](../chat/chat-settings.md), [Auto-Replies](../chat-features/auto-replies.md) |
+| [KI-50](#ki-50-limitation--no-output-device-selection-for-sounds) | Limitation | Sounds / Audio | Local sound playback always uses the system default output device — there is no device picker or per-output routing | [Sounds](../stream-tools/sounds.md), [Audio Settings](../stream-tools/audio.md) |
+| [KI-51](#ki-51-limitation--twitch-delete-message-verdicts-degrade-to-a-purge-timeout) | Limitation | Moderation / Twitch | The auto-mod Delete verdict on Twitch degrades to a 1-second timeout (the IRC message id is not parsed) — it still removes the line via the purge side effect | [Twitch](../platforms/twitch.md), [Moderator Guide](../architecture/moderator-guide.md) |
+| [KI-52](#ki-52-limitation--discord-joinboost-events-need-the-server-members-intent-portal-toggle) | Limitation | Discord | Member-join and boost events are fully wired but dormant: they require the privileged **Server Members Intent** toggle in the Discord Developer Portal, which the gateway deliberately does not request | [Discord](../platforms/discord.md) |
+| [KI-53](#ki-53-limitation--auto-mod-enforcement-is-notice-only-on-kick-and-youtube) | Limitation | Moderation | Auto-mod verdicts on Kick and YouTube degrade to warn notices (no outbound action APIs); on Discord the Delete verdict degrades to a warn notice (ban/timeout are native) | [Moderator Guide](../architecture/moderator-guide.md), [Multi-Platform Parity](../platforms/multi-platform.md) |
 
 ### Resolved (2026-08-15 fix pass; KI-35 on 2026-08-16, KI-39/KI-43 on 2026-08-29)
 
@@ -233,7 +240,7 @@ Resolved entries are kept below (never deleted) with a ✅ marker and a one-line
 
 ### KI-24 (Security) — Robustness notes
 
-**◐ PARTIALLY RESOLVED (2026-08-15)** — the TikTok wizard now saves `Status="Coming Soon"` (with `TokenExpiresAt` null), so nothing treats it as connected. **Discord superseded (2026-08-15):** the Discord half of this entry is gone entirely — the stub wizard was replaced by a real bot-token wizard backed by [DiscordService](../../src/VyralBot.Integrations/Discord/DiscordService.cs) (see [Discord](../platforms/discord.md)); the fake Connected row, the IRC-pointed-at-discord.com test message, and the Twitch copy/paste log remnants no longer exist. Discord's current limitations are tracked separately as [KI-34](#ki-34-wiring-gap--discord-integration-limitations). **Remains:** echo suppression is still time-window based, but it is now restricted to messages from the bot's own sending accounts — viewers typing identical text are no longer filtered. **Unchanged:** the EventBus DropOldest loss under burst and the single-instance mutex remain as documented design trade-offs.
+**◐ PARTIALLY RESOLVED (2026-08-15)** — the TikTok wizard now saves `Status="Coming Soon"` (with `TokenExpiresAt` null), so nothing treats it as connected. **TikTok honesty completed (2026-11-07, marathon wave 2):** every remaining TikTok surface now tells the truth — the Platforms card never opens its dead-end wizard (the click says "TikTok integration is coming soon — chat is not available yet"), and the TikTok quick-settings card sits behind a coming-soon gate; an audit confirmed there is no TikTok chat pipeline anywhere in the codebase. **Discord superseded (2026-08-15):** the Discord half of this entry is gone entirely — the stub wizard was replaced by a real bot-token wizard backed by [DiscordService](../../src/VyralBot.Integrations/Discord/DiscordService.cs) (see [Discord](../platforms/discord.md)); the fake Connected row, the IRC-pointed-at-discord.com test message, and the Twitch copy/paste log remnants no longer exist. Discord's current limitations are tracked separately as [KI-34](#ki-34-wiring-gap--discord-integration-limitations). **Remains:** echo suppression is still time-window based, but it is now restricted to messages from the bot's own sending accounts — viewers typing identical text are no longer filtered. **Unchanged:** the EventBus DropOldest loss under burst and the single-instance mutex remain as documented design trade-offs.
 
 *Original finding (pre-fix):* stub wizards wrote `Status="Connected"` rows with empty tokens, and content-based echo suppression ate duplicate viewer text.
 
@@ -381,9 +388,11 @@ Which ledger entries affect which feature areas (✅ = resolved, ◐ = partially
 
 | Feature | Entries |
 |---|---|
+| [Quick Start](../getting-started/quick-start.md) | none (router page — defers to the pages it links) |
 | [Commands](../chat-features/commands.md) | KI-1 ✅, KI-37, KI-38, KI-41, KI-42 |
+| [Marketplace & Sharecodes](../chat-features/marketplace.md) | KI-45 (imported flows use the same block set) |
 | [Variables](../chat-features/variables.md) | KI-12 ◐, KI-28 |
-| [Auto-Replies](../chat-features/auto-replies.md) | KI-1 ✅, KI-12 ◐, KI-28 |
+| [Auto-Replies](../chat-features/auto-replies.md) | KI-1 ✅, KI-12 ◐, KI-28, KI-49 ✅ |
 | [Conditional Rules](../chat-features/conditional-rules.md) | KI-18 ◐ |
 | [Event History](../chat-features/event-history.md) | KI-3 ✅, KI-26 |
 | [Event Testing](../chat-features/event-testing.md) | none (fully functional) |
@@ -394,18 +403,20 @@ Which ledger entries affect which feature areas (✅ = resolved, ◐ = partially
 | [Currency & Rewards](../stream-tools/currency.md) | KI-1 ✅, KI-7 ✅, KI-29 ✅ (full-row save + Bank & Decay tab), KI-27, KI-30 |
 | [Statistics](../stream-tools/statistics.md) | KI-3 ✅, KI-26 |
 | [Browser Sources](../stream-tools/browser-sources.md) | KI-4 ✅, KI-16 ◐ |
-| [Sounds](../stream-tools/sounds.md) | KI-4 ✅ |
-| [Audio Settings](../stream-tools/audio.md) | KI-16 ◐, KI-32 |
-| [Visual Alerts](../stream-tools/visual-alerts.md) | KI-6 ✅ |
+| [Sounds](../stream-tools/sounds.md) | KI-4 ✅, KI-50 |
+| [Audio Settings](../stream-tools/audio.md) | KI-16 ◐, KI-32, KI-50 |
+| [Visual Alerts](../stream-tools/visual-alerts.md) | KI-6 ✅, KI-48 ✅ |
 | [Chat Window](../chat/chat-window.md) | KI-9 ✅, KI-24 ◐, KI-34, KI-38 |
-| [Chat Settings](../chat/chat-settings.md) | KI-8 ✅, KI-11 ✅, KI-14 (intended) |
+| [Chat Settings](../chat/chat-settings.md) | KI-8 ✅, KI-11 ✅, KI-14 (intended), KI-49 ✅ |
 | [Event Reactions](../chat/event-reactions.md) | KI-2 ✅, KI-26 |
-| [Twitch](../platforms/twitch.md) | KI-2 ✅, KI-21 ◐, KI-33 |
-| [Kick](../platforms/kick.md) | KI-13 ✅, KI-19 ✅, KI-21 ◐, KI-31 |
-| [YouTube](../platforms/youtube.md) | KI-9 ✅, KI-21 ◐, KI-31, KI-47 |
-| [Discord](../platforms/discord.md) | KI-24 ◐ (Discord half superseded), KI-34 ◐, KI-35 ✅, KI-36, KI-38, KI-39 ✅, KI-40, KI-41, KI-43 ✅, KI-44, KI-45, KI-46 |
+| [Twitch](../platforms/twitch.md) | KI-2 ✅, KI-21 ◐, KI-33, KI-51 |
+| [Kick](../platforms/kick.md) | KI-13 ✅, KI-19 ✅, KI-21 ◐, KI-31, KI-53 |
+| [YouTube](../platforms/youtube.md) | KI-9 ✅, KI-21 ◐, KI-31, KI-47, KI-53 |
+| [Discord](../platforms/discord.md) | KI-24 ◐ (Discord half superseded), KI-34 ◐, KI-35 ✅, KI-36, KI-38, KI-39 ✅, KI-40, KI-41, KI-43 ✅, KI-44, KI-45, KI-46, KI-52, KI-53 |
 | [Platform Dashboards](../platforms/dashboards.md) | KI-36 (per-bot RECONNECT token; dashboard-tab half resolved) |
+| [Multi-Platform Parity](../platforms/multi-platform.md) | KI-31, KI-52, KI-53 |
 | [TikTok & OBS](../platforms/tiktok-discord-obs.md) | KI-17 ✅, KI-24 ◐ |
+| [TikTok](../platforms/tiktok.md) | KI-24 ◐ (all surfaces honest coming-soon) |
 | [Profiles](../getting-started/profiles.md) | KI-11 ✅, KI-15 ✅, KI-20 ✅ |
 | [API, Web Server & ngrok](../settings/web-server-ngrok.md) | KI-10 ✅, KI-13 ✅, KI-22 ✅ |
 | [App Shell](../home/app-shell.md) | KI-17 ✅ |
@@ -413,6 +424,7 @@ Which ledger entries affect which feature areas (✅ = resolved, ◐ = partially
 | [Web Server](../architecture/web-server.md) | KI-19 ✅ |
 | [Startup & Lifecycle](../architecture/startup-lifecycle.md) | KI-23 ✅ |
 | [Data Layer](../architecture/data-layer.md) | KI-3 ✅, KI-18 ◐ |
+| [Moderator Guide](../architecture/moderator-guide.md) | KI-51, KI-53 (auto-mod platform parity) |
 
 ---
 
@@ -421,3 +433,33 @@ Which ledger entries affect which feature areas (✅ = resolved, ◐ = partially
 ### KI-47 (Wiring gap) — Google refresh tokens expire in Testing mode; YouTube needs periodic re-authorization
 
 While the app's Google OAuth consent screen is in **Testing** status, Google expires its refresh tokens after **7 days**, so YouTube auto-connect fails with `invalid_grant` roughly weekly (revoking access in your Google account or changing the password does the same). The engine can't prevent this — only a fresh sign-in fixes it. As of this pass the failure is handled honestly: a failed auto-connect marks the saved platform row **Disconnected**, the Platforms page shows **"Re-authorization required"** (the live chat service — not the database row — is the source of truth, and a row that claims Connected while the service is down triggers one silent stored-credential reconnect first), and the fix is re-running **Home → Connections → YouTube**. Publishing the Google OAuth app removes the 7-day expiry. Documented on [YouTube](../platforms/youtube.md).
+
+---
+
+## Fixes and newly-documented limitations (2026-11-07 marathon reconciliation)
+
+Everything below was verified against the code during the 24-hour production marathon (waves 0–5). The two resolved entries predate the marathon (fixed in the 2026-10-18 full-app audit pass, commit `7a341d8`) but had never been entered in this ledger; the four limitations are honest current-state boundaries surfaced by the marathon's parity and moderation work.
+
+### KI-48 (Critical) — Alert queue stalled after the first alert
+
+**✅ RESOLVED (2026-10-18)** — two defects stacked: the alert overlay's auto-close called `Hide()` instead of `Close()`, so `AlertService` never learned a slot had freed; and there was no queue at all — a new alert just replaced the visible one. Net effect in real streams: after the first alert in a session, subsequent alerts could stall forever. Now: auto-close genuinely **closes** the window, and alerts flow through a **bounded FIFO** — one on screen, at most **10** pending (`MaxPendingAlerts`, drop-oldest so the queue can never grow), drained window-close by window-close (`OnAlertWindowClosed`, [AlertService.cs](../../src/VyralBot.UI/Services/AlertService.cs)). Documented on [Visual Alerts](../stream-tools/visual-alerts.md).
+
+### KI-49 (Wiring gap) — Auto-Replies master toggle was dead on 4 platforms
+
+**✅ RESOLVED (2026-10-18)** — the **Auto-Replies** master toggle in the Chat Hub's per-platform settings loaded and persisted nothing on **Kick, YouTube, TikTok, and Discord** (Twitch worked). The four settings VMs now load and persist their `Chat.<Platform>.AutoRepliesEnabled` config keys (Kick keeps its legacy `Kick.AutoRepliesEnabled` key), `ChatViewModel` consults the Kick flag live before every auto-reply send, and the Twitch toggle publishes a routing event so the engine re-reads it without restart. Note the wider boundary that remains by design: the per-event auto-reply *editors* are still Twitch/Kick-only — the YouTube/TikTok/Discord master flags persist but those platforms have no per-event auto-reply pipeline yet (see KI-34 for Discord). Documented on [Chat Settings](../chat/chat-settings.md).
+
+### KI-50 (Limitation) — No output device selection for sounds
+
+Local sound playback (WPF `MediaPlayer`, one short-lived STA instance per playback) always goes to the **system default output device**. There is no device picker on the Sounds or Audio Settings pages and no routing of the local streamer feed to a specific device (e.g. headphones) separate from the OBS browser-source feed — the browser source itself plays in OBS and follows OBS's audio settings, but the streamer-side playback cannot be aimed. Documented on [Sounds](../stream-tools/sounds.md) and [Audio Settings](../stream-tools/audio.md).
+
+### KI-51 (Limitation) — Twitch Delete-message verdicts degrade to a purge-timeout
+
+The auto-moderator's **Delete** verdict on Twitch needs the offending message's id, but the chat pipeline does not parse IRC message ids, so `TwitchModerationAdapter` degrades a Delete to a **1-second timeout** — a timeout purges the sender's recent messages, which still removes the offending line. Functionally the line disappears; the side effect is the viewer is also muted for one second and the action logs as a timeout, not a delete. Twitch ban/timeout verdicts are enforced natively via Helix. Documented on [Twitch](../platforms/twitch.md) and the [Moderator Guide](../architecture/moderator-guide.md#auto-mod-platform-parity).
+
+### KI-52 (Limitation) — Discord join/boost events need the Server Members Intent portal toggle
+
+`DiscordMemberJoinedEvent` / `DiscordBoostEvent` and their reactions + `discordmemberjoined` / `discordboost` workflow triggers are wired end to end, but the gateway deliberately does **not** request the privileged **GuildMembers** intent: `GUILD_MEMBER_ADD` / `GUILD_MEMBER_UPDATE` only arrive with it, and IDENTIFYing an intent that is not toggled in the Discord Developer Portal ("Server Members Intent") is rejected with close code **4014 — which would drop all Discord connectivity for every bot**. Turning the events on therefore requires the portal toggle **and** the code-side intent flag; until then the feature is dormant by design, not broken. Documented on [Discord](../platforms/discord.md#member-joins--boosts-intent-gated).
+
+### KI-53 (Limitation) — Auto-mod enforcement is notice-only on Kick and YouTube
+
+The cross-platform moderation engine runs everywhere, but enforcement degrades per platform (the Moderator dashboard renders this parity live): **Twitch** — full native enforcement (Helix timeout/ban; delete degrades per KI-51); **Discord** — ban and timeout native, but no delete-by-id/by-author API is exposed, so a Delete verdict degrades to a warning notice; **Kick** — notice-only (the moderation webhooks are inbound notifications, not outbound actions — ban/timeout/delete all degrade to a warn notice); **YouTube** — notice-only (`IYouTubeService` has no per-viewer action API); **TikTok** — no adapter at all (verdicts are logged only). All verdicts are logged and audited regardless of level. Documented in the [Moderator Guide](../architecture/moderator-guide.md#auto-mod-platform-parity) and [Multi-Platform Parity](../platforms/multi-platform.md).

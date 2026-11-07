@@ -25,7 +25,14 @@ public class TwitchOAuthService
     private const string RedirectUri = "http://localhost:3000";
     
     private static string? _currentState; // Store state for WebView2 flow (mutable for WebView flow)
-    
+
+    /// <summary>
+    /// Single shared HTTP client (app rule: no per-call HttpClient instances —
+    /// they exhaust sockets). Authorization is set per request because
+    /// DefaultRequestHeaders on a shared instance would stack values across calls.
+    /// </summary>
+    private static readonly HttpClient s_httpClient = new();
+
     // Credentials loaded from file or environment
     public string? ClientId { get; private set; }
     public string? ClientSecret { get; private set; }
@@ -507,11 +514,11 @@ public class TwitchOAuthService
     {
         try
         {
-            using var client = new HttpClient();
-            client.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
-            client.DefaultRequestHeaders.Add("Client-Id", ClientId);
+            using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.twitch.tv/helix/users");
+            request.Headers.Add("Authorization", $"Bearer {accessToken}");
+            request.Headers.Add("Client-Id", ClientId);
 
-            var response = await client.GetAsync("https://api.twitch.tv/helix/users");
+            using var response = await s_httpClient.SendAsync(request);
             var responseContent = await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
@@ -555,8 +562,6 @@ public class TwitchOAuthService
             return null;
         }
 
-        using var client = new HttpClient();
-
         var requestBody = new Dictionary<string, string>
         {
             ["client_id"] = ClientId!,
@@ -566,7 +571,9 @@ public class TwitchOAuthService
             ["redirect_uri"] = RedirectUri
         };
 
-        var response = await client.PostAsync(TwitchTokenUrl, new FormUrlEncodedContent(requestBody));
+        using var request = new HttpRequestMessage(HttpMethod.Post, TwitchTokenUrl);
+        request.Content = new FormUrlEncodedContent(requestBody);
+        using var response = await s_httpClient.SendAsync(request);
         var responseContent = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -595,8 +602,6 @@ public class TwitchOAuthService
     {
         _logger.LogInformation("Refreshing Twitch access token");
 
-        using var client = new HttpClient();
-
         var requestBody = new Dictionary<string, string>
         {
             ["client_id"] = clientId,
@@ -605,7 +610,9 @@ public class TwitchOAuthService
             ["refresh_token"] = refreshToken
         };
 
-        var response = await client.PostAsync(TwitchTokenUrl, new FormUrlEncodedContent(requestBody));
+        using var request = new HttpRequestMessage(HttpMethod.Post, TwitchTokenUrl);
+        request.Content = new FormUrlEncodedContent(requestBody);
+        using var response = await s_httpClient.SendAsync(request);
         var responseContent = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -644,8 +651,6 @@ public class TwitchOAuthService
 
         _logger.LogInformation("Refreshing Twitch access token");
 
-        using var client = new HttpClient();
-
         var requestBody = new Dictionary<string, string>
         {
             ["client_id"] = ClientId,
@@ -654,7 +659,9 @@ public class TwitchOAuthService
             ["refresh_token"] = refreshToken
         };
 
-        var response = await client.PostAsync(TwitchTokenUrl, new FormUrlEncodedContent(requestBody));
+        using var request = new HttpRequestMessage(HttpMethod.Post, TwitchTokenUrl);
+        request.Content = new FormUrlEncodedContent(requestBody);
+        using var response = await s_httpClient.SendAsync(request);
         var responseContent = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)

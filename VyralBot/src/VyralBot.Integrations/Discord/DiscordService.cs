@@ -713,6 +713,11 @@ public class DiscordService : IDiscordService, IDisposable
                 // the map and cannot re-publish a known join/boost.
                 _recentMemberJoins.Clear();
                 _premiumSinceByMember.Clear();
+
+                // Cached DM channels belong to the stopped client's session;
+                // dropping them makes the next connect re-resolve channels
+                // instead of holding stale Discord.Net channel objects alive.
+                _knownDmChannels.Clear();
             }
 
             // Free the token's gateway slot so a later connect (this service or
@@ -5264,6 +5269,9 @@ public class DiscordService : IDiscordService, IDisposable
             // still draining. Not releasing here would block the token forever
             // (Dispose nulls the client but nothing else clears the registry).
             ReleaseLiveTokenSession(ConnectedToken?.Trim());
+
+            // Drop the DM channel cache so it cannot root the disposed clients.
+            _knownDmChannels.Clear();
 
             _logger.LogInformation("🧹 DiscordService disposed");
         }

@@ -172,6 +172,8 @@ var result = await _kickApi.Chat.SendMessageAsUserAsync(broadcasterUserId, messa
 
 ## Status & Known Issues
 
+How Kick's capabilities compare across the other platforms: [Multi-Platform Parity](multi-platform.md).
+
 - **Webhook signature test bypass is opt-in** — payloads with a `test-` message-ID prefix or `"test":true` in the body skip RSA signature validation **only** when the `Kick.AllowTestWebhooks` Configs key is set; the default is fail-closed (fixed 2026-08-15). Tracked in the [known issues ledger](../reference/known-issues.md) (KI-19 resolved).
 - **ngrok URL rotation heals automatically** — the coordinator refreshes the Kick token if needed and resubscribes to the new URL; the manual off/on toggle remains only as the fallback if recovery fails (fixed 2026-08-15). See the [known issues ledger](../reference/known-issues.md) (KI-13 resolved).
 - **Tokens stored unencrypted in the DB** — deliberate per code comments (documented); anyone with DB file access has live Kick tokens.

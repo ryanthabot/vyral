@@ -128,6 +128,20 @@ public interface IDiscordBotManager
     Task AssignRoleAsync(string botId, string role, bool assigned);
 
     /// <summary>
+    /// Loads one bot's welcome/auto-role-on-join settings (persisted under
+    /// <c>DiscordBot.{botId}.WelcomeSettings</c>). Never null: missing or
+    /// malformed rows yield <see cref="DiscordBotWelcomeSettings.Default"/>.
+    /// </summary>
+    Task<DiscordBotWelcomeSettings> GetWelcomeSettingsAsync(string botId);
+
+    /// <summary>
+    /// Persists one bot's welcome/auto-role-on-join settings. The manager's
+    /// <c>DiscordMemberJoinedEvent</c> handler reads them live on each join,
+    /// so a save takes effect immediately — no restart needed.
+    /// </summary>
+    Task SaveWelcomeSettingsAsync(string botId, DiscordBotWelcomeSettings settings);
+
+    /// <summary>
     /// Unassigns the role from every bot, persists the changed row(s) and
     /// raises <see cref="BotsChanged"/>.
     /// </summary>

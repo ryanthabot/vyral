@@ -170,6 +170,7 @@ public class ProfileAwareDataService : IDataService
     public Task InvalidateLinkCodesForViewerAsync(string viewerId) => GetCurrentService().InvalidateLinkCodesForViewerAsync(viewerId);
     public Task<IEnumerable<LinkCode>> GetActiveLinkCodesAsync() => GetCurrentService().GetActiveLinkCodesAsync();
     public Task<IEnumerable<LinkCode>> GetRecentLinkCodesAsync(int limit = 50) => GetCurrentService().GetRecentLinkCodesAsync(limit);
+    public Task<IEnumerable<LinkCode>> GetUnredeemedLinkCodesByViewerAsync(string viewerId) => GetCurrentService().GetUnredeemedLinkCodesByViewerAsync(viewerId);
     public Task DeleteLinkCodeAsync(string id) => GetCurrentService().DeleteLinkCodeAsync(id);
     public Task SaveDiscordDmMessageAsync(DiscordDmMessage message) => GetCurrentService().SaveDiscordDmMessageAsync(message);
     public Task<IEnumerable<DiscordDmMessage>> GetDiscordDmHistoryAsync(string username) => GetCurrentService().GetDiscordDmHistoryAsync(username);

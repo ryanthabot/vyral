@@ -2,9 +2,19 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:converters="clr-namespace:VyralBot.UI.Converters"
              Background="{DynamicResource BackgroundPrimaryBrush}">
 
     <UserControl.Resources>
+        <!-- Empty-state helper: Visible when the bound Count equals 0. -->
+        <converters:EqualsToVisibilityConverter x:Key="CountIsZeroConverter"/>
+
+        <Style x:Key="EmptyState" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+        </Style>
+
         <Style x:Key="SectionCard" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource BackgroundTertiaryBrush}"/>
             <Setter Property="CornerRadius" Value="8"/>
@@ -213,6 +223,9 @@
                             </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
+                    <TextBlock Text="No pending link codes — codes appear here when a viewer runs !link."
+                               Style="{StaticResource EmptyState}"
+                               Visibility="{Binding PendingCodes.Count, Converter={StaticResource CountIsZeroConverter}, ConverterParameter=0}"/>
                 </StackPanel>
             </Border>
 
@@ -470,6 +483,9 @@
                             </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
+                    <TextBlock Text="No goals yet — press Add Goal to create one."
+                               Style="{StaticResource EmptyState}"
+                               Visibility="{Binding Goals.Count, Converter={StaticResource CountIsZeroConverter}, ConverterParameter=0}"/>
                 </StackPanel>
             </Border>
 
@@ -577,6 +593,9 @@
                             </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
+                    <TextBlock Text="No linked viewers loaded — press Load Viewers to fetch the current link groups."
+                               Style="{StaticResource EmptyState}"
+                               Visibility="{Binding LinkedViewers.Count, Converter={StaticResource CountIsZeroConverter}, ConverterParameter=0}"/>
                 </StackPanel>
             </Border>
         </StackPanel>

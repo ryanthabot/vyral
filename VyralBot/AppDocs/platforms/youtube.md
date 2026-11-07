@@ -182,6 +182,8 @@ if (string.IsNullOrEmpty(_liveChatId))
 
 ## Status & Known Issues
 
+How YouTube's capabilities compare across the other platforms: [Multi-Platform Parity](multi-platform.md).
+
 - **No follow/raid events** — memberships and Super Chats/Super Stickers are surfaced (alerts, sounds family, currency, statistics — see [Super Chats](#super-chats--super-stickers)), but YouTube has no follow/raid concept in this integration, so no such triggers exist; follower-based giveaway/poll eligibility passes `false` (KI-31). Super Chats do not dispatch a workflow trigger key yet.
 - **Works only while a broadcast exists** — sending (and command timers) fail or skip with "You must be streaming live" when offline; the service otherwise idles in a 30-second discovery loop, which is by design. Timer ticks while offline are skipped and retried on the next tick.
 - **Tokens stored unencrypted in the DB** — same caveat as Kick; inconsistent with Twitch's DPAPI-encrypted tokens. See the [known issues ledger](../reference/known-issues.md).

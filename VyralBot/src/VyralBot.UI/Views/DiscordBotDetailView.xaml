@@ -644,6 +644,128 @@
                     </Grid>
                 </materialDesign:Card>
 
+                <!-- Welcome & Auto-Role Card: per-bot welcome message + role grant on member join -->
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                     Margin="0,12,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Panel Header -->
+                        <Border Grid.Row="0"
+                                Background="{DynamicResource BackgroundDarkBrush}"
+                                BorderBrush="{DynamicResource BorderColorBrush}"
+                                BorderThickness="0,0,0,1"
+                                Padding="12,8">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <materialDesign:PackIcon Kind="HandWave"
+                                                         Width="18"
+                                                         Height="18"
+                                                         Foreground="{DynamicResource DiscordBrush}"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,8,0"/>
+                                <TextBlock Text="Welcome &amp; Auto-Role"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Grid.Row="1" Margin="16">
+                            <CheckBox Content="Welcome new members and grant a role when they join"
+                                      IsChecked="{Binding WelcomeEnabled, Mode=TwoWay}"
+                                      Foreground="{DynamicResource TextPrimaryBrush}"
+                                      ToolTip="When enabled, this bot posts the welcome message and grants the auto-role to every member joining its first server."/>
+
+                            <TextBlock Text="Welcome message"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Margin="0,12,0,4"/>
+
+                            <!-- Inherits the app-wide variable-picker context menu -->
+                            <TextBox Text="{Binding WelcomeMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     materialDesign:HintAssist.Hint="Welcome to {server}, {user}! 🎉"
+                                     AcceptsReturn="False"
+                                     TextWrapping="Wrap"
+                                     VerticalAlignment="Top"/>
+
+                            <TextBlock Text="Variables: {user} mentions the joining member, {username} is their plain name, {server} is the server name — right-click the box for the variable picker."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,0"/>
+
+                            <TextBlock Text="Welcome channel"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Margin="0,12,0,4"/>
+                            <ComboBox ItemsSource="{Binding WelcomeChannels}"
+                                      DisplayMemberPath="Name"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding WelcomeChannelId, Mode=TwoWay}"
+                                      Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                                      materialDesign:HintAssist.Hint="Channel for the welcome message"
+                                      IsEnabled="{Binding HasWelcomeOptions}"/>
+
+                            <TextBlock Text="Auto-role on join"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Margin="0,12,0,4"/>
+                            <ComboBox ItemsSource="{Binding WelcomeRoles}"
+                                      DisplayMemberPath="Name"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding WelcomeRoleId, Mode=TwoWay}"
+                                      Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                                      materialDesign:HintAssist.Hint="Role granted to new members"
+                                      IsEnabled="{Binding HasWelcomeOptions}"/>
+
+                            <TextBlock Text="Channel and role come from this bot's first server — the bot needs Manage Roles for the auto-role. Pick '(no welcome channel)' or '(no auto-role)' to turn that half off. Join events require the Server Members Intent in the Discord Developer Portal."
+                                       FontSize="11"
+                                       FontStyle="Italic"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
+
+                            <!-- Offline hint (pickers need a connected bot) -->
+                            <TextBlock Text="Start the bot and join it to a server to pick a channel and role."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasWelcomeOptions}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <Button Content="SAVE WELCOME SETTINGS"
+                                    Command="{Binding SaveWelcomeSettingsCommand}"
+                                    Style="{StaticResource VyralPlainDiscordButton}"
+                                    Height="40"
+                                    Margin="0,12,0,0"/>
+
+                            <TextBlock Text="{Binding WelcomeStatus}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </materialDesign:Card>
+
                 <!-- Test Message Card -->
                 <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
                                      Margin="0,12,0,0">

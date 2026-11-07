@@ -173,6 +173,8 @@ Credential files on disk, under the current [profile](../getting-started/profile
 
 ## Status & Known Issues
 
+The honest per-platform capability sheet (chat, events, commands, moderation, announcements) is [Multi-Platform Parity](multi-platform.md).
+
 - **Inconsistent disconnect semantics** — DISCONNECT deletes the row for Twitch but only clears credentials for Kick/YouTube/TikTok/Discord; reconnecting Twitch always requires the full wizard. Tracked in the [known issues ledger](../reference/known-issues.md).
 - **Twitch EventSub connects (fixed 2026-08-15)** — both auth flows now persist `Platform.UserId` (Helix `GET /users`), so Twitch follow/sub/raid/cheer events arrive after (re)authorization. Details on [Twitch](twitch.md); see the [known issues ledger](../reference/known-issues.md) (KI-2 resolved).
 - **TikTok saves honest "Coming Soon" state (fixed 2026-08-15)** — the stub wizard saves a `Status="Coming Soon"` row with empty tokens and no backend service; nothing treats it as connected. **Discord is real now** — rewritten the same day from a stub into a full bot-token integration (see [Discord](discord.md)). See [TikTok & OBS](tiktok-discord-obs.md) and the [known issues ledger](../reference/known-issues.md).

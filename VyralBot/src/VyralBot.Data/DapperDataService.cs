@@ -1052,6 +1052,14 @@ public class DapperDataService : IDataService
             new { Limit = limit });
     }
 
+    public async Task<IEnumerable<LinkCode>> GetUnredeemedLinkCodesByViewerAsync(string viewerId)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<LinkCode>(
+            "SELECT * FROM LinkCodes WHERE ViewerId = @ViewerId AND RedeemedAt IS NULL AND ExpiresAt > @Now",
+            new { ViewerId = viewerId, Now = DateTime.UtcNow });
+    }
+
     public async Task SaveDiscordDmMessageAsync(DiscordDmMessage message)
     {
         using var conn = CreateConnection();
@@ -3753,7 +3761,10 @@ public class DapperDataService : IDataService
             CREATE INDEX IF NOT EXISTS IX_LinkedAccounts_Username_Platform ON LinkedAccounts(Username, Platform);
         ");
 
-        // Create LinkCodes table for viewer account linking codes
+        // Create LinkCodes table for viewer account linking codes.
+        // IX_LinkCodes_Unredeemed is a partial index serving GetActiveLinkCodesAsync
+        // (the Viewer Hub 30s poll): only unredeemed rows are indexed, so the poll
+        // never scans redeemed/expired history even before the 24h cleanup purge.
         await conn.ExecuteAsync(@"
             CREATE TABLE IF NOT EXISTS LinkCodes (
                 Id TEXT PRIMARY KEY,
@@ -3768,6 +3779,7 @@ public class DapperDataService : IDataService
                 RedeemedAt TEXT
             );
             CREATE INDEX IF NOT EXISTS IX_LinkCodes_ViewerId ON LinkCodes(ViewerId);
+            CREATE INDEX IF NOT EXISTS IX_LinkCodes_Unredeemed ON LinkCodes(ExpiresAt) WHERE RedeemedAt IS NULL;
         ");
 
         // Create ViewerPlatformStatus table for cached per-platform sub/follower state

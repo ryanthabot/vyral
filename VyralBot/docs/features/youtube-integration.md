@@ -45,6 +45,15 @@ same pattern for all special types.
   for unified statistics charts, and `CurrencyService.AwardEventBonusAsync(username,
   platform, "cheer", bitsEquivalent)` with `bitsEquivalent = AmountMicros / 10_000`
   (1 bit ≈ 1 cent).
+- **Workflow trigger:** `WorkflowTriggerService` subscribes this event and dispatches
+  the canonical event key `superchat` (its OWN key, deliberately NOT `cheer` — that
+  key already carries Twitch bits via the "bits" alias, so workflows can target
+  Twitch bits or YouTube Super Chats precisely; authored "Super Chat"/"super_chat"
+  spellings normalize onto it). Variables: `username`, `amount` (display string,
+  e.g. "$5.00"), `message` (comment, sticker text for stickers). Event-sound row:
+  `EventSound_YouTube_cheer` (ChatViewModel plays `PlayEventSoundAsync("cheer",
+  "YouTube")`); `EventSound_YouTube_membership` is seeded for the membership handler.
+  `YouTubeMembershipEvent` has no workflow trigger in V1.
 
 ## Command timer fan-out
 `src/VyralBot.UI/Services/CommandTimerService.cs` injects `IYouTubeService` (the same

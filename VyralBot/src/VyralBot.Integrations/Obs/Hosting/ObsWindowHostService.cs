@@ -141,6 +141,17 @@ public sealed class ObsWindowHostService : IDisposable
     private CancellationTokenSource? exitPollCts;
     private bool disposed;
 
+    // Set by MinimizeDetached (the App.OnExit path): the window is already
+    // detached, chrome-restored and minimized, so Dispose must NOT run
+    // UnembedToDesktop (it would restore + show the window again after exit).
+    private bool exitMinimized;
+
+    // Consecutive 1 Hz poll ticks with obs64 alive but NO discoverable window
+    // while Embedded — after ZombieWindowTicks this is a dead Qt UI (zombie),
+    // not a legitimate recreation gap (scene-collection switches are short).
+    private int windowMissingTicks;
+    private const int ZombieWindowTicks = 30;
+
     public ObsWindowHostService(ObsInstallLocator locator, ILogger<ObsWindowHostService>? logger = null, string? hostMutexName = null, ObsBundledCollectionService? bundledCollection = null)
     {
         this.locator = locator ?? throw new ArgumentNullException(nameof(locator));
@@ -177,6 +188,13 @@ public sealed class ObsWindowHostService : IDisposable
     public async Task<bool> EnsureRunningAsync()
     {
         ThrowIfDisposed();
+
+        // A fresh hosting session invalidates a previous exit's minimize
+        // bookkeeping (Dispose must unembed again for THIS session).
+        lock (stateLock)
+        {
+            exitMinimized = false;
+        }
 
         if (!TryAcquireHostMutex())
         {
@@ -752,6 +770,7 @@ public sealed class ObsWindowHostService : IDisposable
                 _ = Win32WindowHost.SetWindowLongPtrW(hwnd, Win32WindowHost.GwlStyle, originalStyle.Value);
             }
 
+            exitMinimized = true;
             state = ObsHostState.Parked;
             detail = "detached — OBS still running";
             snapshot = SnapshotLocked();
@@ -859,7 +878,12 @@ public sealed class ObsWindowHostService : IDisposable
             bool wasHosted;
             lock (stateLock)
             {
-                wasHosted = state is ObsHostState.Embedded or ObsHostState.Parked;
+                // MinimizeDetached (App.OnExit) already detached, chrome-restored
+                // and MINIMIZED the window — UnembedToDesktop here would restore
+                // and show it again after Vyral closed, defeating the documented
+                // exit behavior (a minimized taskbar entry, nothing intrusive).
+                wasHosted = state is ObsHostState.Embedded or ObsHostState.Parked
+                    && !exitMinimized;
             }
 
             if (wasHosted)
@@ -956,6 +980,7 @@ public sealed class ObsWindowHostService : IDisposable
         lock (stateLock)
         {
             obsHwnd = hwnd;
+            windowMissingTicks = 0;
             originalStyle = Win32WindowHost.GetWindowLongPtrW(hwnd, Win32WindowHost.GwlStyle);
 
             if (state is ObsHostState.Launching or ObsHostState.WaitingForWindow
@@ -1084,11 +1109,39 @@ public sealed class ObsWindowHostService : IDisposable
             IntPtr fresh = processId != 0 ? FindObsMainWindow(processId) : IntPtr.Zero;
             if (fresh == IntPtr.Zero || !Win32WindowHost.IsWindow(fresh))
             {
-                return; // OBS is between windows (scene collection load, etc.) — next tick retries
+                // OBS is between windows (scene collection load, etc.) — next
+                // tick retries. But obs64 alive with NO window for a sustained
+                // stretch is a dead Qt UI (zombie): the embed area stays blank
+                // forever and Relaunch alone cannot recover it (EnsureRunning
+                // would just adopt the same zombie). Surface Failed after the
+                // bounded window — never kill OBS by design.
+                int missingTicks;
+                lock (stateLock)
+                {
+                    missingTicks = ++windowMissingTicks;
+                }
+
+                if (missingTicks >= ZombieWindowTicks)
+                {
+                    lock (stateLock)
+                    {
+                        windowMissingTicks = 0;
+                    }
+
+                    logger.LogWarning(
+                        "OBS host: obs64 (pid {Pid}) has had no window for {Seconds}s — zombie UI, giving up the embed",
+                        processId, ZombieWindowTicks);
+                    SetState(
+                        ObsHostState.Failed,
+                        "OBS is running but its window is gone (crashed UI). Close OBS via its tray icon or Task Manager, then press Relaunch.");
+                }
+
+                return;
             }
 
             lock (stateLock)
             {
+                windowMissingTicks = 0;
                 if (obsHwnd != fresh)
                 {
                     logger.LogInformation(
@@ -1103,6 +1156,11 @@ public sealed class ObsWindowHostService : IDisposable
         else if (Win32WindowHost.GetWindowLongPtrW(hwnd, Win32WindowHost.GwlHwndParent) == owner
             && Win32WindowHost.IsWindowVisible(hwnd))
         {
+            lock (stateLock)
+            {
+                windowMissingTicks = 0;
+            }
+
             SelfHealRectIfDrifted(hwnd, x, y, width, height);
             EnsureContained(hwnd); // a refused resize must never linger unclipped
             return; // healthy
@@ -1447,6 +1505,7 @@ public sealed class ObsWindowHostService : IDisposable
         clipTop = -1;
         clipRight = -1;
         clipBottom = -1;
+        windowMissingTicks = 0;
     }
 
     private ObsHostStatus SnapshotLocked() => new(state, detail, processId, obsHwnd);

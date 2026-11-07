@@ -41,7 +41,8 @@ Files: `VyralBot.Integrations/Discord/DiscordService.cs` (one gateway session),
   the bot's SCOPED data so no orphans linger: Command rows pinned to the bot
   (`Commands.BotId`), command timers pinned to it, its Discord role→mod-tier
   mappings, its monitored connected channels and its per-bot Configs rows
-  (`DiscordBot.{botId}.Integrations` / `.DisabledBuiltIns`, removed via
+  (`DiscordBot.{botId}.Integrations` / `.DisabledBuiltIns` /
+  `.WelcomeSettings`, removed via
   `IDataService.DeleteConfigValueAsync`). Each group is best-effort
   (a failing group is logged and never blocks the removal).
 - Tokens live in the per-profile SQLite DB (`DiscordBots.Token`, legacy
@@ -110,6 +111,37 @@ used by announcements); `AssignedChannelIds` gates currency earning only.
   `discordmemberjoined` / `discordboost` (aliases "join", "memberjoined",
   "boost", "serverboost", ...). Alerts/stats are NOT wired yet — they live in
   `ChatViewModel` (see `OnTwitchFollowAsync` for the pattern to mirror).
+
+## Welcome + auto-role on member join (per bot)
+
+`DiscordBotManager` subscribes ONCE to `DiscordMemberJoinedEvent` (registered
+fire-and-forget in its constructor, unsubscribed in `Dispose`) and dispatches
+per bot — the owning `DiscordService` tags every join with its `BotId`.
+
+- **Settings** (`DiscordBotWelcomeSettings`, Configs key
+  `DiscordBot.{botId}.WelcomeSettings`, JSON PascalCase like the sibling
+  per-bot keys): `Enabled`, `GuildId`, `ChannelId`, `Message`, `AutoRoleId`.
+  `GuildId` is the guild the channel/role were picked from — joins of any
+  OTHER guild are ignored (snowflake ids are guild-scoped). Manager API:
+  `GetWelcomeSettingsAsync` (never null; malformed rows fall back to defaults)
+  / `SaveWelcomeSettingsAsync`; removed with the bot by `RemoveBotAsync`.
+- **Handler** (`OnDiscordMemberJoinedAsync`): loads the settings FRESH on
+  every join (no cache — detail-page saves apply to the very next join), then,
+  when enabled and the guild matches, (1) sends
+  `DiscordBotWelcomeSettings.FormatMessage(message, ...)` to the channel via
+  the bot's own `SendToChannelAsync` and (2) grants the role via
+  `GrantRoleAsync(guildId, userId, roleId)` (the same API the mod command
+  engine uses). Template variables: `{user}` (mention, plain-name fallback),
+  `{username}`, `{server}`. The two halves are independent try/catch — one
+  failing logs at info and never blocks the other, and the whole handler is
+  wrapped so the bus pipeline can never crash.
+- **UI:** the Welcome & Auto-Role card on the bot detail page
+  (`DiscordBotDetailViewModel.LoadWelcomeAsync`/`SaveWelcomeSettingsAsync`)
+  builds channel + role pickers from the bot's FIRST guild (same first-guild
+  convention as the mod role tiers; @everyone and managed roles skipped) and
+  offers "(none)" entries to clear a pick.
+- **Intent gate applies:** joins (and therefore this feature) only arrive with
+  the privileged GuildMembers intent (see above).
 
 ## Lifecycle at app level
 

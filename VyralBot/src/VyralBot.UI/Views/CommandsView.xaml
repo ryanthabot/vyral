@@ -15,6 +15,7 @@
         <vm:CommandTimerLastRunConverter x:Key="CommandTimerLastRunConverter"/>
         <vm:CommandTimerBotLabelConverter x:Key="CommandTimerBotLabelConverter"/>
         <vm:CommandFlowManagedToolTipConverter x:Key="CommandFlowManagedToolTipConverter"/>
+        <vm:CommandLastUsedConverter x:Key="CommandLastUsedConverter"/>
 
         <!-- Plain raised button template: deterministic hit area, no adorner-layer ripple
              (copied from the DiscordBotsView plain-button pattern) -->
@@ -194,6 +195,40 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                <!-- Search filter (both grids): name / response substring -->
+                <Grid Margin="0,0,12,0" VerticalAlignment="Top">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <materialDesign:PackIcon Grid.Column="0"
+                                             Kind="Magnify"
+                                             Width="18"
+                                             Height="18"
+                                             Foreground="{DynamicResource TextSecondaryBrush}"
+                                             VerticalAlignment="Center"
+                                             Margin="0,0,6,0"/>
+
+                    <TextBox Grid.Column="1"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             VerticalAlignment="Center"
+                             materialDesign:HintAssist.Hint="Search commands"
+                             ToolTip="Filter the BUILT-IN and CUSTOM lists by command name or response text"/>
+
+                    <Button Grid.Column="2"
+                            Content="CLEAR"
+                            Command="{Binding ClearSearchCommand}"
+                            Style="{StaticResource VyralPlainOutlineButton}"
+                            Height="30"
+                            Padding="12,0"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding SearchText, Converter={StaticResource StringToVisibilityConverter}}"
+                            ToolTip="Clear the search filter"/>
+                </Grid>
+
                 <Button Content="MARKETPLACE"
                         Click="OnMarketplaceClick"
                         Style="{StaticResource VyralPlainOutlineButton}"
@@ -279,7 +314,13 @@
                                 Style="{StaticResource VyralPlainOutlineButton}"
                                 Margin="0,0,12,0"
                                 ToolTip="Edit in Visual Builder"/>
-                        <TextBlock Text="Pre-configured commands. EDIT opens the Visual Builder on a flow seeded from the built-in — SAVE adopts the command."
+                        <Button Content="DUPLICATE"
+                                Command="{Binding DuplicateCommand}"
+                                CommandParameter="{Binding SelectedCommand}"
+                                Style="{StaticResource VyralPlainOutlineButton}"
+                                Margin="0,0,12,0"
+                                ToolTip="Copy the selected built-in into an editable custom command"/>
+                        <TextBlock Text="Pre-configured commands. EDIT opens the Visual Builder on a flow seeded from the built-in — SAVE adopts the command. DUPLICATE copies one into a custom command you can freely change."
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    VerticalAlignment="Center"
                                    TextWrapping="Wrap"/>
@@ -345,7 +386,7 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
-                            <DataGridTemplateColumn Header="Enabled" Width="80">
+                            <DataGridTemplateColumn Header="Enabled" Width="80" SortMemberPath="IsEnabled">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -356,7 +397,7 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Header="Kick" Width="60">
+                            <DataGridTemplateColumn Header="Kick" Width="60" SortMemberPath="EnabledOnKick">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding EnabledOnKick, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -367,7 +408,7 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Header="Twitch" Width="80">
+                            <DataGridTemplateColumn Header="Twitch" Width="80" SortMemberPath="EnabledOnTwitch">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding EnabledOnTwitch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -384,6 +425,18 @@
                                         <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
                                         <Setter Property="Padding" Value="5"/>
                                         <Setter Property="HorizontalAlignment" Value="Center"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Last Used" IsReadOnly="True" Width="130" SortMemberPath="LastUsedAt">
+                                <DataGridTextColumn.Binding>
+                                    <Binding Path="LastUsedAt" Converter="{StaticResource CommandLastUsedConverter}"/>
+                                </DataGridTextColumn.Binding>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
@@ -412,6 +465,12 @@
                                 Style="{StaticResource VyralPlainOutlineButton}"
                                 Margin="0,0,12,0"
                                 ToolTip="Edit in Visual Builder"/>
+                        <Button Content="DUPLICATE"
+                                Command="{Binding DuplicateCommand}"
+                                CommandParameter="{Binding SelectedCommand}"
+                                Style="{StaticResource VyralPlainOutlineButton}"
+                                Margin="0,0,12,0"
+                                ToolTip="Copy the selected command (response, cooldowns, platforms) into a new custom command"/>
                         <Button Content="DELETE"
                                 Command="{Binding DeleteCommand}"
                                 CommandParameter="{Binding SelectedCommand}"
@@ -419,7 +478,9 @@
                                 ToolTip="Delete the selected command (and the flow managing it)"/>
                     </StackPanel>
 
-                    <!-- Commands DataGrid -->
+                    <!-- Commands DataGrid (IsReadOnly=False at the grid level so the
+                         checkbox cell templates stay clickable; every text column is
+                         individually read-only — same pattern as the BUILT-IN grid) -->
                     <DataGrid Grid.Row="1"
                               ItemsSource="{Binding CustomCommands}"
                               SelectedItem="{Binding SelectedCommand, Mode=TwoWay}"
@@ -431,10 +492,10 @@
                               GridLinesVisibility="Horizontal"
                               HorizontalGridLinesBrush="{DynamicResource BorderColorBrush}"
                               RowBackground="Transparent"
-                              IsReadOnly="True"
+                              IsReadOnly="False"
                               MouseDoubleClick="OnCommandsGridDoubleClick">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Command" Binding="{Binding Name}" Width="120">
+                            <DataGridTextColumn Header="Command" Binding="{Binding Name}" Width="120" IsReadOnly="True">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Foreground" Value="{DynamicResource PrimaryHueMidBrush}"/>
@@ -449,7 +510,7 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
-                            <DataGridTextColumn Header="Response" Binding="{Binding Response}" Width="*">
+                            <DataGridTextColumn Header="Response" Binding="{Binding Response}" Width="*" IsReadOnly="True">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
@@ -459,7 +520,7 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
-                            <DataGridTextColumn Header="Permission" Binding="{Binding Permission}" Width="100">
+                            <DataGridTextColumn Header="Permission" Binding="{Binding Permission}" Width="100" IsReadOnly="True">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Foreground" Value="{DynamicResource SecondaryHueMidBrush}"/>
@@ -468,7 +529,7 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
-                            <DataGridTextColumn Header="Cooldowns (G/U)" Width="110">
+                            <DataGridTextColumn Header="Cooldowns (G/U)" Width="110" IsReadOnly="True">
                                 <DataGridTextColumn.Binding>
                                     <MultiBinding StringFormat="{}{0}s / {1}s">
                                         <Binding Path="GlobalCooldown"/>
@@ -483,6 +544,30 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
+                            <DataGridTemplateColumn Header="Kick" Width="60" SortMemberPath="EnabledOnKick">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding EnabledOnKick, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Command="{Binding DataContext.TogglePlatformCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  CommandParameter="{Binding}"
+                                                  HorizontalAlignment="Center"
+                                                  ToolTip="Fire this command on Kick"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="Twitch" Width="80" SortMemberPath="EnabledOnTwitch">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding EnabledOnTwitch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Command="{Binding DataContext.TogglePlatformCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                  CommandParameter="{Binding}"
+                                                  HorizontalAlignment="Center"
+                                                  ToolTip="Fire this command on Twitch"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
                             <DataGridTextColumn Header="Bot" IsReadOnly="True" Width="110">
                                 <DataGridTextColumn.Binding>
                                     <Binding Path="BotId" Converter="{StaticResource CommandBotNameConverter}"/>
@@ -496,7 +581,7 @@
                             </DataGridTextColumn>
 
                             <!-- Per-command scope toggle: visible only while a specific bot is selected -->
-                            <DataGridTemplateColumn Header="Bot Scope" Width="120">
+                            <DataGridTemplateColumn Header="Bot Scope" Width="120" SortMemberPath="BotId">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Button Content="{Binding BotId, Converter={StaticResource CommandScopeActionLabelConverter}}"
@@ -512,7 +597,7 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Header="Status" Width="80">
+                            <DataGridTemplateColumn Header="Status" Width="80" SortMemberPath="IsEnabled">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding IsEnabled, Converter={StaticResource BoolToStatusConverter}}"
@@ -522,12 +607,24 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTextColumn Header="Usage" Binding="{Binding UsageCount}" Width="70">
+                            <DataGridTextColumn Header="Usage" Binding="{Binding UsageCount}" Width="70" IsReadOnly="True">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
                                         <Setter Property="Padding" Value="5"/>
                                         <Setter Property="HorizontalAlignment" Value="Center"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Last Used" IsReadOnly="True" Width="130" SortMemberPath="LastUsedAt">
+                                <DataGridTextColumn.Binding>
+                                    <Binding Path="LastUsedAt" Converter="{StaticResource CommandLastUsedConverter}"/>
+                                </DataGridTextColumn.Binding>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
@@ -640,7 +737,7 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Header="Enabled" Width="80">
+                            <DataGridTemplateColumn Header="Enabled" Width="80" SortMemberPath="IsEnabled">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -774,11 +871,36 @@
                         <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" Margin="0,0,0,10" CornerRadius="4">
                             <StackPanel>
                                 <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{username} - User who triggered the command"/>
-                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{platform} - Platform (Twitch, Kick, Discord...)"/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{platform} - Platform (Twitch, Kick, YouTube, Discord...)"/>
                                 <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{channel} - Channel name"/>
                                 <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{balance} - User's currency balance"/>
                                 <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{role} - Broadcaster, Moderator, VIP, Subscriber or Viewer"/>
-                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Text="{}{uptime} / {watchtime} - Stream uptime and user watchtime"/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" Text="{}{uptime} / {watchtime} - Stream uptime and user watchtime"/>
+                                <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Text="Socials and platform stats live in the Variables page: {twitter}, {discord}, {youtube}, {instagram}, {twitch-followercount}, ..."/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="Built-in commands" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,16,0,12"/>
+                        <TextBlock Text="Vyral ships these out of the box — every one can be toggled, retuned or duplicated into a custom version from the list above:" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,10" TextWrapping="Wrap"/>
+
+                        <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" Margin="0,0,0,10" CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" TextWrapping="Wrap" Text="Info: !commands (list) • !help (overview) • !uptime • !socials • !discord • !watchtime"/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" TextWrapping="Wrap" Text="Currency: !points (!balance, !currency) • !daily • !rank (!tier) • !leaderboard (!top) • !gamble (!bet) • !slots • !duel / !accept • !heist • !roulette • !store (!shop) • !rewards • !redeem • !bank • !deposit / !withdraw • !bid"/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" TextWrapping="Wrap" Text="Moderators: !give • !take • !boost • !auction"/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" TextWrapping="Wrap" Text="Linking: !link • !linkcode • !linked • !unlink / !delink • !goals • !mystatus • !mp (!multiplatform)"/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" Text="Engagement: !poll • !giveaway (join with the entry keyword)"/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="Where commands run" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,16,0,12"/>
+
+                        <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderColorBrush}" BorderThickness="1" Padding="15" Margin="0,0,0,10" CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" TextWrapping="Wrap" Text="Twitch / Kick - the per-command checkboxes in the list decide."/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" TextWrapping="Wrap" Text="Discord - the Bot scope column pins a command to one bot or leaves it on all bots."/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" TextWrapping="Wrap" Text="YouTube - commands run whenever the command itself is enabled."/>
+                                <TextBlock Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Text="TikTok - coming soon: there is no TikTok chat pipeline yet, so commands and timers cannot target it."/>
                             </StackPanel>
                         </Border>
 

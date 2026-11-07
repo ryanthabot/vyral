@@ -280,6 +280,7 @@ public interface IDataService
     Task InvalidateLinkCodesForViewerAsync(string viewerId);      // marks unredeemed codes expired
     Task<IEnumerable<LinkCode>> GetActiveLinkCodesAsync();        // RedeemedAt IS NULL AND ExpiresAt > now
     Task<IEnumerable<LinkCode>> GetRecentLinkCodesAsync(int limit = 50); // ORDER BY CreatedAt DESC
+    Task<IEnumerable<LinkCode>> GetUnredeemedLinkCodesByViewerAsync(string viewerId); // live (unredeemed, unexpired) codes for one viewer — serves IX_LinkCodes_ViewerId
     Task DeleteLinkCodeAsync(string id);
     Task<IEnumerable<LinkedAccount>> GetAllLinkedAccountsAsync();
     Task UpdateLinkedAccountViewerAsync(string accountId, string newViewerId);

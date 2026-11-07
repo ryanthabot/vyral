@@ -53,20 +53,27 @@ Real alerts come from the chat event handlers (the same handlers that play [soun
 | Twitch gift sub | Gift Subs! | ChatViewModel.cs:2338 |
 | Twitch raid | Raid! | ChatViewModel.cs:2381 |
 | Twitch cheer (bits) | Bits! | ChatViewModel.cs:2452 |
+| Twitch channel-points redemption | Reward Redeemed! | `OnTwitchChannelPointsRedeemAsync` (2026-11-07) |
+| YouTube Super Chat / Super Sticker | Super Chat! | `OnYouTubeSuperChatAsync` (:6973) |
+| YouTube membership / milestone | New Subscriber! | membership handler (:4500) |
+| Discord member join | New Member! | `OnDiscordMemberJoinedAsync` (:7021, intent-gated — see [Discord](../platforms/discord.md#member-joins--boosts-intent-gated)) |
+| Discord boost | Server Boosted! | `OnDiscordBoostAsync` (:7053, intent-gated) |
+
+Titles without a dedicated settings toggle — "Kicks Gifted!", "Reward Redeemed!", "Test Alert!" — always show when the master toggle is on; the rest map onto the six per-event switches below (Super Chat → cheer, New Member → follow, Server Boosted → subscribe).
 
 You can fire most of these on demand from the [Event Testing](../chat-features/event-testing.md) page, which pushes synthetic events through the real pipeline.
 
 ### Behavior details worth knowing
 
-- **One alert at a time.** A new alert immediately replaces the one currently showing — there is no queue. A raid arriving during a sub alert cuts the sub alert short.
-- **Auto-close.** The alert closes itself after its duration via a fade-out; you never dismiss it manually.
+- **Alerts queue (bounded FIFO).** One alert is on screen at a time; an alert arriving while another is showing waits in a **queue capped at 10** (drop-oldest when exceeded) and plays when the current one closes. A burst no longer truncates itself — beyond ten deep, the oldest waiting alerts are dropped so the queue can never grow unbounded.
+- **Auto-close.** The alert closes itself after its duration via a fade-out — a real `Close()`, which is what drains the queue (an earlier build only *hid* the window, so the service never learned it finished and every alert after the first stalled; fixed 2026-11-07, pre-marathon).
 - **Always on top.** The window is `Topmost` with no taskbar entry, sized and positioned against your **primary** monitor. If you run OBS on a second monitor, position alerts accordingly (or expect them on the primary screen).
 
 ## How It Works (Developer)
 
 ### The service
 
-[IAlertService](../../src/VyralBot.UI/Services/AlertService.cs) (registered as a singleton, App.xaml.cs:180) owns the one "current" alert window. `ShowAlertAsync` marshals to the UI dispatcher, and under a lock closes any visible current alert before creating a fresh `AlertOverlayWindow` (AlertService.cs:37-75). That replace-don't-queue behavior is the entire "queueing" model. Its default parameters are themselves the hard-coded production styling: `SlideInFromTop`, `TopCenter`, `durationSeconds: 5`.
+[IAlertService](../../src/VyralBot.UI/Services/AlertService.cs) (registered as a singleton, App.xaml.cs:180) owns the current alert window plus the pending queue. `ShowAlertAsync` marshals to the UI dispatcher, applies the saved settings (when `applySettings`), and then either shows immediately or enqueues: under a lock, a request arriving while `_isShowing` is true joins a `Queue<QueuedAlert>` capped at **10** (drop-oldest while full — `MaxPendingAlerts`, AlertService.cs:67). `ShowCore` creates the window and hooks its `Closed` event; `OnAlertWindowClosed` dequeues the next request or clears `_isShowing` when the queue is empty. Auto-close therefore has to *close* the window (not hide it) for the chain to advance — that distinction was the whole stall bug. A `TitleToEventMap` (AlertService.cs:87) routes each title to its per-event settings toggle, including the wave-4 additions ("Super Chat!" → cheer, "New Member!" → follow, "Server Boosted!" → subscribe).
 
 ### The overlay window
 
@@ -113,7 +120,7 @@ Note it still passes `imageUrl: null` — even the (supported) image slot is unu
 
 | File | Role |
 |---|---|
-| [AlertService.cs](../../src/VyralBot.UI/Services/AlertService.cs) | `IAlertService` + implementation: dispatcher marshaling, replace-current-alert lifecycle |
+| [AlertService.cs](../../src/VyralBot.UI/Services/AlertService.cs) | `IAlertService` + implementation: dispatcher marshaling, settings overlay, bounded FIFO queue (cap 10, drop-oldest) with close-driven drain, title→toggle routing |
 | [AlertOverlayWindow.xaml](../../src/VyralBot.UI/Views/AlertOverlayWindow.xaml) | The overlay window: transparent/topless window chrome, alert layout, the 4 in-animations + FadeOut storyboards |
 | [AlertOverlayWindow.xaml.cs](../../src/VyralBot.UI/Views/AlertOverlayWindow.xaml.cs) | Show/hide logic, storyboard selection, 9-position screen math, auto-close DispatcherTimer, `AlertAnimation`/`AlertPosition` enums |
 | [AlertSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/AlertSettingsViewModel.cs) | The settings page state: load/save/reset against the `AlertSettings` Configs key, the Test Alert previewer |
@@ -123,32 +130,32 @@ Note it still passes `imageUrl: null` — even the (supported) image slot is unu
 | [MainWindow.xaml](../../src/VyralBot.UI/MainWindow.xaml) | The "Visual Alerts" sidebar entry (:373-384) |
 | `src/VyralBot.Core/Services/Alerts/` | Empty placeholder folder — no files, nothing linked (not a link: empty directories are not tracked by git) |
 
-### The replace-current-alert lifecycle
+### The queue-and-drain lifecycle
 
 ```csharp
-// AlertService.cs:48-69 (excerpt)
-await Application.Current.Dispatcher.InvokeAsync(async () =>
+// AlertService.ShowAlertAsync (excerpt) — enqueue while an alert is on screen
+lock (_lock)
 {
-    lock (_lock)
+    if (_isShowing)
     {
-        // Hide current alert if one is showing
-        if (_currentAlert?.IsVisible == true)
-        {
-            _currentAlert.Hide();
-            _currentAlert.Close();
-            _currentAlert = null;
-        }
+        var queued = new QueuedAlert(title, username, message, imageUrl,
+                                     effectiveAnimation, effectivePosition, effectiveDuration);
 
-        // Create new alert window
-        _currentAlert = new Views.AlertOverlayWindow();
+        // Drop-oldest so the queue stays bounded.
+        while (_pendingAlerts.Count >= MaxPendingAlerts)   // cap 10
+            _pendingAlerts.Dequeue();
+
+        _pendingAlerts.Enqueue(queued);
+        return;
     }
 
-    if (_currentAlert != null)
-    {
-        await _currentAlert.ShowAlertAsync(title, username, message, imageUrl,
-                                           animation, position, durationSeconds);
-    }
-});
+    _isShowing = true;
+}
+await ShowCore(new QueuedAlert(/* the request just shown */));
+
+// ShowCore hooks the window; when it CLOSES (auto-close calls Close(), not Hide()),
+// OnAlertWindowClosed dequeues the next request or clears _isShowing.
+alert.Closed += OnAlertWindowClosed;
 ```
 
 ### The auto-close and fade
@@ -202,7 +209,7 @@ Every item below is verified against the current code. See the [known issues led
 
 1. **The Alert Settings page is fully wired** — load/save/reset persist to the `AlertSettings` Configs key; real alerts apply the saved master toggle, duration, animation, position, and per-event switches (fixed 2026-08-15, KI-6 resolved). [known issues ledger](../reference/known-issues.md)
 2. **Test Alert previews unsaved selections** — it passes `applySettings: false`, so you can experiment freely; nothing is persisted until Save. [known issues ledger](../reference/known-issues.md)
-3. **Single-alert, no queue** — a new alert replaces the current one mid-display (AlertService.cs:50-62); back-to-back events truncate each other. [known issues ledger](../reference/known-issues.md)
+3. **Alerts queue — bounded, drop-oldest (fixed 2026-11-07)** — one alert at a time with up to 10 waiting; beyond that the oldest waiting alert is dropped. An earlier build had no queue *and* auto-close only hid the window, so the service never advanced and every alert after the first in a session stalled on screen — both are fixed (KI-48 resolved). [known issues ledger](../reference/known-issues.md)
 4. **No TTS, GIFs, or templates** — static XAML layout, static or URL image only, hard-coded title/message strings per call site; real alerts always pass `imageUrl: null` anyway. [known issues ledger](../reference/known-issues.md)
 5. **WPF window, not a browser source** — alerts render over the streamer's primary screen; there is no overlay URL for OBS (see [Browser Sources](browser-sources.md)), so capturing alerts requires display capture. [known issues ledger](../reference/known-issues.md)
 6. **`src/VyralBot.Core/Services/Alerts/` is an empty folder** — reserved, unused; all alert code lives in VyralBot.UI. [known issues ledger](../reference/known-issues.md)

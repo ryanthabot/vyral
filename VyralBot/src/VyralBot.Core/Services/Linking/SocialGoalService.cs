@@ -82,6 +82,12 @@ public class SocialGoalService : ISocialGoalService
     // cleanup host can unsubscribe via Unsubscribe(await _statusSubscriptionTask).
     private readonly Task<Guid> _statusSubscriptionTask;
 
+    // Same pattern for AccountsLinkedEvent: linking platforms changes
+    // linkedPlatformCount, which drives the "LinkedPlatforms" goal type
+    // (e.g. the seeded "Bridge Builder") — without this, those goals would
+    // only be evaluated on the viewer's NEXT sub/follow status update.
+    private readonly Task<Guid> _linkedSubscriptionTask;
+
     public SocialGoalService(
         ILogger<SocialGoalService> logger,
         IDataService dataService,
@@ -102,6 +108,30 @@ public class SocialGoalService : ISocialGoalService
         // No recursion: EvaluateViewerAsync only ever publishes
         // ViewerGoalCompletedEvent, which this handler does not subscribe to.
         _statusSubscriptionTask = _eventBus.SubscribeAsync<ViewerStatusUpdatedEvent>(OnViewerStatusUpdatedAsync);
+
+        // LinkCodeService publishes AccountsLinkedEvent after every link/delink
+        // merge — evaluate the merged identity's goals right away. The event
+        // carries the ViewerId directly, so no re-resolution is needed.
+        _linkedSubscriptionTask = _eventBus.SubscribeAsync<AccountsLinkedEvent>(OnAccountsLinkedAsync);
+    }
+
+    /// <summary>
+    /// Evaluates goals for the viewer identity behind a link/delink merge.
+    /// Delinks can only lower counts and completions are permanent rows, so
+    /// re-evaluating after a delink is a harmless no-op. Exceptions are
+    /// contained so they never propagate back into the event bus.
+    /// </summary>
+    private async Task OnAccountsLinkedAsync(AccountsLinkedEvent evt)
+    {
+        try
+        {
+            await EvaluateViewerAsync(evt.ViewerId, evt.Username, evt.Platform);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to evaluate social goals after link event for {Username} ({Platform})",
+                evt.Username, evt.Platform);
+        }
     }
 
     /// <summary>

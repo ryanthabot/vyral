@@ -58,7 +58,10 @@ public partial class StatisticsViewModel : ViewModelBase
         "Cheer",
         "Host",
         "KicksGifted",
-        "RewardRedeemed"
+        "RewardRedeemed",
+        // Discord pipeline events (writers store these exact Title Case names).
+        "MemberJoined",
+        "Boost"
     };
 
     [ObservableProperty]

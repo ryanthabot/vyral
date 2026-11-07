@@ -14,7 +14,7 @@ Typing a command in a real chat works end to end: every chat integration publish
 
 ## User Guide
 
-Open **Chat Features → Commands** in the sidebar. The page is titled **Commands** ("Every command — built-in or custom — edits in the Visual Builder. SAVE adopts it into a flow Vyral runs.") and has a bot scope bar plus four tabs (**BUILT-IN**, **CUSTOM**, **TIMERS**, **HELP**).
+Open **Chat Features → Commands** in the sidebar. The page is titled **Commands** ("Every command — built-in or custom — edits in the Visual Builder. SAVE adopts it into a flow Vyral runs.") and has a bot scope bar plus four tabs (**BUILT-IN**, **CUSTOM**, **TIMERS**, **HELP**). The header also carries the **MARKETPLACE** button — the community store of shared command flows, browsable and importable without leaving the page ([Marketplace & Sharecodes](marketplace.md)).
 
 ### The bot scope bar
 

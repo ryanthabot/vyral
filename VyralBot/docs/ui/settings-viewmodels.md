@@ -28,8 +28,13 @@ ViewModels for specific settings areas: web server, audio, sounds, alerts, varia
 - **View:** `src/VyralBot.UI/Views/SoundsView.xaml(.cs)`
 - **Event mapping rows** (persisted as `EventSound_{platform}_{eventType}` /
   `EventVolume_{platform}_{eventType}`, volumes as invariant "F2" 0..1 strings):
-  Kick `follow`/`subscribe`/`giftsub`/`host`/`kicks_gifted`/`redemption` and
-  Twitch `follow`/`subscribe`/`resub`/`giftsub`/`raid`/`cheer`. The Kick
+  Kick `follow`/`subscribe`/`giftsub`/`host`/`kicks_gifted`/`redemption`,
+  Twitch `follow`/`subscribe`/`resub`/`giftsub`/`raid`/`cheer`/`redemption`,
+  YouTube `cheer` ("Super Chat"; keyed "cheer" because ChatViewModel's
+  `OnYouTubeSuperChatAsync` plays `PlayEventSoundAsync("cheer", "YouTube")` —
+  the workflow trigger key is the separate "superchat") and `membership`, and
+  Discord `follow` ("Member Joined") / `subscribe` ("Server Boost"; played by
+  `OnDiscordMemberJoinedAsync`/`OnDiscordBoostAsync`). The Kick
   `kicks_gifted`/`redemption` rows play via `ChatViewModel`'s
   `OnKickKicksGiftedAsync`/`OnKickRewardRedeemedAsync` handlers.
 - **Storage:** sound files live in the active profile's data folder

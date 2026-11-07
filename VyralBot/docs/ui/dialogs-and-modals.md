@@ -13,7 +13,7 @@ Custom dialog windows for confirmations, errors, and user input.
 ### ErrorDialog
 - **XAML:** `src/VyralBot.UI/Views/ErrorDialog.xaml`
 - **Code-behind:** `src/VyralBot.UI/Views/ErrorDialog.xaml.cs`
-- **Purpose:** Error message display
+- **Purpose:** Crash report display (scrubbed exception report + COPY button). Open it only via `ErrorDialog.ShowReport(title, report)` — reentrancy-safe: while a dialog is open, follow-up reports are appended to it instead of stacking a second modal. See `services/crash-pipeline.md`.
 
 ### CustomDialog
 - **XAML:** `src/VyralBot.UI/Views/CustomDialog.xaml`

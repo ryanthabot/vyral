@@ -79,6 +79,29 @@ public partial class CommandsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isEditingCommand;
 
+    // --- Search state -----------------------------------------------------
+
+    /// <summary>
+    /// Header search box text: case-insensitive substring filter on command
+    /// name AND response text (including alternate ResponsesJson replies),
+    /// applied to both the BUILT-IN and CUSTOM grids on top of the bot scope.
+    /// Empty = no filtering.
+    /// </summary>
+    [ObservableProperty]
+    private string _searchText = "";
+
+    partial void OnSearchTextChanged(string value)
+    {
+        ApplyBotScope();
+    }
+
+    /// <summary>Header CLEAR button: resets the search filter.</summary>
+    [RelayCommand]
+    private void ClearSearch()
+    {
+        SearchText = "";
+    }
+
     [ObservableProperty]
     private string _statusMessage = "";
 
@@ -413,23 +436,48 @@ public partial class CommandsViewModel : ViewModelBase
 
     /// <summary>
     /// Rebuilds the visible lists from the master lists using the current
-    /// scope: a specific bot sees its own pinned commands plus unscoped ones.
+    /// scope AND the header search box: a specific bot sees its own pinned
+    /// commands plus unscoped ones; the search text further filters by name
+    /// or response text.
     /// </summary>
     private void ApplyBotScope()
     {
         var scopeId = SelectedBotScope?.Id;
+        var query = SearchText?.Trim();
 
         BuiltInCommands.Clear();
-        foreach (var command in _allBuiltIn.Where(c => IsInScope(c, scopeId)))
+        foreach (var command in _allBuiltIn.Where(c => IsInScope(c, scopeId) && MatchesSearch(c, query)))
         {
             BuiltInCommands.Add(command);
         }
 
         CustomCommands.Clear();
-        foreach (var command in _allCustom.Where(c => IsInScope(c, scopeId)))
+        foreach (var command in _allCustom.Where(c => IsInScope(c, scopeId) && MatchesSearch(c, query)))
         {
             CustomCommands.Add(command);
         }
+    }
+
+    /// <summary>
+    /// Search predicate: case-insensitive substring on the command name, the
+    /// single Response and the alternate ResponsesJson replies. An empty
+    /// query matches everything.
+    /// </summary>
+    private static bool MatchesSearch(Command command, string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return true;
+        }
+
+        if (command.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || (command.Response?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))
+        {
+            return true;
+        }
+
+        return CommandService.ParseResponses(command.ResponsesJson)
+            .Any(r => r.Contains(query, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsInScope(Command command, string? scopeId)
@@ -629,6 +677,83 @@ public partial class CommandsViewModel : ViewModelBase
         };
         dialog.SetMessage(message);
         return dialog.ShowDialog() == true;
+    }
+
+    /// <summary>
+    /// Row action: copies the selected command (built-in OR custom) into a
+    /// brand-new CUSTOM command named "<c>{name}-copy</c>" (with a numeric
+    /// suffix when that name is taken). Response, alternate replies, action
+    /// sequence, permission, cooldowns, platform flags and bot scope carry
+    /// over; usage stats reset. Duplicating a built-in is the supported way
+    /// to customize one, since built-in rows themselves stay locked.
+    /// </summary>
+    [RelayCommand]
+    private async Task DuplicateAsync(Command? command)
+    {
+        command ??= SelectedCommand;
+
+        if (command == null)
+        {
+            StatusMessage = "Select a command first";
+            return;
+        }
+
+        try
+        {
+            // Find a free name: !socials-copy, !socials-copy2, ...
+            var baseName = command.Name;
+            string newName = baseName;
+            for (var i = 1; ; i++)
+            {
+                newName = i == 1 ? $"{baseName}-copy" : $"{baseName}-copy{i}";
+                if (await _commandService.GetCommandByNameAsync(newName) == null)
+                {
+                    break;
+                }
+
+                if (i > 25)
+                {
+                    // Absurd collision count — bail with a unique-ish name.
+                    newName = $"{baseName}-copy-{Guid.NewGuid().ToString("N")[..6]}";
+                    break;
+                }
+            }
+
+            var copy = new Command
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Name = newName,
+                Response = command.Response,
+                Permission = command.Permission,
+                GlobalCooldown = command.GlobalCooldown,
+                UserCooldown = command.UserCooldown,
+                IsEnabled = command.IsEnabled,
+                IsBuiltIn = false, // the copy is always a plain custom command
+                EnabledOnKick = command.EnabledOnKick,
+                EnabledOnTwitch = command.EnabledOnTwitch,
+                BotId = command.BotId,
+                ResponsesJson = command.ResponsesJson,
+                ActionsJson = command.ActionsJson,
+                UsageCount = 0,
+                LastUsedAt = null
+            };
+
+            if (!await _commandService.RegisterCommandAsync(copy))
+            {
+                StatusMessage = $"Could not duplicate {command.Name}";
+                return;
+            }
+
+            StatusMessage = $"Copied {command.Name} to {newName}";
+            _logger.LogInformation("Duplicated command {SourceName} as {CopyName}", command.Name, newName);
+
+            await LoadCommandsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to duplicate command: {CommandName}", command.Name);
+            StatusMessage = $"Failed to duplicate command: {ex.Message}";
+        }
     }
 
     [RelayCommand]
@@ -977,6 +1102,26 @@ public class CommandFlowManagedToolTipConverter : IValueConverter
 /// shown in local time.
 /// </summary>
 public class CommandTimerLastRunConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return value is DateTime utc
+            ? utc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)
+            : "Never";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}
+
+/// <summary>
+/// Command grids "Last Used" column: null -> "Never", otherwise the UTC stamp
+/// (<see cref="Command.LastUsedAt"/>, written by the usage increment) shown in
+/// local time.
+/// </summary>
+public class CommandLastUsedConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {

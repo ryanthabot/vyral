@@ -26,7 +26,7 @@ On first launch Vyral shows a full-window overlay ("Select Your Profile") over t
 4. Optionally enter a **PIN Code** (the field hints "4-6 digits"). If set, this PIN is requested every time the profile is selected.
 5. Click **Create**.
 
-The profile is created, becomes the current profile, and the app loads it. On first run this overlay has no cancel button — creating a profile is the only way forward.
+The profile is created, becomes the current profile, and the app loads it. On first run this overlay has no cancel button — creating a profile is the only way forward. From there, continue with [Quick Start](quick-start.md) to connect your first platform and run your first command.
 
 ### Every launch after that — choosing a profile
 

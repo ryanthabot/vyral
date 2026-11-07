@@ -38,6 +38,17 @@ The card now shows the **Twitch Connection** view: your username, masked Client 
 - **Channel Points redemptions are live** (since 2026-11-07): a viewer redeeming a custom reward posts a 🎯 chat line ("🎯 {user} redeemed \"{reward}\" ({cost} points)"), plays the **Twitch - Reward Redeemed** sound, fires the "Reward Redeemed!" alert, honors the per-event auto-reply template, writes a statistics row, and dispatches the `rewardredeemed` workflow trigger (see [Channel Points redemptions](#channel-points-redemptions)).
 - On each launch, Twitch auto-reconnects using the saved (encrypted) tokens. You do not sign in again.
 
+### Setting up a channel-points reward effect
+
+Redemptions arrive as their own event type — not a chat message — so the three layers of the reaction stack each have a "Reward Redeemed" slot. A complete setup:
+
+1. **Sound** — [Sounds Management](../stream-tools/sounds.md): select a sound in the library, click **Assign** on the **Twitch - Reward Redeemed** row, set its volume. This is the only place a per-redemption sound can be mapped (the row exists since 2026-11-07).
+2. **Chat line + auto-reply** — [Chat Settings](../chat/chat-settings.md) → the Reward Redeemed row: **Show in chat** toggles the 🎯 line; **Auto-reply** + a template sends your message to Twitch chat per redemption (`{username}`, `{reward}`, `{cost}` resolve). The "Reward Redeemed!" [alert](../stream-tools/visual-alerts.md) fires with the family.
+3. **Anything more** (custom logic, variables in commands, timeouts, role grants) — a workflow: [Automation](../chat-features/automation.md) → NEW FLOW → **Event** trigger, event type **Reward Redeemed** (normalizes to the `rewardredeemed` key; authored spellings like "redemption"/"redeemed" also work), platform filter **Twitch** (or leave it empty to also catch [Kick](kick.md) reward redemptions with the same flow). The flow receives `{username}`, `{userId}`, `{reward}`, `{cost}`, and the viewer's reward input as the message variables. Wire any blocks after that — a Send Message thanking the redeemer is the classic start.
+4. **Test before going live** — [Event Testing](../chat-features/event-testing.md) publishes a synthetic Twitch redemption through the real pipeline: chat line, sound, alert, auto-reply, statistics row, and any `rewardredeemed` flows all fire exactly as live.
+
+Remember the one prerequisite: the stored Twitch token must carry the `channel:read:redemptions` scope — connections authorized before the scope was added need one **RECONNECT** (re-authorize) for redemptions to arrive at all.
+
 ### Reconnecting and disconnecting
 
 When the Twitch chat connects or drops, the Chat window posts a gold System line ("Twitch chat connected — listening to #channel" / "Twitch chat disconnected") so you can confirm the chat is live at a glance. App-only — never broadcast.
@@ -93,7 +104,7 @@ Twitch is one of the two platforms where the [auto-moderator](../architecture/mo
 
 - `TimeoutUserAsync(username, duration, reason)` → Helix timeout (a timeout also purges the sender's recent messages).
 - `BanUserAsync(username, reason)` → Helix ban.
-- `DeleteMessageAsync(messageId)` → Helix chat-message delete; when the pipeline has no message id the adapter's `TwitchModerationAdapter` degrades a Delete verdict to a **1-second timeout**, which still removes the offending line (the purge side effect).
+- `DeleteMessageAsync(messageId)` → Helix chat-message delete; when the pipeline has no message id the adapter's `TwitchModerationAdapter` degrades a Delete verdict to a **1-second timeout**, which still removes the offending line (the purge side effect) — tracked as KI-51 in the [known issues ledger](../reference/known-issues.md).
 - `SendNoticeAsync` posts a chat notice for warn-level verdicts.
 
 All of this requires the bot/broadcaster account to hold moderator powers in its own channel (a broadcaster is implicitly a moderator) and the moderation scopes from the standard authorization. See the parity table in the [Moderator Guide](../architecture/moderator-guide.md#auto-mod-platform-parity).
@@ -181,6 +192,8 @@ private async Task ReconnectAsync(CancellationToken cancellationToken)
 - Chat display and per-event auto-reply settings live under [Chat Settings](../chat/chat-settings.md); per-event sounds under [Sounds](../stream-tools/sounds.md).
 
 ## Status & Known Issues
+
+How Twitch's capabilities compare across the other platforms: [Multi-Platform Parity](multi-platform.md).
 
 - **EventSub connects (fixed 2026-08-15)** — both auth flows persist `Platform.UserId` via Helix `GET /users`, and the reconnect flow no longer wipes `ClientId`, so follow/sub/resub/gift/raid/cheer/redemption events, event-based sounds/alerts/auto-replies, and the follower/sub counters all work after (re)authorization. Accounts connected before the fix should re-authorize once. Tracked in the [known issues ledger](../reference/known-issues.md) (KI-2 resolved).
 - **Redemptions need the `channel:read:redemptions` scope** — connections authorized before the scope list included it see a logged subscription failure and simply get no redemption events (the other six topics are unaffected); re-authorize once to turn them on.

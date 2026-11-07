@@ -101,6 +101,38 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
     [ObservableProperty]
     private bool _autoStart = false;
 
+    // ===== Welcome + auto-role on join (per-bot, persisted as DiscordBot.{botId}.WelcomeSettings) =====
+
+    /// <summary>True when this bot welcomes new members and/or grants a role on join.</summary>
+    [ObservableProperty]
+    private bool _welcomeEnabled = false;
+
+    /// <summary>Welcome message template; {user}/{username}/{server} are applied on join.</summary>
+    [ObservableProperty]
+    private string _welcomeMessage = DiscordBotWelcomeSettings.DefaultMessage;
+
+    /// <summary>Selected welcome channel id; "" = deliberately cleared, null = keep the stored id.</summary>
+    [ObservableProperty]
+    private string? _welcomeChannelId;
+
+    /// <summary>Selected auto-role id; "" = deliberately cleared, null = keep the stored id.</summary>
+    [ObservableProperty]
+    private string? _welcomeRoleId;
+
+    /// <summary>Status line under the welcome card's Save button.</summary>
+    [ObservableProperty]
+    private string _welcomeStatus = "";
+
+    /// <summary>True when the bot is connected inside a guild, so a channel and role can be picked.</summary>
+    [ObservableProperty]
+    private bool _hasWelcomeOptions = false;
+
+    /// <summary>Reentrancy guard: one welcome-settings save in flight at a time.</summary>
+    private bool _isSavingWelcome;
+
+    /// <summary>Guild the pickers were built from (the bot's first guild); persisted as the settings' GuildId.</summary>
+    private string? _welcomeGuildId;
+
     /// <summary>Reentrancy guard: one role toggle in flight at a time.</summary>
     private bool _isUpdatingRole;
 
@@ -108,6 +140,12 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
     private bool _isUpdatingAutoStart;
 
     public ObservableCollection<DiscordGuildViewModel> Guilds { get; } = new();
+
+    /// <summary>Channel options for the welcome channel picker ("(none)" entry first).</summary>
+    public ObservableCollection<DiscordChannelInfo> WelcomeChannels { get; } = new();
+
+    /// <summary>Role options for the auto-role picker ("(none)" entry first; @everyone and managed roles skipped).</summary>
+    public ObservableCollection<DiscordRoleInfo> WelcomeRoles { get; } = new();
 
     /// <summary>
     /// Section B rows: this bot's pinned custom commands plus the unscoped
@@ -205,8 +243,10 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
         // token of the bot being loaded.
         _inviteUrl = null;
         Status = "Loading...";
+        WelcomeStatus = "";
         await RefreshAsync();
         await LoadBotCommandsAsync();
+        await LoadWelcomeAsync();
     }
 
     /// <summary>
@@ -470,12 +510,138 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
         }
     }
 
+    // ==================================================================
+    // Welcome + auto-role on member join
+    //
+    // Settings live in the manager's per-bot store (Configs key
+    // "DiscordBot.{botId}.WelcomeSettings"); the manager's join handler reads
+    // them live, so a SAVE here applies to the very next member join.
+    // ==================================================================
+
+    /// <summary>
+    /// Loads this bot's saved welcome/auto-role settings and rebuilds the
+    /// card's channel + role pickers from the bot's FIRST guild (the same
+    /// first-guild convention as the moderation role tiers). An offline bot
+    /// keeps its saved ids; the pickers stay disabled until it connects.
+    /// </summary>
+    [RelayCommand]
+    public async Task LoadWelcomeAsync()
+    {
+        if (string.IsNullOrEmpty(BotId))
+            return;
+
+        try
+        {
+            var settings = await _botManager.GetWelcomeSettingsAsync(BotId);
+            WelcomeEnabled = settings.Enabled;
+            WelcomeMessage = string.IsNullOrWhiteSpace(settings.Message)
+                ? DiscordBotWelcomeSettings.DefaultMessage
+                : settings.Message!;
+
+            WelcomeChannels.Clear();
+            WelcomeRoles.Clear();
+            _welcomeGuildId = null;
+            HasWelcomeOptions = false;
+
+            var service = _botManager.Get(BotId);
+            var guild = service?.ConnectedGuilds.FirstOrDefault();
+            if (guild != null && service is { IsConnected: true })
+            {
+                _welcomeGuildId = guild.Id;
+
+                // "" = "(none)" — lets the user deliberately clear a saved pick.
+                WelcomeChannels.Add(new DiscordChannelInfo("", "(no welcome channel)"));
+                foreach (var channel in guild.TextChannels)
+                {
+                    WelcomeChannels.Add(channel);
+                }
+
+                WelcomeRoles.Add(new DiscordRoleInfo("", "(no auto-role)", 0, 0, false));
+                foreach (var role in await service.GetGuildRolesAsync(guild.Id))
+                {
+                    // @everyone carries the guild id as its role id, and managed
+                    // (integration) roles cannot be granted by the bot — neither
+                    // is a valid auto-role.
+                    if (string.Equals(role.Id, guild.Id, StringComparison.Ordinal) || role.Managed)
+                    {
+                        continue;
+                    }
+
+                    WelcomeRoles.Add(role);
+                }
+
+                HasWelcomeOptions = true;
+            }
+
+            // Pre-select the saved picks when they are pickable; a null
+            // selection keeps the stored id on save (pickers unavailable).
+            WelcomeChannelId = WelcomeChannels.Any(c => c.Id == settings.ChannelId)
+                ? settings.ChannelId
+                : null;
+            WelcomeRoleId = WelcomeRoles.Any(r => r.Id == settings.AutoRoleId)
+                ? settings.AutoRoleId
+                : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading welcome settings for bot {BotId}", BotId);
+            WelcomeStatus = "Could not load the welcome settings";
+        }
+    }
+
+    /// <summary>
+    /// Persists the card: enable toggle, message template, channel and role.
+    /// An empty ("(none)") picker selection deliberately clears that id; a
+    /// null selection keeps the stored one (the pickers were offline).
+    /// </summary>
+    [RelayCommand]
+    private async Task SaveWelcomeSettingsAsync()
+    {
+        if (string.IsNullOrEmpty(BotId) || _isSavingWelcome)
+            return;
+
+        _isSavingWelcome = true;
+        try
+        {
+            var existing = await _botManager.GetWelcomeSettingsAsync(BotId);
+
+            var channelId = WelcomeChannelId == ""
+                ? null
+                : WelcomeChannelId ?? existing.ChannelId;
+            var roleId = WelcomeRoleId == ""
+                ? null
+                : WelcomeRoleId ?? existing.AutoRoleId;
+
+            var settings = new DiscordBotWelcomeSettings(
+                WelcomeEnabled,
+                _welcomeGuildId ?? existing.GuildId,
+                channelId,
+                string.IsNullOrWhiteSpace(WelcomeMessage) ? null : WelcomeMessage.Trim(),
+                roleId);
+
+            await _botManager.SaveWelcomeSettingsAsync(BotId, settings);
+            WelcomeStatus = WelcomeEnabled
+                ? "Saved — the next member to join gets the welcome treatment"
+                : "Saved (welcome is off)";
+            _logger.LogInformation("Saved welcome settings for Discord bot {BotId} (enabled: {Enabled})",
+                BotId, WelcomeEnabled);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving welcome settings for bot {BotId}", BotId);
+            WelcomeStatus = $"Could not save: {ex.Message}";
+        }
+        finally
+        {
+            _isSavingWelcome = false;
+        }
+    }
+
     [RelayCommand]
     private async Task StartAsync()
     {
         if (IsBusy || string.IsNullOrEmpty(BotId))
             return;
-
         _logger.LogInformation("Starting Discord bot {BotId}", BotId);
         IsBusy = true;
         Status = "Starting...";
@@ -500,6 +666,9 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
         {
             IsBusy = false;
             UpdateFromService();
+            // The gateway now knows the guild's channels/roles — rebuild the
+            // welcome card's pickers against them.
+            await LoadWelcomeAsync();
         }
     }
 
@@ -563,6 +732,9 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
         {
             IsBusy = false;
             UpdateFromService();
+            // Reconnect = fresh gateway session: rebuild the welcome pickers
+            // so they reflect what the bot can see right now.
+            await LoadWelcomeAsync();
         }
     }
 

@@ -92,7 +92,7 @@ On **SAVE**, every non-empty sub-chain is materialized as a **component child wo
 
 ### Bottom bar
 
-**SAVE** · **TEST RUN** (runs the current graph without saving — check **History** for the result) · **EXPORT** / **IMPORT** JSON (portable `.flow.json` files) · unsaved-changes indicator · **Close**.
+**SAVE** · **TEST RUN** (runs the current graph without saving — check **History** for the result) · **EXPORT** / **IMPORT** (share this flow out or bring one in — online sharecodes, offline codes, or `.flow.json` files; see [Marketplace & Sharecodes](marketplace.md)) · unsaved-changes indicator · **Close**.
 
 ### Drafts
 
@@ -261,4 +261,4 @@ The **Automation** page (sidebar, Chat Features group) is Vyral's workflow engin
 
 ## Status & Known Issues
 
-V1 (per the roadmap): the ordered-list editor renders one nesting level of If-branches; timer last-run is in-memory (fires fresh after restart); no trigger-condition editor (round-trips untouched). The Visual Flow Editor (above) is the canvas builder — button/select-menu triggers now receive clicks from the message components the Buttons & Menus section attaches (KI-39, resolved), and the purple tab's COMMAND PARAMETERS group registers typed slash options (KI-43, resolved; prefix commands still run on `{args}` — KI-44). Component button ids are positional and renumber on reorder (KI-46). The BotGhost music/voice/premium block suite (Create Music Player, voice-channel actions, IFTTT, transcripts, Components V2, Premium Check) is not implemented (KI-45), slash-command registration needs the bot online (KI-40). The plugin SDK, AI/scripting nodes, marketplace and breakpoint debugger are later phases. See the [known issues ledger](../reference/known-issues.md).
+V1 (per the roadmap): the ordered-list editor renders one nesting level of If-branches; timer last-run is in-memory (fires fresh after restart); no trigger-condition editor (round-trips untouched). The Visual Flow Editor (above) is the canvas builder — button/select-menu triggers now receive clicks from the message components the Buttons & Menus section attaches (KI-39, resolved), and the purple tab's COMMAND PARAMETERS group registers typed slash options (KI-43, resolved; prefix commands still run on `{args}` — KI-44). Component button ids are positional and renumber on reorder (KI-46). The BotGhost music/voice/premium block suite (Create Music Player, voice-channel actions, IFTTT, transcripts, Components V2, Premium Check) is not implemented (KI-45), slash-command registration needs the bot online (KI-40), and the editor's EXPORT/IMPORT is the code-centric sharing path into the [Marketplace](marketplace.md). The plugin SDK, AI/scripting nodes, and breakpoint debugger are later phases. See the [known issues ledger](../reference/known-issues.md).

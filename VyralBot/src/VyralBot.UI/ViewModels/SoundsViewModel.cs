@@ -143,7 +143,22 @@ public partial class SoundsViewModel : ViewModelBase
             // Twitch channel-points redemption — mirrors the Kick redemption
             // row; ChatViewModel's OnTwitchChannelPointsRedeemAsync already
             // plays it via PlayEventSoundAsync("redemption", "Twitch").
-            ("Twitch", "redemption", "Reward Redeemed")
+            ("Twitch", "redemption", "Reward Redeemed"),
+            // YouTube Super Chat/Sticker — keyed "cheer" because ChatViewModel's
+            // OnYouTubeSuperChatAsync plays PlayEventSoundAsync("cheer", "YouTube")
+            // (SoundService resolves EventSound_YouTube_cheer). The WORKFLOW
+            // trigger key is the separate "superchat" (WorkflowTriggerService)
+            // so flows can target Twitch bits vs YouTube Super Chats precisely.
+            ("YouTube", "cheer", "Super Chat"),
+            // YouTube membership (new member / milestone) — row ready for
+            // ChatViewModel's OnYouTubeMembershipStatusAsync to play
+            // PlayEventSoundAsync("membership", "YouTube").
+            ("YouTube", "membership", "Membership"),
+            // Discord member events — playback wired in ChatViewModel's
+            // OnDiscordMemberJoinedAsync ("follow") and OnDiscordBoostAsync
+            // ("subscribe" — boosts are Discord's paid-support counterpart).
+            ("Discord", "follow", "Member Joined"),
+            ("Discord", "subscribe", "Server Boost")
         };
 
         foreach (var (platform, eventType, displayName) in eventTypes)

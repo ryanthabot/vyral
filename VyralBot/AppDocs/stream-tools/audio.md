@@ -6,12 +6,12 @@
 
 The Audio Settings page is a small page with an outsized job: it decides **where sounds go**. Two toggles split every event sound into two independent outputs:
 
-- **Streamer Sounds** — play locally inside the Vyral app, so *you* hear them (works for `.wav` files only).
+- **Streamer Sounds** — play locally inside the Vyral app, so *you* hear them (every supported format — fixed 2026-11-07, see below).
 - **Stream Sounds** — push the sound to the OBS browser source, so *viewers* hear it in the stream. This path works: the broadcast is the camelCase shape the page understands and the volume is honored (fixed 2026-08-15 — see [Browser Sources](browser-sources.md)).
 
 Everything else on the page is a master volume slider, a server status panel with a **live** connected-browser-source count (the port is fixed at 5000), and the browser-source URL panel with OBS setup steps. There is no audio device selection, no per-app routing, and no ducking — the page is only about *where* sounds play and *how loud*.
 
-One format caveat before you rely on local playback: local output uses the Windows `.wav`-only player, so mp3/ogg/m4a assignments are silent for you — though they do play through the browser source.
+Local playback plays every supported format through WPF `MediaPlayer` (fixed 2026-11-07 — the old Windows `.wav`-only player is gone), and the volume sliders apply to it.
 
 ## User Guide
 
@@ -19,7 +19,7 @@ Open **Stream Tools → Audio Settings** in the sidebar (also reachable from the
 
 ### Sound Output card
 
-- **Streamer Sounds** (toggle, on by default) — "Play sounds locally in the app (you hear them)." When on, every event sound also plays on your desktop through Vyral itself. Local playback uses Windows' built-in `.wav` player, so **only `.wav` files actually make sound here** — an `.mp3`/`.ogg`/`.m4a` assignment logs a warning and plays nothing locally (it still plays browser-side).
+- **Streamer Sounds** (toggle, on by default) — "Play sounds locally in the app (you hear them)." When on, every event sound also plays on your desktop through Vyral itself — every supported format (`.wav`/`.mp3`/`.ogg`/`.m4a`) plays locally with volume honored, one short-lived MediaPlayer instance per sound so simultaneous effects overlap.
 - **Stream Sounds** (toggle, on by default) — "Send sounds to browser source (viewers hear them)." When on, event sounds are also broadcast over WebSocket to the OBS browser-source page, at the computed volume. See [Browser Sources](browser-sources.md) for the OBS setup.
 
 At least one of the two toggles must be on for any sound to play at all; if both are off, sound playback is skipped entirely (SoundService.cs:114-118).
@@ -42,7 +42,7 @@ At least one of the two toggles must be on for any sound to play at all; if both
 
 ### Test Sound and Save
 
-- **Test Sound** — plays the *first* file (alphabetically) from your sound library at the current master volume, through the same pipeline as real events (so it respects both output toggles and is likewise subject to the `.wav`-only local limitation). If your library is empty it tells you to upload sounds first on the [Sounds Management](sounds.md) page.
+- **Test Sound** — plays the *first* file (alphabetically) from your sound library at the current master volume, through the same pipeline as real events (so it respects both output toggles). If your library is empty it tells you to upload sounds first on the [Sounds Management](sounds.md) page.
 - **Save Settings** — persists the two toggles, master volume, and (always-5000) port as a single JSON blob, then confirms with a "saved successfully" dialog.
 
 ## How It Works (Developer)
@@ -56,7 +56,7 @@ All state lives in one `AudioSettings` JSON blob stored under the Configs key `A
 
 Playback decisions in `SoundService.PlaySoundFileAsync` (SoundService.cs:141-189):
 
-- If `StreamerSoundsEnabled` → `PlayLocalSoundAsync` on a background thread: `System.Media.SoundPlayer.PlaySync()` for `.wav`, otherwise a warning log and silence (SoundService.cs:292-315).
+- If `StreamerSoundsEnabled` → `PlayLocalSoundAsync` on a background thread → `PlayWithMediaPlayer`: a per-playback WPF `MediaPlayer` on its own short-lived STA thread, every format, volume applied (SoundService.cs:402-455).
 - If `StreamSoundsEnabled` → serialize the camelCase play payload (`{"type":"play","sound":...,"volume":0..1}`) and invoke the static `AudioWebSocketBroadcaster.BroadcastAsync` delegate, which the embedded Kestrel server points at all connected `/audio-ws` sockets. See [Browser Sources](browser-sources.md) for the full server side.
 
 Volume math (SoundService.cs:129-131): final volume = `MasterVolume / 100f` × per-event volume (itself a 0–1 value read from `EventVolume_<Platform>_<event>`; see [Sounds Management](sounds.md)).
@@ -162,10 +162,10 @@ Related settings that this page depends on but does not own:
 Every item below is verified against the current code. See the [known issues ledger](../reference/known-issues.md) for app-wide context.
 
 1. **Stream Sounds (viewer-side) works** — the broadcast is the camelCase `{"type":"play",...}` shape with volume honored. Full analysis in [Browser Sources](browser-sources.md). [known issues ledger](../reference/known-issues.md) (KI-4 resolved)
-2. **Local playback supports `.wav` only** — `System.Media.SoundPlayer` cannot play mp3/ogg/m4a; non-wav assignments log "Local playback only supports .wav files" and are silent locally (SoundService.cs:292-315) but audible through the browser source. [known issues ledger](../reference/known-issues.md)
+2. **Local playback supports every format** — fixed 2026-11-07: all formats (`.wav`, `.mp3`, `.ogg`, `.m4a`) play through WPF `MediaPlayer` on a short-lived STA thread, so the volume sliders apply locally too; the old wav-only `System.Media.SoundPlayer` path is gone (SoundService.cs:402-407). [known issues ledger](../reference/known-issues.md)
 3. **The port is pinned to 5000** — edits to the port box revert instantly (AudioSettingsViewModel.cs:195-204), and the DTO's 8080 default never surfaces; the browser-source page is port-agnostic now, but making the server port configurable for audio is future work. [known issues ledger](../reference/known-issues.md)
 4. **"Connected Clients" is live** — a 2-second poll of `AudioWebSocketBroadcaster.ConnectedClientCount` (AudioSettingsViewModel.cs:217-228); you can see whether OBS is attached from this page. [known issues ledger](../reference/known-issues.md)
 5. **The client-count timer only stops at shutdown** — the VM is a DI singleton, so its polling timer runs for the whole process lifetime, visible page or not (negligible cost — KI-32). [known issues ledger](../reference/known-issues.md)
 6. **"Restart Server" is vestigial** — it only shows an informational message box and restarts nothing (AudioSettingsViewModel.cs:169-179). [known issues ledger](../reference/known-issues.md)
-7. **No device selection, routing, or ducking** — "Audio" here means output destination and volume only; you cannot pick an output device (e.g. a VB-Cable) or duck music. [known issues ledger](../reference/known-issues.md)
+7. **No device selection, routing, or ducking** — "Audio" here means output destination and volume only; you cannot pick an output device (e.g. a VB-Cable) or duck music. Tracked as KI-50. [known issues ledger](../reference/known-issues.md)
 8. **Test Sound depends on library contents** — it plays the alphabetically first file, whatever that is; it is not a dedicated test tone (AudioSettingsViewModel.cs:120-136). [known issues ledger](../reference/known-issues.md)

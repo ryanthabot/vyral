@@ -48,6 +48,13 @@ public sealed class ObsOutputService
     private static readonly TimeSpan ForcedDrain = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan PollStep = TimeSpan.FromMilliseconds(100);
 
+    // obs_output_start answering true only queues the connect (rtmp-output
+    // calls begin_data_capture from its connect thread); when the handshake
+    // then fails asynchronously the output goes inactive WITHOUT ever having
+    // been active. The starting flag must not outlive that scenario forever —
+    // after this window (TickCount64 ms, monotonic) the 1 Hz poll abandons it.
+    private const long StartAbandonWindowMs = 30_000;
+
     private readonly IObsNativeGate engine;
     private readonly ObsInstallLocator locator;
     private readonly ILogger<ObsOutputService> logger;
@@ -59,6 +66,12 @@ public sealed class ObsOutputService
     private bool streamStarting;
     private bool recordStarting;
     private bool replayStarting;
+
+    // Environment.TickCount64 (ms) captured when each starting flag was set —
+    // drives the StartAbandonWindowMs bound in GetStatesAsync.
+    private long streamStartingAtTick;
+    private long recordStartingAtTick;
+    private long replayStartingAtTick;
 
     public ObsOutputService(ObsEngine engine, ObsInstallLocator locator, ILogger<ObsOutputService>? logger = null)
     {
@@ -157,6 +170,19 @@ public sealed class ObsOutputService
                 bool starting = StartingFlagOf(kind);
                 if (active)
                 {
+                    ClearStartingFlag(kind);
+                    starting = false;
+                }
+                else if (starting && IsStartAbandoned(kind))
+                {
+                    // obs_output_start answered true but the output never
+                    // reached active (async connect/handshake failure) and has
+                    // nothing running to clear the flag — nothing else will.
+                    // Abandon it so the UI cannot show "Starting" forever; the
+                    // stale refs stay for the next start's release pass.
+                    logger.LogWarning(
+                        "OBS output: {Kind} never reached active within {Seconds}s — clearing the starting flag (async start failure)",
+                        kind, StartAbandonWindowMs / 1000);
                     ClearStartingFlag(kind);
                     starting = false;
                 }
@@ -292,7 +318,7 @@ public sealed class ObsOutputService
         if (start.Success)
         {
             streamRefs = refs;
-            streamStarting = true;
+            SetStartingFlag(ObsOutputKind.Stream);
         }
 
         return start;
@@ -349,7 +375,7 @@ public sealed class ObsOutputService
         if (start.Success)
         {
             recordRefs = refs;
-            recordStarting = true;
+            SetStartingFlag(ObsOutputKind.Record);
         }
 
         return start;
@@ -401,7 +427,7 @@ public sealed class ObsOutputService
         if (start.Success)
         {
             replayRefs = refs;
-            replayStarting = true;
+            SetStartingFlag(ObsOutputKind.ReplayBuffer);
         }
 
         return start;
@@ -605,13 +631,32 @@ public sealed class ObsOutputService
         _ => replayRefs,
     };
 
+    private void SetStartingFlag(ObsOutputKind kind)
+    {
+        switch (kind)
+        {
+            case ObsOutputKind.Stream:
+                streamStarting = true;
+                streamStartingAtTick = Environment.TickCount64;
+                break;
+            case ObsOutputKind.Record:
+                recordStarting = true;
+                recordStartingAtTick = Environment.TickCount64;
+                break;
+            default:
+                replayStarting = true;
+                replayStartingAtTick = Environment.TickCount64;
+                break;
+        }
+    }
+
     private void ClearStartingFlag(ObsOutputKind kind)
     {
         switch (kind)
         {
-            case ObsOutputKind.Stream: streamStarting = false; break;
-            case ObsOutputKind.Record: recordStarting = false; break;
-            default: replayStarting = false; break;
+            case ObsOutputKind.Stream: streamStarting = false; streamStartingAtTick = 0; break;
+            case ObsOutputKind.Record: recordStarting = false; recordStartingAtTick = 0; break;
+            default: replayStarting = false; replayStartingAtTick = 0; break;
         }
     }
 
@@ -622,6 +667,25 @@ public sealed class ObsOutputService
         _ => replayStarting,
     };
 
+    /// <summary>TickCount64 captured when the flag was set; 0 when not starting.</summary>
+    private long StartingTickOf(ObsOutputKind kind) => kind switch
+    {
+        ObsOutputKind.Stream => streamStartingAtTick,
+        ObsOutputKind.Record => recordStartingAtTick,
+        _ => replayStartingAtTick,
+    };
+
+    /// <summary>
+    /// Gate held. True when the kind's starting flag has outlived
+    /// <see cref="StartAbandonWindowMs"/> without the output ever reaching
+    /// active — the signature of an asynchronous start failure.
+    /// </summary>
+    private bool IsStartAbandoned(ObsOutputKind kind)
+    {
+        long startedAt = StartingTickOf(kind);
+        return startedAt != 0 && Environment.TickCount64 - startedAt > StartAbandonWindowMs;
+    }
+
     private void ReleaseRefs(ObsOutputKind kind)
     {
         switch (kind)
@@ -629,17 +693,17 @@ public sealed class ObsOutputService
             case ObsOutputKind.Stream:
                 ReleaseRefs(streamRefs);
                 streamRefs = null;
-                streamStarting = false;
+                ClearStartingFlag(kind);
                 break;
             case ObsOutputKind.Record:
                 ReleaseRefs(recordRefs);
                 recordRefs = null;
-                recordStarting = false;
+                ClearStartingFlag(kind);
                 break;
             default:
                 ReleaseRefs(replayRefs);
                 replayRefs = null;
-                replayStarting = false;
+                ClearStartingFlag(kind);
                 break;
         }
     }

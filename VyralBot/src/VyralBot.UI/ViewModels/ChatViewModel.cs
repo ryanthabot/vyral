@@ -257,9 +257,11 @@ public class ChatViewModel : ViewModelBase
 
 	private static readonly TimeSpan DiscordDmReplyWindow = TimeSpan.FromSeconds(30L);
 
-	private const int MAX_DM_THREAD_MESSAGES = 200;
+	private const int MAX_DM_THREAD_MESSAGES = 500;
 
 	private const int MAX_DM_CONVERSATIONS = 50;
+
+	private const int MAX_CHAT_MESSAGES = 500;
 
 	private Platform? _twitchPlatformRow;
 
@@ -1574,7 +1576,7 @@ public class ChatViewModel : ViewModelBase
 			}
 			_routedDmMessageIds.Add(evt.MessageId);
 		}
-		dmConversation.Messages.Add(chatMessage);
+		AddCappedDmMessage(dmConversation, chatMessage);
 		_ = _dataService?.SaveDiscordDmMessageAsync(new DiscordDmMessage
 		{
 			Id = (evt.MessageId ?? Guid.NewGuid().ToString()),
@@ -1596,7 +1598,22 @@ public class ChatViewModel : ViewModelBase
 		{
 			ScrollDmThreadToBottom();
 		}
-		_logger.LogInformation("\ud83d\udce8 DM routed to inbox conversation {Username} ({MessageCount} messages, unread {Unread})", username, dmConversation.Messages.Count, dmConversation.UnreadCount);
+		_logger.LogDebug("\ud83d\udce8 DM routed to inbox conversation {Username} ({MessageCount} messages, unread {Unread})", username, dmConversation.Messages.Count, dmConversation.UnreadCount);
+	}
+
+	/// <summary>
+	/// Adds a chat line to a DM thread while enforcing the per-conversation
+	/// cap (oldest dropped) so long-running sessions cannot grow in-memory
+	/// DM histories unbounded. Older lines remain available from the
+	/// persisted Discord DM history.
+	/// </summary>
+	private static void AddCappedDmMessage(DmConversation conversation, ChatMessage message)
+	{
+		conversation.Messages.Add(message);
+		while (conversation.Messages.Count > MAX_DM_THREAD_MESSAGES)
+		{
+			conversation.Messages.RemoveAt(0);
+		}
 	}
 
 	private async Task LoadDmConversationsFromDbAsync()
@@ -1683,7 +1700,7 @@ public class ChatViewModel : ViewModelBase
 						Badges = (flag ? new Dictionary<string, string> { { "broadcaster", "1" } } : new Dictionary<string, string>())
 					};
 					chatMessage.InitializeBadges();
-					conversation.Messages.Add(chatMessage);
+					AddCappedDmMessage(conversation, chatMessage);
 				}
 				conversation.HistoryLoaded = true;
 			});
@@ -1815,7 +1832,7 @@ public class ChatViewModel : ViewModelBase
 				Badges = new Dictionary<string, string> { { "broadcaster", "1" } }
 			};
 			chatMessage.InitializeBadges();
-			conversation.Messages.Add(chatMessage);
+			AddCappedDmMessage(conversation, chatMessage);
 			_dataService?.SaveDiscordDmMessageAsync(new DiscordDmMessage
 			{
 				BotId = (conversation.BotId ?? string.Empty),
@@ -1863,7 +1880,7 @@ public class ChatViewModel : ViewModelBase
 				Badges = new Dictionary<string, string>()
 			};
 			chatMessage.InitializeBadges();
-			conversation.Messages.Add(chatMessage);
+			AddCappedDmMessage(conversation, chatMessage);
 			ScrollDmThreadToBottom();
 		});
 	}
@@ -2600,16 +2617,27 @@ public class ChatViewModel : ViewModelBase
 					Badges = new Dictionary<string, string> { { "broadcaster", "1" } }
 				};
 				chatMessage.InitializeBadges();
-				Messages.Add(chatMessage);
-				while (Messages.Count > 500)
-				{
-					Messages.RemoveAt(0);
-				}
+				AddCappedMessage(chatMessage);
 			});
 		}
 		if (sent && response.StartsWith("\ud83d\udccb", StringComparison.Ordinal))
 		{
 			AutoDeleteDiscordReplyAsync(target);
+		}
+	}
+
+	/// <summary>
+	/// Adds a chat line to the main Messages collection while enforcing the
+	/// 500-entry cap (oldest dropped). Every Messages mutation must go through
+	/// here so 24/7 sessions cannot grow the UI collection unbounded — the
+	/// sent-message paths used to bypass the cap the ingest paths enforce.
+	/// </summary>
+	private void AddCappedMessage(ChatMessage message)
+	{
+		Messages.Add(message);
+		while (Messages.Count > MAX_CHAT_MESSAGES)
+		{
+			Messages.RemoveAt(0);
 		}
 	}
 
@@ -2691,7 +2719,7 @@ public class ChatViewModel : ViewModelBase
 						string firstToken = evt.Message.Trim().TrimStart('!', '.').Split(' ')[0].ToLowerInvariant();
 						if (disabled?.Contains(firstToken) ?? false)
 						{
-							_logger.LogInformation("Skipped disabled built-in '{Command}' for bot {BotId} (owned by an external integration)", firstToken, evt.BotId);
+							_logger.LogDebug("Skipped disabled built-in '{Command}' for bot {BotId} (owned by an external integration)", firstToken, evt.BotId);
 							return false;
 						}
 					}
@@ -2713,7 +2741,7 @@ public class ChatViewModel : ViewModelBase
 			if (result.Handled)
 			{
 				await SendDiscordReplyAsync(result.Response, evt.BotId);
-				_logger.LogInformation("Processed in-Discord moderation command from {Username}: {Command} -> {Response}", evt.Username, evt.Message, result.Response);
+				_logger.LogDebug("Processed in-Discord moderation command from {Username}: {Command} -> {Response}", evt.Username, evt.Message, result.Response);
 				return true;
 			}
 		}
@@ -2755,7 +2783,7 @@ public class ChatViewModel : ViewModelBase
 				return false;
 			}
 			await SendDiscordReplyAsync(reply, evt.BotId);
-			_logger.LogInformation("Processed in-Discord stream-effect command from {Username}: {Command} -> {Response}", evt.Username, evt.Message, reply);
+			_logger.LogDebug("Processed in-Discord stream-effect command from {Username}: {Command} -> {Response}", evt.Username, evt.Message, reply);
 			return true;
 		}
 		catch (Exception exception)
@@ -2986,7 +3014,7 @@ public class ChatViewModel : ViewModelBase
 			{
 				return false;
 			}
-			_logger.LogInformation("Auto-mod hit on {Platform}/{Username}: {Rule} -> {Action} (strike {Strikes}, {Reason})", message.Platform, message.Username, verdict.Rule, verdict.Action, verdict.Strikes, verdict.Reason);
+			_logger.LogDebug("Auto-mod hit on {Platform}/{Username}: {Rule} -> {Action} (strike {Strikes}, {Reason})", message.Platform, message.Username, verdict.Rule, verdict.Action, verdict.Strikes, verdict.Reason);
 			RememberAutoModeratedKey(message.Platform, message.Username, message.Message);
 			await _moderationActionService.ExecuteAsync(message, verdict);
 			return true;
@@ -3039,7 +3067,7 @@ public class ChatViewModel : ViewModelBase
 	{
 		try
 		{
-			_logger.LogInformation("\ud83d\udce8 ChatViewModel received Twitch message from {Username}: {Message}", evt.Username, evt.Message);
+			_logger.LogDebug("\ud83d\udce8 ChatViewModel received Twitch message from {Username}: {Message}", evt.Username, evt.Message);
 			string messageKey = evt.Message?.Trim().ToLowerInvariant() ?? "";
 			lock (_recentMessagesLock)
 			{
@@ -3050,7 +3078,7 @@ public class ChatViewModel : ViewModelBase
 					{
 						if (IsOwnTwitchAccount(evt.Username))
 						{
-							_logger.LogInformation("\ud83d\udd07 Ignoring echo of recently sent Twitch message (age: {Age:F2}s): {Message}", age.TotalSeconds, evt.Message);
+							_logger.LogDebug("\ud83d\udd07 Ignoring echo of recently sent Twitch message (age: {Age:F2}s): {Message}", age.TotalSeconds, evt.Message);
 							return;
 						}
 					}
@@ -3091,12 +3119,12 @@ public class ChatViewModel : ViewModelBase
 				IsBroadcaster = evt.IsBroadcaster
 			}))
 			{
-				_logger.LogInformation("Twitch message from {Username} dropped by auto-mod", evt.Username);
+				_logger.LogDebug("Twitch message from {Username} dropped by auto-mod", evt.Username);
 				return;
 			}
 			if (ConnectedPlatforms.Count == 0)
 			{
-				_logger.LogInformation("Platforms list is empty, refreshing...");
+				_logger.LogDebug("Platforms list is empty, refreshing...");
 				await ((DispatcherObject)Application.Current).Dispatcher.InvokeAsync((Action)delegate
 				{
 					UpdateConnectedPlatforms();
@@ -3118,12 +3146,8 @@ public class ChatViewModel : ViewModelBase
 					Badges = (evt.Badges ?? new Dictionary<string, string>())
 				};
 				chatMessage.InitializeBadges();
-				Messages.Add(chatMessage);
-				_logger.LogInformation("? Twitch message added to UI. Total messages: {Count}", Messages.Count);
-				while (Messages.Count > 500)
-				{
-					Messages.RemoveAt(0);
-				}
+				AddCappedMessage(chatMessage);
+				_logger.LogDebug("? Twitch message added to UI. Total messages: {Count}", Messages.Count);
 			});
 		}
 		catch (Exception ex)
@@ -3161,13 +3185,13 @@ public class ChatViewModel : ViewModelBase
 			if (isDiscordDmMessage)
 			{
 				string dmEntryOriginBotId = discordDmBotId ?? discordBotId;
-				_logger.LogInformation("Discord DM from {Username} via bot {OriginId}: \"{Content}\"", evt.Username, string.IsNullOrEmpty(dmEntryOriginBotId) ? "unknown" : dmEntryOriginBotId, TruncateForLog(evt.Message, 80));
+				_logger.LogDebug("Discord DM from {Username} via bot {OriginId}: \"{Content}\"", evt.Username, string.IsNullOrEmpty(dmEntryOriginBotId) ? "unknown" : dmEntryOriginBotId, TruncateForLog(evt.Message, 80));
 			}
 			if (!isDiscordDmMessage)
 			{
 				if (IsRecentlyAutoModerated(evt.Platform, evt.Username, evt.Message))
 				{
-					_logger.LogInformation("{Platform} message from {Username} skipped by auto-mod (already acted on)", evt.Platform, evt.Username);
+					_logger.LogDebug("{Platform} message from {Username} skipped by auto-mod (already acted on)", evt.Platform, evt.Username);
 					return;
 				}
 				if (!HasDedicatedChatHandler(evt.Platform) && await TryAutoModerateAsync(new ModerationIncomingMessage
@@ -3183,7 +3207,7 @@ public class ChatViewModel : ViewModelBase
 					IsBroadcaster = evt.IsBroadcaster
 				}))
 				{
-					_logger.LogInformation("{Platform} message from {Username} dropped by auto-mod", evt.Platform, evt.Username);
+					_logger.LogDebug("{Platform} message from {Username} dropped by auto-mod", evt.Platform, evt.Username);
 					return;
 				}
 			}
@@ -3197,7 +3221,7 @@ public class ChatViewModel : ViewModelBase
 		}
 		if (isDiscordDmMessage && _linkCodeService != null && IsDiscordLinkIntakeMessage(evt.Message, out string linkIntakeCode))
 		{
-			_logger.LogInformation("Discord DM link intake matched for {Username}: \"{Message}\" ({Kind})", evt.Username, evt.Message, (linkIntakeCode != null) ? "code redemption" : "link request");
+			_logger.LogDebug("Discord DM link intake matched for {Username}: \"{Message}\" ({Kind})", evt.Username, evt.Message, (linkIntakeCode != null) ? "code redemption" : "link request");
 			string linkIntakeOriginBotId = NormalizeDiscordOriginBotId(discordDmBotId ?? discordBotId);
 			string linkingBotId = await GetLinkingBotIdAsync();
 			if (linkingBotId == null || linkIntakeOriginBotId == null || string.Equals(linkingBotId, linkIntakeOriginBotId, StringComparison.Ordinal))
@@ -3212,11 +3236,11 @@ public class ChatViewModel : ViewModelBase
 				}
 				return;
 			}
-			_logger.LogInformation("DM link intake from {Username} skipped - received by bot '{OriginId}', linking bot is '{LinkingBotId}'", evt.Username, linkIntakeOriginBotId, linkingBotId);
+			_logger.LogDebug("DM link intake from {Username} skipped - received by bot '{OriginId}', linking bot is '{LinkingBotId}'", evt.Username, linkIntakeOriginBotId, linkingBotId);
 		}
 		if (isDiscordDmMessage && _linkCodeService != null && IsDiscordDelinkIntakeMessage(evt.Message, out string delinkArg))
 		{
-			_logger.LogInformation("Discord DM delink intake matched for {Username}: \"{Message}\"", evt.Username, evt.Message);
+			_logger.LogDebug("Discord DM delink intake matched for {Username}: \"{Message}\"", evt.Username, evt.Message);
 			string delinkIntakeOriginBotId = NormalizeDiscordOriginBotId(discordDmBotId ?? discordBotId);
 			string linkingBotId2 = await GetLinkingBotIdAsync();
 			if (linkingBotId2 == null || delinkIntakeOriginBotId == null || string.Equals(linkingBotId2, delinkIntakeOriginBotId, StringComparison.Ordinal))
@@ -3231,7 +3255,7 @@ public class ChatViewModel : ViewModelBase
 				}
 				return;
 			}
-			_logger.LogInformation("DM delink intake from {Username} skipped - received by bot '{OriginId}', linking bot is '{LinkingBotId}'", evt.Username, delinkIntakeOriginBotId, linkingBotId2);
+			_logger.LogDebug("DM delink intake from {Username} skipped - received by bot '{OriginId}', linking bot is '{LinkingBotId}'", evt.Username, delinkIntakeOriginBotId, linkingBotId2);
 		}
 		if (isDiscordDmMessage && _linkCodeService != null && !string.IsNullOrWhiteSpace(evt.Message) && !evt.Message.TrimStart().StartsWith("!", StringComparison.Ordinal))
 		{
@@ -3319,7 +3343,7 @@ public class ChatViewModel : ViewModelBase
 					{
 						await SendDiscordReplyAsync(response, discordBotId, discordDmChannelId, evt.Username);
 					}
-					_logger.LogInformation("Processed unified command: {Command} -> {Response}", evt.Message, response);
+					_logger.LogDebug("Processed unified command: {Command} -> {Response}", evt.Message, response);
 					return;
 				}
 			}
@@ -3354,7 +3378,7 @@ public class ChatViewModel : ViewModelBase
 					{
 						await SendDiscordReplyAsync(response2, discordBotId, discordDmChannelId, evt.Username);
 					}
-					_logger.LogInformation("Processed currency command: {Command} -> {Response}", evt.Message, response2);
+					_logger.LogDebug("Processed currency command: {Command} -> {Response}", evt.Message, response2);
 				}
 			}
 			catch (Exception ex)
@@ -3415,7 +3439,7 @@ public class ChatViewModel : ViewModelBase
 					{
 						await SendDiscordReplyAsync(response3, discordBotId, discordDmChannelId, evt.Username);
 					}
-					_logger.LogInformation("Processed giveaway command: {Command} -> {Response}", evt.Message, response3);
+					_logger.LogDebug("Processed giveaway command: {Command} -> {Response}", evt.Message, response3);
 				}
 			}
 			catch (Exception ex)
@@ -3449,7 +3473,7 @@ public class ChatViewModel : ViewModelBase
 					{
 						await SendDiscordReplyAsync(response4, discordBotId, discordDmChannelId, evt.Username);
 					}
-					_logger.LogInformation("Processed poll command: {Command} -> {Response}", evt.Message, response4);
+					_logger.LogDebug("Processed poll command: {Command} -> {Response}", evt.Message, response4);
 				}
 			}
 			catch (Exception ex)
@@ -3483,7 +3507,7 @@ public class ChatViewModel : ViewModelBase
 					{
 						await SendDiscordReplyAsync(response5, discordBotId, discordDmChannelId, evt.Username);
 					}
-					_logger.LogInformation("Processed watchtime command: {Command} -> {Response}", evt.Message, response5);
+					_logger.LogDebug("Processed watchtime command: {Command} -> {Response}", evt.Message, response5);
 				}
 			}
 			catch (Exception ex)
@@ -3826,7 +3850,7 @@ public class ChatViewModel : ViewModelBase
 					Badges = new Dictionary<string, string> { { "broadcaster", "1" } }
 				};
 				chatMessage.InitializeBadges();
-				dmConversation.Messages.Add(chatMessage);
+				AddCappedDmMessage(dmConversation, chatMessage);
 				dmConversation.LastPreview = content;
 				dmConversation.LastAt = DateTime.Now;
 
@@ -4479,7 +4503,7 @@ public class ChatViewModel : ViewModelBase
 			try
 			{
 				await _viewerStatusService.RecordSubscriptionAsync(evt.Username, "YouTube", 1, 0);
-				_logger.LogInformation("Recorded YouTube membership status for {Username} (Level: {Level}, Milestone: {IsMilestone})", evt.Username, evt.Level, evt.IsMilestone);
+				_logger.LogDebug("Recorded YouTube membership status for {Username} (Level: {Level}, Milestone: {IsMilestone})", evt.Username, evt.Level, evt.IsMilestone);
 			}
 			catch (Exception exception)
 			{
@@ -4588,7 +4612,7 @@ public class ChatViewModel : ViewModelBase
 
 	private async Task SendMessageAsync()
 	{
-		_logger.LogInformation("SendMessageAsync called. MessageInput: '{Input}'", MessageInput);
+		_logger.LogDebug("SendMessageAsync called. MessageInput: '{Input}'", MessageInput);
 		if (string.IsNullOrWhiteSpace(MessageInput))
 		{
 			_logger.LogWarning("MessageInput is empty or whitespace");
@@ -4621,11 +4645,11 @@ public class ChatViewModel : ViewModelBase
 		{
 			try
 			{
-				_logger.LogInformation("Attempting to send message to {Platform}: {Message}", SelectedPlatform?.Name ?? string.Empty, MessageInput);
+				_logger.LogDebug("Attempting to send message to {Platform}: {Message}", SelectedPlatform?.Name ?? string.Empty, MessageInput);
 				switch (SelectedPlatform?.Name ?? string.Empty)
 				{
 				case "Twitch":
-					_logger.LogInformation("Twitch IsConnected: {IsConnected}, Channel: {Channel}", _twitchService.IsConnected, _twitchService.Channel);
+					_logger.LogDebug("Twitch IsConnected: {IsConnected}, Channel: {Channel}", _twitchService.IsConnected, _twitchService.Channel);
 					if (_twitchService.IsConnected)
 					{
 						string messageText4 = MessageInput;
@@ -4633,13 +4657,13 @@ public class ChatViewModel : ViewModelBase
 						{
 							try
 							{
-								_logger.LogInformation("\ud83d\udd04 Attempting variable replacement. Service available: {Available}, Message: '{Message}'", _variableReplacementService != null, messageText4);
+								_logger.LogDebug("\ud83d\udd04 Attempting variable replacement. Service available: {Available}, Message: '{Message}'", _variableReplacementService != null, messageText4);
 								Dictionary<string, string> contextVars4 = BuildContextVariables(SelectedPlatform?.Name ?? string.Empty);
-								_logger.LogInformation("\ud83d\udccb Context variables: {Vars}", string.Join(", ", contextVars4.Select((KeyValuePair<string, string> kv) => kv.Key + "=" + kv.Value)));
+								_logger.LogDebug("\ud83d\udccb Context variables: {Vars}", string.Join(", ", contextVars4.Select((KeyValuePair<string, string> kv) => kv.Key + "=" + kv.Value)));
 								Dictionary<string, string> availableVars2 = await _variableReplacementService.GetAvailableVariablesAsync(SelectedPlatform?.Name ?? string.Empty);
-								_logger.LogInformation("\ud83d\udcda Available database variables: {Count} - {Names}", availableVars2.Count, (availableVars2.Count > 0) ? string.Join(", ", availableVars2.Keys) : "NONE");
+								_logger.LogDebug("\ud83d\udcda Available database variables: {Count} - {Names}", availableVars2.Count, (availableVars2.Count > 0) ? string.Join(", ", availableVars2.Keys) : "NONE");
 								messageText4 = await _variableReplacementService.ReplaceVariablesAsync(messageText4, contextVars4, SelectedPlatform?.Name ?? string.Empty);
-								_logger.LogInformation("? Variables replaced in message. Original: '{Original}', Replaced: '{Replaced}'", MessageInput, messageText4);
+								_logger.LogDebug("? Variables replaced in message. Original: '{Original}', Replaced: '{Replaced}'", MessageInput, messageText4);
 							}
 							catch (Exception ex)
 							{
@@ -4657,15 +4681,15 @@ public class ChatViewModel : ViewModelBase
 						{
 							_logger.LogDebug("No variables to replace (no '{{' found in message)");
 						}
-						_logger.LogInformation("Sending message to Twitch...");
+						_logger.LogDebug("Sending message to Twitch...");
 						string twitchMessageKey = messageText4.Trim().ToLowerInvariant();
 						lock (_recentMessagesLock)
 						{
 							_recentTwitchMessages[twitchMessageKey] = DateTime.Now;
-							_logger.LogInformation("\ud83d\udd12 Tracking sent Twitch message to filter echo: {MessageKey}", twitchMessageKey);
+							_logger.LogDebug("\ud83d\udd12 Tracking sent Twitch message to filter echo: {MessageKey}", twitchMessageKey);
 						}
 						await _twitchService.SendMessageAsync(messageText4);
-						_logger.LogInformation("Message sent to Twitch successfully");
+						_logger.LogDebug("Message sent to Twitch successfully");
 						ChatMessage twitchMessage = new ChatMessage
 						{
 							Platform = "Vyral",
@@ -4680,8 +4704,8 @@ public class ChatViewModel : ViewModelBase
 							Badges = new Dictionary<string, string> { { "broadcaster", "1" } }
 						};
 						twitchMessage.InitializeBadges();
-						Messages.Add(twitchMessage);
-						_logger.LogInformation("Added sent message to chat UI");
+						AddCappedMessage(twitchMessage);
+						_logger.LogDebug("Added sent message to chat UI");
 						MessageInput = "";
 					}
 					else
@@ -4691,7 +4715,7 @@ public class ChatViewModel : ViewModelBase
 					}
 					break;
 				case "Kick":
-					_logger.LogInformation("Kick IsConnected: {IsConnected}, Channel: {Channel}", _kickService.IsConnected, _kickService.Channel);
+					_logger.LogDebug("Kick IsConnected: {IsConnected}, Channel: {Channel}", _kickService.IsConnected, _kickService.Channel);
 					if (_kickService.IsConnected)
 					{
 						string messageText2 = MessageInput;
@@ -4699,13 +4723,13 @@ public class ChatViewModel : ViewModelBase
 						{
 							try
 							{
-								_logger.LogInformation("\ud83d\udd04 Attempting variable replacement. Service available: {Available}, Message: '{Message}'", _variableReplacementService != null, messageText2);
+								_logger.LogDebug("\ud83d\udd04 Attempting variable replacement. Service available: {Available}, Message: '{Message}'", _variableReplacementService != null, messageText2);
 								Dictionary<string, string> contextVars2 = BuildContextVariables(SelectedPlatform?.Name ?? string.Empty);
-								_logger.LogInformation("\ud83d\udccb Context variables: {Vars}", string.Join(", ", contextVars2.Select((KeyValuePair<string, string> kv) => kv.Key + "=" + kv.Value)));
+								_logger.LogDebug("\ud83d\udccb Context variables: {Vars}", string.Join(", ", contextVars2.Select((KeyValuePair<string, string> kv) => kv.Key + "=" + kv.Value)));
 								Dictionary<string, string> availableVars = await _variableReplacementService.GetAvailableVariablesAsync(SelectedPlatform?.Name ?? string.Empty);
-								_logger.LogInformation("\ud83d\udcda Available database variables: {Count} - {Names}", availableVars.Count, (availableVars.Count > 0) ? string.Join(", ", availableVars.Keys) : "NONE");
+								_logger.LogDebug("\ud83d\udcda Available database variables: {Count} - {Names}", availableVars.Count, (availableVars.Count > 0) ? string.Join(", ", availableVars.Keys) : "NONE");
 								messageText2 = await _variableReplacementService.ReplaceVariablesAsync(messageText2, contextVars2, SelectedPlatform?.Name ?? string.Empty);
-								_logger.LogInformation("? Variables replaced in message. Original: '{Original}', Replaced: '{Replaced}'", MessageInput, messageText2);
+								_logger.LogDebug("? Variables replaced in message. Original: '{Original}', Replaced: '{Replaced}'", MessageInput, messageText2);
 							}
 							catch (Exception ex)
 							{
@@ -4727,11 +4751,11 @@ public class ChatViewModel : ViewModelBase
 						lock (_recentMessagesLock)
 						{
 							_recentKickMessages[messageKey] = DateTime.Now;
-							_logger.LogInformation("\ud83d\udd12 Tracking sent Kick message to filter echo: {MessageKey}", messageKey);
+							_logger.LogDebug("\ud83d\udd12 Tracking sent Kick message to filter echo: {MessageKey}", messageKey);
 						}
-						_logger.LogInformation("Sending message to Kick...");
+						_logger.LogDebug("Sending message to Kick...");
 						await _kickService.SendMessageAsync(messageText2);
-						_logger.LogInformation("Message sent to Kick successfully");
+						_logger.LogDebug("Message sent to Kick successfully");
 						ChatMessage sentMessage = new ChatMessage
 						{
 							Platform = "Vyral",
@@ -4745,10 +4769,10 @@ public class ChatViewModel : ViewModelBase
 							IsBroadcaster = true,
 							Badges = new Dictionary<string, string> { { "Broadcaster", "Broadcaster" } }
 						};
-						_logger.LogInformation("\ud83d\udcdb Sent message has {BadgeCount} badges: {Badges}", sentMessage.Badges.Count, string.Join(", ", sentMessage.Badges.Select((KeyValuePair<string, string> b) => b.Key + "=" + b.Value)));
+						_logger.LogDebug("\ud83d\udcdb Sent message has {BadgeCount} badges: {Badges}", sentMessage.Badges.Count, string.Join(", ", sentMessage.Badges.Select((KeyValuePair<string, string> b) => b.Key + "=" + b.Value)));
 						sentMessage.InitializeBadges();
-						Messages.Add(sentMessage);
-						_logger.LogInformation("Added sent message to chat UI");
+						AddCappedMessage(sentMessage);
+						_logger.LogDebug("Added sent message to chat UI");
 						MessageInput = "";
 					}
 					else
@@ -4758,7 +4782,7 @@ public class ChatViewModel : ViewModelBase
 					}
 					break;
 				case "YouTube":
-					_logger.LogInformation("YouTube IsConnected: {IsConnected}, Channel: {Channel}", _youtubeService.IsConnected, _youtubeService.Channel);
+					_logger.LogDebug("YouTube IsConnected: {IsConnected}, Channel: {Channel}", _youtubeService.IsConnected, _youtubeService.Channel);
 					if (_youtubeService.IsConnected)
 					{
 						string messageText3 = MessageInput;
@@ -4768,7 +4792,7 @@ public class ChatViewModel : ViewModelBase
 							{
 								Dictionary<string, string> contextVars3 = BuildContextVariables(SelectedPlatform?.Name ?? string.Empty);
 								messageText3 = await _variableReplacementService.ReplaceVariablesAsync(messageText3, contextVars3, SelectedPlatform?.Name ?? string.Empty);
-								_logger.LogInformation("? Variables replaced for YouTube. Original: '{Original}', Replaced: '{Replaced}'", MessageInput, messageText3);
+								_logger.LogDebug("? Variables replaced for YouTube. Original: '{Original}', Replaced: '{Replaced}'", MessageInput, messageText3);
 							}
 							catch (Exception ex)
 							{
@@ -4782,11 +4806,11 @@ public class ChatViewModel : ViewModelBase
 						lock (_recentMessagesLock)
 						{
 							_recentYoutubeMessages[ytMessageKey] = DateTime.Now;
-							_logger.LogInformation("\ud83d\udd12 Tracking sent YouTube message to filter echo: {MessageKey}", ytMessageKey);
+							_logger.LogDebug("\ud83d\udd12 Tracking sent YouTube message to filter echo: {MessageKey}", ytMessageKey);
 						}
-						_logger.LogInformation("Sending message to YouTube...");
+						_logger.LogDebug("Sending message to YouTube...");
 						await _youtubeService.SendMessageAsync(messageText3);
-						_logger.LogInformation("Message sent to YouTube successfully");
+						_logger.LogDebug("Message sent to YouTube successfully");
 						ChatMessage ytMessage = new ChatMessage
 						{
 							Platform = "Vyral",
@@ -4801,8 +4825,8 @@ public class ChatViewModel : ViewModelBase
 							Badges = new Dictionary<string, string> { { "broadcaster", "1" } }
 						};
 						ytMessage.InitializeBadges();
-						Messages.Add(ytMessage);
-						_logger.LogInformation("Added sent YouTube message to chat UI");
+						AddCappedMessage(ytMessage);
+						_logger.LogDebug("Added sent YouTube message to chat UI");
 						MessageInput = "";
 					}
 					else
@@ -4814,7 +4838,7 @@ public class ChatViewModel : ViewModelBase
 				case "Discord":
 				{
 					IDiscordService discordSend = ResolveDiscordSendTarget(null);
-					_logger.LogInformation("Discord IsConnected: {IsConnected}, SelectedChannelId: {ChannelId}", discordSend?.IsConnected, discordSend?.SelectedChannelId);
+					_logger.LogDebug("Discord IsConnected: {IsConnected}, SelectedChannelId: {ChannelId}", discordSend?.IsConnected, discordSend?.SelectedChannelId);
 					if (discordSend?.IsConnected ?? false)
 					{
 						string messageText = MessageInput;
@@ -4824,7 +4848,7 @@ public class ChatViewModel : ViewModelBase
 							{
 								Dictionary<string, string> contextVars = BuildContextVariables(SelectedPlatform?.Name ?? string.Empty);
 								messageText = await _variableReplacementService.ReplaceVariablesAsync(messageText, contextVars, SelectedPlatform?.Name ?? string.Empty);
-								_logger.LogInformation("? Variables replaced for Discord. Original: '{Original}', Replaced: '{Replaced}'", MessageInput, messageText);
+								_logger.LogDebug("? Variables replaced for Discord. Original: '{Original}', Replaced: '{Replaced}'", MessageInput, messageText);
 							}
 							catch (Exception ex)
 							{
@@ -4838,11 +4862,11 @@ public class ChatViewModel : ViewModelBase
 						lock (_recentMessagesLock)
 						{
 							_recentDiscordMessages[discordMessageKey] = DateTime.Now;
-							_logger.LogInformation("\ud83d\udd12 Tracking sent Discord message to filter echo: {MessageKey}", discordMessageKey);
+							_logger.LogDebug("\ud83d\udd12 Tracking sent Discord message to filter echo: {MessageKey}", discordMessageKey);
 						}
-						_logger.LogInformation("Sending message to Discord...");
+						_logger.LogDebug("Sending message to Discord...");
 						await discordSend.SendMessageAsync(messageText);
-						_logger.LogInformation("Message sent to Discord successfully");
+						_logger.LogDebug("Message sent to Discord successfully");
 						ChatMessage discordMessage = new ChatMessage
 						{
 							Platform = "Vyral",
@@ -4857,8 +4881,8 @@ public class ChatViewModel : ViewModelBase
 							Badges = new Dictionary<string, string> { { "broadcaster", "1" } }
 						};
 						discordMessage.InitializeBadges();
-						Messages.Add(discordMessage);
-						_logger.LogInformation("Added sent Discord message to chat UI");
+						AddCappedMessage(discordMessage);
+						_logger.LogDebug("Added sent Discord message to chat UI");
 						MessageInput = "";
 					}
 					else
@@ -4886,7 +4910,7 @@ public class ChatViewModel : ViewModelBase
 
 	private async Task SendToAllPlatformsAsync()
 	{
-		_logger.LogInformation("SendToAllPlatformsAsync called. MessageInput: '{Input}'", MessageInput);
+		_logger.LogDebug("SendToAllPlatformsAsync called. MessageInput: '{Input}'", MessageInput);
 		if (string.IsNullOrWhiteSpace(MessageInput))
 		{
 			_logger.LogWarning("MessageInput is empty or whitespace");
@@ -4919,22 +4943,22 @@ public class ChatViewModel : ViewModelBase
 				if (_twitchService.IsConnected)
 				{
 					_recentTwitchMessages[echoKey] = DateTime.Now;
-					_logger.LogInformation("\ud83d\udd12 Tracking SendToAll Twitch echo: {Key}", echoKey);
+					_logger.LogDebug("\ud83d\udd12 Tracking SendToAll Twitch echo: {Key}", echoKey);
 				}
 				if (_kickService.IsConnected)
 				{
 					_recentKickMessages[echoKey] = DateTime.Now;
-					_logger.LogInformation("\ud83d\udd12 Tracking SendToAll Kick echo: {Key}", echoKey);
+					_logger.LogDebug("\ud83d\udd12 Tracking SendToAll Kick echo: {Key}", echoKey);
 				}
 				if (_youtubeService.IsConnected)
 				{
 					_recentYoutubeMessages[echoKey] = DateTime.Now;
-					_logger.LogInformation("\ud83d\udd12 Tracking SendToAll YouTube echo: {Key}", echoKey);
+					_logger.LogDebug("\ud83d\udd12 Tracking SendToAll YouTube echo: {Key}", echoKey);
 				}
 				if (IsAnyDiscordConnected)
 				{
 					_recentDiscordMessages[echoKey] = DateTime.Now;
-					_logger.LogInformation("\ud83d\udd12 Tracking SendToAll Discord echo: {Key}", echoKey);
+					_logger.LogDebug("\ud83d\udd12 Tracking SendToAll Discord echo: {Key}", echoKey);
 				}
 			}
 			foreach (PlatformOption platform in ConnectedPlatforms.Where((PlatformOption p) => !p.IsAllPlatforms))
@@ -4949,7 +4973,7 @@ public class ChatViewModel : ViewModelBase
 							if (_twitchService.IsConnected)
 							{
 								await _twitchService.SendMessageAsync(messageText);
-								_logger.LogInformation("Message sent to Twitch");
+								_logger.LogDebug("Message sent to Twitch");
 							}
 							else
 							{
@@ -4964,7 +4988,7 @@ public class ChatViewModel : ViewModelBase
 							if (_kickService.IsConnected)
 							{
 								await _kickService.SendMessageAsync(messageText);
-								_logger.LogInformation("Message sent to Kick");
+								_logger.LogDebug("Message sent to Kick");
 							}
 							else
 							{
@@ -4979,7 +5003,7 @@ public class ChatViewModel : ViewModelBase
 							if (_youtubeService.IsConnected)
 							{
 								await _youtubeService.SendMessageAsync(messageText);
-								_logger.LogInformation("Message sent to YouTube");
+								_logger.LogDebug("Message sent to YouTube");
 							}
 							else
 							{
@@ -4996,7 +5020,7 @@ public class ChatViewModel : ViewModelBase
 							if (discordAllSend?.IsConnected ?? false)
 							{
 								await discordAllSend.SendMessageAsync(messageText);
-								_logger.LogInformation("Message sent to Discord");
+								_logger.LogDebug("Message sent to Discord");
 							}
 							else
 							{
@@ -5045,7 +5069,7 @@ public class ChatViewModel : ViewModelBase
 				Badges = new Dictionary<string, string> { { "Vyral", "Vyral" } }
 			};
 			sentMessage.InitializeBadges();
-			Messages.Add(sentMessage);
+			AddCappedMessage(sentMessage);
 			if (errors.Count > 0)
 			{
 				string errorMessage = "Some messages failed to send:\n" + string.Join("\n", errors);
@@ -5053,10 +5077,10 @@ public class ChatViewModel : ViewModelBase
 			}
 			else
 			{
-				_logger.LogInformation("Message sent to all platforms successfully");
+				_logger.LogDebug("Message sent to all platforms successfully");
 			}
 			MessageInput = "";
-			_logger.LogInformation("Message input cleared");
+			_logger.LogDebug("Message input cleared");
 		}
 		catch (Exception ex)
 		{
@@ -5461,7 +5485,7 @@ public class ChatViewModel : ViewModelBase
 		{
 			return;
 		}
-		_logger.LogInformation("\ud83d\udce8 ChatViewModel received YouTube message from {Username}: {Message}", evt.Username, evt.Message);
+		_logger.LogDebug("\ud83d\udce8 ChatViewModel received YouTube message from {Username}: {Message}", evt.Username, evt.Message);
 		string messageKey = evt.Message?.Trim().ToLowerInvariant() ?? "";
 		bool isOwnYoutubeMessage = await IsOwnYouTubeAccountAsync(evt.DisplayName ?? evt.Username);
 		lock (_recentMessagesLock)
@@ -5471,7 +5495,7 @@ public class ChatViewModel : ViewModelBase
 				TimeSpan age = DateTime.Now - sentTime;
 				if (age.TotalSeconds < 15.0 && isOwnYoutubeMessage)
 				{
-					_logger.LogInformation("\ud83d\udd07 Ignoring echo of recently sent YouTube message (age: {Age:F2}s): {Message}", age.TotalSeconds, evt.Message);
+					_logger.LogDebug("\ud83d\udd07 Ignoring echo of recently sent YouTube message (age: {Age:F2}s): {Message}", age.TotalSeconds, evt.Message);
 					return;
 				}
 				if (age.TotalSeconds >= 15.0)
@@ -5511,12 +5535,12 @@ public class ChatViewModel : ViewModelBase
 			IsBroadcaster = evt.IsOwner
 		}))
 		{
-			_logger.LogInformation("YouTube message from {Username} dropped by auto-mod", evt.Username);
+			_logger.LogDebug("YouTube message from {Username} dropped by auto-mod", evt.Username);
 			return;
 		}
 		if (ConnectedPlatforms.Count == 0 || !ConnectedPlatforms.Any((PlatformOption p) => p.Name == "YouTube"))
 		{
-			_logger.LogInformation("YouTube not in platforms list, refreshing...");
+			_logger.LogDebug("YouTube not in platforms list, refreshing...");
 			await ((DispatcherObject)Application.Current).Dispatcher.InvokeAsync((Action)delegate
 			{
 				UpdateConnectedPlatforms();
@@ -5550,12 +5574,8 @@ public class ChatViewModel : ViewModelBase
 				chatMessage.Badges["subscriber"] = "1";
 			}
 			chatMessage.InitializeBadges();
-			Messages.Add(chatMessage);
-			_logger.LogInformation("? YouTube message added to UI. Total messages: {Count}", Messages.Count);
-			while (Messages.Count > 500)
-			{
-				Messages.RemoveAt(0);
-			}
+			AddCappedMessage(chatMessage);
+			_logger.LogDebug("? YouTube message added to UI. Total messages: {Count}", Messages.Count);
 		});
 	}
 
@@ -5565,7 +5585,7 @@ public class ChatViewModel : ViewModelBase
 		{
 			return;
 		}
-		_logger.LogInformation("\ud83d\udce8 ChatViewModel received Kick message from {Username}: {Message}", evt.Username, evt.Message);
+		_logger.LogDebug("\ud83d\udce8 ChatViewModel received Kick message from {Username}: {Message}", evt.Username, evt.Message);
 		string messageKey = evt.Message?.Trim().ToLowerInvariant() ?? "";
 		bool isOwnKickMessage = await IsOwnKickAccountAsync(evt.Username);
 		lock (_recentMessagesLock)
@@ -5575,7 +5595,7 @@ public class ChatViewModel : ViewModelBase
 				TimeSpan age = DateTime.Now - sentTime;
 				if (age.TotalSeconds < 10.0 && isOwnKickMessage)
 				{
-					_logger.LogInformation("\ud83d\udd07 Ignoring echo of recently sent message (age: {Age:F2}s): {Message}", age.TotalSeconds, evt.Message);
+					_logger.LogDebug("\ud83d\udd07 Ignoring echo of recently sent message (age: {Age:F2}s): {Message}", age.TotalSeconds, evt.Message);
 					return;
 				}
 				if (age.TotalSeconds >= 10.0)
@@ -5615,14 +5635,14 @@ public class ChatViewModel : ViewModelBase
 			IsBroadcaster = evt.IsOwner
 		}))
 		{
-			_logger.LogInformation("Kick message from {Username} dropped by auto-mod", evt.Username);
+			_logger.LogDebug("Kick message from {Username} dropped by auto-mod", evt.Username);
 			return;
 		}
 		string source = ((!string.IsNullOrEmpty(evt.MessageId) && evt.MessageId.StartsWith("history_")) ? "history" : "realtime");
-		_logger.LogInformation("Kick message ({Source}) from {Username} ({DisplayName}): {Message}", source, evt.Username, evt.DisplayName, evt.Message);
+		_logger.LogDebug("Kick message ({Source}) from {Username} ({DisplayName}): {Message}", source, evt.Username, evt.DisplayName, evt.Message);
 		if (ConnectedPlatforms.Count == 0 || !ConnectedPlatforms.Any((PlatformOption p) => p.Name == "Kick"))
 		{
-			_logger.LogInformation("Kick not in platforms list, refreshing...");
+			_logger.LogDebug("Kick not in platforms list, refreshing...");
 			await ((DispatcherObject)Application.Current).Dispatcher.InvokeAsync((Action)delegate
 			{
 				UpdateConnectedPlatforms();
@@ -5644,12 +5664,8 @@ public class ChatViewModel : ViewModelBase
 				Badges = (evt.Badges ?? new Dictionary<string, string>())
 			};
 			chatMessage.InitializeBadges();
-			_logger.LogInformation("? Kick message added to UI. Total messages: {Count}", Messages.Count + 1);
-			Messages.Add(chatMessage);
-			while (Messages.Count > 500)
-			{
-				Messages.RemoveAt(0);
-			}
+			_logger.LogDebug("? Kick message added to UI. Total messages: {Count}", Messages.Count + 1);
+			AddCappedMessage(chatMessage);
 		});
 	}
 
@@ -5659,7 +5675,7 @@ public class ChatViewModel : ViewModelBase
 		{
 			return;
 		}
-		_logger.LogInformation("\ud83d\udce8 ChatViewModel received Discord message from {Username}: {Message}", evt.Username, evt.Message);
+		_logger.LogDebug("\ud83d\udce8 ChatViewModel received Discord message from {Username}: {Message}", evt.Username, evt.Message);
 		RememberDiscordBotOrigin(evt.MessageId, evt.BotId);
 		if (string.Equals(evt.Channel, "DirectMessage", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(evt.GuildName))
 		{
@@ -5667,7 +5683,7 @@ public class ChatViewModel : ViewModelBase
 		}
 		if (IsOwnDiscordAccount(evt.Username))
 		{
-			_logger.LogInformation("\ud83d\udd07 Ignoring message from the Discord bot account itself: {Message}", evt.Message);
+			_logger.LogDebug("\ud83d\udd07 Ignoring message from the Discord bot account itself: {Message}", evt.Message);
 			return;
 		}
 		if (!DiscordFilterEnabled)
@@ -5687,7 +5703,7 @@ public class ChatViewModel : ViewModelBase
 			IsBroadcaster = evt.IsBroadcaster
 		}))
 		{
-			_logger.LogInformation("Discord message from {Username} dropped by auto-mod", evt.Username);
+			_logger.LogDebug("Discord message from {Username} dropped by auto-mod", evt.Username);
 			return;
 		}
 		// Stream effects first: a recognized (and tier-allowed) "!flashlights" /
@@ -5699,7 +5715,7 @@ public class ChatViewModel : ViewModelBase
 		await TryHandleDiscordModCommandAsync(evt);
 		if (ConnectedPlatforms.Count == 0 || !ConnectedPlatforms.Any((PlatformOption p) => p.Name == "Discord"))
 		{
-			_logger.LogInformation("Discord not in platforms list, refreshing...");
+			_logger.LogDebug("Discord not in platforms list, refreshing...");
 			await ((DispatcherObject)Application.Current).Dispatcher.InvokeAsync((Action)delegate
 			{
 				UpdateConnectedPlatforms();
@@ -5745,12 +5761,8 @@ public class ChatViewModel : ViewModelBase
 			}
 			else
 			{
-				_logger.LogInformation("? Discord message added to UI. Total messages: {Count}", Messages.Count + 1);
-				Messages.Add(chatMessage);
-				while (Messages.Count > 500)
-				{
-					Messages.RemoveAt(0);
-				}
+				_logger.LogDebug("? Discord message added to UI. Total messages: {Count}", Messages.Count + 1);
+				AddCappedMessage(chatMessage);
 			}
 		});
 	}
@@ -5823,19 +5835,19 @@ public class ChatViewModel : ViewModelBase
 			{ "username", evt.Username },
 			{ "platform", "Kick" }
 		};
-		_logger.LogInformation("\ud83d\udd0d Checking auto-reply: Enabled={Enabled}, Message={Message}", settings.AutoReplyEnabled, settings.AutoReplyMessage);
+		_logger.LogDebug("\ud83d\udd0d Checking auto-reply: Enabled={Enabled}, Message={Message}", settings.AutoReplyEnabled, settings.AutoReplyMessage);
 		if (_kickAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage))
 		{
 			bool shouldSend = _autoReplyService.ShouldSendReply(evt.Username, "Kick", "Follow");
-			_logger.LogInformation("\ud83d\udd0d Rate limit check: ShouldSend={ShouldSend}", shouldSend);
+			_logger.LogDebug("\ud83d\udd0d Rate limit check: ShouldSend={ShouldSend}", shouldSend);
 			if (shouldSend)
 			{
 				string reply = await BuildAutoReplyTextAsync("Kick", "Follow", evt.Username, settings.AutoReplyMessage, variables);
-				_logger.LogInformation("\ud83d\udce4 Attempting to send auto-reply: {Reply}", reply);
+				_logger.LogDebug("\ud83d\udce4 Attempting to send auto-reply: {Reply}", reply);
 				try
 				{
 					await _kickService.SendMessageAsync(reply);
-					_logger.LogInformation("? Auto-reply sent for Kick follow: {Reply}", reply);
+					_logger.LogDebug("? Auto-reply sent for Kick follow: {Reply}", reply);
 					wasAutoReplied = true;
 				}
 				catch (Exception ex)
@@ -5848,12 +5860,12 @@ public class ChatViewModel : ViewModelBase
 			}
 			else
 			{
-				_logger.LogInformation("?\ufe0f Auto-reply blocked by rate limiter");
+				_logger.LogDebug("?\ufe0f Auto-reply blocked by rate limiter");
 			}
 		}
 		else
 		{
-			_logger.LogInformation("?\ufe0f Auto-reply skipped: Enabled={Enabled}, HasMessage={HasMessage}", settings.AutoReplyEnabled, !string.IsNullOrEmpty(settings.AutoReplyMessage));
+			_logger.LogDebug("?\ufe0f Auto-reply skipped: Enabled={Enabled}, HasMessage={HasMessage}", settings.AutoReplyEnabled, !string.IsNullOrEmpty(settings.AutoReplyMessage));
 		}
 		await SaveEventStatisticAsync("Kick", "Follow", evt.Username, variables, wasAutoReplied);
 	}
@@ -5945,7 +5957,7 @@ public class ChatViewModel : ViewModelBase
 			try
 			{
 				await _kickService.SendMessageAsync(reply);
-				_logger.LogInformation("Auto-reply sent for Kick subscribe: {Reply}", reply);
+				_logger.LogDebug("Auto-reply sent for Kick subscribe: {Reply}", reply);
 				wasAutoReplied = true;
 			}
 			catch (Exception ex)
@@ -6027,7 +6039,7 @@ public class ChatViewModel : ViewModelBase
 			try
 			{
 				await _kickService.SendMessageAsync(reply);
-				_logger.LogInformation("Auto-reply sent for Kick gift sub: {Reply}", reply);
+				_logger.LogDebug("Auto-reply sent for Kick gift sub: {Reply}", reply);
 				wasAutoReplied = true;
 			}
 			catch (Exception ex)
@@ -6106,7 +6118,7 @@ public class ChatViewModel : ViewModelBase
 			try
 			{
 				await _kickService.SendMessageAsync(reply);
-				_logger.LogInformation("Auto-reply sent for Kick host: {Reply}", reply);
+				_logger.LogDebug("Auto-reply sent for Kick host: {Reply}", reply);
 				wasAutoReplied = true;
 			}
 			catch (Exception ex)
@@ -6176,7 +6188,7 @@ public class ChatViewModel : ViewModelBase
 			try
 			{
 				await _kickService.SendMessageAsync(reply);
-				_logger.LogInformation("Auto-reply sent for Kick kicks gifted: {Reply}", reply);
+				_logger.LogDebug("Auto-reply sent for Kick kicks gifted: {Reply}", reply);
 				wasAutoReplied = true;
 			}
 			catch (Exception ex)
@@ -6246,7 +6258,7 @@ public class ChatViewModel : ViewModelBase
 			try
 			{
 				await _kickService.SendMessageAsync(reply);
-				_logger.LogInformation("Auto-reply sent for Kick reward redeemed: {Reply}", reply);
+				_logger.LogDebug("Auto-reply sent for Kick reward redeemed: {Reply}", reply);
 				wasAutoReplied = true;
 			}
 			catch (Exception ex)
@@ -6374,7 +6386,7 @@ public class ChatViewModel : ViewModelBase
 			try
 			{
 				await _twitchService.SendMessageAsync(reply);
-				_logger.LogInformation("Auto-reply sent for Twitch follow: {Reply}", reply);
+				_logger.LogDebug("Auto-reply sent for Twitch follow: {Reply}", reply);
 				wasAutoReplied = true;
 			}
 			catch (Exception ex)
@@ -6482,7 +6494,7 @@ public class ChatViewModel : ViewModelBase
 			try
 			{
 				await _twitchService.SendMessageAsync(reply);
-				_logger.LogInformation("Auto-reply sent for Twitch subscribe: {Reply}", reply);
+				_logger.LogDebug("Auto-reply sent for Twitch subscribe: {Reply}", reply);
 				wasAutoReplied = true;
 			}
 			catch (Exception ex)
@@ -6586,7 +6598,7 @@ public class ChatViewModel : ViewModelBase
 			try
 			{
 				await _twitchService.SendMessageAsync(reply);
-				_logger.LogInformation("Auto-reply sent for Twitch resub: {Reply}", reply);
+				_logger.LogDebug("Auto-reply sent for Twitch resub: {Reply}", reply);
 				wasAutoReplied = true;
 			}
 			catch (Exception ex)
@@ -6683,7 +6695,7 @@ public class ChatViewModel : ViewModelBase
 			try
 			{
 				await _twitchService.SendMessageAsync(reply);
-				_logger.LogInformation("Auto-reply sent for Twitch gift sub: {Reply}", reply);
+				_logger.LogDebug("Auto-reply sent for Twitch gift sub: {Reply}", reply);
 				wasAutoReplied = true;
 			}
 			catch (Exception ex)
@@ -6762,7 +6774,7 @@ public class ChatViewModel : ViewModelBase
 			try
 			{
 				await _twitchService.SendMessageAsync(reply);
-				_logger.LogInformation("Auto-reply sent for Twitch raid: {Reply}", reply);
+				_logger.LogDebug("Auto-reply sent for Twitch raid: {Reply}", reply);
 				wasAutoReplied = true;
 			}
 			catch (Exception ex)
@@ -6844,7 +6856,7 @@ public class ChatViewModel : ViewModelBase
 			try
 			{
 				await _twitchService.SendMessageAsync(reply);
-				_logger.LogInformation("Auto-reply sent for Twitch cheer: {Reply}", reply);
+				_logger.LogDebug("Auto-reply sent for Twitch cheer: {Reply}", reply);
 				wasAutoReplied = true;
 			}
 			catch (Exception ex)
@@ -6914,7 +6926,7 @@ public class ChatViewModel : ViewModelBase
 			try
 			{
 				await _twitchService.SendMessageAsync(reply);
-				_logger.LogInformation("Auto-reply sent for Twitch reward redeemed: {Reply}", reply);
+				_logger.LogDebug("Auto-reply sent for Twitch reward redeemed: {Reply}", reply);
 				wasAutoReplied = true;
 			}
 			catch (Exception ex)
@@ -7082,11 +7094,7 @@ public class ChatViewModel : ViewModelBase
 				IsBroadcaster = false,
 				Badges = new Dictionary<string, string>()
 			};
-			Messages.Add(item);
-			while (Messages.Count > 500)
-			{
-				Messages.RemoveAt(0);
-			}
+			AddCappedMessage(item);
 		});
 	}
 

@@ -24,7 +24,7 @@ namespace VyralBot.UI.ViewModels;
 /// <summary>
 /// ViewModel for application settings including profile management.
 /// </summary>
-public partial class SettingsViewModel : ViewModelBase
+public partial class SettingsViewModel : ViewModelBase, IDisposable
 {
     private readonly ILogger<SettingsViewModel> _logger;
     private readonly IProfileService _profileService;
@@ -2024,5 +2024,20 @@ public partial class SettingsViewModel : ViewModelBase
     {
         await Task.Delay(2000);
         StatusMessage = null;
+    }
+
+    /// <summary>
+    /// Stops the Viewer Hub pending-codes poller. The category-leave path in
+    /// <see cref="OnSelectedCategoryChanged"/> already handles switching away
+    /// from the ViewerHub section, but nothing fired when the user left the
+    /// Settings PAGE entirely (SelectedCategory stays "ViewerHub") — and
+    /// ViewerHubViewModel is a singleton that outlives this scope, so its 30s
+    /// DispatcherTimer would keep polling SQLite for the rest of the session.
+    /// The DI container calls this when the Settings scope is disposed
+    /// (MainViewModel dispose-block / re-navigation).
+    /// </summary>
+    public void Dispose()
+    {
+        _viewerHubViewModel.Cleanup();
     }
 }

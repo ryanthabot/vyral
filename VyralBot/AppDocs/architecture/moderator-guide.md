@@ -128,7 +128,7 @@ The **auto-moderator** (`ModerationActionService`, `VyralBot.Core/Services/Moder
 | **YouTube** | **Notice-only** | `YouTubeModerationAdapter` posts warn notices; the YouTube service is connect/send + stream info only — ban/timeout/delete degrade to warn. |
 | **TikTok** | **None** | No chat service integration exists (web setup only) — auto-mod verdicts are logged only. |
 
-This table is the code's own audit-truth (`ModerationPlatformParity.Table` in ModerationActionService.cs); the dashboard card colors the level badge green (Full) / amber (Notice-only) / red (None).
+This table is the code's own audit-truth (`ModerationPlatformParity.Table` in ModerationActionService.cs); the dashboard card colors the level badge green (Full) / amber (Notice-only) / red (None). The degradation edges are tracked in the [known issues ledger](../reference/known-issues.md) — Twitch's delete-to-purge-timeout fallback is KI-51, the notice-only levels and Discord's delete-to-notice fallback are KI-53.
 
 ## Data & Settings
 

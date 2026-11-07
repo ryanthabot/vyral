@@ -324,7 +324,15 @@ public sealed class ObsEngine : IDisposable, IObsNativeGate
     /// <see cref="PrepareExitAsync"/> and lets process teardown reclaim
     /// instead.
     /// </summary>
-    public async Task ShutdownAsync()
+    public Task ShutdownAsync() => ShutdownAsync(skipNativeShutdown: false);
+
+    /// <summary>
+    /// <paramref name="skipNativeShutdown"/> skips <c>obs_shutdown</c> itself
+    /// (the loaded-instance access violation) while still parking the engine
+    /// in Shutdown — used by <see cref="Dispose"/>, which the DI container
+    /// calls AFTER App.OnExit already applied its exit policy.
+    /// </summary>
+    private async Task ShutdownAsync(bool skipNativeShutdown)
     {
         await gate.WaitAsync().ConfigureAwait(false);
         ObsEngineStatus status;
@@ -335,7 +343,7 @@ public sealed class ObsEngine : IDisposable, IObsNativeGate
                 return;
             }
 
-            if (state == ObsEngineState.Ready)
+            if (state == ObsEngineState.Ready && !skipNativeShutdown)
             {
                 // Native teardown joins libobs worker threads — off the caller
                 // thread, on the same apartment as the boot (see RunOnStaThread).
@@ -361,9 +369,19 @@ public sealed class ObsEngine : IDisposable, IObsNativeGate
     public void Dispose()
     {
         // Best-effort synchronous shutdown — the DI container disposes singletons
-        // during host teardown on app exit.
+        // during host teardown on app exit, which runs AFTER App.OnExit's
+        // PrepareExitAsync/ShutdownAsync policy. When native state was loaded,
+        // obs_shutdown is the documented access violation — park the engine and
+        // let process teardown reclaim (mirrors the App.OnExit decision).
         try
         {
+            if (HasLoadedNativeState && state == ObsEngineState.Ready)
+            {
+                ShutdownAsync(skipNativeShutdown: true).GetAwaiter().GetResult();
+                logger.LogInformation("OBS engine: disposal skipped obs_shutdown (native state was loaded — process teardown reclaims)");
+                return;
+            }
+
             ShutdownAsync().GetAwaiter().GetResult();
         }
         catch (Exception ex)

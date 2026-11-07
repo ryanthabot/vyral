@@ -61,6 +61,15 @@ public partial class App : Application
     public static bool PendingRestart { get; set; }
 
     /// <summary>
+    /// Folder holding the rolling Serilog log files. Next to the executable
+    /// (<c>AppDomain.CurrentDomain.BaseDirectory\logs</c>), which is correct
+    /// for both the dev bin layout and the installed single-file publish —
+    /// user-facing failure messages point here.
+    /// </summary>
+    public static string LogDirectory { get; } =
+        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+
+    /// <summary>
     /// Gets the dependency injection host.
     /// </summary>
     public IHost? Host => _host;
@@ -86,17 +95,34 @@ public partial class App : Application
         // Log process ID for debugging
         var processId = System.Diagnostics.Process.GetCurrentProcess().Id;
 
-        // Configure Serilog
+        // Configure Serilog. Caps keep a 24/7 stream box's disk bounded even
+        // under a crash loop: 25 MB per file (rolling within the day once the
+        // cap is hit) × 10 retained files = ~250 MB worst case. No async
+        // wrapper is used, so every write is flushed synchronously — the
+        // final lines before a crash cannot be lost (the fatal handlers and
+        // OnExit still call Log.CloseAndFlush to release the file handle).
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
             .WriteTo.Console()
             .WriteTo.File(
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs", "vyralbot-.txt"),
+                Path.Combine(LogDirectory, "vyralbot-.txt"),
                 rollingInterval: RollingInterval.Day,
-                retainedFileCountLimit: 7)
+                fileSizeLimitBytes: 26_214_400, // 25 MB — rolls within the day
+                rollOnFileSizeLimit: true,
+                retainedFileCountLimit: 10)
             .CreateLogger();
 
         Log.Information("VyralBot starting with PID: {ProcessId}", processId);
+
+        // Global exception handlers (crash pipeline): every unhandled
+        // exception is logged through Serilog — secret-scrubbed via
+        // CrashReport so OAuth tokens / stream keys embedded in exception
+        // text never reach the log — and surfaced in the ErrorDialog while
+        // the app is still alive. Wired before the host build so boot
+        // failures are covered too.
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
         // Enable low-latency GC mode for responsive UI
         // Per updated_performance_upgrade.md: TIER 4 GC optimization
@@ -108,11 +134,16 @@ public partial class App : Application
         // Per updated_performance_upgrade.md: TIER 2 optimization
         WebView2EnvironmentManager.Instance.PreWarmAsync();
 
-        // Build host with DI (Kestrel will be started on-demand by WebhookCoordinatorService)
-        _host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
-            .UseSerilog()
-            .ConfigureServices((context, services) =>
-            {
+        // Build host with DI (Kestrel will be started on-demand by WebhookCoordinatorService).
+        // A failure here (bad registration, missing assembly, type-load) means
+        // the constructor throws BEFORE OnStartup can run its catch — WPF would
+        // die silently with no window ever shown. Last-resort dialog instead.
+        try
+        {
+            _host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+                .UseSerilog()
+                .ConfigureServices((context, services) =>
+                {
                 // Profile service - must be registered first
                 services.AddSingleton<IProfileService, ProfileService>();
 
@@ -479,8 +510,29 @@ public partial class App : Application
 
                 // Windows
                 services.AddSingleton<MainWindow>();
-            })
-            .Build();
+                })
+                .Build();
+        }
+        catch (Exception ex)
+        {
+            // Fatal-boot path: the DI container itself could not be built.
+            // OnStartup never runs, so nothing else can inform the user.
+            try
+            {
+                Log.Fatal("Fatal boot failure: could not build the DI host: {CrashReport}",
+                    Services.CrashReport.Format(ex));
+                Log.CloseAndFlush();
+            }
+            catch
+            {
+                // Logging itself is broken — fall through to the MessageBox.
+            }
+
+            MessageBox.Show(
+                $"Vyral failed to start (the application host could not be built).\n\n{Services.CrashReport.Format(ex)}\n\nLogs: {LogDirectory}",
+                "Vyral - Fatal Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            Environment.Exit(1);
+        }
     }
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -876,9 +928,105 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            Log.Fatal(ex, "Failed to start application");
-            MessageBox.Show($"Failed to start: {ex.Message}\n\n{ex.StackTrace}", "Vyral Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            // Scrubbed before BOTH sinks: raw exception text can embed OAuth
+            // tokens / stream keys, and this MessageBox is what users
+            // copy-paste into community bug reports.
+            var report = Services.CrashReport.Format(ex);
+            Log.Fatal("Failed to start application: {CrashReport}", report);
+            MessageBox.Show(
+                $"Vyral failed to start.\n\n{report}\n\nLogs: {LogDirectory}",
+                "Vyral Error", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
+        }
+    }
+
+    // ======================================================================
+    // Global exception handlers (crash pipeline). Every unhandled exception
+    // is logged through Serilog with CrashReport scrubbing (never log the raw
+    // exception object from here — Serilog would render its unscrubbed
+    // message/stack) and surfaced in the ErrorDialog while the app is still
+    // alive. OnExit does NOT run on a hard crash, so the terminating paths
+    // call Log.CloseAndFlush themselves.
+    // ======================================================================
+
+    private void OnDispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
+    {
+        // UI-thread exception: log (scrubbed) and show the crash dialog. The
+        // app is still alive — after the user acknowledges the dialog the
+        // exception is marked handled so the process keeps running. If no
+        // dialog could be shown (dispatcher already dying), Handled stays
+        // false and the AppDomain handler below takes over.
+        var report = Services.CrashReport.Format(e.Exception);
+        Log.Fatal("Unhandled UI-thread exception: {CrashReport}", report);
+        e.Handled = ShowCrashDialog("Unhandled Error", report);
+    }
+
+    private static void OnDomainUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        // Last-chance handler (background-thread throw, or a UI exception a
+        // handler above let through). The process is usually terminating, so
+        // flush the log HERE — OnExit will not run. The dialog is best-effort
+        // and reentrancy-safe; a MessageBox fallback covers a wedged UI.
+        var report = Services.CrashReport.Format(
+            e.ExceptionObject as Exception ?? new Exception($"Non-exception object thrown: {e.ExceptionObject}"));
+        Log.Fatal("Unhandled exception (terminating={IsTerminating}): {CrashReport}", e.IsTerminating, report);
+        ShowCrashDialog("Fatal Error", report);
+        try { Log.CloseAndFlush(); } catch { }
+    }
+
+    private static void OnUnobservedTaskException(object? sender, System.Threading.Tasks.UnobservedTaskExceptionEventArgs e)
+    {
+        // Fire-and-forget task noise (delivered on the finalizer thread when
+        // the GC collects the unawaited task). Marked observed so the CLR
+        // does NOT kill the process for background noise, while the
+        // scrubbed Error-level log keeps the underlying bug findable. No UI:
+        // this fires off the UI thread for work the user never saw.
+        Log.Error("Unobserved task exception (marked observed): {CrashReport}",
+            Services.CrashReport.Format(e.Exception));
+        e.SetObserved();
+    }
+
+    /// <summary>
+    /// Shows the reentrancy-safe crash dialog. Callable from ANY thread:
+    /// marshals to the UI dispatcher (bounded 2s wait — a wedged UI thread
+    /// must not deadlock a crashing background thread) and falls back to a
+    /// native MessageBox when WPF cannot serve the dialog at all. Returns
+    /// false when nothing could be shown, so the caller can let the default
+    /// crash handling proceed.
+    /// </summary>
+    private static bool ShowCrashDialog(string title, string report)
+    {
+        try
+        {
+            var dispatcher = Current?.Dispatcher;
+            if (dispatcher is null || dispatcher.HasShutdownStarted)
+            {
+                return false;
+            }
+
+            if (dispatcher.CheckAccess())
+            {
+                return Views.ErrorDialog.ShowReport(title, report);
+            }
+
+            return dispatcher.Invoke(
+                () => Views.ErrorDialog.ShowReport(title, report),
+                System.Windows.Threading.DispatcherPriority.Send,
+                System.Threading.CancellationToken.None,
+                TimeSpan.FromSeconds(2));
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Crash dialog could not be shown on the UI thread; using MessageBox fallback");
+            try
+            {
+                MessageBox.Show(report, title, MessageBoxButton.OK, MessageBoxImage.Error);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 
@@ -942,9 +1090,9 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            _host!.Services.GetRequiredService<ILogger<App>>().LogError(ex, "Error initializing profile data after startup");
+            Log.Error("Error initializing profile data after startup: {CrashReport}", Services.CrashReport.Format(ex));
             MessageBox.Show(
-                $"Failed to initialize profile data: {ex.Message}\n\nSettings and platform auto-connect may not be loaded. See logs/vyralbot-*.txt for details.",
+                $"Failed to initialize profile data: {Services.CrashReport.Scrub(ex.Message)}\n\nSettings and platform auto-connect may not be loaded. Logs: {LogDirectory}",
                 "Vyral", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

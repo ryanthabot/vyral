@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using VyralBot.Core.Services.EventBus;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
+using VyralBot.Integrations.Discord.Events;
 
 namespace VyralBot.Integrations.Discord;
 
@@ -64,6 +65,10 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
     private string? _platformAdoptedBotId;
     private string? _platformAdoptedToken;
 
+    // Bus subscription for the per-bot welcome/auto-role-on-join feature.
+    // Assigned asynchronously (SubscribeAsync) right after construction.
+    private Guid? _memberJoinedSubscriptionId;
+
     public event Action? BotsChanged;
 
     /// <summary>
@@ -103,6 +108,29 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             // its session is claimed as a managed bot so the legacy world and
             // the manager world can never diverge.
             _legacyService.BotIdentityDetected += OnLegacyServiceIdentityDetected;
+        }
+
+        // Welcome/auto-role on member join: the owning DiscordService of every
+        // join publishes DiscordMemberJoinedEvent on the shared bus, so ONE
+        // manager-wide subscription dispatches to the right bot. Fire-and-forget
+        // init (a constructor cannot await); failures are logged, never thrown.
+        _ = SubscribeToMemberJoinsAsync();
+    }
+
+    /// <summary>
+    /// Registers the manager's <see cref="DiscordMemberJoinedEvent"/> handler.
+    /// </summary>
+    private async Task SubscribeToMemberJoinsAsync()
+    {
+        try
+        {
+            _memberJoinedSubscriptionId = await _eventBus
+                .SubscribeAsync<DiscordMemberJoinedEvent>(OnDiscordMemberJoinedAsync)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ Could not subscribe to Discord member-join events — welcome/auto-role disabled");
         }
     }
 
@@ -474,13 +502,15 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
 
         // Per-bot Configs rows ("DiscordBot.{botId}.*"): the integrations list
         // and disabled-built-ins written by the bot's integrations page and by
-        // flow saves. Without this the keys linger as orphans forever.
+        // flow saves, plus the welcome/auto-role settings of the detail page.
+        // Without this the keys linger as orphans forever.
         try
         {
             var configKeys = new[]
             {
                 $"DiscordBot.{botId}.Integrations",
-                $"DiscordBot.{botId}.DisabledBuiltIns"
+                $"DiscordBot.{botId}.DisabledBuiltIns",
+                DiscordBotWelcomeSettings.ConfigKey(botId)
             };
 
             int deleted = 0;
@@ -910,6 +940,146 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
         lock (_sync)
         {
             return _running.TryGetValue(botId, out var bot) ? bot.Service : null;
+        }
+    }
+
+    // ==================================================================
+    // Welcome + auto-role on member join (per bot)
+    //
+    // Every running DiscordService publishes DiscordMemberJoinedEvent (with
+    // its BotId) on the shared EventBus; the manager's single subscription
+    // loads the joining bot's settings fresh on EVERY join (no cache to
+    // invalidate — saves from the detail page apply immediately) and acts on
+    // them through that bot's own service instance.
+    // ==================================================================
+
+    /// <inheritdoc />
+    public async Task<DiscordBotWelcomeSettings> GetWelcomeSettingsAsync(string botId)
+    {
+        if (string.IsNullOrWhiteSpace(botId))
+        {
+            return DiscordBotWelcomeSettings.Default;
+        }
+
+        try
+        {
+            var json = await _dataService
+                .GetConfigValueAsync(DiscordBotWelcomeSettings.ConfigKey(botId))
+                .ConfigureAwait(false);
+            return DiscordBotWelcomeSettings.FromJson(json);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ Could not load welcome settings for bot {BotId}; using defaults", botId);
+            return DiscordBotWelcomeSettings.Default;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task SaveWelcomeSettingsAsync(string botId, DiscordBotWelcomeSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(botId) || settings == null)
+        {
+            return;
+        }
+
+        await _dataService
+            .SetConfigValueAsync(DiscordBotWelcomeSettings.ConfigKey(botId), settings.ToJson())
+            .ConfigureAwait(false);
+        _logger.LogInformation("✅ Saved welcome settings for Discord bot {BotId} (enabled: {Enabled})",
+            botId, settings.Enabled);
+    }
+
+    /// <summary>
+    /// Bus handler for member joins: for a bot with the feature enabled, posts
+    /// the templated welcome message to the configured channel and grants the
+    /// configured role. Settings are only acted on when the join's guild
+    /// matches <see cref="DiscordBotWelcomeSettings.GuildId"/> (channel and
+    /// role snowflakes are guild-scoped). Every failure is logged and
+    /// swallowed — the handler must never crash the bus pipeline.
+    /// </summary>
+    private async Task OnDiscordMemberJoinedAsync(DiscordMemberJoinedEvent evt)
+    {
+        try
+        {
+            if (_disposed || string.IsNullOrWhiteSpace(evt?.BotId))
+            {
+                return;
+            }
+
+            var settings = await GetWelcomeSettingsAsync(evt.BotId!).ConfigureAwait(false);
+            if (!settings.Enabled)
+            {
+                return;
+            }
+
+            // Channel/role ids only mean something inside the guild they were
+            // picked from; joins of any other guild are left alone.
+            if (string.IsNullOrWhiteSpace(settings.GuildId)
+                || !string.Equals(settings.GuildId, evt.GuildId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            if (Get(evt.BotId!) is not { IsConnected: true } service)
+            {
+                _logger.LogInformation("ℹ️ Welcome skipped for bot {BotId}: not connected", evt.BotId);
+                return;
+            }
+
+            // 1) Welcome message (independent of the role grant — one failing
+            //    half must not stop the other).
+            if (!string.IsNullOrWhiteSpace(settings.Message)
+                && !string.IsNullOrWhiteSpace(settings.ChannelId))
+            {
+                try
+                {
+                    var text = DiscordBotWelcomeSettings.FormatMessage(
+                        settings.Message, evt.Username, evt.DisplayName, evt.UserId, evt.GuildName);
+                    var sent = await service
+                        .SendToChannelAsync(settings.ChannelId!, text, null, evt.GuildName)
+                        .ConfigureAwait(false);
+                    if (sent)
+                    {
+                        _logger.LogInformation("👋 Sent the welcome message for {Username} in {Guild}",
+                            evt.Username, evt.GuildName ?? settings.GuildId);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("ℹ️ Welcome message for {Username} was not sent (channel '{ChannelId}' unresolvable)",
+                            evt.Username, settings.ChannelId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogInformation(ex, "ℹ️ Welcome message failed for {Username} — continuing to the role grant",
+                        evt.Username);
+                }
+            }
+
+            // 2) Auto-role grant.
+            if (!string.IsNullOrWhiteSpace(settings.AutoRoleId)
+                && !string.IsNullOrWhiteSpace(evt.UserId)
+                && !string.IsNullOrWhiteSpace(evt.GuildId))
+            {
+                try
+                {
+                    var result = await service
+                        .GrantRoleAsync(evt.GuildId!, evt.UserId!, settings.AutoRoleId!)
+                        .ConfigureAwait(false);
+                    _logger.LogInformation("🎖️ Auto-role on join for {Username}: {Result}", evt.Username, result);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogInformation(ex, "ℹ️ Auto-role grant failed for {Username} on join", evt.Username);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // Defensive: the EventBus also guards handlers, but the welcome
+            // feature must never surface as a bus error either way.
+            _logger.LogWarning(ex, "⚠️ Welcome/auto-role handling failed for a Discord member join");
         }
     }
 
@@ -1749,6 +1919,21 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
         {
             UnhookServiceEvents(_legacyService);
             _legacyService.BotIdentityDetected -= OnLegacyServiceIdentityDetected;
+        }
+
+        // Drop the member-join bus subscription so a disposed manager can
+        // never receive another welcome/auto-role dispatch.
+        if (_memberJoinedSubscriptionId is { } subscriptionId)
+        {
+            _memberJoinedSubscriptionId = null;
+            try
+            {
+                _eventBus.Unsubscribe(subscriptionId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "⚠️ Could not unsubscribe from Discord member-join events");
+            }
         }
 
         // Note: _operationGate is intentionally NOT disposed — an in-flight

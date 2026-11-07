@@ -15,6 +15,10 @@
       "title": "Getting Started",
       "pages": [
         {
+          "path": "getting-started/quick-start.md",
+          "title": "Quick Start"
+        },
+        {
           "path": "getting-started/profiles.md",
           "title": "Profiles"
         }
@@ -125,6 +129,10 @@
         {
           "path": "chat-features/commands.md",
           "title": "Commands"
+        },
+        {
+          "path": "chat-features/marketplace.md",
+          "title": "Marketplace & Sharecodes"
         },
         {
           "path": "chat-features/variables.md",

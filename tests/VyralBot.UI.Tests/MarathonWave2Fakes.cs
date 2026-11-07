@@ -248,6 +248,7 @@ public class Wave2TestDataService : IDataService
     public Task InvalidateLinkCodesForViewerAsync(string viewerId) => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<LinkCode>> GetActiveLinkCodesAsync() => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<LinkCode>> GetRecentLinkCodesAsync(int limit = 50) => throw new NotImplementedException(NotImplemented);
+    public Task<IEnumerable<LinkCode>> GetUnredeemedLinkCodesByViewerAsync(string viewerId) => throw new NotImplementedException(NotImplemented);
     public Task DeleteLinkCodeAsync(string id) => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<LinkedAccount>> GetAllLinkedAccountsAsync() => throw new NotImplementedException(NotImplemented);
     public Task UpdateLinkedAccountViewerAsync(string accountId, string newViewerId) => throw new NotImplementedException(NotImplemented);

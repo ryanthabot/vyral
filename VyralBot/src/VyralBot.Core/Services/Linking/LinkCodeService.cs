@@ -295,12 +295,11 @@ public class LinkCodeService : ILinkCodeService
 
         // A fresh code invalidates prior unredeemed Delink codes for the same
         // viewer+target, so at most one live removal request exists per pair.
+        // GetUnredeemedLinkCodesByViewerAsync is keyed by IX_LinkCodes_ViewerId —
+        // no recent-1000 table scan on this chat-command path.
         var now = DateTime.UtcNow;
-        var priorCodes = await _dataService.GetRecentLinkCodesAsync(1000);
+        var priorCodes = await _dataService.GetUnredeemedLinkCodesByViewerAsync(viewerId);
         foreach (var prior in priorCodes.Where(c =>
-                c.RedeemedAt == null &&
-                c.ExpiresAt > now &&
-                string.Equals(c.ViewerId, viewerId, StringComparison.Ordinal) &&
                 string.Equals(c.Purpose, DelinkPurpose, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(c.TargetPlatform, canonicalTarget, StringComparison.OrdinalIgnoreCase)))
         {

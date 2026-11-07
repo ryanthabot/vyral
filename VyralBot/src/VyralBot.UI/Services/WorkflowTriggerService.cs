@@ -12,6 +12,7 @@ using VyralBot.Integrations.Kick;
 using VyralBot.Integrations.Kick.Events;
 using VyralBot.Integrations.Twitch;
 using VyralBot.Integrations.Twitch.Events;
+using VyralBot.Integrations.YouTube.Events;
 using VyralBot.Workflows.Abstractions;
 using VyralBot.Workflows.Expressions;
 using VyralBot.Workflows.Models;
@@ -57,14 +58,18 @@ namespace VyralBot.UI.Services;
 ///  • EVENT triggers — typed EventBus subscriptions (IEventBus.SubscribeAsync)
 ///    for Twitch follow/subscribe/resub/gift-sub/raid/cheer, Kick
 ///    follow/subscribe/gift-sub/host/reward-redeemed/kicks-gifted records,
-///    and Discord member-joined/boost records. Workflow EventType values are
-///    normalized case-insensitively with a few aliases ("sub"→subscribe,
-///    "bits"→cheer, "gift"/"gifted"→giftsub, "hosted"→host, "raided"→raid,
-///    "join"/"memberjoined"→discordmemberjoined, "boost"→discordboost).
-///    Platform filtering: workflow Trigger.Platform null/empty/"Any"/"All"
-///    matches every platform, otherwise an exact case-insensitive match is
-///    required. YouTube is chat-message-only in V1 (no non-message event
-///    records exist) so nothing is subscribed there.
+///    Discord member-joined/boost records, and YouTube Super Chat/Sticker
+///    records. Workflow EventType values are normalized case-insensitively
+///    with a few aliases ("sub"→subscribe, "bits"→cheer, "gift"/"gifted"
+///    →giftsub, "hosted"→host, "raided"→raid, "join"/"memberjoined"
+///    →discordmemberjoined, "boost"→discordboost). YouTube Super Chats
+///    dispatch their OWN "superchat" key — NOT "cheer", which already carries
+///    Twitch bits via the "bits" alias — so workflows can target Twitch bits
+///    or YouTube Super Chats precisely (the Platform filter separates them
+///    too). Platform filtering: workflow Trigger.Platform null/empty/"Any"
+///    /"All" matches every platform, otherwise an exact case-insensitive
+///    match is required. YouTube membership records are not subscribed in
+///    V1 (chat-message-only path).
 ///
 ///  • TIMER triggers — a 60s internal System.Threading.Timer evaluates each
 ///    enabled timer workflow's IntervalMinutes. LIMITATION (V1): last-run times
@@ -1650,6 +1655,24 @@ public class WorkflowTriggerService
             return Task.CompletedTask;
         });
 
+        // --- YouTube Super Chat / Super Sticker (YouTube's cheer equivalent) ---
+        // KEY CHOICE: dispatches its OWN canonical "superchat" key, deliberately
+        // NOT "cheer" — that key already carries Twitch bits (the "bits" alias
+        // folds onto it), so folding Super Chats in would make platform-Any
+        // cheer workflows fire for both. With separate keys a workflow targets
+        // Twitch bits ("cheer") or YouTube Super Chats ("superchat") precisely,
+        // and the Platform filter still separates them further. Authored
+        // "Super Chat" / "super_chat" / "SuperChat" spellings normalize onto
+        // the key via the default separator strip (see NormalizeEventType).
+        // Variables: username, amount (display string, e.g. "$5.00"), message
+        // (the attached comment; sticker display text for Super Stickers).
+        await Subscribe<YouTubeSuperChatEvent>(e =>
+        {
+            DispatchEvent("superchat", "YouTube", e.Username, e.Message ?? e.StickerDisplayText, e,
+                Vars(("amount", e.AmountDisplayString)));
+            return Task.CompletedTask;
+        });
+
         _logger.LogInformation("WorkflowTriggerService subscribed to {Count} event types", _subscriptionIds.Count);
     }
 
@@ -2434,6 +2457,10 @@ public class WorkflowTriggerService
             // Twitch + Kick redemptions fire the same workflows.
             "reward" or "redeem" or "rewardredeem" or "redemption" or "redeemed" => "rewardredeemed",
             "kicksgift" or "kicks" => "kicksgifted",
+            // YouTube Super Chats keep their OWN key — they intentionally do
+            // NOT fold into "cheer" (Twitch bits); authored "Super Chat" /
+            // "super_chat" / "SuperChat" need no case — the default separator
+            // strip maps them onto the separator-free canonical key.
             // Discord member events ("discord member joined" / "Discord
             // Boost" need no case — the default separator strip maps them).
             "join" or "joined" or "memberjoin" or "memberjoined" or "discordjoin" => "discordmemberjoined",

@@ -217,6 +217,13 @@ public class TwitchService : ITwitchService, IDisposable
 
     private const string HelixApiBase = "https://api.twitch.tv/helix";
 
+    /// <summary>
+    /// Single shared HTTP client (app rule: no per-call HttpClient instances —
+    /// they exhaust sockets). Auth headers go on each request message because
+    /// DefaultRequestHeaders on a shared instance would stack values across calls.
+    /// </summary>
+    private static readonly HttpClient s_httpClient = new();
+
     /// <summary>Raw Helix API response; Success is true for 2xx status codes.</summary>
     private sealed record HelixResponse(bool Success, System.Net.HttpStatusCode StatusCode, string Body);
 
@@ -244,7 +251,6 @@ public class TwitchService : ITwitchService, IDisposable
 
         try
         {
-            using var client = new HttpClient();
             using var request = new HttpRequestMessage(method, $"{HelixApiBase}/{pathWithQuery.TrimStart('/')}");
             request.Headers.Add("Authorization", $"Bearer {_accessToken}");
             request.Headers.Add("Client-Id", clientId);
@@ -253,7 +259,7 @@ public class TwitchService : ITwitchService, IDisposable
                 request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
             }
 
-            using var response = await client.SendAsync(request);
+            using var response = await s_httpClient.SendAsync(request);
             var body = await response.Content.ReadAsStringAsync();
 
             if (response.IsSuccessStatusCode)
