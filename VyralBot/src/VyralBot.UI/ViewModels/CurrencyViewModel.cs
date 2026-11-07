@@ -6,6 +6,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using VyralBot.Core.Services.Currency;
+using VyralBot.Core.Services.Profiles;
 using VyralBot.Data.Entities;
 
 namespace VyralBot.UI.ViewModels;
@@ -15,6 +16,7 @@ public partial class CurrencyViewModel : ViewModelBase
     private readonly ILogger<CurrencyViewModel> _logger;
     private readonly ICurrencyService _currencyService;
     private readonly ICurrencyRewardsService _rewardsService;
+    private readonly IProfileService _profileService;
 
     [ObservableProperty]
     private CurrencySetting? _settings;
@@ -64,11 +66,13 @@ public partial class CurrencyViewModel : ViewModelBase
     public CurrencyViewModel(
         ILogger<CurrencyViewModel> logger,
         ICurrencyService currencyService,
-        ICurrencyRewardsService rewardsService)
+        ICurrencyRewardsService rewardsService,
+        IProfileService profileService)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _currencyService = currencyService ?? throw new ArgumentNullException(nameof(currencyService));
         _rewardsService = rewardsService ?? throw new ArgumentNullException(nameof(rewardsService));
+        _profileService = profileService ?? throw new ArgumentNullException(nameof(profileService));
     }
 
     public async Task InitializeAsync()
@@ -324,7 +328,7 @@ public partial class CurrencyViewModel : ViewModelBase
 
         try
         {
-            await _rewardsService.ApproveRedemptionAsync(SelectedRedemption.Id, "Admin", "Approved via UI");
+            await _rewardsService.ApproveRedemptionAsync(SelectedRedemption.Id, await GetApproverNameAsync(), "Approved via UI");
             await LoadRedemptionsAsync();
             StatusMessage = "Redemption approved!";
         }
@@ -342,7 +346,7 @@ public partial class CurrencyViewModel : ViewModelBase
 
         try
         {
-            await _rewardsService.RejectRedemptionAsync(SelectedRedemption.Id, "Admin", "Rejected via UI");
+            await _rewardsService.RejectRedemptionAsync(SelectedRedemption.Id, await GetApproverNameAsync(), "Rejected via UI");
             await LoadRedemptionsAsync();
             StatusMessage = "Redemption rejected and currency refunded.";
         }
@@ -368,6 +372,29 @@ public partial class CurrencyViewModel : ViewModelBase
         {
             _logger.LogError(ex, "Failed to complete redemption");
             StatusMessage = "Failed to complete redemption.";
+        }
+    }
+
+    /// <summary>
+    /// Approver identity for redemption approve/reject audit entries: the active
+    /// profile's display name (falling back to its name), or "Admin" when no
+    /// profile is active.
+    /// </summary>
+    private async Task<string> GetApproverNameAsync()
+    {
+        try
+        {
+            var profile = await _profileService.GetCurrentProfileAsync();
+            return !string.IsNullOrWhiteSpace(profile?.DisplayName)
+                ? profile.DisplayName
+                : !string.IsNullOrWhiteSpace(profile?.Name)
+                    ? profile.Name
+                    : "Admin";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Could not resolve current profile for approver name; using Admin");
+            return "Admin";
         }
     }
 }

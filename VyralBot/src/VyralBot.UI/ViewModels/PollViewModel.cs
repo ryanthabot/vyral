@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MaterialDesignThemes.Wpf;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.ObjectModel;
@@ -10,6 +11,7 @@ using System.Threading.Tasks;
 using VyralBot.Core.Services;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
+using VyralBot.Integrations.YouTube;
 using VyralBot.UI.Services;
 using VyralBot.Workflows.Runtime;
 
@@ -453,28 +455,73 @@ public partial class PollViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Broadcasts an announcement to every connected platform via the
-    /// workflow message sender (same per-platform routing workflow sends
-    /// use). Never throws — send failures are logged and the UI flow
-    /// continues unaffected.
+    /// Every platform the app has a chat-send service for. TikTok chat is
+    /// read-only (no send API anywhere in the app) so it is intentionally
+    /// absent; YouTube is sent directly via <see cref="IYouTubeService"/>
+    /// because <see cref="WorkflowMessageSender"/> has no YouTube arm.
+    /// </summary>
+    private static readonly string[] AnnouncementPlatforms = { "Twitch", "Kick", "YouTube", "Discord" };
+
+    /// <summary>
+    /// Broadcasts an announcement to every platform the app can send chat
+    /// to, skipping (info-logged, never thrown) any platform that is not
+    /// connected or fails — one platform's failure never stops the loop, so
+    /// the announcement still reaches every other connected platform.
     /// </summary>
     private async Task AnnounceToChatAsync(string message)
     {
-        try
+        foreach (var platform in AnnouncementPlatforms)
         {
-            foreach (var platform in new[] { "Twitch", "Kick", "Discord" })
+            try
             {
-                var context = new VyralBot.Workflows.Runtime.ExecutionContext(_serviceProvider, _logger)
-                {
-                    Platform = platform
-                };
+                bool delivered;
 
-                await _messageSender.SendAsync(context, message);
+                if (string.Equals(platform, "YouTube", StringComparison.OrdinalIgnoreCase))
+                {
+                    delivered = await SendToYouTubeAsync(message);
+                }
+                else
+                {
+                    var context = new VyralBot.Workflows.Runtime.ExecutionContext(_serviceProvider, _logger)
+                    {
+                        Platform = platform
+                    };
+
+                    // SendAsync skips platforms that are not connected and
+                    // returns false instead of throwing.
+                    delivered = await _messageSender.SendAsync(context, message);
+                }
+
+                if (!delivered)
+                {
+                    _logger.LogInformation("Poll announcement skipped on {Platform} (not connected)", platform);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Per-platform isolation: log and keep going so the remaining
+                // platforms still hear the announcement.
+                _logger.LogInformation(ex, "Poll announcement failed on {Platform}", platform);
             }
         }
-        catch (Exception ex)
+    }
+
+    /// <summary>
+    /// YouTube send path: <see cref="WorkflowMessageSender"/> routes only
+    /// Twitch/Kick/Discord, so announcements go straight through the
+    /// singleton <see cref="IYouTubeService"/> — the same service
+    /// ChatViewModel's send-to-all-platforms path uses. Returns false (no
+    /// throw) when the service is missing or not connected.
+    /// </summary>
+    private async Task<bool> SendToYouTubeAsync(string message)
+    {
+        var youtube = _serviceProvider.GetService<IYouTubeService>();
+        if (youtube == null || !youtube.IsConnected)
         {
-            _logger.LogWarning(ex, "Failed to broadcast poll announcement to chat");
+            return false;
         }
+
+        await youtube.SendMessageAsync(message);
+        return true;
     }
 }

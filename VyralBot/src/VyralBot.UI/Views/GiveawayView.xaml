@@ -291,11 +291,12 @@
                         
                         <materialDesign:Card Padding="16" Margin="8,0,0,0">
                             <StackPanel>
-                                <TextBlock Text="Winners" 
-                                          Opacity="0.7" 
+                                <TextBlock Text="Winners"
+                                          Opacity="0.7"
                                           FontSize="12"/>
-                                <TextBlock Text="{Binding SelectedGiveaway.WinnerCount}" 
-                                          FontSize="32" 
+                                <!-- Drawn winners (entries flagged IsWinner), not the configured WinnerCount -->
+                                <TextBlock Text="{Binding DrawnWinnersCount}"
+                                          FontSize="32"
                                           FontWeight="Bold"
                                           Foreground="{DynamicResource WarningBrush}"/>
                             </StackPanel>

@@ -47,8 +47,8 @@
                     </Border>
 
                     <!-- Sound Files List -->
-                    <ListBox Grid.Row="1" 
-                             ItemsSource="{Binding SoundFiles}" 
+                    <ListBox Grid.Row="1"
+                             ItemsSource="{Binding SoundFiles}"
                              SelectedItem="{Binding SelectedSoundFile}"
                              Margin="10">
                         <ListBox.ItemTemplate>
@@ -58,20 +58,55 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <materialDesign:PackIcon Grid.Column="0" 
-                                                            Kind="MusicNote" 
-                                                            Width="20" 
-                                                            Height="20" 
+                                    <materialDesign:PackIcon Grid.Column="0"
+                                                            Kind="MusicNote"
+                                                            Width="20"
+                                                            Height="20"
                                                             VerticalAlignment="Center"
                                                             Margin="0,0,10,0"/>
-                                    <TextBlock Grid.Column="1" 
-                                              Text="{Binding}" 
+                                    <TextBlock Grid.Column="1"
+                                              Text="{Binding}"
                                               TextWrapping="Wrap"
                                               VerticalAlignment="Center"/>
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+
+                    <!-- Empty state: shown while the sound library is empty -->
+                    <StackPanel Grid.Row="1"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Margin="24">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SoundFiles.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <materialDesign:PackIcon Kind="MusicNote"
+                                                 Width="48"
+                                                 Height="48"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center"
+                                                 Margin="0,0,0,12"/>
+                        <TextBlock Text="No sounds yet — add your first sound"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,8"/>
+                        <TextBlock Text="Upload a file with the Upload Sound button below, then assign it to chat events on the right."
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
 
                     <!-- Action Buttons -->
                     <StackPanel Grid.Row="2" Margin="10">

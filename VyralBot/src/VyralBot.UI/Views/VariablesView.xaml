@@ -22,18 +22,18 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Background="{DynamicResource MaterialDesignPaper}">
+    <Grid Background="{DynamicResource BackgroundPrimaryBrush}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="200"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
         <!-- Left Sidebar - Categories -->
-        <Border Grid.Column="0" Background="{DynamicResource MaterialDesignToolBarBackground}" 
-                BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="0,0,1,0">
+        <Border Grid.Column="0" Background="{DynamicResource BackgroundSecondaryBrush}" 
+                BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="0,0,1,0">
             <StackPanel Margin="10">
                 <TextBlock Text="CATEGORIES" FontSize="12" FontWeight="Bold" 
-                           Foreground="{DynamicResource MaterialDesignBody}" Margin="10,10,10,15"/>
+                           Foreground="{DynamicResource TextPrimaryBrush}" Margin="10,10,10,15"/>
                 
                 <ListBox ItemsSource="{Binding Categories}" 
                          SelectedItem="{Binding SelectedCategory}"
@@ -41,7 +41,7 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <TextBlock Text="{Binding}" Padding="10,8" 
-                                       Foreground="{DynamicResource MaterialDesignBody}"/>
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                     <ListBox.ItemContainerStyle>
@@ -64,23 +64,23 @@
             </Grid.RowDefinitions>
 
             <!-- Header -->
-            <Border Grid.Row="0" Background="{DynamicResource MaterialDesignToolBarBackground}" 
-                    Padding="20,15" BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="0,0,0,1">
+            <Border Grid.Row="0" Background="{DynamicResource BackgroundSecondaryBrush}" 
+                    Padding="20,15" BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="0,0,0,1">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <materialDesign:PackIcon Kind="Variable" Width="28" Height="28" 
-                                                 Foreground="{DynamicResource PrimaryHueMidBrush}" 
+                                                 Foreground="{DynamicResource PrimaryBrush}" 
                                                  VerticalAlignment="Center" Margin="0,0,12,0"/>
                         <TextBlock Text="Variables Management" FontSize="24" FontWeight="SemiBold" 
-                                   VerticalAlignment="Center" Foreground="{DynamicResource MaterialDesignBody}"/>
+                                   VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}"/>
                     </StackPanel>
                     <TextBlock Text="Manage system and custom variables for use in commands, messages, and templates" 
-                               FontSize="12" Foreground="{DynamicResource MaterialDesignBodyLight}" Margin="0,8,0,0"/>
+                               FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,8,0,0"/>
                 </StackPanel>
             </Border>
 
             <!-- Search Bar -->
-            <Border Grid.Row="1" Padding="20,15" Background="{DynamicResource MaterialDesignPaper}">
+            <Border Grid.Row="1" Padding="20,15" Background="{DynamicResource BackgroundPrimaryBrush}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -108,7 +108,7 @@
                 <ItemsControl ItemsSource="{Binding Variables}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <materialDesign:Card Margin="0,0,0,12" Padding="16">
+                            <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,12" Padding="16">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -120,10 +120,10 @@
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                             <TextBlock Text="{Binding Name, StringFormat=\{0\}}" 
                                                        FontFamily="Consolas" FontSize="16" FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource PrimaryHueMidBrush}"/>
+                                                       Foreground="{DynamicResource PrimaryBrush}"/>
                                             
                                             <!-- System/Read-only Badge (hidden by default, shown when IsEditable=False via style trigger) -->
-                                            <Border Background="{DynamicResource MaterialDesignDivider}"
+                                            <Border Background="{DynamicResource BorderSecondaryBrush}"
                                                     CornerRadius="3" Padding="6,2" Margin="12,0,0,0">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
@@ -137,10 +137,10 @@
                                                 </Border.Style>
                                                 <StackPanel Orientation="Horizontal">
                                                     <materialDesign:PackIcon Kind="Lock" Width="12" Height="12" 
-                                                                             Foreground="{DynamicResource MaterialDesignBodyLight}" 
+                                                                             Foreground="{DynamicResource TextSecondaryBrush}" 
                                                                              VerticalAlignment="Center" Margin="0,0,4,0"/>
                                                     <TextBlock Text="Read-Only" FontSize="10" 
-                                                               Foreground="{DynamicResource MaterialDesignBodyLight}" 
+                                                               Foreground="{DynamicResource TextSecondaryBrush}" 
                                                                VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Border>
@@ -157,24 +157,24 @@
                                         </StackPanel>
                                         
                                         <TextBlock Text="{Binding DisplayName}" FontSize="14" FontWeight="Medium"
-                                                   Foreground="{DynamicResource MaterialDesignBody}" Margin="0,0,0,4"/>
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,4"/>
                                         
                                         <TextBlock Text="{Binding Description}" FontSize="12" TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource MaterialDesignBodyLight}" Margin="0,0,0,8"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8"
                                                    Visibility="{Binding Description, Converter={StaticResource NullOrEmptyToVisibilityConverter}}"/>
                                         
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                             <TextBlock Text="Category: " FontSize="11" 
-                                                       Foreground="{DynamicResource MaterialDesignBodyLight}"/>
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <TextBlock Text="{Binding Category}" FontSize="11" FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource MaterialDesignBody}"/>
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
                                         </StackPanel>
                                         
                                         <StackPanel Orientation="Horizontal" Visibility="{Binding Value, Converter={StaticResource NullOrEmptyToVisibilityConverter}}">
                                             <TextBlock Text="Value: " FontSize="11" 
-                                                       Foreground="{DynamicResource MaterialDesignBodyLight}"/>
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             <TextBlock Text="{Binding Value}" FontSize="11" FontFamily="Consolas"
-                                                       Foreground="{DynamicResource MaterialDesignBody}" TextTrimming="CharacterEllipsis" MaxWidth="400"/>
+                                                       Foreground="{DynamicResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" MaxWidth="400"/>
                                         </StackPanel>
                                     </StackPanel>
 
@@ -221,17 +221,17 @@
             </ScrollViewer>
 
             <!-- Status Bar -->
-            <Border Grid.Row="3" Background="{DynamicResource MaterialDesignToolBarBackground}"
-                    Padding="20,12" BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="0,1,0,0"
+            <Border Grid.Row="3" Background="{DynamicResource BackgroundSecondaryBrush}"
+                    Padding="20,12" BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="0,1,0,0"
                     Visibility="{Binding StatusMessage, Converter={StaticResource NullOrEmptyToVisibilityConverter}}">
-                <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource MaterialDesignBody}"/>
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource TextPrimaryBrush}"/>
             </Border>
         </Grid>
 
         <!-- Add/Edit Dialog -->
         <Border x:Name="AddDialogOverlay" Grid.ColumnSpan="2" Background="{DynamicResource OverlayBackgroundBrush}" 
                 Visibility="{Binding IsAddDialogOpen, Converter={StaticResource BoolToVisibilityConverter}}">
-            <Border x:Name="AddDialogContent" Background="{DynamicResource MaterialDesignPaper}" Width="500" Height="480"
+            <Border x:Name="AddDialogContent" Background="{DynamicResource ModalBackgroundBrush}" Width="500" Height="480"
                     CornerRadius="8" Padding="24" VerticalAlignment="Top" HorizontalAlignment="Left">
                 <Border.RenderTransform>
                     <TranslateTransform x:Name="AddDialogTransform"/>
@@ -245,7 +245,7 @@
 
                     <!-- Dialog Header -->
                     <TextBlock Grid.Row="0" Text="Add Custom Variable" FontSize="20" FontWeight="SemiBold" 
-                               Foreground="{DynamicResource MaterialDesignBody}" Margin="0,0,0,20"/>
+                               Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,20"/>
 
                     <!-- Dialog Content -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
@@ -269,7 +269,7 @@
                                      Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,0,16"/>
                             
                             <TextBlock Text="Use lowercase with hyphens only (e.g., my-custom-variable)" 
-                                       FontSize="11" Foreground="{DynamicResource MaterialDesignBodyLight}" 
+                                       FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" 
                                        TextWrapping="Wrap" Margin="0,0,0,8"/>
                         </StackPanel>
                     </ScrollViewer>
@@ -288,7 +288,7 @@
         <!-- Edit Dialog -->
         <Border x:Name="EditDialogOverlay" Grid.ColumnSpan="2" Background="{DynamicResource OverlayBackgroundBrush}" 
                 Visibility="{Binding IsEditDialogOpen, Converter={StaticResource BoolToVisibilityConverter}}">
-            <Border x:Name="EditDialogContent" Background="{DynamicResource MaterialDesignPaper}" Width="500" Height="400"
+            <Border x:Name="EditDialogContent" Background="{DynamicResource ModalBackgroundBrush}" Width="500" Height="400"
                     CornerRadius="8" Padding="24" VerticalAlignment="Top" HorizontalAlignment="Left">
                 <Border.RenderTransform>
                     <TranslateTransform x:Name="EditDialogTransform"/>
@@ -303,9 +303,9 @@
                     <!-- Dialog Header -->
                     <StackPanel Grid.Row="0" Margin="0,0,0,20">
                         <TextBlock Text="Edit Variable" FontSize="20" FontWeight="SemiBold" 
-                                   Foreground="{DynamicResource MaterialDesignBody}"/>
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
                         <TextBlock Text="{Binding EditName, StringFormat=\{0\}}" FontFamily="Consolas" 
-                                   FontSize="14" Foreground="{DynamicResource PrimaryHueMidBrush}" Margin="0,4,0,0"/>
+                                   FontSize="14" Foreground="{DynamicResource PrimaryBrush}" Margin="0,4,0,0"/>
                     </StackPanel>
 
                     <!-- Dialog Content -->

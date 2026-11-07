@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Net.Http;
 using System.Windows;
 using VyralBot.Api.Services;
+using VyralBot.Core.Services.ProcessManagement;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
 using VyralBot.UI.Views;
@@ -18,6 +19,7 @@ public partial class WebServerSettingsViewModel : ViewModelBase
     private readonly IDataService _dataService;
     private readonly WebhookCoordinatorService? _coordinatorService;
     private readonly NgrokService? _ngrokService;
+    private readonly IProcessManager _processManager;
 
     [ObservableProperty]
     private int _port = 5000;
@@ -67,12 +69,14 @@ public partial class WebServerSettingsViewModel : ViewModelBase
     public WebServerSettingsViewModel(
         ILogger<WebServerSettingsViewModel> logger,
         IDataService dataService,
+        IProcessManager processManager,
         WebhookCoordinatorService? coordinatorService = null,
         NgrokService? ngrokService = null,
         IServiceProvider? serviceProvider = null)
     {
         _logger = logger;
         _dataService = dataService;
+        _processManager = processManager ?? throw new ArgumentNullException(nameof(processManager));
         _coordinatorService = coordinatorService;
         _ngrokService = ngrokService;
         _serviceProvider = serviceProvider;
@@ -142,9 +146,9 @@ public partial class WebServerSettingsViewModel : ViewModelBase
         try
         {
             // Check if ngrok is installed and authenticated. The ngrok check spawns a
-            // process and waits up to 5s - run it off the UI thread to avoid freezing
-            // the settings page while it opens.
-            var isNgrokInstalled = await Task.Run(IsNgrokInstalled);
+            // process and waits up to 5s asynchronously (via ProcessManager), so the
+            // settings page never freezes while it runs.
+            var isNgrokInstalled = await IsNgrokInstalledAsync();
             var hasAuthToken = !string.IsNullOrEmpty(NgrokAuthToken);
 
             IsSetupComplete = isNgrokInstalled && hasAuthToken;
@@ -162,11 +166,11 @@ public partial class WebServerSettingsViewModel : ViewModelBase
         }
     }
 
-    private static bool IsNgrokInstalled()
+    private async Task<bool> IsNgrokInstalledAsync()
     {
         try
         {
-            var process = Process.Start(new ProcessStartInfo
+            var process = await _processManager.StartProcessAsync(new ProcessStartInfo
             {
                 FileName = "ngrok",
                 Arguments = "version",
@@ -175,8 +179,20 @@ public partial class WebServerSettingsViewModel : ViewModelBase
                 RedirectStandardOutput = true
             });
 
-            process?.WaitForExit(5000);
-            return process?.ExitCode == 0;
+            // Same bounded 5s budget the previous WaitForExit(5000) gave us;
+            // a timed-out check reports "not installed" and the (tracked)
+            // process cleans itself up when ngrok eventually exits.
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+
+            return process.ExitCode == 0;
         }
         catch
         {
@@ -361,19 +377,17 @@ public partial class WebServerSettingsViewModel : ViewModelBase
                 RedirectStandardError = true
             };
 
-            using var process = System.Diagnostics.Process.Start(processInfo);
-            if (process != null)
+            // ProcessManager tracks the process and disposes it once it exits.
+            var process = await _processManager.StartProcessAsync(processInfo);
+            await process.WaitForExitAsync();
+            if (process.ExitCode == 0)
             {
-                await process.WaitForExitAsync();
-                if (process.ExitCode == 0)
-                {
-                    var version = await process.StandardOutput.ReadToEndAsync();
-                    Status = $"✓ Ngrok installed: {version.Trim()}";
-                }
-                else
-                {
-                    ErrorMessage = "Ngrok not found. Please install ngrok from https://ngrok.com/download";
-                }
+                var version = await process.StandardOutput.ReadToEndAsync();
+                Status = $"✓ Ngrok installed: {version.Trim()}";
+            }
+            else
+            {
+                ErrorMessage = "Ngrok not found. Please install ngrok from https://ngrok.com/download";
             }
         }
         catch (Exception ex)
@@ -406,7 +420,7 @@ public partial class WebServerSettingsViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private Task OpenPublicUrlAsync()
+    private async Task OpenPublicUrlAsync()
     {
         if (!string.IsNullOrEmpty(PublicUrl))
         {
@@ -417,7 +431,7 @@ public partial class WebServerSettingsViewModel : ViewModelBase
                     FileName = $"{PublicUrl}/webhooks/health",
                     UseShellExecute = true
                 };
-                System.Diagnostics.Process.Start(psi);
+                await _processManager.StartProcessAsync(psi);
             }
             catch (Exception ex)
             {
@@ -425,8 +439,6 @@ public partial class WebServerSettingsViewModel : ViewModelBase
                 ErrorMessage = "Failed to open URL";
             }
         }
-
-        return Task.CompletedTask;
     }
 
     private async Task SaveSettingsAsync()

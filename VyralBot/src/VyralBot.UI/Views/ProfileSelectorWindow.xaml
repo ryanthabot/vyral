@@ -227,13 +227,14 @@
                     <TextBox Text="{Binding NewProfileDisplayName, UpdateSourceTrigger=PropertyChanged}"
                              FontSize="14"/>
 
-                    <TextBlock Text="PIN (optional, 4-6 digits):" 
-                               Foreground="{DynamicResource TextSecondaryBrush}" 
+                    <TextBlock Text="PIN (optional, 4-6 digits):"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
                                FontSize="13"
                                Margin="0,10,0,0"/>
-                    <TextBox Text="{Binding NewProfilePin, UpdateSourceTrigger=PropertyChanged}"
-                             MaxLength="6"
-                             FontSize="14"/>
+                    <PasswordBox x:Name="NewProfilePinBox"
+                                 PasswordChanged="NewProfilePinBox_OnPasswordChanged"
+                                 MaxLength="6"
+                                 FontSize="14"/>
 
                     <StackPanel Orientation="Horizontal" 
                                 HorizontalAlignment="Right"

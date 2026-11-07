@@ -211,9 +211,10 @@
                                      materialDesign:HintAssist.Hint="1935"/>
                             <TextBlock Grid.Column="2" Text="Stream key (any word):" VerticalAlignment="Center" Margin="16,0,10,0"
                                        Foreground="{DynamicResource TextPrimaryBrush}"/>
-                            <TextBox Grid.Column="3" Text="{Binding IngestStreamKey, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
-                                     materialDesign:HintAssist.Hint="vyral"/>
+                            <PasswordBox Grid.Column="3"
+                                         PasswordChanged="IngestKeyBox_PasswordChanged"
+                                         Loaded="IngestKeyBox_Loaded"
+                                         materialDesign:HintAssist.Hint="vyral"/>
                             <Button Grid.Column="4" Content="Copy Key" Margin="12,0,0,0"
                                     Command="{Binding CopyIngestKeyCommand}"
                                     Style="{StaticResource MaterialDesignOutlinedButton}"/>

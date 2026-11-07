@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using VyralBot.Core.Services.Profiles;
+using VyralBot.Core.Services.ProcessManagement;
 using VyralBot.Data;
 using VyralBot.UI.Views;
 
@@ -24,21 +25,27 @@ public partial class StorageLocationItem : ObservableObject
     [ObservableProperty]
     private bool _exists;
 
+    /// <summary>
+    /// Injected by <see cref="DataManagementViewModel"/> so folder opens go
+    /// through ProcessManager (zero-orphan process tracking).
+    /// </summary>
+    internal IProcessManager? ProcessManager { get; set; }
+
     [RelayCommand]
-    private void Open()
+    private async Task Open()
     {
         try
         {
-            if (!Exists) return;
+            if (!Exists || ProcessManager is null) return;
 
             if (IsDirectory)
             {
-                Process.Start(new ProcessStartInfo("explorer.exe", Path) { UseShellExecute = true });
+                await ProcessManager.StartProcessAsync(new ProcessStartInfo("explorer.exe", Path) { UseShellExecute = true });
             }
             else
             {
                 // Select the file inside its folder
-                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{Path}\"") { UseShellExecute = true });
+                await ProcessManager.StartProcessAsync(new ProcessStartInfo("explorer.exe", $"/select,\"{Path}\"") { UseShellExecute = true });
             }
         }
         catch (Exception ex)
@@ -67,6 +74,7 @@ public partial class DataManagementViewModel : ViewModelBase
     private readonly IDataService _dataService;
     private readonly IProfileService _profileService;
     private readonly Core.Services.Audio.ISoundService _soundService;
+    private readonly IProcessManager _processManager;
 
     [ObservableProperty]
     private string? _statusMessage;
@@ -85,12 +93,14 @@ public partial class DataManagementViewModel : ViewModelBase
         ILogger<DataManagementViewModel> logger,
         IDataService dataService,
         IProfileService profileService,
-        Core.Services.Audio.ISoundService soundService)
+        Core.Services.Audio.ISoundService soundService,
+        IProcessManager processManager)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _profileService = profileService ?? throw new ArgumentNullException(nameof(profileService));
         _soundService = soundService ?? throw new ArgumentNullException(nameof(soundService));
+        _processManager = processManager ?? throw new ArgumentNullException(nameof(processManager));
     }
 
     public async Task InitializeAsync()
@@ -204,6 +214,7 @@ public partial class DataManagementViewModel : ViewModelBase
 
         foreach (var item in StorageLocations)
         {
+            item.ProcessManager = _processManager;
             item.Exists = item.IsDirectory
                 ? Directory.Exists(item.Path)
                 : File.Exists(item.Path);

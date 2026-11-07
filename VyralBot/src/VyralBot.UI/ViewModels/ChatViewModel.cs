@@ -307,6 +307,10 @@ public class ChatViewModel : ViewModelBase
 
 	private bool _autoScroll = true;
 
+	private double _chatFontSize = 13.0;
+
+	private bool _showTimestamps = true;
+
 	private ObservableCollection<PlatformOption> _connectedPlatforms = new ObservableCollection<PlatformOption>();
 
 	private PlatformOption? _selectedPlatform;
@@ -415,6 +419,10 @@ public class ChatViewModel : ViewModelBase
 
 	[GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.RelayCommandGenerator", "8.4.0.0")]
 	private RelayCommand? toggleAutoScrollCommand;
+
+	private RelayCommand? increaseChatFontSizeCommand;
+
+	private RelayCommand? decreaseChatFontSizeCommand;
 
 	private readonly HashSet<string> _routedDmMessageIds = new HashSet<string>();
 	private readonly object _routedDmMessageIdsLock = new object();
@@ -809,6 +817,45 @@ public class ChatViewModel : ViewModelBase
 				OnPropertyChanging("AutoScroll");
 				_autoScroll = value;
 				OnPropertyChanged("AutoScroll");
+			}
+		}
+	}
+
+	[ExcludeFromCodeCoverage]
+	public double ChatFontSize
+	{
+		get
+		{
+			return _chatFontSize;
+		}
+		set
+		{
+			double num = Math.Clamp(value, 8.0, 36.0);
+			if (!EqualityComparer<double>.Default.Equals(_chatFontSize, num))
+			{
+				OnPropertyChanging("ChatFontSize");
+				_chatFontSize = num;
+				OnPropertyChanged("ChatFontSize");
+				SaveChatAppearanceAsync();
+			}
+		}
+	}
+
+	[ExcludeFromCodeCoverage]
+	public bool ShowTimestamps
+	{
+		get
+		{
+			return _showTimestamps;
+		}
+		set
+		{
+			if (!EqualityComparer<bool>.Default.Equals(_showTimestamps, value))
+			{
+				OnPropertyChanging("ShowTimestamps");
+				_showTimestamps = value;
+				OnPropertyChanged("ShowTimestamps");
+				SaveChatAppearanceAsync();
 			}
 		}
 	}
@@ -1307,6 +1354,75 @@ public class ChatViewModel : ViewModelBase
 	[GeneratedCode("CommunityToolkit.Mvvm.SourceGenerators.RelayCommandGenerator", "8.4.0.0")]
 	[ExcludeFromCodeCoverage]
 	public IRelayCommand ToggleAutoScrollCommand => toggleAutoScrollCommand ?? (toggleAutoScrollCommand = new RelayCommand(ToggleAutoScroll));
+
+	[ExcludeFromCodeCoverage]
+	public IRelayCommand IncreaseChatFontSizeCommand => increaseChatFontSizeCommand ?? (increaseChatFontSizeCommand = new RelayCommand(IncreaseChatFontSize));
+
+	[ExcludeFromCodeCoverage]
+	public IRelayCommand DecreaseChatFontSizeCommand => decreaseChatFontSizeCommand ?? (decreaseChatFontSizeCommand = new RelayCommand(DecreaseChatFontSize));
+
+	private void IncreaseChatFontSize()
+	{
+		ChatFontSize = Math.Min(36.0, ChatFontSize + 1.0);
+	}
+
+	private void DecreaseChatFontSize()
+	{
+		ChatFontSize = Math.Max(8.0, ChatFontSize - 1.0);
+	}
+
+	private async Task LoadChatAppearanceAsync()
+	{
+		try
+		{
+			if (_dataService != null)
+			{
+				string? json = await _dataService.GetConfigValueAsync("Chat.Appearance");
+				if (!string.IsNullOrWhiteSpace(json))
+				{
+					ChatAppearanceSettings? appearance = JsonSerializer.Deserialize<ChatAppearanceSettings>(json);
+					if (appearance != null)
+					{
+						_chatFontSize = Math.Clamp(appearance.FontSize, 8.0, 36.0);
+						OnPropertyChanged("ChatFontSize");
+						_showTimestamps = appearance.ShowTimestamps;
+						OnPropertyChanged("ShowTimestamps");
+					}
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.LogWarning(ex, "Failed to load chat appearance settings");
+		}
+	}
+
+	private async Task SaveChatAppearanceAsync()
+	{
+		try
+		{
+			if (_dataService != null)
+			{
+				string json = JsonSerializer.Serialize(new ChatAppearanceSettings
+				{
+					FontSize = _chatFontSize,
+					ShowTimestamps = _showTimestamps
+				});
+				await _dataService.SetConfigValueAsync("Chat.Appearance", json, "Chat");
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.LogWarning(ex, "Failed to save chat appearance settings");
+		}
+	}
+
+	private sealed class ChatAppearanceSettings
+	{
+		public double FontSize { get; set; } = 13.0;
+
+		public bool ShowTimestamps { get; set; } = true;
+	}
 
 	private async Task LoadSelectedDmHistoryAsync()
 	{
@@ -1995,6 +2111,7 @@ public class ChatViewModel : ViewModelBase
 			return;
 		}
 		_logger.LogInformation("\ud83d\ude80 Initializing unified chat view with EventBus subscriptions...");
+		await LoadChatAppearanceAsync();
 		LoadDmConversationsFromDbAsync();
 		_twitchSubscriptionId = await _eventBus.SubscribeAsync<TwitchChatMessageEvent>(OnTwitchChatMessageReceivedAsync);
 		_logger.LogInformation("? Subscribed to TwitchChatMessageEvent (ID: {SubscriptionId})", _twitchSubscriptionId);

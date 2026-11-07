@@ -147,6 +147,13 @@ public partial class YouTubeWebSetupViewModel : ObservableObject
     private string? _authorizedUsername;
     private Action<string>? _modalSaveAction;
 
+    /// <summary>
+    /// Single shared HTTP client (app rule: no per-call HttpClient instances —
+    /// they exhaust sockets). Authorization is set per request because
+    /// DefaultRequestHeaders on a shared instance would stack values across calls.
+    /// </summary>
+    private static readonly HttpClient s_httpClient = new();
+
     public event EventHandler? SetupCompleted;
 
     public YouTubeWebSetupViewModel(
@@ -614,7 +621,6 @@ public partial class YouTubeWebSetupViewModel : ObservableObject
             OAuthStatus = "⏳ Exchanging code for tokens...";
 
             // Exchange the code for tokens via POST to Google's token endpoint
-            using var httpClient = new HttpClient();
             var tokenRequest = new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 { "code", code },
@@ -624,7 +630,7 @@ public partial class YouTubeWebSetupViewModel : ObservableObject
                 { "grant_type", "authorization_code" }
             });
 
-            var tokenResponse = await httpClient.PostAsync("https://oauth2.googleapis.com/token", tokenRequest);
+            var tokenResponse = await s_httpClient.PostAsync("https://oauth2.googleapis.com/token", tokenRequest);
             var tokenContent = await tokenResponse.Content.ReadAsStringAsync();
 
             if (!tokenResponse.IsSuccessStatusCode)
@@ -655,11 +661,13 @@ public partial class YouTubeWebSetupViewModel : ObservableObject
                 _refreshToken != null ? "Yes" : "No");
 
             // Get user info from YouTube API to get channel name
-            httpClient.DefaultRequestHeaders.Authorization =
+            // (auth header per request — the shared client must not be mutated)
+            using var channelRequest = new HttpRequestMessage(HttpMethod.Get,
+                "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true");
+            channelRequest.Headers.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _accessToken);
 
-            var channelResponse = await httpClient.GetAsync(
-                "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true");
+            var channelResponse = await s_httpClient.SendAsync(channelRequest);
 
             if (channelResponse.IsSuccessStatusCode)
             {
@@ -786,13 +794,13 @@ public partial class YouTubeWebSetupViewModel : ObservableObject
 
         try
         {
-            using var httpClient = new HttpClient();
-            httpClient.DefaultRequestHeaders.Authorization =
+            using var broadcastRequest = new HttpRequestMessage(HttpMethod.Get,
+                "https://www.googleapis.com/youtube/v3/liveBroadcasts?part=snippet&mine=true");
+            broadcastRequest.Headers.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _accessToken);
 
             // Step 1: Get live broadcast to find liveChatId
-            var broadcastResponse = await httpClient.GetAsync(
-                "https://www.googleapis.com/youtube/v3/liveBroadcasts?part=snippet&mine=true");
+            var broadcastResponse = await s_httpClient.SendAsync(broadcastRequest);
             var broadcastContent = await broadcastResponse.Content.ReadAsStringAsync();
 
             if (!broadcastResponse.IsSuccessStatusCode)
@@ -836,9 +844,14 @@ public partial class YouTubeWebSetupViewModel : ObservableObject
                 System.Text.Encoding.UTF8,
                 "application/json");
 
-            var messageResponse = await httpClient.PostAsync(
-                "https://www.googleapis.com/youtube/v3/liveChat/messages?part=snippet",
-                messageContent);
+            // Auth header per request — the shared client must not be mutated
+            using var messageRequest = new HttpRequestMessage(HttpMethod.Post,
+                "https://www.googleapis.com/youtube/v3/liveChat/messages?part=snippet");
+            messageRequest.Headers.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _accessToken);
+            messageRequest.Content = messageContent;
+
+            var messageResponse = await s_httpClient.SendAsync(messageRequest);
 
             if (messageResponse.IsSuccessStatusCode)
             {

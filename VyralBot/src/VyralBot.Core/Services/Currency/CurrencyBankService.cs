@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
@@ -12,6 +13,12 @@ public class CurrencyBankService : ICurrencyBankService
     private readonly ILogger<CurrencyBankService> _logger;
     private readonly IDataService _dataService;
     private readonly ICurrencyService _currencyService;
+
+    // Session-scoped map of the last successful withdrawal per viewer. Keyed on
+    // the lower-cased "username:platform" identity the bank was called with, so
+    // the cooldown cannot be bypassed by casing changes. Durable across app
+    // restarts via the CurrencyTransactions audit trail (see GetLastWithdrawalUtcAsync).
+    private readonly ConcurrentDictionary<string, DateTime> _lastWithdrawalUtc = new();
 
     public CurrencyBankService(
         ILogger<CurrencyBankService> logger,
@@ -86,6 +93,26 @@ public class CurrencyBankService : ICurrencyBankService
         if (account == null || account.BankBalance < amount)
             return (false, $"Insufficient bank balance (have {account?.BankBalance ?? 0:N0}).");
 
+        // Enforce the configured withdrawal cooldown: reject while the viewer's
+        // last successful withdrawal is still inside the cooldown window.
+        // A setting of 0 (or unset) keeps withdrawals permissive (no cooldown).
+        if (bankSettings.WithdrawalCooldownMinutes > 0)
+        {
+            var lastWithdrawal = await GetLastWithdrawalUtcAsync(username, platform);
+            if (lastWithdrawal.HasValue)
+            {
+                var cooldownEnd = lastWithdrawal.Value.AddMinutes(bankSettings.WithdrawalCooldownMinutes);
+                if (cooldownEnd > DateTime.UtcNow)
+                {
+                    var minutesLeft = (int)Math.Ceiling((cooldownEnd - DateTime.UtcNow).TotalMinutes);
+                    _logger.LogInformation(
+                        "Withdrawal for {Username} ({Platform}) rejected: cooldown active for {Minutes} more minute(s)",
+                        username, platform, minutesLeft);
+                    return (false, $"🏦 Withdrawal on cooldown — try again in ~{minutesLeft} min.");
+                }
+            }
+        }
+
         // Calculate penalty
         var penalty = (int)(amount * bankSettings.WithdrawalPenaltyPercent / 100.0);
         var netAmount = amount - penalty;
@@ -100,6 +127,8 @@ public class CurrencyBankService : ICurrencyBankService
         await _currencyService.AddCurrencyAsync(
             username, platform, netAmount, "Bank withdrawal", "BankWithdrawal");
 
+        _lastWithdrawalUtc[GetWithdrawalKey(username, platform)] = DateTime.UtcNow;
+
         var settings = await _currencyService.GetSettingsAsync();
         var currencyName = settings?.CurrencyName ?? "Points";
 
@@ -108,6 +137,26 @@ public class CurrencyBankService : ICurrencyBankService
             username, platform, amount, penalty);
 
         return (true, $"🏦 Withdrew {netAmount:N0} {currencyName}{penaltyText}. Bank balance: {account.BankBalance:N0}");
+    }
+
+    private static string GetWithdrawalKey(string username, string platform)
+        => $"{username.ToLowerInvariant()}:{platform.ToLowerInvariant()}";
+
+    /// <summary>
+    /// Resolve the viewer's last successful withdrawal time. The in-memory map
+    /// covers the current session (including unified-balance redirected users,
+    /// whose audit row is written under the canonical identity); the
+    /// "BankWithdrawal" transaction trail backs it up across app restarts.
+    /// </summary>
+    private async Task<DateTime?> GetLastWithdrawalUtcAsync(string username, string platform)
+    {
+        if (_lastWithdrawalUtc.TryGetValue(GetWithdrawalKey(username, platform), out var recent))
+            return recent;
+
+        var transactions = await _dataService.GetCurrencyTransactionsAsync(username, platform, 100);
+        var lastBankWithdrawal = transactions
+            .FirstOrDefault(t => t.TransactionType == "BankWithdrawal");
+        return lastBankWithdrawal?.Timestamp;
     }
 
     public async Task<UserBankAccount?> GetBankAccountAsync(string username, string platform)

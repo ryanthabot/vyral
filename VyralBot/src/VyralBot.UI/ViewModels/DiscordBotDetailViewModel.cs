@@ -9,6 +9,7 @@ using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using VyralBot.Core.Services.ProcessManagement;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
 using VyralBot.Integrations.Discord;
@@ -28,6 +29,7 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
     private readonly ILogger<DiscordBotDetailViewModel> _logger;
     private readonly IDiscordBotManager _botManager;
     private readonly IDataService _dataService;
+    private readonly IProcessManager _processManager;
 
     private string? _inviteUrl;
 
@@ -157,11 +159,13 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
     public DiscordBotDetailViewModel(
         ILogger<DiscordBotDetailViewModel> logger,
         IDiscordBotManager botManager,
-        IDataService dataService)
+        IDataService dataService,
+        IProcessManager processManager)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _botManager = botManager ?? throw new ArgumentNullException(nameof(botManager));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
+        _processManager = processManager ?? throw new ArgumentNullException(nameof(processManager));
 
         // Live state changes (start/stop elsewhere, gateway ready) refresh this page
         _botManager.BotsChanged += OnBotsChanged;
@@ -624,7 +628,7 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void OpenInviteLink()
+    private async Task OpenInviteLink()
     {
         if (_inviteUrl is null)
             return;
@@ -632,7 +636,8 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
         try
         {
             // No WebView2 here — open the invite in the default browser
-            Process.Start(new ProcessStartInfo { FileName = _inviteUrl, UseShellExecute = true });
+            await _processManager.StartProcessAsync(
+                new ProcessStartInfo { FileName = _inviteUrl, UseShellExecute = true });
         }
         catch (Exception ex)
         {

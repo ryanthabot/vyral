@@ -318,6 +318,35 @@
                         </StackPanel>
                     </ToggleButton>
 
+                    <!-- Chat appearance: font size +/- (clamped 8-36) and a
+                         timestamp toggle; persisted via Chat.Appearance config -->
+                    <Button Command="{Binding DecreaseChatFontSizeCommand}"
+                          Style="{StaticResource MaterialDesignIconButton}"
+                          ToolTip="Decrease chat font size"
+                          Width="32"
+                          Height="32"
+                          Margin="0,0,8,0">
+                        <materialDesign:PackIcon Kind="FormatFontSizeDecrease" Width="18" Height="18"/>
+                    </Button>
+
+                    <Button Command="{Binding IncreaseChatFontSizeCommand}"
+                          Style="{StaticResource MaterialDesignIconButton}"
+                          ToolTip="Increase chat font size"
+                          Width="32"
+                          Height="32"
+                          Margin="0,0,8,0">
+                        <materialDesign:PackIcon Kind="FormatFontSizeIncrease" Width="18" Height="18"/>
+                    </Button>
+
+                    <ToggleButton IsChecked="{Binding ShowTimestamps, Mode=TwoWay}"
+                          Style="{StaticResource MaterialDesignIconButton}"
+                          ToolTip="Toggle timestamps"
+                          Width="32"
+                          Height="32"
+                          Margin="0,0,8,0">
+                        <materialDesign:PackIcon Kind="ClockOutline" Width="18" Height="18"/>
+                    </ToggleButton>
+
                     <ToggleButton Command="{Binding ToggleAutoScrollCommand}"
                           IsChecked="{Binding AutoScroll, Mode=OneWay}"
                           Style="{StaticResource MaterialDesignIconButton}"
@@ -446,13 +475,14 @@
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
                                     
-                                    <!-- Timestamp -->
+                                    <!-- Timestamp (visibility follows the ShowTimestamps header toggle) -->
                                     <TextBlock Grid.Column="0"
                                              Text="{Binding Timestamp, StringFormat='h:mm tt'}"
                                              FontSize="10"
                                              Foreground="{DynamicResource TextSecondaryBrush}"
                                              VerticalAlignment="Center"
-                                             Margin="0,0,8,0"/>
+                                             Margin="0,0,8,0"
+                                             Visibility="{Binding DataContext.ShowTimestamps, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     
                                     <!-- Platform Logo + Badges + Username -->
                                     <StackPanel Grid.Column="1" 
@@ -495,14 +525,14 @@
                                                 </ControlTemplate>
                                             </Button.Template>
                                             <TextBlock Text="{Binding Username}"
-                                                   FontSize="13"
+                                                   FontSize="{Binding DataContext.ChatFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                    FontWeight="SemiBold"
                                                    Foreground="{Binding Color}"
                                                    VerticalAlignment="Center"/>
                                         </Button>
                                         
-                                        <TextBlock Text=":" 
-                                                 FontSize="13"
+                                        <TextBlock Text=":"
+                                                 FontSize="{Binding DataContext.ChatFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                  Foreground="{DynamicResource TextSecondaryBrush}"
                                                  VerticalAlignment="Center"
                                                  Margin="2,0,0,0"/>
@@ -513,7 +543,7 @@
                                     <!-- Message -->
                                     <TextBlock Grid.Column="2"
                                              Text="{Binding Message}"
-                                             FontSize="13"
+                                             FontSize="{Binding DataContext.ChatFontSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                              Foreground="{DynamicResource TextPrimaryBrush}"
                                              TextWrapping="Wrap"
                                              VerticalAlignment="Center"/>
@@ -522,6 +552,43 @@
                         </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
+
+                <!-- Empty state: shown while the message list is empty
+                     (ObservableCollection raises Count changes on
+                     add/remove/clear, so the trigger stays live) -->
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            MaxWidth="380"
+                            Margin="24">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Messages.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <materialDesign:PackIcon Kind="ChatOutline"
+                                             Width="48"
+                                             Height="48"
+                                             Foreground="{DynamicResource TextMutedBrush}"
+                                             HorizontalAlignment="Center"
+                                             Margin="0,0,0,12"/>
+                    <TextBlock Text="Connect a platform to start chatting"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,8"/>
+                    <TextBlock Text="Link Twitch, Kick, YouTube or Discord on the Platforms page — chat messages appear here live."
+                               FontSize="12"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
 
                 <!-- New messages banner shown when user scrolled up and new messages arrive -->
                 <Button x:Name="NewMessagesButton"

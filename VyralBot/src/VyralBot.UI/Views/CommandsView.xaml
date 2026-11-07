@@ -367,7 +367,7 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Header="Twitch" Width="70">
+                            <DataGridTemplateColumn Header="Twitch" Width="80">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding EnabledOnTwitch, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"

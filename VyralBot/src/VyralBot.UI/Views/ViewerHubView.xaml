@@ -76,34 +76,47 @@
                                    Foreground="{DynamicResource TextPrimaryBrush}"/>
                     </StackPanel>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <CheckBox IsChecked="{Binding LinkingEnabled}"
-                                  Content="Link codes enabled"
-                                  VerticalAlignment="Center"
-                                  Foreground="{DynamicResource TextPrimaryBrush}"/>
-                        <CheckBox IsChecked="{Binding UnifiedBalances}" Margin="0,0,0,8"
-                                  Content="Merge points into one shared total across linked platforms (earn and spend from one pool)"
-                                  VerticalAlignment="Center"
-                                  Foreground="{DynamicResource TextPrimaryBrush}"/>
-                        <TextBlock Text="Code expires after (minutes):"
-                                   Style="{StaticResource FieldLabel}"
-                                   Margin="24,0,6,0"/>
-                        <TextBox Text="{Binding CodeExpiryMinutes}"
-                                 Width="50"
-                                 VerticalAlignment="Center"/>
+                    <StackPanel Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal">
+                            <CheckBox IsChecked="{Binding LinkingEnabled}"
+                                      Content="Link codes enabled"
+                                      VerticalAlignment="Center"
+                                      Style="{StaticResource MaterialDesignCheckBox}"
+                                      Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <CheckBox IsChecked="{Binding UnifiedBalances}" Margin="24,0,0,0"
+                                      Content="Merge points into one shared total across linked platforms (earn and spend from one pool)"
+                                      VerticalAlignment="Center"
+                                      Style="{StaticResource MaterialDesignCheckBox}"
+                                      Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBlock Text="Code expires after (minutes):"
+                                       Style="{StaticResource FieldLabel}"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Text="{Binding CodeExpiryMinutes}"
+                                     Width="50"
+                                     VerticalAlignment="Center"/>
+                        </StackPanel>
                     </StackPanel>
 
                     <TextBlock Text="Platforms that accept !link codes:"
                                Style="{StaticResource FieldLabel}"
                                Margin="0,0,0,6"/>
                     <WrapPanel Margin="0,0,0,12">
-                        <CheckBox Content="Twitch" IsChecked="{Binding TwitchLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"/>
-                        <CheckBox Content="Kick" IsChecked="{Binding KickLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"/>
-                        <CheckBox Content="YouTube" IsChecked="{Binding YouTubeLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"/>
-                        <CheckBox Content="Discord" IsChecked="{Binding DiscordLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"/>
-                        <CheckBox Content="TikTok" IsChecked="{Binding TikTokLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"/>
-                        <CheckBox Content="Facebook" IsChecked="{Binding FacebookLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"/>
-                        <CheckBox Content="Rumble" IsChecked="{Binding RumbleLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"/>
+                        <CheckBox Content="Twitch" IsChecked="{Binding TwitchLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"
+                                  Style="{StaticResource MaterialDesignCheckBox}" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <CheckBox Content="Kick" IsChecked="{Binding KickLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"
+                                  Style="{StaticResource MaterialDesignCheckBox}" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <CheckBox Content="YouTube" IsChecked="{Binding YouTubeLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"
+                                  Style="{StaticResource MaterialDesignCheckBox}" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <CheckBox Content="Discord" IsChecked="{Binding DiscordLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"
+                                  Style="{StaticResource MaterialDesignCheckBox}" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <CheckBox Content="TikTok" IsChecked="{Binding TikTokLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"
+                                  Style="{StaticResource MaterialDesignCheckBox}" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <CheckBox Content="Facebook" IsChecked="{Binding FacebookLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"
+                                  Style="{StaticResource MaterialDesignCheckBox}" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <CheckBox Content="Rumble" IsChecked="{Binding RumbleLinkingEnabled}" MinWidth="100" Margin="0,0,12,4"
+                                  Style="{StaticResource MaterialDesignCheckBox}" Foreground="{DynamicResource TextPrimaryBrush}"/>
                     </WrapPanel>
 
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
@@ -337,6 +350,7 @@
                                       IsChecked="{Binding GoalsEnabled}"
                                       VerticalAlignment="Center"
                                       Margin="20,0,0,0"
+                                      Style="{StaticResource MaterialDesignCheckBox}"
                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
@@ -419,7 +433,9 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsEnabled, UpdateSourceTrigger=PropertyChanged}"
-                                                  HorizontalAlignment="Center"/>
+                                                  HorizontalAlignment="Center"
+                                                  Style="{StaticResource MaterialDesignCheckBox}"
+                                                  Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>

@@ -35,4 +35,28 @@ public partial class RestreamView : UserControl
             destination.StreamKey = passwordBox.Password;
         }
     }
+
+    private void IngestKeyBox_Loaded(object sender, RoutedEventArgs e)
+    {
+        // The ingest key is masked like the destination stream keys — PasswordBox
+        // is not bindable, so seed it from the page view model when the box
+        // loads. Assigning Password fires PasswordChanged, which writes the same
+        // value straight back.
+        if (sender is PasswordBox passwordBox &&
+            passwordBox.DataContext is RestreamViewModel viewModel)
+        {
+            passwordBox.Password = viewModel.IngestStreamKey ?? "";
+        }
+    }
+
+    private void IngestKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        // Feed the masked ingest key to the page view model manually; the
+        // save/start flows keep reading the IngestStreamKey property.
+        if (sender is PasswordBox passwordBox &&
+            passwordBox.DataContext is RestreamViewModel viewModel)
+        {
+            viewModel.IngestStreamKey = passwordBox.Password;
+        }
+    }
 }

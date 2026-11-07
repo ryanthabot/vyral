@@ -9,7 +9,7 @@ using VyralBot.UI.Services;
 
 namespace VyralBot.UI.ViewModels;
 
-public partial class KickSettingsViewModel : ViewModelBase
+public partial class KickSettingsViewModel : ViewModelBase, IDisposable
 {
     private readonly ILogger<KickSettingsViewModel> _logger;
     private readonly IDataService _dataService;
@@ -77,7 +77,8 @@ public partial class KickSettingsViewModel : ViewModelBase
         _webhookCoordinator = webhookCoordinator ?? throw new ArgumentNullException(nameof(webhookCoordinator));
         _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
         
-        // Subscribe to webhook status changes
+        // Subscribe to webhook status changes (unsubscribed in Dispose —
+        // same pattern as AudioSettingsViewModel).
         _webhookCoordinator.StatusChanged += OnWebhookStatusChanged;
     }
 
@@ -444,6 +445,18 @@ public partial class KickSettingsViewModel : ViewModelBase
         else
         {
             ChatStatus = "Not started";
+        }
+    }
+
+    /// <summary>
+    /// Unsubscribes the webhook status handler so this VM never leaks a
+    /// delegate into the singleton WebhookCoordinatorService.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_webhookCoordinator != null)
+        {
+            _webhookCoordinator.StatusChanged -= OnWebhookStatusChanged;
         }
     }
 }

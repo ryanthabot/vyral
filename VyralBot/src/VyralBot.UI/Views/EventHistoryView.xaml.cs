@@ -8,15 +8,9 @@ public partial class EventHistoryView : UserControl
     public EventHistoryView()
     {
         InitializeComponent();
-        
-        // DataContext is set by the DataTemplate binding to EventHistoryViewModel
-        Loaded += async (s, e) =>
-        {
-            if (DataContext is EventHistoryViewModel viewModel)
-            {
-                await viewModel.InitializeAsync();
-            }
-        };
+
+        // NOTE: InitializeAsync is invoked by MainViewModel's NavigateToEventHistory
+        // before the view is shown — do NOT call it again on Loaded (double load).
     }
 
     private void OnFilterDateChanged(object sender, SelectionChangedEventArgs e)

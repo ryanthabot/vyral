@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.ObjectModel;
@@ -11,6 +12,7 @@ using VyralBot.Core.Services.EventBus;
 using VyralBot.Core.Services.EventBus.Events;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
+using VyralBot.Integrations.YouTube;
 using VyralBot.UI.Services;
 using VyralBot.UI.Views;
 using VyralBot.Workflows.Runtime;
@@ -104,6 +106,12 @@ public partial class GiveawayViewModel : ViewModelBase
 
     [ObservableProperty]
     private int _uniqueParticipants;
+
+    // Winners actually drawn for the selected giveaway (entries flagged
+    // IsWinner) — NOT the configured WinnerCount, so the stat card shows 0
+    // until a draw has really happened.
+    [ObservableProperty]
+    private int _drawnWinnersCount;
 
     // Live intake indicator: "LIVE" accepts entries as they arrive,
     // "TIMED" throttles intake to EntriesPerMinuteDisplay.
@@ -372,6 +380,7 @@ public partial class GiveawayViewModel : ViewModelBase
 
                 TotalEntries = totalEntries;
                 UniqueParticipants = uniqueParticipants;
+                DrawnWinnersCount = entries.Count(e => e.IsWinner);
             });
 
             _logger.LogInformation("Loaded {Count} entries for giveaway {GiveawayId}", entries.Count(), SelectedGiveaway.Id);
@@ -638,6 +647,7 @@ public partial class GiveawayViewModel : ViewModelBase
                 {
                     SelectedGiveaway = null;
                     Entries.Clear();
+                    DrawnWinnersCount = 0;
                 });
 
                 StatusMessage = $"✅ Deleted giveaway: {selected.Name}";
@@ -709,28 +719,73 @@ public partial class GiveawayViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Broadcasts an announcement to every connected platform via the
-    /// workflow message sender (same per-platform routing workflow sends
-    /// use). Never throws — send failures are logged and the UI flow
-    /// continues unaffected.
+    /// Every platform the app has a chat-send service for. TikTok chat is
+    /// read-only (no send API anywhere in the app) so it is intentionally
+    /// absent; YouTube is sent directly via <see cref="IYouTubeService"/>
+    /// because <see cref="WorkflowMessageSender"/> has no YouTube arm.
+    /// </summary>
+    private static readonly string[] AnnouncementPlatforms = { "Twitch", "Kick", "YouTube", "Discord" };
+
+    /// <summary>
+    /// Broadcasts an announcement to every platform the app can send chat
+    /// to, skipping (info-logged, never thrown) any platform that is not
+    /// connected or fails — one platform's failure never stops the loop, so
+    /// the announcement still reaches every other connected platform.
     /// </summary>
     private async Task AnnounceToChatAsync(string message)
     {
-        try
+        foreach (var platform in AnnouncementPlatforms)
         {
-            foreach (var platform in new[] { "Twitch", "Kick", "Discord" })
+            try
             {
-                var context = new VyralBot.Workflows.Runtime.ExecutionContext(_serviceProvider, _logger)
-                {
-                    Platform = platform
-                };
+                bool delivered;
 
-                await _messageSender.SendAsync(context, message);
+                if (string.Equals(platform, "YouTube", StringComparison.OrdinalIgnoreCase))
+                {
+                    delivered = await SendToYouTubeAsync(message);
+                }
+                else
+                {
+                    var context = new VyralBot.Workflows.Runtime.ExecutionContext(_serviceProvider, _logger)
+                    {
+                        Platform = platform
+                    };
+
+                    // SendAsync skips platforms that are not connected and
+                    // returns false instead of throwing.
+                    delivered = await _messageSender.SendAsync(context, message);
+                }
+
+                if (!delivered)
+                {
+                    _logger.LogInformation("Giveaway announcement skipped on {Platform} (not connected)", platform);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Per-platform isolation: log and keep going so the remaining
+                // platforms still hear the announcement.
+                _logger.LogInformation(ex, "Giveaway announcement failed on {Platform}", platform);
             }
         }
-        catch (Exception ex)
+    }
+
+    /// <summary>
+    /// YouTube send path: <see cref="WorkflowMessageSender"/> routes only
+    /// Twitch/Kick/Discord, so announcements go straight through the
+    /// singleton <see cref="IYouTubeService"/> — the same service
+    /// ChatViewModel's send-to-all-platforms path uses. Returns false (no
+    /// throw) when the service is missing or not connected.
+    /// </summary>
+    private async Task<bool> SendToYouTubeAsync(string message)
+    {
+        var youtube = _serviceProvider.GetService<IYouTubeService>();
+        if (youtube == null || !youtube.IsConnected)
         {
-            _logger.LogWarning(ex, "Failed to broadcast giveaway announcement to chat");
+            return false;
         }
+
+        await youtube.SendMessageAsync(message);
+        return true;
     }
 }

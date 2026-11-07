@@ -162,8 +162,12 @@
 
                     <TextBlock Grid.Row="2" Grid.Column="4" Text="BotGhost API key" FontSize="11.5"
                                Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,12,0,3"/>
-                    <TextBox Grid.Row="3" Grid.Column="4" Height="34" Padding="8,0" VerticalContentAlignment="Center"
-                             Text="{Binding Settings.ApiKey}" Style="{StaticResource MaterialDesignOutlinedTextBox}"/>
+                    <PasswordBox Grid.Row="3" Grid.Column="4"
+                                 x:Name="BotGhostApiKeyBox"
+                                 PasswordChanged="BotGhostApiKeyBox_PasswordChanged"
+                                 Height="34"
+                                 Style="{StaticResource MaterialDesignOutlinedPasswordBox}"
+                                 ToolTip="Masked; synced to Settings.ApiKey in code-behind (PasswordBox is not bindable)"/>
                 </Grid>
 
                 <StackPanel Orientation="Horizontal" Margin="0,12,0,0">

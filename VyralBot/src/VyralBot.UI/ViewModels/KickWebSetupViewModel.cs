@@ -95,6 +95,13 @@ public partial class KickWebSetupViewModel : ObservableObject
     private string? _currentVerifier;
     private Action<string>? _modalSaveAction;
 
+    /// <summary>
+    /// Single shared HTTP client (app rule: no per-call HttpClient instances —
+    /// they exhaust sockets). Authorization is set per request because
+    /// DefaultRequestHeaders on a shared instance would stack values across calls.
+    /// </summary>
+    private static readonly HttpClient s_httpClient = new();
+
     public KickWebSetupViewModel(
         ILogger<KickWebSetupViewModel> logger,
         KickLibOAuthService oAuthService,
@@ -608,11 +615,11 @@ public partial class KickWebSetupViewModel : ObservableObject
     {
         try
         {
-            using var httpClient = new HttpClient();
-            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_accessToken}");
-            httpClient.DefaultRequestHeaders.Add("Accept", "*/*");
+            using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.kick.com/public/v1/channels");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _accessToken);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
 
-            var response = await httpClient.GetAsync("https://api.kick.com/public/v1/channels");
+            var response = await s_httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {

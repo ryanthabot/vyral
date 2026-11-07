@@ -155,7 +155,14 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
-                <Button Content="ADD BOT"
+                <Button x:Name="DashboardToggleButton"
+                        Content="DASHBOARD"
+                        Click="DashboardToggleButton_Click"
+                        Style="{StaticResource VyralPlainOutlineButton}"
+                        Margin="0,0,12,0"
+                        ToolTip="Show the setup-bot dashboard: servers, active channel, connection status"/>
+                <Button x:Name="AddBotButton"
+                        Content="ADD BOT"
                         Command="{Binding ToggleAddBotCommand}"
                         Style="{StaticResource VyralPlainDiscordButton}"
                         Margin="0,0,12,0"/>
@@ -167,6 +174,7 @@
 
         <!-- Scrollable content -->
         <ScrollViewer Grid.Row="1"
+                      x:Name="BotsContent"
                       VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="0,0,0,24">
 
@@ -410,5 +418,11 @@
                            Margin="0,8,0,0"/>
             </StackPanel>
         </ScrollViewer>
+
+        <!-- Dashboard tab host: the DiscordDashboardView is created here from DI on
+             first open (code-behind), which triggers its Loaded → InitializeAsync. -->
+        <ContentControl x:Name="DashboardHost"
+                        Grid.Row="1"
+                        Visibility="Collapsed"/>
     </Grid>
 </UserControl>

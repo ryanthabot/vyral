@@ -44,6 +44,16 @@ public partial class EventHistoryViewModel : ViewModelBase
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
+    /// <summary>
+    /// Set when the SQL query window cap was hit, so truncation is never silent.
+    /// Cleared on every reload that comes back under the cap.
+    /// </summary>
+    [ObservableProperty]
+    private string _truncationNotice = string.Empty;
+
+    /// <summary>Max rows fetched per query (GetEventStatisticsAsync LIMIT).</summary>
+    private const int QueryWindowCap = 10000;
+
     [ObservableProperty]
     private int _currentPage = 1;
 
@@ -109,8 +119,16 @@ public partial class EventHistoryViewModel : ViewModelBase
                 : null;
 
             var allEvents = await _dataService.GetEventStatisticsAsync(
-                platformFilter, eventTypeFilter, limit: 10000,
+                platformFilter, eventTypeFilter, limit: QueryWindowCap,
                 startDate: StartDate, endDate: EndDate.AddDays(1));
+
+            // The query is ORDER BY Timestamp DESC LIMIT, so a full window means
+            // we hold the newest 10,000 rows and older rows in range were cut.
+            // Surface it — never truncate silently (full pagination is future work).
+            var fetchedCount = allEvents.Count();
+            TruncationNotice = fetchedCount >= QueryWindowCap
+                ? $"Showing the newest {QueryWindowCap:N0} of more events — narrow the date range or filters to see the rest."
+                : string.Empty;
 
             // Only the "contains" username filter cannot be expressed by the SQL
             // signature, so it stays in-memory.

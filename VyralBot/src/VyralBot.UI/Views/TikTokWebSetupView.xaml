@@ -608,7 +608,7 @@
                                             CornerRadius="4" 
                                             Padding="12"
                                             Margin="0,0,0,16"
-                                            Background="{DynamicResource TextPrimaryBrush}">
+                                            Background="{DynamicResource InputBackgroundBrush}">
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -620,9 +620,10 @@
                                             </Style>
                                         </Border.Style>
                                         <StackPanel>
-                                            <TextBlock Text="🔗 OAuth URL (for debugging):" 
-                                                     FontSize="12" 
+                                            <TextBlock Text="🔗 OAuth URL (for debugging):"
+                                                     FontSize="12"
                                                      FontWeight="SemiBold"
+                                                     Foreground="{DynamicResource TextPrimaryBrush}"
                                                      Margin="0,0,0,8"/>
                                             <TextBox Text="{Binding OAuthUrl, Mode=OneWay}"
                                                    IsReadOnly="True"
@@ -631,7 +632,7 @@
                                                    FontFamily="Consolas"
                                                    BorderThickness="0"
                                                    Background="Transparent"
-                                                   Foreground="{DynamicResource TextOnLightBrush}"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                                    Margin="0,0,0,8"/>
                                             <TextBlock Text="💡 If WebView2 shows 502 error, copy this URL and paste it into Chrome to test"
                                                      FontSize="11"

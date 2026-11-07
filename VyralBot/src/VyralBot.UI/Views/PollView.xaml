@@ -193,12 +193,10 @@
                 </DataGrid>
             </GroupBox>
 
-            <!-- Status Message -->
-            <materialDesign:Snackbar Grid.Row="2" 
-                                     MessageQueue="{materialDesign:MessageQueue}"
-                                     x:Name="Snackbar"/>
-            <TextBlock Grid.Row="2" 
-                      Text="{Binding StatusMessage}" 
+            <!-- Status Message (no Snackbar: sibling views surface StatusMessage
+                 as plain text, and nothing ever queued the old Snackbar) -->
+            <TextBlock Grid.Row="2"
+                      Text="{Binding StatusMessage}"
                       Margin="0,8,0,0"
                       FontWeight="Bold"
                       TextWrapping="Wrap"/>

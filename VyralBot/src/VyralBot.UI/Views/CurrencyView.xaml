@@ -240,7 +240,7 @@
                                 <TextBlock Text="Withdrawal Cooldown (minutes)" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox Text="{Binding Settings.BankWithdrawalCooldownMinutes, UpdateSourceTrigger=PropertyChanged}"
                                          Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="10,8" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
-                                <TextBlock Text="Minutes a viewer must wait between withdrawals (0 = none). Warning: not enforced by the bank service yet."
+                                <TextBlock Text="Minimum minutes a viewer must wait between bank withdrawals (0 = none). Withdrawing again too soon is rejected with the remaining wait time."
                                            FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Grid>

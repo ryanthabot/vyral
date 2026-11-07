@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using VyralBot.Core.Services.Profiles;
 using VyralBot.Core.Models;
+using VyralBot.Core.Services.ProcessManagement;
 using VyralBot.Data;
 using VyralBot.Integrations.Lights;
 using VyralBot.Integrations.Obs.Engine;
@@ -44,6 +45,7 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly ObsInstallLocator _obsInstallLocator;
     private readonly ObsEngine _obsEngine;
     private readonly ObsStudioService _obsStudioService;
+    private readonly IProcessManager _processManager;
     private bool _categorySettingsLoaded;
 
     public WebServerSettingsViewModel WebServerSettingsViewModel => _webServerSettingsViewModel;
@@ -376,6 +378,7 @@ public partial class SettingsViewModel : ViewModelBase
         ObsInstallLocator obsInstallLocator,
         ObsEngine obsEngine,
         ObsStudioService obsStudioService,
+        IProcessManager processManager,
         IServiceProvider serviceProvider)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -397,6 +400,7 @@ public partial class SettingsViewModel : ViewModelBase
         _obsInstallLocator = obsInstallLocator ?? throw new ArgumentNullException(nameof(obsInstallLocator));
         _obsEngine = obsEngine ?? throw new ArgumentNullException(nameof(obsEngine));
         _obsStudioService = obsStudioService ?? throw new ArgumentNullException(nameof(obsStudioService));
+        _processManager = processManager ?? throw new ArgumentNullException(nameof(processManager));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
 
@@ -1856,7 +1860,7 @@ public partial class SettingsViewModel : ViewModelBase
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Vyral");
 
     [RelayCommand]
-    private void OpenAppdataFolder()
+    private async Task OpenAppdataFolder()
     {
         // Same discovery as UiPreferencesService: walk up from the exe until an
         // "appdata" folder appears (portable layout).
@@ -1868,7 +1872,7 @@ public partial class SettingsViewModel : ViewModelBase
 
         if (dir != null && dir.Exists)
         {
-            OpenFolderInExplorer(dir.FullName);
+            await OpenFolderInExplorerAsync(dir.FullName);
         }
         else
         {
@@ -1877,21 +1881,22 @@ public partial class SettingsViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void OpenLogsFolder() => OpenFolderInExplorer(Path.Combine(AppContext.BaseDirectory, "logs"));
+    private async Task OpenLogsFolder() => await OpenFolderInExplorerAsync(Path.Combine(AppContext.BaseDirectory, "logs"));
 
     [RelayCommand]
-    private void OpenWebView2Folder() => OpenFolderInExplorer(WebView2CachePath);
+    private async Task OpenWebView2Folder() => await OpenFolderInExplorerAsync(WebView2CachePath);
 
     [RelayCommand]
-    private void OpenLocalAppDataFolder() => OpenFolderInExplorer(LocalAppDataRoot);
+    private async Task OpenLocalAppDataFolder() => await OpenFolderInExplorerAsync(LocalAppDataRoot);
 
-    private static void OpenFolderInExplorer(string path)
+    private async Task OpenFolderInExplorerAsync(string path)
     {
         try
         {
             if (Directory.Exists(path))
             {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", path) { UseShellExecute = true });
+                await _processManager.StartProcessAsync(
+                    new System.Diagnostics.ProcessStartInfo("explorer.exe", path) { UseShellExecute = true });
             }
         }
         catch

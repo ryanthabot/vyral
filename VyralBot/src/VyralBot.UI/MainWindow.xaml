@@ -117,8 +117,8 @@
         <!-- Main Content Area -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <!-- Sidebar -->
-                <ColumnDefinition Width="200"/>
+                <!-- Sidebar (wide enough for the longest nav label, "Currency & Rewards") -->
+                <ColumnDefinition Width="220"/>
                 <!-- Content -->
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
@@ -353,7 +353,8 @@
                                     Height="40"
                                     HorizontalContentAlignment="Left"
                                     Padding="48,0,16,0"
-                                    Command="{Binding NavigateToCurrencyCommand}">
+                                    Command="{Binding NavigateToCurrencyCommand}"
+                                    ToolTip="Currency &amp; Rewards">
                                 <StackPanel Orientation="Horizontal">
                                     <materialDesign:PackIcon Kind="CurrencyUsd" Width="18" Height="18" VerticalAlignment="Center"/>
                                     <TextBlock Text="Currency &amp; Rewards" Margin="12,0,0,0" VerticalAlignment="Center" FontSize="13"/>
