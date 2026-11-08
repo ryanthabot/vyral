@@ -112,6 +112,13 @@ public partial class EventTestingViewModel : ViewModelBase
     private Task TriggerTwitchChannelPointsRedeem() =>
         TriggerAsync("Twitch", TestEventPublisher.TwitchChannelPointsRedeem, "Channel Points Redeem");
 
+    // First-time chatter (welcome-newcomer). Publishes FirstTimeChatterEvent
+    // directly (bypassing the HasAnyActivity detection), so welcome alerts,
+    // replies and "firstmessage" workflows run regardless of database state.
+    [RelayCommand]
+    private Task TriggerTwitchFirstMessage() =>
+        TriggerAsync("Twitch", TestEventPublisher.FirstMessage, "First Message");
+
     #endregion
 
     #region Kick Event Commands

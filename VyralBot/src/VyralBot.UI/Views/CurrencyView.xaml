@@ -458,9 +458,17 @@
                         <RowDefinition Height="200"/>
                     </Grid.RowDefinitions>
 
+                    <!-- Row 0: overlay card (left) + Seasons card (right) -->
+                    <Grid Grid.Row="0" Margin="0,0,0,15">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="15"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
                     <!-- Leaderboard Overlay card (OBS browser source) -->
-                    <Border Grid.Row="0" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderPrimaryBrush}"
-                            BorderThickness="1" CornerRadius="6" Padding="15" Margin="0,0,0,15">
+                    <Border Grid.Column="0" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderPrimaryBrush}"
+                            BorderThickness="1" CornerRadius="6" Padding="15">
                         <StackPanel>
                             <TextBlock Text="📡 Leaderboard Overlay" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
 
@@ -484,6 +492,91 @@
                                        FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,8,0,0"/>
                         </StackPanel>
                     </Border>
+
+                    <!-- Seasons card (loyalty seasons / competitive resets) -->
+                    <Border Grid.Column="2" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderPrimaryBrush}"
+                            BorderThickness="1" CornerRadius="6" Padding="15">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Header + current season -->
+                            <StackPanel Grid.Row="0">
+                                <TextBlock Text="🏆 Seasons" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Competitive resets: closing a season snapshots the top-20 leaderboard into history."
+                                           FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                                <TextBlock Text="{Binding CurrentSeasonDisplay}" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource PrimaryBrush}" Margin="0,8,0,0"/>
+
+                                <TextBlock Text="Season History" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,10,0,2"/>
+                            </StackPanel>
+
+                            <!-- History list (bounded — the card must not grow the tab layout) -->
+                            <ScrollViewer Grid.Row="1" MaxHeight="130" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding SeasonHistory}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{DynamicResource BorderPrimaryBrush}" BorderThickness="0,0,0,1" Padding="0,4">
+                                                <StackPanel>
+                                                    <DockPanel>
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Dates}" FontSize="10"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}" Margin="8,0,0,0"/>
+                                                        <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis"/>
+                                                    </DockPanel>
+                                                    <TextBlock Text="{Binding Winners}" FontSize="11"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                            <TextBlock Grid.Row="1" Text="No seasons yet — start Season 1 below." FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"
+                                       Visibility="{Binding HasSeasonHistory, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
+
+                            <!-- Start controls -->
+                            <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                                <TextBlock Text="New season name" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                <DockPanel Margin="0,0,0,0">
+                                    <Button DockPanel.Dock="Right" Content="▶ START NEW SEASON" Command="{Binding StartSeasonCommand}"
+                                            Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}"
+                                            Padding="12,8" Margin="8,0,0,0" BorderThickness="0" FontSize="11" FontWeight="SemiBold" Cursor="Hand"
+                                            VerticalAlignment="Bottom"/>
+                                    <TextBox Text="{Binding NewSeasonName, UpdateSourceTrigger=PropertyChanged}"
+                                             Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                             Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}" VerticalAlignment="Bottom"/>
+                                </DockPanel>
+                            </StackPanel>
+
+                            <!-- In-card confirm dialog (app-style, replaces a modal) -->
+                            <Border Grid.Row="0" Grid.RowSpan="3" Background="{DynamicResource BackgroundPrimaryBrush}" CornerRadius="4"
+                                    Padding="12" Visibility="{Binding IsConfirmingSeason, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Start new season?" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="{Binding SeasonConfirmSummary}" FontSize="11" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,6,0,0"/>
+                                    <CheckBox Content="Reset all viewer balances to zero (earned history is kept)"
+                                              IsChecked="{Binding SeasonResetBalances}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,10,0,0"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                        <Button Content="✅ START SEASON" Command="{Binding ConfirmStartSeasonCommand}"
+                                                Background="{DynamicResource ErrorBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}"
+                                                Padding="14,8" BorderThickness="0" FontSize="11" FontWeight="SemiBold" Cursor="Hand"
+                                                IsEnabled="{Binding IsStartingSeason, Converter={StaticResource InvertBooleanConverter}}"/>
+                                        <Button Content="Cancel" Command="{Binding CancelStartSeasonCommand}"
+                                                Background="{DynamicResource BorderPrimaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Padding="14,8" Margin="10,0,0,0" BorderThickness="0" FontSize="11" Cursor="Hand"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Border>
+                    </Grid>
 
                     <!-- Leaderboard Toolbar -->
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,15">

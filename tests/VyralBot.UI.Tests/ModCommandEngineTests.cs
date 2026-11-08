@@ -853,6 +853,10 @@ public class FakeDataService : IDataService
     public Task<IEnumerable<CurrencyTransaction>> GetCurrencyTransactionsAsync(string? username = null, string? platform = null, int limit = 100) => throw new NotImplementedException(NotImplemented);
     public Task<(long UserCount, long TotalBalance)> GetCurrencyEconomyTotalsAsync() => throw new NotImplementedException(NotImplemented);
     public Task<(long Earned, long Spent)> GetCurrencyTransactionTotalsSinceAsync(DateTime since) => throw new NotImplementedException(NotImplemented);
+    // Wave-15 currency seasons (loyalty seasons) — not used by these tests.
+    public Task<IEnumerable<CurrencySeason>> GetCurrencySeasonsAsync(int limit = 20) => throw new NotImplementedException(NotImplemented);
+    public Task<CurrencySeason?> GetCurrentCurrencySeasonAsync() => throw new NotImplementedException(NotImplemented);
+    public Task<(CurrencySeason NewSeason, int ResetBalances)> StartCurrencySeasonAsync(string name, string? topJson, bool resetBalances) => throw new NotImplementedException(NotImplemented);
     public Task<CurrencyReward?> GetCurrencyRewardAsync(string id) => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<CurrencyReward>> GetCurrencyRewardsAsync(bool? enabledOnly = null) => throw new NotImplementedException(NotImplemented);
     public Task SaveCurrencyRewardAsync(CurrencyReward reward) => throw new NotImplementedException(NotImplemented);
@@ -979,6 +983,7 @@ public class FakeDataService : IDataService
     public Task DeactivateInactiveViewersAsync(DateTime inactiveSince) => throw new NotImplementedException(NotImplemented);
     public Task<int> DeactivateAllViewersAsync() => throw new NotImplementedException(NotImplemented);
     public Task ResetStreamSessionMinutesAsync() => throw new NotImplementedException(NotImplemented);
+    public Task<bool> HasAnyActivityAsync(string username) => throw new NotImplementedException(NotImplemented);
     public Task SavePlatformEarningsAsync(PlatformEarnings earnings) => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<PlatformEarnings>> GetPlatformEarningsAsync(string viewerId) => throw new NotImplementedException(NotImplemented);
     public Task AddPlatformEarningsAsync(string viewerId, string platform, long earned, long spent) => throw new NotImplementedException(NotImplemented);

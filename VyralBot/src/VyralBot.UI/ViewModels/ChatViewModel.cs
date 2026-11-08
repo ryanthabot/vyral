@@ -214,6 +214,8 @@ public class ChatViewModel : ViewModelBase
 
 	private Guid _discordBoostSubscriptionId;
 
+	private Guid _firstTimeChatterSubscriptionId;
+
 	private bool _isInitialized = false;
 
 	private bool _showEventsInChat = true;
@@ -2226,6 +2228,8 @@ public class ChatViewModel : ViewModelBase
 		_logger.LogInformation("? Subscribed to DiscordMemberJoinedEvent (ID: {SubscriptionId})", _discordMemberJoinedSubscriptionId);
 		_discordBoostSubscriptionId = await _eventBus.SubscribeAsync<DiscordBoostEvent>(OnDiscordBoostAsync);
 		_logger.LogInformation("? Subscribed to DiscordBoostEvent (ID: {SubscriptionId})", _discordBoostSubscriptionId);
+		_firstTimeChatterSubscriptionId = await _eventBus.SubscribeAsync<FirstTimeChatterEvent>(OnFirstTimeChatterAsync);
+		_logger.LogInformation("? Subscribed to FirstTimeChatterEvent (ID: {SubscriptionId})", _firstTimeChatterSubscriptionId);
 		_genericSubscriptionId = await _eventBus.SubscribeAsync<ChatMessageReceivedEvent>(OnChatMessageReceivedAsync);
 		_logger.LogInformation("? Subscribed to ChatMessageReceivedEvent (ID: {SubscriptionId})", _genericSubscriptionId);
 		_routingSubscriptionId = await _eventBus.SubscribeAsync<PlatformChatRoutingChangedEvent>(OnPlatformRoutingChangedAsync);
@@ -3650,7 +3654,7 @@ public class ChatViewModel : ViewModelBase
 			{
 				try
 				{
-					string response8 = await _streamToolsCommandService.ProcessCommandAsync(evt.Username, evt.Platform, evt.IsModerator, evt.Message);
+					string response8 = await _streamToolsCommandService.ProcessCommandAsync(evt.Username, evt.Platform, evt.IsModerator || evt.IsBroadcaster, evt.Message);
 					if (response8 != null)
 					{
 						if (string.Equals(evt.Platform, "Twitch", StringComparison.OrdinalIgnoreCase))
@@ -3684,7 +3688,7 @@ public class ChatViewModel : ViewModelBase
 			{
 				try
 				{
-					string response9 = await _deathCounterService.ProcessCommandAsync(evt.Username, evt.Platform, evt.IsModerator, evt.Message);
+					string response9 = await _deathCounterService.ProcessCommandAsync(evt.Username, evt.Platform, evt.IsModerator || evt.IsBroadcaster, evt.Message);
 					if (response9 != null)
 					{
 						if (string.Equals(evt.Platform, "Twitch", StringComparison.OrdinalIgnoreCase))
@@ -3718,7 +3722,7 @@ public class ChatViewModel : ViewModelBase
 			{
 				try
 				{
-					string response10 = await _ttsService.ProcessCommandAsync(evt.Username, evt.Platform, evt.IsModerator, evt.Message);
+					string response10 = await _ttsService.ProcessCommandAsync(evt.Username, evt.Platform, evt.IsModerator || evt.IsBroadcaster, evt.Message);
 					if (response10 != null)
 					{
 						if (string.Equals(evt.Platform, "Twitch", StringComparison.OrdinalIgnoreCase))
@@ -7441,6 +7445,86 @@ public class ChatViewModel : ViewModelBase
 		await SaveEventStatisticAsync("Discord", "MemberJoined", evt.Username, variables, wasAutoReplied);
 	}
 
+	// First-time chatter = a viewer's very first chat message on a platform.
+	// Mirrors OnDiscordMemberJoinedAsync minus the ChatEventSetting row, the
+	// sound and the statistics write (chat events are not stats): platform
+	// filter gate, optional alert, optional configured welcome message routed
+	// through the originating platform's send path. Everyone is welcomed —
+	// the moderation engine already dropped evildoers upstream, so there is
+	// no bot/mod exclusion list here.
+	private async Task OnFirstTimeChatterAsync(FirstTimeChatterEvent evt)
+	{
+		bool platformFiltered = evt == null || (string.Equals(evt.Platform, "Twitch", StringComparison.OrdinalIgnoreCase) && !TwitchFilterEnabled) || (string.Equals(evt.Platform, "Kick", StringComparison.OrdinalIgnoreCase) && !KickFilterEnabled) || (string.Equals(evt.Platform, "YouTube", StringComparison.OrdinalIgnoreCase) && !YoutubeFilterEnabled) || (string.Equals(evt.Platform, "TikTok", StringComparison.OrdinalIgnoreCase) && !TiktokFilterEnabled) || (string.Equals(evt.Platform, "Discord", StringComparison.OrdinalIgnoreCase) && !DiscordFilterEnabled);
+		if (platformFiltered)
+		{
+			return;
+		}
+		string displayName = evt.DisplayName ?? evt.Username;
+		// Chat.FirstChatterAlerts (bool, default true) gates the "First
+		// Message!" alert; an unreadable/missing config row keeps alerts on.
+		bool alertsEnabled = !bool.TryParse(await _dataService.GetConfigValueAsync("Chat.FirstChatterAlerts"), out var chatterAlerts) || chatterAlerts;
+		if (alertsEnabled)
+		{
+			await ShowEventAlertAsync("First Message!", displayName, evt.Message, evt.Platform);
+		}
+		// Chat.FirstChatterWelcome (string, default empty) supplies the welcome
+		// template; {user} (plus username/displayname/platform context) is
+		// substituted via the standard variable service before sending.
+		string? welcomeTemplate = await _dataService.GetConfigValueAsync("Chat.FirstChatterWelcome");
+		if (string.IsNullOrWhiteSpace(welcomeTemplate))
+		{
+			return;
+		}
+		Dictionary<string, string> variables = new Dictionary<string, string>
+		{
+			{ "user", displayName },
+			{ "username", evt.Username },
+			{ "displayname", displayName },
+			{ "platform", evt.Platform }
+		};
+		string welcome = welcomeTemplate;
+		if (_variableReplacementService != null)
+		{
+			try
+			{
+				welcome = await _variableReplacementService.ReplaceVariablesAsync(welcome, variables, evt.Platform);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Variable replacement failed for first-time-chatter welcome ({Platform}/{Username})", evt.Platform, evt.Username);
+				return;
+			}
+		}
+		_logger.LogInformation("First-time chatter {Username} on {Platform} - sending welcome", evt.Username, evt.Platform);
+		try
+		{
+			if (string.Equals(evt.Platform, "Twitch", StringComparison.OrdinalIgnoreCase))
+			{
+				await _twitchService.SendMessageAsync(welcome);
+			}
+			else if (string.Equals(evt.Platform, "Kick", StringComparison.OrdinalIgnoreCase))
+			{
+				await _kickService.SendMessageAsync(welcome);
+			}
+			else if (string.Equals(evt.Platform, "YouTube", StringComparison.OrdinalIgnoreCase))
+			{
+				await _youtubeService.SendMessageAsync(welcome);
+			}
+			else if (string.Equals(evt.Platform, "Discord", StringComparison.OrdinalIgnoreCase))
+			{
+				await _discordService.SendMessageAsync(welcome);
+			}
+			else
+			{
+				_logger.LogDebug("No welcome send path for first-time chatter on {Platform}", evt.Platform);
+			}
+		}
+		catch (Exception ex2)
+		{
+			_logger.LogWarning(ex2, "Failed to send first-time-chatter welcome to {Platform} for {Username}", evt.Platform, evt.Username);
+		}
+	}
+
 	// Server boost = Discord's paid-support celebration. Sound uses the
 	// "subscribe" key (the closest existing event-sound vocabulary — boosts are
 	// the Discord counterpart of a sub, and SoundService resolves keys as
@@ -7577,6 +7661,10 @@ public class ChatViewModel : ViewModelBase
 		{
 			_eventBus.Unsubscribe(_discordBoostSubscriptionId);
 		}
+		if (_firstTimeChatterSubscriptionId != Guid.Empty)
+		{
+			_eventBus.Unsubscribe(_firstTimeChatterSubscriptionId);
+		}
 		if (_genericSubscriptionId != Guid.Empty)
 		{
 			_eventBus.Unsubscribe(_genericSubscriptionId);
@@ -7684,6 +7772,7 @@ public class ChatViewModel : ViewModelBase
 		_discordSubscriptionId = Guid.Empty;
 		_discordMemberJoinedSubscriptionId = Guid.Empty;
 		_discordBoostSubscriptionId = Guid.Empty;
+		_firstTimeChatterSubscriptionId = Guid.Empty;
 		_genericSubscriptionId = Guid.Empty;
 		_routingSubscriptionId = Guid.Empty;
 		_connectionSubscriptionId = Guid.Empty;

@@ -21,6 +21,7 @@ not through the DB-backed `CommandService` cooldown pipeline.
 | `!daily`, `!rank` / `!tier` | everyone | all platforms |
 | `!store` / `!shop`, `!rewards`, `!redeem` | everyone | all platforms |
 | `!bank`, `!deposit`, `!withdraw` | everyone | all platforms |
+| `!season` | everyone | all platforms (loyalty seasons — see `services/season-service.md`) |
 | `!link`, `!linkcode`, `!linked`, `!delink` | everyone | all platforms |
 | `!goals`, `!mystatus`, `!mp` / `!multiplatform` | everyone | all platforms |
 | `!boost`, `!auction` (start/end/cancel/info) | moderator | all platforms |
@@ -39,7 +40,7 @@ carry an **in-memory per-user cooldown (10 s, silent skip)**:
 - `CurrencyCommandService`: read-only informational commands only
   (`!points`/`!balance`/`!currency`, `!leaderboard`/`!top`, `!rewards`,
   `!store`/`!shop`, `!rank`/`!tier`, `!bank`, `!linked`, `!goals`,
-  `!mystatus`), keyed `command|platform|username`. State-changing commands
+  `!mystatus`, `!season`), keyed `command|platform|username`. State-changing commands
   (games, bank transfers, redeem, link codes, mod tools) are deliberately not
   throttled here — they rely on their own protections (per-game DB cooldowns
   via `CurrencyGameService.CanPlayAsync`, escrowed stakes, daily stamps), and

@@ -250,6 +250,23 @@ public interface IDataService
     Task<(long UserCount, long TotalBalance)> GetCurrencyEconomyTotalsAsync();
     Task<(long Earned, long Spent)> GetCurrencyTransactionTotalsSinceAsync(DateTime since);
 
+    // Currency Seasons (loyalty seasons / competitive resets — append-only history)
+    /// <summary>Season history, newest first (the open season is row 1).</summary>
+    Task<IEnumerable<CurrencySeason>> GetCurrencySeasonsAsync(int limit = 20);
+    /// <summary>The open season (EndedAt IS NULL), or null before the first season is started.</summary>
+    Task<CurrencySeason?> GetCurrentCurrencySeasonAsync();
+    /// <summary>
+    /// Atomically (one transaction): closes the open season — if any — with
+    /// EndedAt = now and <paramref name="topJson"/> as its leaderboard
+    /// snapshot, inserts the new season row, and when
+    /// <paramref name="resetBalances"/> is true zeroes every UserCurrency
+    /// Balance. Lifetime TotalEarned/TotalSpent aggregates and the
+    /// CurrencyTransactions audit trail are NEVER touched, and season rows are
+    /// never deleted. Returns the new season row (with its autoassigned Id)
+    /// and the number of balances zeroed (0 when resetBalances is false).
+    /// </summary>
+    Task<(CurrencySeason NewSeason, int ResetBalances)> StartCurrencySeasonAsync(string name, string? topJson, bool resetBalances);
+
     Task<CurrencyReward?> GetCurrencyRewardAsync(string id);
     Task<IEnumerable<CurrencyReward>> GetCurrencyRewardsAsync(bool? enabledOnly = null);
     Task SaveCurrencyRewardAsync(CurrencyReward reward);
@@ -452,6 +469,12 @@ public interface IDataService
     /// re-appear in chat. Returns the number of rows deactivated.</summary>
     Task<int> DeactivateAllViewersAsync();
     Task ResetStreamSessionMinutesAsync();
+    /// <summary>True when the viewer has ANY recorded prior activity — a
+    /// UserWatchtime row OR a UserCurrency row on any platform (username,
+    /// case-insensitive). READ-ONLY EXISTS check: it never creates or mutates
+    /// rows, so first-time-chatter detection (FirstTimeChatterService) can use
+    /// it without turning the viewer "known" as a side effect.</summary>
+    Task<bool> HasAnyActivityAsync(string username);
 
     // Mod system + platform earnings
     Task SaveModActionAsync(ModAction action);

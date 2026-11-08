@@ -10,10 +10,12 @@ Event construction is delegated to `TestEventPublisher`
 `docs/services/test-event-publisher-service.md` for the event table); the VM
 supplies the test username/message and records what fired.
 
-## Coverage (17 test fires, grouped by platform)
+## Coverage (18 test fires, grouped by platform)
 
 - Twitch: follow, subscribe, resub, gift sub, raid (200 viewers), cheer
-  (100 bits), channel points redeem ("Hydrate Reminder", 500 points).
+  (100 bits), channel points redeem ("Hydrate Reminder", 500 points), first
+  message (publishes `FirstTimeChatterEvent` directly, bypassing the
+  newcomer detection, so welcome handling runs regardless of DB state).
 - Kick: follow, subscribe, gift sub (5), host (150), Kicks gifted (1000),
   reward redeemed ("Test Reward", 500).
 - YouTube: Super Chat ($5.00, USD), membership (new member, Tier 1).

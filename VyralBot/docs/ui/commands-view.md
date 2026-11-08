@@ -10,8 +10,10 @@ opens the visual flow editor (`FlowEditorView` overlay hosted by
 | File | Description |
 |------|-------------|
 | `src/VyralBot.UI/Views/CommandsView.xaml` | Tabs, grids, search bar, overlays |
-| `src/VyralBot.UI/Views/CommandsView.xaml.cs` | Flow-editor / marketplace overlay hosting |
-| `src/VyralBot.UI/ViewModels/CommandsViewModel.cs` | List state, bot scope, search, duplicate, timers, quotes |
+| `src/VyralBot.UI/Views/CommandsView.xaml.cs` | Flow-editor / marketplace overlay hosting, IMPORT file dialog |
+| `src/VyralBot.UI/ViewModels/CommandsViewModel.cs` | List state, bot scope, search, duplicate, timers, quotes, import preview |
+| `src/VyralBot.Core/Services/Commands/ICommandImportService.cs` | Import contract + preview/result row models |
+| `src/VyralBot.Core/Services/Commands/CommandImportService.cs` | Nightbot CSV / StreamElements JSON / plain-text parsers + apply |
 
 ## Toolbar / header
 - **Search box** (`SearchText`): case-insensitive substring filter on command
@@ -60,6 +62,47 @@ compatible (additive `ALTER TABLE Commands ADD COLUMN PlatformResponsesJson
 TEXT` migration; helpers live on the entity: `Command.ParsePlatformResponses`
 / `ResolvePlatformResponse` / `BuildPlatformResponsesJson`). Round-trip
 coverage: `tests/VyralBot.UI.Tests/PlatformResponsesRoundTripTests.cs`.
+
+## Command import (CUSTOM tab IMPORT)
+One-click migration from other bots — `ICommandImportService`
+(`src/VyralBot.Core/Services/Commands/CommandImportService.cs`, registered in
+`App.xaml.cs` next to `ICommandService`).
+
+- **Flow**: IMPORT button (CUSTOM tab toolbar) → file dialog
+  (.csv/.json/.txt, `CommandsView.OnImportClick`) → content parsed with
+  auto-detected format → in-page preview overlay (`IsImportPreviewOpen`, same
+  overlay pattern as the marketplace) → CONFIRM applies via
+  `ConfirmImportCommand`, CANCEL (`CancelImportCommand`) drops the preview.
+- **Formats** (`ParseAsync(content, format)` — nightbot / streamelements /
+  plain / auto; detection: JSON root → StreamElements, first CSV field
+  "command" or "!…" without "=" → Nightbot, else plain `!name=response`
+  lines):
+  - **Nightbot CSV** `command,userlevel,cooldown,response,text` (header row
+    optional, quoted fields supported) — userlevel everyone → Everyone,
+    moderator/master/owner → Moderator; cooldown seconds → user cooldown.
+  - **StreamElements JSON** array of
+    `{command, reply, enabled, cooldownAll, cooldownUser, permission}` (root
+    object with an array property accepted) — same permission mapping;
+    cooldownUser → user cooldown, cooldownAll → global cooldown; missing "!"
+    prefixes normalized.
+  - **Plain text** — one `!name=response` per line (`#` lines ignored).
+- **Skips (reason shown in the preview Status column)**: Nightbot built-ins
+  (!commands, !regulars, …), Vyral built-ins (!uptime, !points, StreamTools
+  family…), blank responses, duplicates within the file, and at apply time
+  names that already exist (`GetCommandByNameAsync` before every
+  `RegisterCommandAsync` — imports never overwrite; `SkippedNames` feeds the
+  status message).
+- **Variables**: `TranslateVariables` maps `$(user)`/`$(touser)`/`${user}` →
+  `{username}`, `$(count)` → `{count}`, `$(time)` → `{time}`,
+  `$(uptime)`/`$(uptimeapi)` → `{uptime}`, `$(watchtime)` → `{watchtime}`,
+  `$(channel)` → `{channel}`. Tokens without an equivalent ($(eval …),
+  $(random.pick …), $(query)…) stay verbatim and the row's Notes column flags
+  them ("Untranslated tokens left as-is: …").
+- **Created rows**: enabled, custom (`IsBuiltIn=false`), all platforms
+  (Kick+Twitch on, `BotId` null), usage 0.
+- **Tests**: `tests/VyralBot.UI.Tests/Wave15CommandImportTests.cs` (parser
+  happy/skip paths per format, detection matrix, translation matrix,
+  apply/never-overwrite).
 
 ## Timers tab
 CRUD + interval (min 5) + platform picker (`TimerPlatforms`:

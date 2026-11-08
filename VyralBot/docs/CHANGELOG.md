@@ -10,7 +10,7 @@ A major stability, security and feature release: every page was audited,
 the theme is now consistent across the whole app, moderation and currency got
 real enforcement, platform events (Channel Points, Super Chat) went live, and
 secrets are now encrypted on your disk. New users get a guided "Get started"
-strip on Home and eight starter workflow templates. 771 automated tests.
+strip on Home and twelve starter workflow templates.
 
 ### Added
 
@@ -42,13 +42,15 @@ strip on Home and eight starter workflow templates. 771 automated tests.
   minimum interval (up to 25 per bot).
 - **Discord command channels** — limit a bot's commands to the channels you
   pick; messages anywhere else are ignored (moderators are never restricted).
-- **Event Testing page** — fire any of 17 test events (follow, sub, raid,
-  Super Chat, redemption and more) to try out alerts, sounds and workflows.
+- **Event Testing page** — fire any of 18 test events (follow, sub, raid,
+  Super Chat, redemption, first message and more) to try out alerts, sounds
+  and workflows.
 - **Get started strip** — a dismissible three-step guide on Home (connect a
   platform → set up alerts → import a workflow template) that hides itself
   once any platform connects.
-- **Workflow templates** — eight ready-made starter workflows (follow, sub,
-  raid, reward redemption, Super Chat, hello command, timer, warn) on the
+- **Workflow templates** — twelve ready-made starter workflows (follow, sub,
+  raid, reward redemption, Super Chat, hello command, timer, warn, sub clip,
+  raid mode, commercial-break reminder, first-time-chatter welcome) on the
   Automation page's TEMPLATES panel; each imports disabled so you can edit
   it before it goes live.
 - **Control API** — read live status, today's stats and the app version, and
@@ -96,6 +98,25 @@ strip on Home and eight starter workflow templates. 771 automated tests.
 - **VyralDeck status chips** — the deck's live-state payload now includes
   now-playing, uptime and death-count context strings the phone app renders
   as status chips (older clients safely ignore them).
+- **Command import** — switchers can bring their commands along: the Commands
+  page's CUSTOM tab has an IMPORT button that reads a Nightbot CSV export, a
+  StreamElements JSON export or a plain `!name=response` text file, shows a
+  dry-run preview grid (duplicates, Nightbot built-ins and Vyral built-ins
+  skipped with reasons), translates `$(user)`-style variables to Vyral's
+  `{username}` tokens (untranslatable tokens are flagged, not lost) and
+  creates only the rows you confirm — existing commands are never
+  overwritten.
+- **Loyalty seasons** — a Seasons card on the Currency page's Leaderboard tab
+  starts competitive seasons: the closing top-20 leaderboard is snapshotted
+  into append-only season history, balances can optionally be zeroed in the
+  same transaction (earned history, tiers and the audit trail are kept), and
+  viewers ask `!season` for the live status and previous winner.
+- **First-time chatter welcome** — a viewer's very first chat message (on any
+  live platform) fires a "First Message!" alert by default, an optional
+  welcome reply (`Chat.FirstChatterWelcome`, with `{user}` variables), and a
+  `firstmessage` workflow trigger; detection is once-per-viewer against the
+  profile's activity records, and Event Testing can fire it without a
+  newcomer.
 
 ### Fixed
 

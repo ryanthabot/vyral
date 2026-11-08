@@ -39,6 +39,15 @@ The five effects are configured in *different* places — that is the most confu
 | Visual alert | Master toggle, duration, animation, position, and per-event switches — [Visual Alerts](../stream-tools/visual-alerts.md) settings (applied to real alerts since the 2026-08-15 fix) |
 | Currency bonus | Amounts and on/off per event type — [Currency & Rewards](../stream-tools/currency.md) settings |
 
+### First-time chatters (welcome newcomers) {#first-time-chatters}
+
+One event family is **not** in the tables above because it is not a `ChatEventSetting` row: the **first-time chatter** (1.1.0). The moment a viewer sends their very first chat message on Twitch, Kick, YouTube or Discord, the bot can greet them — an alert plus an optional welcome reply, and a **`firstmessage`** workflow trigger ([Workflow Engine](../chat-features/workflows.md)).
+
+- **A "First Message!" alert fires by default**, showing the viewer's name and their first message. The config key `Chat.FirstChatterAlerts` (bool, default **true**) turns it off; a missing or unreadable key keeps alerts on.
+- **The welcome reply is opt-in**: set the config key `Chat.FirstChatterWelcome` to a message template (default empty = no reply). It substitutes `{user}`, `{username}`, `{displayname}` and `{platform}`, then runs through the full [Variables](variables.md) engine before being sent on the platform the newcomer chatted on. Example: `Welcome to the stream, {user}!` — everyone is welcomed (the moderation engine has already dropped filtered senders upstream).
+- **Detection is once-per-viewer by design**: the source of truth is the profile database — a viewer with *any* watchtime or currency row on any platform is "known" and is not re-welcomed; repeated messages in a burst are deduplicated (60-second window). The exact semantics have a caveat — a viewer who earned a watchtime or bonus row without ever chatting will never get the welcome — tracked as **KI-61** in the [known issues ledger](../reference/known-issues.md).
+- **Try it without a newcomer**: [Event Testing](../chat-features/event-testing.md) → Twitch → **First Message** publishes the event directly, bypassing the detection check.
+
 ### Editing an auto-reply template
 
 1. Open the Chat Hub (Home → Chat card) or the platform's popup in the chat window header.

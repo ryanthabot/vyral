@@ -44,7 +44,7 @@ A grid of the 21 seeded commands, one row per command:
 
 ### Tab 2: Custom Commands
 
-A grid of your own commands and three action buttons — **NEW COMMAND**, **EDIT**, and **DELETE**. Double-clicking a row opens it for editing (same as EDIT). All three paths open the **Visual Flow Editor** in a page overlay; the old form-based builder is gone.
+A grid of your own commands and four action buttons — **NEW COMMAND**, **IMPORT**, **EDIT**, and **DELETE**. Double-clicking a row opens it for editing (same as EDIT). Every editing path opens the **Visual Flow Editor** in a page overlay; the old form-based builder is gone. **IMPORT** opens the [command importer](#importing-commands-from-another-bot-import) for switchers coming from Nightbot, StreamElements or a plain text list.
 
 | Column | What it shows / does |
 |---|---|
@@ -58,6 +58,34 @@ A grid of your own commands and three action buttons — **NEW COMMAND**, **EDIT
 | **Usage** | How many times the command has fired. |
 
 The editor starts from a flow converted out of the command row (single reply → Send Message, multiple random replies → a Switch fan-out, action steps → the matching blocks), so the canvas reproduces what the command did — edit from there and **SAVE**. **DELETE** removes a command *and* its adopting flow, so the command fully goes away.
+
+### Importing commands from another bot (IMPORT) {#command-import}
+
+The CUSTOM tab's **IMPORT** button (1.1.0) is for switchers: it brings your existing custom commands from **Nightbot** (CSV export), **StreamElements** (JSON export) or a **plain text** file of `!name=response` lines — no more re-typing your command list by hand.
+
+1. Press **IMPORT** and pick the export file (`.csv` / `.json` / `.txt`; the code-behind reads it with a UTF-8 reader). The format is auto-detected from the content — a JSON root means StreamElements, a CSV headed `command` (or rows starting with `!`) means Nightbot, anything else is treated as plain text.
+2. A **dry-run preview overlay** opens — nothing is saved yet. One row per source command showing the translated response, cooldowns, permission, and either an **IMPORT** marker or a **skip reason**; the header summarizes "*N* to import · *M* skipped · format: Nightbot".
+3. Press **IMPORT *N*** to create the rows (enabled, all platforms, usage 0) or **CANCEL** to discard the preview. The status line reports the outcome, including any names skipped because they already existed.
+
+What is skipped, and why:
+
+- **Nightbot built-ins** (`!commands`, `!regulars`, `!songrequest`/`!sr`, `!title`, `!game`, …) — they would shadow Nightbot features Vyral does not have.
+- **VyralBot built-ins and reserved names** — the seeded commands, the `!link` family, the currency/quote aliases and the StreamTools/`!tts` commands, checked at parse time ("Vyral already has a built-in !x").
+- **Blank responses** (after the parser's fallback) and **duplicates inside the file** (first occurrence wins).
+- **Names that already exist in your database** (built-in *or* custom) — re-checked at apply time. Imports **never overwrite**: an existing `!discord` keeps its current response.
+
+Variables are translated to Vyral's `{…}` style automatically:
+
+| Source token | Becomes |
+|---|---|
+| `$(user)`, `$(touser)`, `${user}` | `{username}` |
+| `$(count)` | `{count}` |
+| `$(time)` (no timezone argument) | `{time}` |
+| `$(uptime)`, `$(uptimeapi)` | `{uptime}` |
+| `$(watchtime)` | `{watchtime}` |
+| `$(channel)` | `{channel}` |
+
+Tokens with arguments (`$(time TZ)`, `$(random.pick a, b)`) and tokens with no Vyral equivalent (`$(eval)`, `$(query)`, …) are left verbatim so nothing is silently lost, and the row's note flags them: "Untranslated tokens left as-is: …" — hand-fix those after import. Nightbot/SE cooldowns map to Vyral's (`cooldown` → per-user, StreamElements `cooldownAll` → global) and a source's mod-only restriction imports as `Moderator` permission. The translation table covers the common variables only — see **KI-61** in the [known issues ledger](../reference/known-issues.md).
 
 ### From command to flow
 
@@ -191,6 +219,7 @@ The flow side: `RefreshFlowManagedIdsAsync` (`:306`) tracks the Command row ids 
 | [CommandsView.xaml](../../src/VyralBot.UI/Views/CommandsView.xaml) | Page layout: scope bar, five tabs (built-in/custom/timers/quotes/help grids), and the full-size Visual Builder overlay host |
 | [CommandsView.xaml.cs](../../src/VyralBot.UI/Views/CommandsView.xaml.cs) | Code-behind: opens the overlay (fresh conversion vs. reusing the adopting flow) |
 | [CommandTimerService.cs](../../src/VyralBot.UI/Services/CommandTimerService.cs) | Timers scheduler: 30 s tick, per-platform chat counters for the `MinimumMessages` gate, counter reset after each fire |
+| [ICommandImportService.cs](../../src/VyralBot.Core/Services/Commands/ICommandImportService.cs) / [CommandImportService.cs](../../src/VyralBot.Core/Services/Commands/CommandImportService.cs) | The [command importer](#command-import): format sniffing, Nightbot CSV / StreamElements JSON / plain-text parsers, built-in + duplicate skips, `$(user)` → `{username}` variable translation (`TranslateVariables`), and an apply pass that never overwrites existing rows |
 | [FlowEditorViewModel.cs](../../src/VyralBot.UI/ViewModels/FlowEditorViewModel.cs) | The shared visual editor VM: `InitializeFromCommandAsync` conversion entry, save-time adoption (`AdoptCommandOwnershipAsync`, `MergeDisabledBuiltInsAsync`) — see [Automation](automation.md) |
 | `CommandFlowManagedToolTipConverter` (in [CommandsViewModel.cs](../../src/VyralBot.UI/ViewModels/CommandsViewModel.cs)) | "🎨 managed by a flow" grid tooltip converter |
 | [Command.cs](../../src/VyralBot.Data/Entities/Command.cs) | Entity: name, response, permission, cooldowns, platform flags, `BotId` (null = all bots), usage counters |
@@ -263,4 +292,5 @@ Stored in the per-profile SQLite database (see [Data Layer](../architecture/data
 - Platform gating flags exist for Kick and Twitch only; there are no YouTube/TikTok flags, and responses are sent back to Twitch, Kick, or Discord (a Discord reply goes through the origin bot to its active channel — see [Discord](../platforms/discord.md)).
 - **`!commands` ignores bot scope** (KI-37): the built-in list can advertise a command pinned to a different bot than the one answering. The rare Discord origin-resolution race that falls back to the Primary bot is KI-38. Both are in the [known issues ledger](../reference/known-issues.md).
 - **Converted moderation flows use fixed defaults** (KI-41): a Number parameter can't take `{args}`, so timeout minutes / slowmode seconds / purge counts from command arguments need a manual edit. **Converted random-reply commands get one Switch case per reply** (KI-42). Both are in the [known issues ledger](../reference/known-issues.md).
-- Command permission behavior differs from the currency/giveaway/poll services, which reply with explicit "Only moderators can ..." messages instead of silence.
+- **Command permission behavior differs from the currency/giveaway/poll services**, which reply with explicit "Only moderators can ..." messages instead of silence.
+- **Command import translation covers the common variables only** (KI-61): `$(user)`, `$(count)`, `$(time)`, `$(uptime)`, `$(watchtime)`, `$(channel)` and kin translate; Nightbot/SE specials (`$(eval)`, `$(query)`, `$(random.pick …)`, `$(urlfetch …)`) stay verbatim and are flagged in the preview notes for a hand-fix. In the [known issues ledger](../reference/known-issues.md).

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -105,6 +106,42 @@ public partial class CommandsView : UserControl
     private async void OnVisualEditorClick(object sender, RoutedEventArgs e)
     {
         await OpenFlowEditorAsync(null, null);
+    }
+
+    /// <summary>
+    /// CUSTOM tab IMPORT button: file dialog (.csv/.json/.txt — Nightbot CSV,
+    /// StreamElements JSON or plain !name=response text), then the view model
+    /// parses it (format auto-detected from the content) and opens the in-page
+    /// import preview overlay.
+    /// </summary>
+    private async void OnImportClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not CommandsViewModel viewModel)
+        {
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Import commands",
+            Filter = "Command exports (*.csv;*.json;*.txt)|*.csv;*.json;*.txt|Nightbot CSV (*.csv)|*.csv|StreamElements JSON (*.json)|*.json|Plain text (*.txt)|*.txt"
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var content = await File.ReadAllTextAsync(dialog.FileName);
+            await viewModel.RunImportPreviewAsync(content);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Could not read the import file: {ex.Message}", "Vyral",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     /// <summary>Toolbar button (Built-in and Custom tabs): edits the selected command in the visual editor.</summary>

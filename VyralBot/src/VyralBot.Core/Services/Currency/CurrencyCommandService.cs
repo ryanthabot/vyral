@@ -23,6 +23,7 @@ public class CurrencyCommandService : ICurrencyCommandService
     private readonly IViewerStatusService _viewerStatusService;
     private readonly ISocialGoalService _socialGoalService;
     private readonly IMultiPlatformBonusService _multiPlatformBonusService;
+    private readonly ISeasonService _seasonService;
     private readonly IDataService _dataService;
 
     // Per-user anti-spam cooldown for the read-only informational commands.
@@ -43,6 +44,7 @@ public class CurrencyCommandService : ICurrencyCommandService
         "!rank", "!tier",                     // loyalty tier
         "!bank",                              // bank balance
         "!linked", "!goals", "!mystatus",     // linking/status overview
+        "!season",                            // loyalty season status
     };
     private readonly ConcurrentDictionary<string, DateTime> _infoLastAnswered = new();
 
@@ -59,6 +61,7 @@ public class CurrencyCommandService : ICurrencyCommandService
         IViewerStatusService viewerStatusService,
         ISocialGoalService socialGoalService,
         IMultiPlatformBonusService multiPlatformBonusService,
+        ISeasonService seasonService,
         IDataService dataService)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -73,6 +76,7 @@ public class CurrencyCommandService : ICurrencyCommandService
         _viewerStatusService = viewerStatusService ?? throw new ArgumentNullException(nameof(viewerStatusService));
         _socialGoalService = socialGoalService ?? throw new ArgumentNullException(nameof(socialGoalService));
         _multiPlatformBonusService = multiPlatformBonusService ?? throw new ArgumentNullException(nameof(multiPlatformBonusService));
+        _seasonService = seasonService ?? throw new ArgumentNullException(nameof(seasonService));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
     }
 
@@ -124,6 +128,7 @@ public class CurrencyCommandService : ICurrencyCommandService
                 "!deposit" => await HandleDepositCommandAsync(username, platform, parts),
                 "!withdraw" => await HandleWithdrawCommandAsync(username, platform, parts),
                 "!bank" => await HandleBankCommandAsync(username, platform),
+                "!season" => await HandleSeasonCommandAsync(),
                 _ => null // Not a currency command
             };
         }
@@ -1077,5 +1082,16 @@ public class CurrencyCommandService : ICurrencyCommandService
             : "";
 
         return $"🏦 @{username}'s Bank: {account.BankBalance:N0} {currencyName}{interestText} | Total interest earned: {account.TotalInterestEarned:N0}";
+    }
+
+    /// <summary>
+    /// "!season" (everyone): live loyalty-season status. Formatting lives in
+    /// SeasonService.GetSeasonMessageAsync so the exact reply is testable
+    /// without this service's twelve other dependencies.
+    /// </summary>
+    private async Task<string> HandleSeasonCommandAsync()
+    {
+        return await _seasonService.GetSeasonMessageAsync()
+            ?? "No season is running yet — ask the streamer to start one!";
     }
 }

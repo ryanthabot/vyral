@@ -17,6 +17,7 @@ public partial class CurrencyViewModel : ViewModelBase
     private readonly ILogger<CurrencyViewModel> _logger;
     private readonly ICurrencyService _currencyService;
     private readonly ICurrencyRewardsService _rewardsService;
+    private readonly ISeasonService _seasonService;
     private readonly IProfileService _profileService;
     private readonly IDataService _dataService;
 
@@ -83,16 +84,52 @@ public partial class CurrencyViewModel : ViewModelBase
     [ObservableProperty]
     private string _leaderboardOverlayUrl = "http://localhost:5000/leaderboard.html?count=10&title=Top%20Points";
 
+    // --- Seasons (loyalty seasons / competitive resets) ---------------------
+
+    /// <summary>Current season + day summary, or a placeholder before the first season.</summary>
+    [ObservableProperty]
+    private string _currentSeasonDisplay = "No active season";
+
+    /// <summary>Season history rows (newest first) for the Seasons card list.</summary>
+    [ObservableProperty]
+    private ObservableCollection<SeasonHistoryRow> _seasonHistory = new();
+
+    /// <summary>True when at least one season row exists (toggles the empty hint).</summary>
+    [ObservableProperty]
+    private bool _hasSeasonHistory;
+
+    /// <summary>Name for the next season, typed into the Seasons card.</summary>
+    [ObservableProperty]
+    private string _newSeasonName = "";
+
+    /// <summary>Confirm-dialog visibility for Start New Season.</summary>
+    [ObservableProperty]
+    private bool _isConfirmingSeason;
+
+    /// <summary>Competitive reset toggle in the confirm dialog (default OFF — balances are kept).</summary>
+    [ObservableProperty]
+    private bool _seasonResetBalances;
+
+    /// <summary>Busy guard so the confirm button cannot double-fire StartSeasonAsync.</summary>
+    [ObservableProperty]
+    private bool _isStartingSeason;
+
+    /// <summary>One-line recap shown inside the confirm dialog.</summary>
+    [ObservableProperty]
+    private string _seasonConfirmSummary = "";
+
     public CurrencyViewModel(
         ILogger<CurrencyViewModel> logger,
         ICurrencyService currencyService,
         ICurrencyRewardsService rewardsService,
+        ISeasonService seasonService,
         IProfileService profileService,
         IDataService dataService)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _currencyService = currencyService ?? throw new ArgumentNullException(nameof(currencyService));
         _rewardsService = rewardsService ?? throw new ArgumentNullException(nameof(rewardsService));
+        _seasonService = seasonService ?? throw new ArgumentNullException(nameof(seasonService));
         _profileService = profileService ?? throw new ArgumentNullException(nameof(profileService));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
     }
@@ -106,6 +143,7 @@ public partial class CurrencyViewModel : ViewModelBase
             await LoadRewardsAsync();
             await LoadRedemptionsAsync();
             await LoadOverlayPortAsync();
+            await LoadSeasonsAsync();
         }
         catch (Exception ex)
         {
@@ -173,6 +211,108 @@ public partial class CurrencyViewModel : ViewModelBase
             // Clipboard can be locked by another process - non-fatal.
             _logger.LogWarning(ex, "Could not copy leaderboard overlay URL to clipboard");
             StatusMessage = "Could not copy - the clipboard is busy.";
+        }
+    }
+
+    // --- Seasons (loyalty seasons / competitive resets) ---------------------
+
+    /// <summary>1-based day number of a season (day 1 on the start date).</summary>
+    private static int GetSeasonDay(CurrencySeason season)
+        => Math.Max(1, (int)(DateTime.UtcNow - season.StartedAt).TotalDays + 1);
+
+    /// <summary>
+    /// Reloads the current season summary and the history rows (name, date
+    /// range, top-3 winners parsed from each closing snapshot).
+    /// </summary>
+    private async Task LoadSeasonsAsync()
+    {
+        try
+        {
+            var seasons = await _seasonService.GetSeasonsAsync(20);
+
+            CurrentSeasonDisplay = seasons.FirstOrDefault(s => s.EndedAt is null) is { } current
+                ? $"{current.Name} — day {GetSeasonDay(current)}"
+                : "No active season";
+
+            SeasonHistory.Clear();
+            foreach (var season in seasons)
+            {
+                SeasonHistory.Add(BuildSeasonHistoryRow(season));
+            }
+            HasSeasonHistory = SeasonHistory.Count > 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load currency seasons");
+            StatusMessage = "Failed to load seasons.";
+        }
+    }
+
+    /// <summary>One display row of the season history list (immutable, rebuilt per load).</summary>
+    private static SeasonHistoryRow BuildSeasonHistoryRow(CurrencySeason season)
+    {
+        var endedAt = season.EndedAt;
+        var dates = endedAt is null
+            ? $"{season.StartedAt:yyyy-MM-dd} — running"
+            : $"{season.StartedAt:yyyy-MM-dd} — {endedAt:yyyy-MM-dd}";
+
+        var medals = new[] { "🥇", "🥈", "🥉" };
+        var top = SeasonService.ParseTopCount(season.TopCount);
+        var winners = top is { Count: > 0 }
+            ? string.Join("  ", top.Take(3).Select((entry, i) =>
+                $"{medals[i]} {entry.Username} ({entry.Balance:N0})"))
+            : "No balances";
+
+        return new SeasonHistoryRow(season.Name, dates, winners);
+    }
+
+    /// <summary>Opens the in-card confirm dialog (reset checkbox always starts OFF).</summary>
+    [RelayCommand]
+    private void StartSeason()
+    {
+        if (string.IsNullOrWhiteSpace(NewSeasonName))
+        {
+            StatusMessage = "Enter a name for the new season first.";
+            return;
+        }
+
+        SeasonResetBalances = false;
+        SeasonConfirmSummary =
+            $"Close the current season (its top-20 leaderboard is saved to history) and start \"{NewSeasonName.Trim()}\"?";
+        IsConfirmingSeason = true;
+    }
+
+    [RelayCommand]
+    private void CancelStartSeason() => IsConfirmingSeason = false;
+
+    [RelayCommand]
+    private async Task ConfirmStartSeasonAsync()
+    {
+        if (IsStartingSeason) return;
+
+        IsStartingSeason = true;
+        try
+        {
+            var result = await _seasonService.StartSeasonAsync(NewSeasonName, SeasonResetBalances);
+            StatusMessage = result.Message;
+
+            if (result.Success)
+            {
+                IsConfirmingSeason = false;
+                NewSeasonName = "";
+                // Balances may have been zeroed — refresh both panels.
+                await LoadSeasonsAsync();
+                await LoadLeaderboardAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start currency season");
+            StatusMessage = "Failed to start the season.";
+        }
+        finally
+        {
+            IsStartingSeason = false;
         }
     }
 
@@ -494,5 +634,29 @@ public partial class CurrencyViewModel : ViewModelBase
             _logger.LogInformation(ex, "Could not resolve current profile for approver name; using Admin");
             return "Admin";
         }
+    }
+
+    /// <summary>
+    /// One immutable display row of the Seasons card history list (built by
+    /// <see cref="BuildSeasonHistoryRow"/>; plain properties are enough — rows
+    /// are replaced wholesale on every load).
+    /// </summary>
+    public sealed class SeasonHistoryRow
+    {
+        public SeasonHistoryRow(string name, string dates, string winners)
+        {
+            Name = name;
+            Dates = dates;
+            Winners = winners;
+        }
+
+        /// <summary>Season display name.</summary>
+        public string Name { get; }
+
+        /// <summary>Date range ("yyyy-MM-dd — yyyy-MM-dd", or "— running" while open).</summary>
+        public string Dates { get; }
+
+        /// <summary>Top-3 winners with medals ("🥇 user (1,200)  🥈 …"), or "No balances".</summary>
+        public string Winners { get; }
     }
 }

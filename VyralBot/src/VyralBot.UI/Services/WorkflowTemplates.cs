@@ -48,9 +48,13 @@ public sealed class WorkflowTemplate
 /// <see cref="WorkflowJson"/> schema and validated by
 /// <c>VyralBot.UI.Tests.WorkflowTemplatesTests</c> (parses, node types exist in
 /// <see cref="VyralBot.Workflows.Abstractions.BlockCatalog"/>, wiring resolves).
-/// Node types used: <c>send_message</c> and <c>play_sound</c> (the sub template
+/// Node types used: <c>send_message</c>, <c>play_sound</c> (the sub template
 /// plays the Sounds library's subscribe.wav instead of the old wait+second-message
-/// workaround).
+/// workaround), plus — wave 15 — <c>twitch_clip</c> and <c>obs_scene</c>. The
+/// wave-15 stream-action templates wire the failing node's error branch onto the
+/// same follow-up node, because both blocks fail routinely (Twitch offline /
+/// clip while not live, OBS remote control off) and a failed clip or scene
+/// switch must not swallow the chat message after it.
 /// </summary>
 public static class WorkflowTemplates
 {
@@ -60,7 +64,7 @@ public static class WorkflowTemplates
     /// <summary>Suffix appended to an imported workflow's description (docs/tests grep for it).</summary>
     public const string ImportedMarker = "[imported from template]";
 
-    /// <summary>The eight starter templates in panel display order.</summary>
+    /// <summary>The twelve starter templates in panel display order.</summary>
     public static IReadOnlyList<WorkflowTemplate> Templates { get; } = new WorkflowTemplate[]
     {
         new(
@@ -293,6 +297,145 @@ public static class WorkflowTemplates
                 { "type": "permission", "value": "Moderator" }
               ],
               "entryNodeId": "tpl-warn-1"
+            }
+            """),
+
+        // ======================= wave 15 additions =======================
+
+        new(
+            "sub-clip",
+            "Clip The Sub",
+            "Clips the Twitch stream the moment someone subscribes, plays the cheer sound and thanks them in chat. Needs Twitch connected and live — a failed clip still celebrates.",
+            "Twitch",
+            """
+            {
+              "type": "event",
+              "eventType": "subscribe",
+              "platform": "Twitch"
+            }
+            """,
+            """
+            {
+              "nodes": [
+                {
+                  "id": "tpl-clip-1",
+                  "type": "twitch_clip",
+                  "config": {},
+                  "next": "tpl-clip-2",
+                  "branchError": "tpl-clip-2",
+                  "x": 80,
+                  "y": 120
+                },
+                {
+                  "id": "tpl-clip-2",
+                  "type": "play_sound",
+                  "config": { "SoundName": "cheer.wav", "Volume": "80" },
+                  "next": "tpl-clip-3",
+                  "x": 340,
+                  "y": 120
+                },
+                {
+                  "id": "tpl-clip-3",
+                  "type": "send_message",
+                  "config": { "text": "Clipped it! {username}" },
+                  "x": 600,
+                  "y": 120
+                }
+              ],
+              "options": [],
+              "entryNodeId": "tpl-clip-1"
+            }
+            """),
+
+        new(
+            "raid-mode",
+            "Raid Mode",
+            "Switches OBS to your raid scene and hypes the raid in chat. Edit the obs_scene node's SceneName (\"Raid Mode\") to match the scene in YOUR OBS collection.",
+            "Any",
+            """
+            {
+              "type": "event",
+              "eventType": "raid",
+              "platform": "Any"
+            }
+            """,
+            """
+            {
+              "nodes": [
+                {
+                  "id": "tpl-raidmode-1",
+                  "type": "obs_scene",
+                  "config": { "SceneName": "Raid Mode" },
+                  "next": "tpl-raidmode-2",
+                  "branchError": "tpl-raidmode-2",
+                  "x": 80,
+                  "y": 120
+                },
+                {
+                  "id": "tpl-raidmode-2",
+                  "type": "send_message",
+                  "config": { "text": "RAID MODE ENGAGED! Welcome {username} and all {viewers} raiders — hype crew, make some noise!" },
+                  "x": 340,
+                  "y": 120
+                }
+              ],
+              "options": [],
+              "entryNodeId": "tpl-raidmode-1"
+            }
+            """),
+
+        new(
+            "commercial-break",
+            "Commercial Break Reminder",
+            "Posts a quick break reminder in chat every 30 minutes. Note: the message goes to chat — it is visible to everyone, not just mods.",
+            "Any",
+            """
+            {
+              "type": "timer",
+              "intervalMinutes": 30
+            }
+            """,
+            """
+            {
+              "nodes": [
+                {
+                  "id": "tpl-break-1",
+                  "type": "send_message",
+                  "config": { "text": "Time for a quick break — thanks for supporting the channel!" },
+                  "x": 80,
+                  "y": 120
+                }
+              ],
+              "options": [],
+              "entryNodeId": "tpl-break-1"
+            }
+            """),
+
+        new(
+            "first-chatter",
+            "Welcome First-Time Chatter",
+            "Greets a viewer the first time they chat in the channel. Uses the new \"firstmessage\" event trigger key (wave 15).",
+            "Any chat platform",
+            """
+            {
+              "type": "event",
+              "eventType": "firstmessage",
+              "platform": "Any"
+            }
+            """,
+            """
+            {
+              "nodes": [
+                {
+                  "id": "tpl-firstmsg-1",
+                  "type": "send_message",
+                  "config": { "text": "Welcome to the stream, {username}!" },
+                  "x": 80,
+                  "y": 120
+                }
+              ],
+              "options": [],
+              "entryNodeId": "tpl-firstmsg-1"
             }
             """),
     };

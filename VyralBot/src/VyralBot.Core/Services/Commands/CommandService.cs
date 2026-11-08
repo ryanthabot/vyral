@@ -447,23 +447,6 @@ public class CommandService : ICommandService
         return $"Available commands: {commandList}";
     }
 
-    private async Task<string> ExecuteUptimeAsync()
-    {
-        // ChatViewModel writes "Stream.StartedAtUtc" (ISO 8601 UTC, cleared to
-        // an empty string when offline) whenever the Twitch stream status
-        // changes — read it live so the reply always reflects current state.
-        var startedAtRaw = await _dataService.GetConfigValueAsync("Stream.StartedAtUtc");
-        if (!string.IsNullOrWhiteSpace(startedAtRaw)
-            && DateTimeOffset.TryParse(startedAtRaw, CultureInfo.InvariantCulture,
-                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var startedAt)
-            && startedAt < DateTimeOffset.UtcNow)
-        {
-            var uptime = DateTimeOffset.UtcNow - startedAt;
-            return $"Stream uptime: {(int)uptime.TotalHours}h {uptime.Minutes}m (since {startedAt:HH:mm} UTC)";
-        }
-
-        return "Stream is offline or uptime not tracked yet.";
-    }
 
     public async Task<IEnumerable<Command>> GetAllCommandsAsync(bool? enabledOnly = null)
     {

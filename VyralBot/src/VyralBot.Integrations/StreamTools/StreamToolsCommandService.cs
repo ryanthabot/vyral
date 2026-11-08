@@ -332,6 +332,9 @@ public class StreamToolsCommandService : IStreamToolsCommandService
     /// <summary>Strips '@'/'#' decorations and whitespace from a chat mention.</summary>
     private static string SanitizeUser(string? raw)
     {
-        return raw?.Trim().TrimStart('@', '#').Trim() ?? string.Empty;
+        var trimmed = raw?.Trim().TrimStart('@', '#').Trim() ?? string.Empty;
+        // Keep only platform-legal username characters so a crafted target
+        // can't smuggle path separators or query strings into a profile URL.
+        return new string(trimmed.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
     }
 }

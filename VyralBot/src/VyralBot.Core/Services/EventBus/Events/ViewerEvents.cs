@@ -64,3 +64,33 @@ public record ViewerGoalCompletedEvent : EventBase
     /// <summary>Human-readable description of the granted reward.</summary>
     public required string RewardDescription { get; init; }
 }
+
+/// <summary>
+/// Published the first time a viewer ever chats (no prior activity recorded).
+/// Detection lives in <see cref="VyralBot.Core.Services.Chat.FirstTimeChatterService"/>
+/// (welcome-newcomer retention feature): a message is FIRST-TIME when the viewer
+/// has no UserWatchtime row and no UserCurrency row on ANY platform (read-only
+/// <c>IDataService.HasAnyActivityAsync</c> check), with an in-memory dedup window
+/// so message bursts never double-fire. Handlers may send welcome alerts/replies
+/// (ChatViewModel) or run workflows (WorkflowTriggerService dispatch key
+/// "firstmessage"); none of them must rely on the check having created rows —
+/// it never does (watchtime's own recorder creates the row on the same message).
+/// </summary>
+public record FirstTimeChatterEvent : EventBase
+{
+    /// <summary>Platform identity string the message arrived on ("Twitch", "Kick", "YouTube", ...).</summary>
+    public required string Platform { get; init; }
+
+    /// <summary>Username (login name) of the newcomer.</summary>
+    public required string Username { get; init; }
+
+    /// <summary>The first message's raw text.</summary>
+    public required string Message { get; init; }
+
+    /// <summary>
+    /// Platform display name when the source chat event exposed one; null when
+    /// only the login name is known (the unified ChatMessageReceivedEvent carries
+    /// no display name — live detection always publishes null here).
+    /// </summary>
+    public string? DisplayName { get; init; }
+}

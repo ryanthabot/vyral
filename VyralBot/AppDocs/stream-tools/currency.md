@@ -16,6 +16,7 @@ The current-state picture:
 - **Earning follows the stream.** Watch-time points accrue only while that platform is actually live (and never on Discord), and Discord chat-activity points are paid only in channels you assigned to your bots (see [Where points can be earned](#where-points-can-be-earned-live--channel-gating)).
 - **Watchtime earning is configurable** — `WatchTimeEnabled` / `WatchTimeAmount` / `WatchTimeInterval` are honored. **BEHAVIOR CHANGE:** the defaults award 10 per minute where older builds hard-coded 1 (KI-30 — set Points Per Interval to 1 for the old rate).
 - **The Settings and Bank & Decay tabs persist** via the currency service (KI-7 resolved, and the KI-29 subset-save caveat is resolved too — `SaveCurrencySettingsAsync` now writes every `CurrencySetting` column, role multipliers and bank fields included).
+- **Loyalty seasons ship (1.1.0)** — start a season on the Leaderboard tab's Seasons card, optionally zero every balance for a competitive reset; the closing top-20 is snapshotted into season history and `!season` reports the live status. See [Seasons](#seasons).
 
 What genuinely works: every earning stream with a trigger, the full game suite (heists self-resolve 60 s after the first join), the bank (interest now writes "Interest" audit rows), auctions, boosts that actually multiply awards, the whole management UI (rewards CRUD, redemption queue, leaderboard, transaction lookup), and the hourly background maintenance loop.
 
@@ -70,6 +71,19 @@ The top 10 balances with a **Refresh** button, plus the **transaction lookup**: 
 
 Also on the Leaderboard tab (1.1.0): a **📡 Leaderboard Overlay** card that builds the OBS browser-source URL for the [points-leaderboard widget](browser-sources.md#points-leaderboard-leaderboardhtml). Two fields — **Rows** (clamped 1–25, default 10) and **Title** (default "Top Points") — regenerate the URL live (`http://localhost:5000/leaderboard.html?count=10&title=Top%20Points`); **📋 COPY** puts it on the clipboard to paste into an OBS Browser Source. The port in the URL follows your Web Server settings (default 5000, read on page load). The widget polls the embedded server every 10 s and labels points with your configured currency name/symbol; for the extra params (`style`, the `platform` filter), hand-edit the copied URL — see [Browser Sources](browser-sources.md#points-leaderboard-leaderboardhtml).
 
+### Seasons (loyalty seasons & competitive resets) {#seasons}
+
+Also on the Leaderboard tab (1.1.0), right of the overlay card: the **🏆 Seasons** card — loyalty seasons with competitive resets, so a new viewer race can start from zero without deleting anyone's history.
+
+- **The card shows** the current season ("*Season 3* — day 12") or "No active season", plus the **Season History** list: every season's name, date range, day count and its closing **top-leaderboard snapshot** (the top 20 balances with platform chips, parsed from the season's recorded `TopCount` JSON).
+- **START NEW SEASON** opens a small confirm area: type the season's name, optionally check **"Reset all viewer balances to zero (earned history is kept)"**, and confirm. Starting a season:
+  1. **Closes the previous season** — its final **top-20 leaderboard is snapshotted** into that season's history row (append-only; the snapshot survives later balance changes).
+  2. **Optionally zeroes every viewer balance** — the competitive reset. The close, the insert and the reset run in **one database transaction**, so a reset can never leave a half-closed season behind.
+  3. **Never deletes history** — lifetime aggregates, loyalty tiers and the full `CurrencyTransactions` audit trail are untouched; a reset viewer keeps their tier and transaction log, only the spendable balance goes to zero.
+- **`!season` (everyone)** — viewers ask the bot for the live status: "*Season: {name} — day {n}. Previous winner: {user}.*" (the winner sentence is omitted when there is none). Before any season is started the reply is "No season is running yet — ask the streamer to start one!".
+
+The snapshot is capped at the top 20 (`SeasonService.SnapshotSize`); a hand-edited or corrupted snapshot JSON never breaks the page — the history row just renders without its leaderboard.
+
 ### Earning and spending from the viewer's side
 
 Everything viewers do with currency happens through chat commands. The full command surface — about 25 commands — is in the [command catalog](../reference/command-catalog.md); the groups:
@@ -84,7 +98,7 @@ Everything viewers do with currency happens through chat commands. The full comm
 | Auctions | `!auction` (moderator), `!bid` |
 | Moderation & boosts | `!give`, `!take`, `!boost` (moderator) |
 | Account linking | `!link`, `!link <code>` (`!linkcode <code>`), `!linked`, `!delink <platform>` / `!delink <code>` |
-| Goals & status | `!goals`, `!mystatus`, `!mp on\|off` |
+| Goals & status | `!goals`, `!mystatus`, `!mp on\|off`, `!season` |
 
 All of these are live from chat (the command pipeline runs on every connected platform; replies go to Twitch/Kick only). Moderator-gated commands reply with an explicit "You must be a moderator to use !x" message rather than silence.
 
@@ -245,6 +259,7 @@ private async Task SaveSettingsAsync()
 | [CurrencyBankService.cs](../../src/VyralBot.Core/Services/Currency/CurrencyBankService.cs) | Deposits, withdrawals, daily interest. |
 | [CurrencyAuctionService.cs](../../src/VyralBot.Core/Services/Currency/CurrencyAuctionService.cs) | Auction lifecycle, bids, refunds, anti-snipe. |
 | [CurrencyBoostService.cs](../../src/VyralBot.Core/Services/Currency/CurrencyBoostService.cs) | Timed earn-multiplier boosts (applied by the earning paths). |
+| [ISeasonService.cs](../../src/VyralBot.Core/Services/Currency/ISeasonService.cs) / [SeasonService.cs](../../src/VyralBot.Core/Services/Currency/SeasonService.cs) | [Seasons](#seasons): `StartSeasonAsync` (close + top-20 snapshot + optional balance reset in one transaction), history, live status and the `!season` reply text (`ParseTopCount` is the guarded snapshot reader). |
 | [LoyaltyTierService.cs](../../src/VyralBot.Core/Services/Currency/LoyaltyTierService.cs) | Tier evaluation from lifetime earnings (10-min cache). |
 | [LinkedAccountService.cs](../../src/VyralBot.Core/Services/Currency/LinkedAccountService.cs) | Cross-platform identity linking with verification codes. |
 | [CurrencyDecayBackgroundService.cs](../../src/VyralBot.Core/Services/Currency/CurrencyDecayBackgroundService.cs) | Hourly maintenance: decay, interest, boost expiry. |
@@ -278,6 +293,7 @@ All tables live in the per-profile SQLite database (see [Data Layer](../architec
 | CurrencyAuctions / CurrencyAuctionBids | `:2628` / `:2652` | auctions and their bids |
 | UserBankAccounts | `:2666` | bank balances and interest bookkeeping |
 | PlatformEarnings | `:4055` | the per-platform earned/spent ledger for [unified balances](#unified-balances--the-per-platform-ledger), keyed by (ViewerId, Platform) |
+| CurrencySeasons | `:3941` | append-only [season](#seasons) history: `Name`, `StartedAt`, `EndedAt` (null = open), `TopCount` (closing top-20 snapshot JSON) |
 
 `CurrencySetting` fields (entity at [CurrencySetting.cs](../../src/VyralBot.Data/Entities/CurrencySetting.cs)):
 

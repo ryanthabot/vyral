@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Threading;
 using VyralBot.Core.Services.EventBus;
+using VyralBot.Core.Services.EventBus.Events;
 using VyralBot.Core.Services.Moderation;
 using VyralBot.Data;
 using VyralBot.Integrations.Discord;
@@ -1693,6 +1694,20 @@ public class WorkflowTriggerService
             return Task.CompletedTask;
         });
 
+        // --- First-time chatter (Core FirstTimeChatterService welcomes newcomers) ---
+        // Canonical dispatch key "firstmessage"; authored "firstchatter" /
+        // "firsttimechatter" / "first message" fold onto it (see
+        // NormalizeEventType). Works on every platform — the event carries the
+        // origin platform, so a Trigger.Platform filter can scope a welcome to
+        // e.g. Twitch only. Variables: username/platform/message (context) plus
+        // displayName (empty when the source event had none).
+        await Subscribe<FirstTimeChatterEvent>(e =>
+        {
+            DispatchEvent("firstmessage", e.Platform, e.Username, e.Message, e,
+                Vars(("displayName", e.DisplayName)));
+            return Task.CompletedTask;
+        });
+
         _logger.LogInformation("WorkflowTriggerService subscribed to {Count} event types", _subscriptionIds.Count);
     }
 
@@ -2497,6 +2512,11 @@ public class WorkflowTriggerService
             // event name map explicitly.
             "youtubemembership" or "ytmembership" or "sponsor" or "newsponsor" or "newsponsorevent"
                 or "membermilestone" or "membermilestonechatevent" => "membership",
+            // First-time chatter: canonical key "firstmessage" (authored "First
+            // Message" / "first_message" need no case — the default separator
+            // strip maps them); the compressed "firstchatter" /
+            // "firsttimechatter" spellings map explicitly.
+            "firstmessage" or "firstchatter" or "firsttimechatter" => "firstmessage",
             _ => t.Replace("-", string.Empty).Replace("_", string.Empty).Replace(" ", string.Empty)
         };
     }

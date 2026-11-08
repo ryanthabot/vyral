@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using VyralBot.Core.Services.EventBus;
+using VyralBot.Core.Services.EventBus.Events;
 using VyralBot.Integrations.Discord.Events;
 using VyralBot.Integrations.Kick.Events;
 using VyralBot.Integrations.Twitch.Events;
@@ -36,6 +37,7 @@ public sealed class TestEventPublisher
     public const string YouTubeMembership = "youtube.membership";
     public const string DiscordMemberJoined = "discord.memberjoined";
     public const string DiscordBoost = "discord.boost";
+    public const string FirstMessage = "firstmessage.fire";
 
     /// <summary>All event type ids accepted by <see cref="PublishTestEventAsync"/>.</summary>
     public static readonly IReadOnlyList<string> SupportedEventTypes = new[]
@@ -43,7 +45,7 @@ public sealed class TestEventPublisher
         KickFollow, KickSubscribe, KickGiftSub, KickHost, KickKicksGifted, KickRewardRedeemed,
         TwitchFollow, TwitchSubscribe, TwitchResub, TwitchGiftSub, TwitchRaid, TwitchCheer,
         TwitchChannelPointsRedeem, YouTubeSuperChat, YouTubeMembership,
-        DiscordMemberJoined, DiscordBoost
+        DiscordMemberJoined, DiscordBoost, FirstMessage
     };
 
     public const string DefaultUsername = "TestUser123";
@@ -296,6 +298,23 @@ public sealed class TestEventPublisher
                     DisplayName = user,
                     UserId = "12345",
                     PremiumSince = DateTimeOffset.UtcNow
+                });
+
+            // First-time chatter (welcome-newcomer retention). Published
+            // directly as FirstTimeChatterEvent (Twitch example payload — the
+            // live FirstTimeChatterService publishes it for whichever platform
+            // the newcomer chatted on), so welcome alerts/replies and the
+            // "firstmessage" workflow key fire without any database state
+            // (detection is bypassed by construction; the event is published,
+            // not detected).
+            case FirstMessage:
+                return _eventBus.PublishAsync(new FirstTimeChatterEvent
+                {
+                    Source = "Twitch",
+                    Platform = "Twitch",
+                    Username = user,
+                    Message = msg,
+                    DisplayName = user
                 });
 
             default:

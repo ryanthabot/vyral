@@ -68,6 +68,13 @@ public partial class CommandsViewModel : ViewModelBase
     /// </summary>
     private readonly WorkflowTriggerService? _triggerService;
 
+    /// <summary>
+    /// Nightbot / StreamElements / plain-text command import (CUSTOM tab
+    /// IMPORT button). Null when DI skipped it — the button then reports
+    /// "unavailable" instead of throwing.
+    /// </summary>
+    private readonly ICommandImportService? _commandImportService;
+
     // Master lists (unfiltered); the observable collections mirror these
     // filtered by the selected bot scope.
     private List<Command> _allBuiltIn = new();
@@ -201,7 +208,8 @@ public partial class CommandsViewModel : ViewModelBase
         IDiscordBotManager? discordBotManager = null,
         IDataService? dataService = null,
         WorkflowTriggerService? triggerService = null,
-        IQuoteService? quoteService = null)
+        IQuoteService? quoteService = null,
+        ICommandImportService? commandImportService = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _commandService = commandService ?? throw new ArgumentNullException(nameof(commandService));
@@ -209,6 +217,7 @@ public partial class CommandsViewModel : ViewModelBase
         _dataService = dataService;
         _triggerService = triggerService;
         _quoteService = quoteService;
+        _commandImportService = commandImportService;
 
         if (_discordBotManager != null)
         {
@@ -814,6 +823,134 @@ public partial class CommandsViewModel : ViewModelBase
             StatusMessage = $"Failed to update platform settings: {ex.Message}";
         }
     }
+
+    // ----------------------------------------------------------------------
+    // Command import (CUSTOM tab IMPORT — Nightbot / StreamElements / text)
+    // ----------------------------------------------------------------------
+
+    /// <summary>Rows of the currently parsed import (importable + skipped).</summary>
+    [ObservableProperty]
+    private ObservableCollection<CommandImportRow> _importRows = new();
+
+    /// <summary>True while the import preview overlay is open.</summary>
+    [ObservableProperty]
+    private bool _isImportPreviewOpen;
+
+    /// <summary>Preview header counts: "3 to import · 2 skipped · format: Nightbot CSV".</summary>
+    [ObservableProperty]
+    private string _importSummaryText = "";
+
+    /// <summary>CONFIRM button label — "IMPORT" or "IMPORT 3".</summary>
+    [ObservableProperty]
+    private string _importConfirmLabel = "IMPORT";
+
+    /// <summary>Importable rows in the current preview (drives the CONFIRM label).</summary>
+    [ObservableProperty]
+    private int _importableCount;
+
+    /// <summary>False when nothing in the file is importable (CONFIRM disabled).</summary>
+    [ObservableProperty]
+    private bool _canConfirmImport;
+
+    /// <summary>The preview the CONFIRM button applies (null while closed).</summary>
+    private CommandImportPreview? _pendingImportPreview;
+
+    /// <summary>
+    /// Parses an export's content (auto-detected format) and opens the preview
+    /// overlay. Called by the view after the IMPORT file dialog succeeds.
+    /// </summary>
+    public async Task RunImportPreviewAsync(string content)
+    {
+        if (_commandImportService == null)
+        {
+            StatusMessage = "Command import unavailable";
+            return;
+        }
+
+        try
+        {
+            var preview = await _commandImportService.ParseAsync(content, CommandImportService.FormatAuto);
+
+            if (preview.Rows.Count == 0)
+            {
+                StatusMessage = "Nothing to import in that file";
+                return;
+            }
+
+            _pendingImportPreview = preview;
+
+            ImportRows.Clear();
+            foreach (var row in preview.Rows)
+            {
+                ImportRows.Add(row);
+            }
+
+            ImportableCount = preview.ImportableCount;
+            CanConfirmImport = ImportableCount > 0;
+            ImportConfirmLabel = ImportableCount > 0 ? $"IMPORT {ImportableCount}" : "IMPORT";
+            ImportSummaryText = $"{ImportableCount} to import · {preview.SkippedCount} skipped · format: {FormatLabel(preview.Format)}";
+
+            IsImportPreviewOpen = true;
+            StatusMessage = "";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse a command import file");
+            StatusMessage = $"Could not read that import file: {ex.Message}";
+        }
+    }
+
+    /// <summary>CONFIRM: applies the previewed import, reports the outcome and reloads the grids.</summary>
+    [RelayCommand]
+    private async Task ConfirmImportAsync()
+    {
+        if (_commandImportService == null || _pendingImportPreview == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await _commandImportService.ApplyAsync(_pendingImportPreview);
+
+            StatusMessage = result.SkippedCount > 0
+                ? $"Imported {result.ImportedCount} command(s), skipped {result.SkippedCount} (already exist: {string.Join(", ", result.SkippedNames)})"
+                : $"Imported {result.ImportedCount} command(s)";
+            _logger.LogInformation("Command import confirmed from the CUSTOM tab: {Imported} imported, {Skipped} skipped",
+                result.ImportedCount, result.SkippedCount);
+
+            CloseImportPreview();
+            await LoadCommandsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to apply a command import");
+            StatusMessage = $"Failed to apply the import: {ex.Message}";
+        }
+    }
+
+    /// <summary>CANCEL: drops the preview without creating anything.</summary>
+    [RelayCommand]
+    private void CancelImport()
+    {
+        CloseImportPreview();
+        StatusMessage = "Import cancelled";
+    }
+
+    private void CloseImportPreview()
+    {
+        IsImportPreviewOpen = false;
+        _pendingImportPreview = null;
+        ImportRows.Clear();
+    }
+
+    private static string FormatLabel(string format) => format switch
+    {
+        CommandImportService.FormatNightbot => "Nightbot CSV",
+        CommandImportService.FormatStreamElements => "StreamElements JSON",
+        CommandImportService.FormatPlain => "plain text",
+        _ => format
+    };
 
     // ----------------------------------------------------------------------
     // Timers tab

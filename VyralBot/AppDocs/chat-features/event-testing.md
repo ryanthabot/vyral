@@ -1,6 +1,6 @@
 # Event Testing
 
-> A diagnostic console with **17 test-fires grouped by platform** (Twitch, Kick, YouTube, Discord) that publish the real event objects onto the live event bus — the full pipeline (chat line, sound, alert, currency bonus, auto-reply, statistics row, **and workflows**) runs exactly as for a live viewer. The page wears its own warning: **FIRES REAL EVENTS — WORKFLOWS REALLY EXECUTE.**
+> A diagnostic console with **18 test-fires grouped by platform** (Twitch, Kick, YouTube, Discord) that publish the real event objects onto the live event bus — the full pipeline (chat line, sound, alert, currency bonus, auto-reply, statistics row, **and workflows**) runs exactly as for a live viewer. The page wears its own warning: **FIRES REAL EVENTS — WORKFLOWS REALLY EXECUTE.**
 
 ## Overview
 
@@ -25,11 +25,11 @@ Open **Event Testing** in the sidebar — it is a **standalone entry below Setti
 - **Status line** — under the warning banner; updated on every fire: `FIRED Twitch Cheer (100 bits) for TestUser123 at 14:32:07 - alert, sound, statistics, currency and workflow handlers ran for real.` A failed publish turns the line into `FAILED <platform> <event> ...: <error>`.
 - **Recent fires** — a newest-first log of the **last 10 fires** (platform, event, username, time); failed rows render in the error color. **CLEAR LOG** wipes both the list and the status line.
 
-### The 17 test-fires
+### The 18 test-fires
 
 The buttons sit in **four platform-grouped cards**, each with the platform's icon and accent color. Payloads are fixed and realistic; the Test Username / Test Message inputs feed the user-carried fields.
 
-**Twitch** (7 fires):
+**Twitch** (8 fires):
 
 | Button | Event payload |
 |---|---|
@@ -40,6 +40,7 @@ The buttons sit in **four platform-grouped cards**, each with the platform's ico
 | **Raid** | `FromBroadcasterUsername` = test username, `Viewers` = **200**, target channel "YourChannel" |
 | **Cheer (100 bits)** | `Bits` = **100**, `Message` = test message, `IsAnonymous` = false |
 | **Channel Points Redeem** | `RewardTitle` = **"Hydrate Reminder"**, `RewardCost` = **500**, `UserInput` = test message, status "unfulfilled" |
+| **First Message** (1.1.0) | A `FirstTimeChatterEvent` published **directly** — the newcomer-detection database check is deliberately bypassed, so the welcome alert/reply and **`firstmessage`** workflows run regardless of profile state (see [Event Reactions → First-time chatters](../chat/event-reactions.md#first-time-chatters)) |
 
 **Kick** (6 fires):
 
@@ -113,9 +114,9 @@ Because every button runs the full pipeline, any of them exercises all enabled r
 
 ## How It Works (Developer)
 
-[EventTestingViewModel.cs](../../src/VyralBot.UI/ViewModels/EventTestingViewModel.cs) injects one dependency: the shared **`TestEventPublisher`** ([VyralBot.Integrations/Testing](../../src/VyralBot.Integrations/Testing/TestEventPublisher.cs)). Each of the 17 buttons is a `[RelayCommand]` that calls `TriggerAsync(platform, eventType, eventName)`, which awaits `TestEventPublisher.PublishTestEventAsync(type, TestUsername, TestMessage)`, then records the fire into the status line and the 10-entry `RecentFires` collection (`FiredEventEntry` rows render failed fires in the error brush).
+[EventTestingViewModel.cs](../../src/VyralBot.UI/ViewModels/EventTestingViewModel.cs) injects one dependency: the shared **`TestEventPublisher`** ([VyralBot.Integrations/Testing](../../src/VyralBot.Integrations/Testing/TestEventPublisher.cs)). Each of the 18 buttons is a `[RelayCommand]` that calls `TriggerAsync(platform, eventType, eventName)`, which awaits `TestEventPublisher.PublishTestEventAsync(type, TestUsername, TestMessage)`, then records the fire into the status line and the 10-entry `RecentFires` collection (`FiredEventEntry` rows render failed fires in the error brush).
 
-`TestEventPublisher` — extracted from the ViewModel precisely so the page and the HTTP **control API** fire byte-identical payloads — constructs the real integration event class (`TwitchFollowEvent`, `YouTubeSuperChatEvent`, `DiscordBoostEvent`, ... from `VyralBot.Integrations.{Twitch,Kick,YouTube,Discord}.Events`), fills the fixed realistic payload plus the two input fields, and `await _eventBus.PublishAsync(evt)`. `SupportedEventTypes` is the canonical list of the 17 type ids (`twitch.follow`, `youtube.superchat`, `discord.boost`, ...), and unknown ids throw `ArgumentException` — which is also what `POST /api/events/test` reports back (see [API, Web Server & ngrok](../settings/web-server-ngrok.md#the-control-api)).
+`TestEventPublisher` — extracted from the ViewModel precisely so the page and the HTTP **control API** fire byte-identical payloads — constructs the real integration event class (`TwitchFollowEvent`, `YouTubeSuperChatEvent`, `DiscordBoostEvent`, ... from `VyralBot.Integrations.{Twitch,Kick,YouTube,Discord}.Events`), fills the fixed realistic payload plus the two input fields, and `await _eventBus.PublishAsync(evt)`. `SupportedEventTypes` is the canonical list of the 18 type ids (`twitch.follow`, `youtube.superchat`, `discord.boost`, `firstmessage.fire`, ...), and unknown ids throw `ArgumentException` — which is also what `POST /api/events/test` reports back (see [API, Web Server & ngrok](../settings/web-server-ngrok.md#the-control-api)).
 
 Because the bus routes by exact CLR type, the published test events are indistinguishable from live ones: the same `ChatViewModel` handlers run the full [Event Reactions](../chat/event-reactions.md) pipeline, including the 30-second `AutoReplyRateLimiter` (keyed on `{platform}:{eventType}:{username}`). The five newer events ride the same bus: the channel-points redeem mirrors the `TwitchEventSubService` payload shape, the Super Chat carries `amountMicros` = 5,000,000, and the two Discord events are published directly — which is why they exercise reactions even though **live** join/boost delivery needs the Server Members Intent (KI-52).
 
@@ -129,7 +130,7 @@ Two downstream notes:
 | File | Role |
 |---|---|
 | [EventTestingViewModel.cs](../../src/VyralBot.UI/ViewModels/EventTestingViewModel.cs) | The 17 trigger commands, status line, 10-entry recent-fires log |
-| [TestEventPublisher.cs](../../src/VyralBot.Integrations/Testing/TestEventPublisher.cs) | One source of truth for test-event payloads — shared with `POST /api/events/test`; the 17 type ids in `SupportedEventTypes` |
+| [TestEventPublisher.cs](../../src/VyralBot.Integrations/Testing/TestEventPublisher.cs) | One source of truth for test-event payloads — shared with `POST /api/events/test`; the 18 type ids in `SupportedEventTypes` (incl. `firstmessage.fire`) |
 | [EventTestingView.xaml](../../src/VyralBot.UI/Views/EventTestingView.xaml) | Page layout: warning banner, inputs, the four platform-grouped button cards, status line + log |
 | [EventTestingView.xaml.cs](../../src/VyralBot.UI/Views/EventTestingView.xaml.cs) | Code-behind |
 | [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) | The handlers these events wake (sounds, alerts, statistics, currency) |

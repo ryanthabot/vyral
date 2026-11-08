@@ -764,6 +764,64 @@ public class DapperDataService : IDataService
             new { Since = since });
     }
 
+    public async Task<IEnumerable<CurrencySeason>> GetCurrencySeasonsAsync(int limit = 20)
+    {
+        using var conn = CreateConnection();
+        // Id is the autoincrement order, so Id DESC = newest season first
+        // (the open season — EndedAt IS NULL — is row 1).
+        return await conn.QueryAsync<CurrencySeason>(
+            "SELECT * FROM CurrencySeasons ORDER BY Id DESC LIMIT @Limit",
+            new { Limit = limit });
+    }
+
+    public async Task<CurrencySeason?> GetCurrentCurrencySeasonAsync()
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<CurrencySeason>(
+            "SELECT * FROM CurrencySeasons WHERE EndedAt IS NULL ORDER BY Id DESC LIMIT 1");
+    }
+
+    public async Task<(CurrencySeason NewSeason, int ResetBalances)> StartCurrencySeasonAsync(string name, string? topJson, bool resetBalances)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+        try
+        {
+            var now = DateTime.UtcNow;
+
+            // Close the open season (no-op before the first season) with the
+            // top-leaderboard snapshot the caller read BEFORE this write.
+            await conn.ExecuteAsync(
+                "UPDATE CurrencySeasons SET EndedAt = @Now, TopCount = @TopCount WHERE EndedAt IS NULL",
+                new { Now = now, TopCount = topJson }, tx);
+
+            await conn.ExecuteAsync(
+                "INSERT INTO CurrencySeasons (Name, StartedAt) VALUES (@Name, @Now)",
+                new { Name = name, Now = now }, tx);
+            var newId = await conn.ExecuteScalarAsync<int>(
+                "SELECT last_insert_rowid()", transaction: tx);
+
+            // Competitive reset: zero BALANCES ONLY. TotalEarned/TotalSpent are
+            // lifetime history aggregates and CurrencyTransactions is the audit
+            // trail — neither is ever touched, and rows are never deleted.
+            var resetCount = resetBalances
+                ? await conn.ExecuteAsync(
+                    "UPDATE UserCurrency SET Balance = 0, UpdatedAt = @Now",
+                    new { Now = now }, tx)
+                : 0;
+
+            tx.Commit();
+
+            return (new CurrencySeason { Id = newId, Name = name, StartedAt = now, EndedAt = null, TopCount = null }, resetCount);
+        }
+        catch
+        {
+            tx.Rollback();
+            throw;
+        }
+    }
+
     public async Task<CurrencyReward?> GetCurrencyRewardAsync(string id)
     {
         using var conn = CreateConnection();
@@ -2539,6 +2597,18 @@ public class DapperDataService : IDataService
             new { Now = DateTime.UtcNow });
     }
 
+    // First-time-chatter detection source of truth: a viewer is "known" when
+    // either table holds a row for the username on ANY platform. Read-only —
+    // never INSERTs/UPDATEs, so the check cannot itself mark a newcomer known.
+    public async Task<bool> HasAnyActivityAsync(string username)
+    {
+        using var conn = CreateConnection();
+        return await conn.ExecuteScalarAsync<int>(
+            "SELECT EXISTS(SELECT 1 FROM UserWatchtime WHERE Username = @Username COLLATE NOCASE) " +
+            "OR EXISTS(SELECT 1 FROM UserCurrency WHERE Username = @Username COLLATE NOCASE)",
+            new { Username = username }) != 0;
+    }
+
     public async Task DeactivateInactiveViewersAsync(DateTime inactiveSince)
     {
         using var conn = CreateConnection();
@@ -3860,6 +3930,22 @@ public class DapperDataService : IDataService
             CREATE INDEX IF NOT EXISTS IX_CurrencyTransactions_Username ON CurrencyTransactions(Username);
             CREATE INDEX IF NOT EXISTS IX_CurrencyTransactions_Platform ON CurrencyTransactions(Platform);
             CREATE INDEX IF NOT EXISTS IX_CurrencyTransactions_Timestamp ON CurrencyTransactions(Timestamp DESC);
+        ");
+
+        // Create CurrencySeasons table for loyalty seasons (competitive resets).
+        // Append-only history: rows are inserted (StartCurrencySeasonAsync) and
+        // the open row is closed once (EndedAt + top-leaderboard snapshot in
+        // TopCount as JSON) — season rows are never updated afterwards or
+        // deleted. Id doubles as the season order.
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS CurrencySeasons (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Name TEXT NOT NULL,
+                StartedAt TEXT NOT NULL,
+                EndedAt TEXT,
+                TopCount TEXT
+            );
+            CREATE INDEX IF NOT EXISTS IX_CurrencySeasons_Open ON CurrencySeasons(EndedAt) WHERE EndedAt IS NULL;
         ");
 
         // Create CurrencyRewards table for redeemable rewards

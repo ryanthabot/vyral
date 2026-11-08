@@ -335,6 +335,11 @@ public class AlertService : IAlertService
                 ? spokenTitle
                 : $"{spokenTitle}, {username}";
 
+            if (_ttsService == null)
+            {
+                return; // optional dependency (e.g. tests construct without it)
+            }
+
             await _ttsService.SpeakAsync(spokenText);
         }
         catch (Exception ex)

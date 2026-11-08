@@ -192,6 +192,9 @@ public partial class App : Application
                 services.AddSingleton<ICurrencyBoostService, CurrencyBoostService>();
                 services.AddSingleton<ICurrencyAuctionService, CurrencyAuctionService>();
                 services.AddSingleton<ICurrencyBankService, CurrencyBankService>();
+                // Loyalty seasons (competitive resets) — Currency page Seasons
+                // card + "!season" chat command
+                services.AddSingleton<ISeasonService, SeasonService>();
                 services.AddHostedService<CurrencyDecayBackgroundService>();
 
                 // Giveaway system
@@ -226,11 +229,20 @@ public partial class App : Application
                 services.AddSingleton<WatchtimeCommandService>();
                 services.AddHostedService<WatchtimeBackgroundService>();
 
+                // First-time-chatter detection (welcome newcomers): listens to the
+                // generic chat event, checks the read-only HasAnyActivityAsync source
+                // of truth and publishes FirstTimeChatterEvent. App-lifetime hosted
+                // lifecycle (see service docs) — no per-profile start/stop needed.
+                services.AddSingleton<VyralBot.Core.Services.Chat.IFirstTimeChatterService, VyralBot.Core.Services.Chat.FirstTimeChatterService>();
+                services.AddHostedService(sp =>
+                    (VyralBot.Core.Services.Chat.FirstTimeChatterService)sp.GetRequiredService<VyralBot.Core.Services.Chat.IFirstTimeChatterService>());
+
                 // Variable system
                 services.AddSingleton<IVariableReplacementService, VariableReplacementService>();
 
                 // Command system
                 services.AddSingleton<ICommandService, CommandService>();
+                services.AddSingleton<ICommandImportService, CommandImportService>(); // Nightbot/StreamElements/text command import (Commands page → CUSTOM tab IMPORT)
                 services.AddSingleton<CommandTimerService>(); // scheduled command firing (Commands page → Timers tab)
                 services.AddSingleton<CommandActionRunner>(); // custom-command action-sequence executor (needs every platform sender)
                 services.AddSingleton<UI.Services.PlatformConnectionService>(); // shared connect/disconnect/token-refresh for Settings + Chat Hub

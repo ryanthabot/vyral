@@ -148,6 +148,10 @@ public class ProfileAwareDataService : IDataService
     public Task<IEnumerable<CurrencyTransaction>> GetCurrencyTransactionsAsync(string? username = null, string? platform = null, int limit = 100) => GetCurrentService().GetCurrencyTransactionsAsync(username, platform, limit);
     public Task<(long UserCount, long TotalBalance)> GetCurrencyEconomyTotalsAsync() => GetCurrentService().GetCurrencyEconomyTotalsAsync();
     public Task<(long Earned, long Spent)> GetCurrencyTransactionTotalsSinceAsync(DateTime since) => GetCurrentService().GetCurrencyTransactionTotalsSinceAsync(since);
+    // Currency seasons (Wave 15 loyalty seasons) — forwarded like every other member.
+    public Task<IEnumerable<CurrencySeason>> GetCurrencySeasonsAsync(int limit = 20) => GetCurrentService().GetCurrencySeasonsAsync(limit);
+    public Task<CurrencySeason?> GetCurrentCurrencySeasonAsync() => GetCurrentService().GetCurrentCurrencySeasonAsync();
+    public Task<(CurrencySeason NewSeason, int ResetBalances)> StartCurrencySeasonAsync(string name, string? topJson, bool resetBalances) => GetCurrentService().StartCurrencySeasonAsync(name, topJson, resetBalances);
     public Task<CurrencyReward?> GetCurrencyRewardAsync(string id) => GetCurrentService().GetCurrencyRewardAsync(id);
     public Task<IEnumerable<CurrencyReward>> GetCurrencyRewardsAsync(bool? enabledOnly = null) => GetCurrentService().GetCurrencyRewardsAsync(enabledOnly);
     public Task SaveCurrencyRewardAsync(CurrencyReward reward) => GetCurrentService().SaveCurrencyRewardAsync(reward);
@@ -323,6 +327,7 @@ public class ProfileAwareDataService : IDataService
     public Task ResetStreamSessionMinutesAsync() => GetCurrentService().ResetStreamSessionMinutesAsync();
     public Task DeactivateInactiveViewersAsync(DateTime inactiveSince) => GetCurrentService().DeactivateInactiveViewersAsync(inactiveSince);
     public Task<int> DeactivateAllViewersAsync() => GetCurrentService().DeactivateAllViewersAsync();
+    public Task<bool> HasAnyActivityAsync(string username) => GetCurrentService().HasAnyActivityAsync(username);
 
     // Variable operations
     public Task<Variable?> GetVariableAsync(string id) => GetCurrentService().GetVariableAsync(id);

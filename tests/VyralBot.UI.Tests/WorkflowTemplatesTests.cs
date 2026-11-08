@@ -21,9 +21,9 @@ public class WorkflowTemplatesTests
         WorkflowTemplates.Templates.First(t => t.Key == key);
 
     [Fact]
-    public void Catalog_HasEightUniqueTemplates_WithDisplayMetadata()
+    public void Catalog_HasTwelveUniqueTemplates_WithDisplayMetadata()
     {
-        Assert.Equal(8, WorkflowTemplates.Templates.Count);
+        Assert.Equal(12, WorkflowTemplates.Templates.Count);
         Assert.Equal(WorkflowTemplates.Templates.Count,
             WorkflowTemplates.Templates.Select(t => t.Key).Distinct(StringComparer.Ordinal).Count());
 
@@ -45,6 +45,10 @@ public class WorkflowTemplatesTests
     [InlineData("reward-thanks")]
     [InlineData("superchat-shoutout")]
     [InlineData("mod-warn")]
+    [InlineData("sub-clip")]
+    [InlineData("raid-mode")]
+    [InlineData("commercial-break")]
+    [InlineData("first-chatter")]
     public void EachTemplate_ParsesViaWorkflowJson(string key)
     {
         var template = Get(key);
@@ -65,6 +69,10 @@ public class WorkflowTemplatesTests
     [InlineData("reward-thanks")]
     [InlineData("superchat-shoutout")]
     [InlineData("mod-warn")]
+    [InlineData("sub-clip")]
+    [InlineData("raid-mode")]
+    [InlineData("commercial-break")]
+    [InlineData("first-chatter")]
     public void EachTemplate_NodeTypes_ExistInBlockCatalog(string key)
     {
         var graph = WorkflowJson.FromGraphData(Get(key).GraphJson);
@@ -86,6 +94,10 @@ public class WorkflowTemplatesTests
     [InlineData("reward-thanks")]
     [InlineData("superchat-shoutout")]
     [InlineData("mod-warn")]
+    [InlineData("sub-clip")]
+    [InlineData("raid-mode")]
+    [InlineData("commercial-break")]
+    [InlineData("first-chatter")]
     public void EachTemplate_WiringResolves_AndNodesAreConfigured(string key)
     {
         var graph = WorkflowJson.FromGraphData(Get(key).GraphJson);
@@ -97,6 +109,8 @@ public class WorkflowTemplatesTests
         foreach (var node in graph.Nodes)
         {
             Assert.True(node.Next == null || ids.Contains(node.Next), $"{key}: dangling Next on {node.Id}");
+            Assert.True(node.BranchError == null || ids.Contains(node.BranchError),
+                $"{key}: dangling BranchError on {node.Id}");
 
             // The node types the templates use must carry their load-bearing config.
             if (node.Type == "send_message")
@@ -114,6 +128,11 @@ public class WorkflowTemplatesTests
                 Assert.True(node.Config.TryGetValue("SoundName", out var sound) && !string.IsNullOrWhiteSpace(sound),
                     $"{key}: play_sound {node.Id} has no SoundName");
             }
+            else if (node.Type == "obs_scene")
+            {
+                Assert.True(node.Config.TryGetValue("SceneName", out var scene) && !string.IsNullOrWhiteSpace(scene),
+                    $"{key}: obs_scene {node.Id} has no SceneName");
+            }
         }
     }
 
@@ -126,6 +145,10 @@ public class WorkflowTemplatesTests
     [InlineData("reward-thanks")]
     [InlineData("superchat-shoutout")]
     [InlineData("mod-warn")]
+    [InlineData("sub-clip")]
+    [InlineData("raid-mode")]
+    [InlineData("commercial-break")]
+    [InlineData("first-chatter")]
     public void EachTemplate_TriggerIsComplete(string key)
     {
         var trigger = WorkflowJson.FromTrigger(Get(key).TriggerJson);
@@ -157,6 +180,10 @@ public class WorkflowTemplatesTests
     [InlineData("reward-thanks")]
     [InlineData("superchat-shoutout")]
     [InlineData("mod-warn")]
+    [InlineData("sub-clip")]
+    [InlineData("raid-mode")]
+    [InlineData("commercial-break")]
+    [InlineData("first-chatter")]
     public void CreateWorkflow_ImportsDisabled_UnderTemplateName_WithMarker(string key)
     {
         var workflow = WorkflowTemplates.CreateWorkflow(Get(key));
@@ -209,6 +236,15 @@ public class WorkflowTemplatesTests
         Assert.Equal("YouTube", Trigger("superchat-shoutout").Platform);
         Assert.Equal(WorkflowTriggerTypes.Command, Trigger("mod-warn").Type);
         Assert.Equal("warn", Trigger("mod-warn").CommandName);
+
+        // Wave 15 additions.
+        Assert.Equal("subscribe", Trigger("sub-clip").EventType);
+        Assert.Equal("Twitch", Trigger("sub-clip").Platform);
+        Assert.Equal("raid", Trigger("raid-mode").EventType);
+        Assert.Equal("Any", Trigger("raid-mode").Platform);
+        Assert.Equal(WorkflowTriggerTypes.Timer, Trigger("commercial-break").Type);
+        Assert.Equal(30, Trigger("commercial-break").IntervalMinutes);
+        Assert.Equal("firstmessage", Trigger("first-chatter").EventType);
     }
 
     [Fact]
@@ -229,5 +265,88 @@ public class WorkflowTemplatesTests
         Assert.Equal("subscribe.wav", sound.Config["SoundName"]);
         Assert.True(sound.Next != null && graph.Nodes.Any(n => n.Id == sound.Next),
             "sub-appreciation: play_sound must wire into the thank-you message");
+    }
+
+    /// <summary>
+    /// Wave 15 template facts: the four new starters chain the wave-14/15
+    /// blocks (twitch_clip, obs_scene) exactly as specced, with the failing
+    /// stream node's error branch folded onto the follow-up node so a dead
+    /// Twitch clip / offline OBS never swallows the chat message after it.
+    /// The firstmessage template rides the event trigger with that key (the
+    /// editor's event-type pick list does not offer it yet — free text binds).
+    /// </summary>
+    [Fact]
+    public void Wave15_SubClip_ChainsTwitchClip_CheerSound_AndMessage()
+    {
+        Assert.NotNull(BlockCatalog.Find("twitch_clip"));
+
+        var graph = WorkflowJson.FromGraphData(Get("sub-clip").GraphJson);
+
+        Assert.Equal(3, graph.Nodes.Count);
+        Assert.Equal("tpl-clip-1", graph.EntryNodeId);
+        Assert.Equal("twitch_clip", graph.Nodes[0].Type);
+        Assert.Equal("play_sound", graph.Nodes[1].Type);
+        Assert.Equal("send_message", graph.Nodes[2].Type);
+
+        var clip = graph.Nodes[0];
+        Assert.Equal("tpl-clip-2", clip.Next);
+        Assert.Equal("tpl-clip-2", clip.BranchError); // failed clip still celebrates
+
+        Assert.Equal("cheer.wav", graph.Nodes[1].Config["SoundName"]); // bundled Sounds default (no celebration.wav exists)
+        Assert.Equal("tpl-clip-3", graph.Nodes[1].Next);
+        Assert.Equal("Clipped it! {username}", graph.Nodes[2].Config["text"]);
+    }
+
+    [Fact]
+    public void Wave15_RaidMode_SwitchesScene_ThenHypes()
+    {
+        Assert.NotNull(BlockCatalog.Find("obs_scene"));
+
+        var graph = WorkflowJson.FromGraphData(Get("raid-mode").GraphJson);
+
+        Assert.Equal(2, graph.Nodes.Count);
+        Assert.Equal("tpl-raidmode-1", graph.EntryNodeId);
+
+        var scene = graph.Nodes[0];
+        Assert.Equal("obs_scene", scene.Type);
+        Assert.Equal("Raid Mode", scene.Config["SceneName"]); // description tells the user to edit this
+        Assert.Equal("tpl-raidmode-2", scene.Next);
+        Assert.Equal("tpl-raidmode-2", scene.BranchError); // OBS offline still hypes in chat
+
+        var message = graph.Nodes[1];
+        Assert.Equal("send_message", message.Type);
+        Assert.Contains("{username}", message.Config["text"], StringComparison.Ordinal);
+        Assert.Contains("{viewers}", message.Config["text"], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Wave15_CommercialBreak_Timer30Minutes_WithExactMessage()
+    {
+        var template = Get("commercial-break");
+
+        var trigger = WorkflowJson.FromTrigger(template.TriggerJson);
+        Assert.Equal(WorkflowTriggerTypes.Timer, trigger.Type);
+        Assert.Equal(30, trigger.IntervalMinutes);
+
+        var graph = WorkflowJson.FromGraphData(template.GraphJson);
+        var message = Assert.Single(graph.Nodes);
+        Assert.Equal("send_message", message.Type);
+        Assert.Equal("Time for a quick break — thanks for supporting the channel!", message.Config["text"]);
+    }
+
+    [Fact]
+    public void Wave15_FirstChatter_UsesEventTriggerWithFirstMessageKey()
+    {
+        var template = Get("first-chatter");
+
+        var trigger = WorkflowJson.FromTrigger(template.TriggerJson);
+        Assert.Equal(WorkflowTriggerTypes.Event, trigger.Type);
+        Assert.Equal("firstmessage", trigger.EventType); // not in the editor pick list yet — free-text key
+        Assert.False(string.IsNullOrWhiteSpace(trigger.Platform));
+
+        var graph = WorkflowJson.FromGraphData(template.GraphJson);
+        var message = Assert.Single(graph.Nodes);
+        Assert.Equal("send_message", message.Type);
+        Assert.Equal("Welcome to the stream, {username}!", message.Config["text"]);
     }
 }

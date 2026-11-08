@@ -461,6 +461,11 @@
                                 Style="{StaticResource VyralPlainPrimaryButton}"
                                 Margin="0,0,12,0"
                                 ToolTip="Create a new command flow in the Visual Builder"/>
+                        <Button Content="IMPORT"
+                                Click="OnImportClick"
+                                Style="{StaticResource VyralPlainOutlineButton}"
+                                Margin="0,0,12,0"
+                                ToolTip="Import commands from a Nightbot CSV export, a StreamElements JSON export or a plain !name=response text file"/>
                         <Button Content="EDIT"
                                 Click="OnCommandEditClick"
                                 Style="{StaticResource VyralPlainOutlineButton}"
@@ -1234,6 +1239,162 @@
                 Background="{DynamicResource BackgroundDarkBrush}"
                 Visibility="Collapsed">
             <ContentControl x:Name="MarketplaceHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+        </Border>
+
+        <!-- ============================================================
+             IMPORT PREVIEW overlay: Nightbot / StreamElements / text
+             command import — centered card with the parsed rows
+             (importable + skipped-with-reasons) and CONFIRM/CANCEL.
+             Opened by the CUSTOM tab IMPORT button (OnImportClick).
+             ============================================================ -->
+        <Border Panel.ZIndex="102"
+                Grid.Row="0"
+                Background="{DynamicResource BackgroundDarkBrush}"
+                Opacity="0.98"
+                Visibility="{Binding IsImportPreviewOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid VerticalAlignment="Center" HorizontalAlignment="Center" Width="900" Margin="24">
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                     Effect="{DynamicResource CardShadow}"
+                                     Padding="24,20">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="FileImport"
+                                                         Width="22"
+                                                         Height="22"
+                                                         Foreground="{DynamicResource PrimaryHueMidBrush}"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,10,0"/>
+                                <TextBlock Text="Import commands"
+                                           FontSize="18"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding ImportSummaryText}"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <TextBlock Grid.Row="1"
+                                   Text="Nightbot / StreamElements variables were translated to Vyral tokens. Rows with a skip reason are left out — nothing is overwritten, existing command names are skipped."
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,12"/>
+
+                        <DataGrid Grid.Row="2"
+                                  ItemsSource="{Binding ImportRows}"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  MaxHeight="420"
+                                  Background="{DynamicResource CardBackgroundBrush}"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                  BorderBrush="{DynamicResource BorderColorBrush}"
+                                  GridLinesVisibility="Horizontal"
+                                  HorizontalGridLinesBrush="{DynamicResource BorderColorBrush}"
+                                  RowBackground="Transparent"
+                                  IsReadOnly="True">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Command" Binding="{Binding Name}" Width="120" IsReadOnly="True">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource PrimaryHueMidBrush}"/>
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                            <Setter Property="Padding" Value="5"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+
+                                <DataGridTextColumn Header="Response" Binding="{Binding Response}" Width="*" IsReadOnly="True">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                                            <Setter Property="Padding" Value="5"/>
+                                            <Setter Property="TextWrapping" Value="Wrap"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+
+                                <DataGridTextColumn Header="Cooldown" Binding="{Binding CooldownSec}" Width="80" IsReadOnly="True">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+                                            <Setter Property="Padding" Value="5"/>
+                                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+
+                                <DataGridTemplateColumn Header="Mods only" Width="80">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding ModOnly, Mode=OneWay}"
+                                                      IsEnabled="False"
+                                                      HorizontalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <DataGridTextColumn Header="Status" Width="170" IsReadOnly="True">
+                                    <DataGridTextColumn.Binding>
+                                        <Binding Path="SkipReason" TargetNullValue="IMPORT"/>
+                                    </DataGridTextColumn.Binding>
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                                            <Setter Property="Padding" Value="5"/>
+                                            <Setter Property="TextWrapping" Value="Wrap"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+
+                                <DataGridTextColumn Header="Notes" Width="170" IsReadOnly="True">
+                                    <DataGridTextColumn.Binding>
+                                        <Binding Path="Notes" TargetNullValue=""/>
+                                    </DataGridTextColumn.Binding>
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+                                            <Setter Property="Padding" Value="5"/>
+                                            <Setter Property="FontStyle" Value="Italic"/>
+                                            <Setter Property="TextWrapping" Value="Wrap"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                            <Button Content="CANCEL"
+                                    Command="{Binding CancelImportCommand}"
+                                    Style="{StaticResource VyralPlainOutlineButton}"
+                                    Margin="0,0,12,0"
+                                    ToolTip="Drop this import without creating anything"/>
+                            <Button Content="{Binding ImportConfirmLabel}"
+                                    Command="{Binding ConfirmImportCommand}"
+                                    IsEnabled="{Binding CanConfirmImport}"
+                                    Style="{StaticResource VyralPlainPrimaryButton}"
+                                    ToolTip="Create the importable commands (enabled, all platforms)"/>
+                        </StackPanel>
+                    </Grid>
+                </materialDesign:Card>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

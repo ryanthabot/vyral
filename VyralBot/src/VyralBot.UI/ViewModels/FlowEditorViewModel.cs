@@ -2048,7 +2048,8 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     public ObservableCollection<string> TriggerEventTypeOptions { get; } = new()
     {
         "follow", "subscribe", "resub", "giftsub", "raid", "cheer", "host",
-        "discordmemberjoined", "discordboost", "superchat", "membership"
+        "discordmemberjoined", "discordboost", "superchat", "membership",
+        "firstmessage"
     };
 
     public bool IsTriggerCommand => SelectedTriggerType?.Key == WorkflowTriggerTypes.Command;
