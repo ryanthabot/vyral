@@ -45,13 +45,13 @@ src/
 | `ProfileSelectorViewModel` | 363 | Profile selection (manual INPC) |
 | `SoundsViewModel` | 363 | Sound file management |
 | `VariablesViewModel` | 350 | Variable management |
-| `EventHistoryViewModel` | 314 | Event log viewer |
+| `EventHistoryViewModel` | 462 | Event log viewer, CSV export (`ui/event-history-viewmodel.md`) |
 | `ConditionalRulesViewModel` | 302 | Conditional rule builder |
 | `CommandsViewModel` | 300 | Command management |
 | `KickChatSettingsViewModel` | 242 | Kick chat settings |
 | `BaseWebSetupViewModel` | 228 | Simplified web setup base |
 | `TwitchChatSettingsViewModel` | 224 | Twitch chat settings |
-| `StatisticsViewModel` | 218 | Statistics dashboard |
+| `StatisticsViewModel` | 330 | Statistics dashboard, aggregated CSV export (`ui/statistics-viewmodel.md`) |
 | `AudioSettingsViewModel` | 206 | Audio configuration |
 | `VariablePickerViewModel` | 198 | Variable picker control |
 | `WatchtimeViewModel` | 196 | Watchtime viewer |
@@ -99,6 +99,7 @@ Where the major subsystems live and which doc covers them:
 | Subsystem | Entry points | Doc |
 |---|---|---|
 | Quotes | `Core/Services/Quotes/QuoteService`, `!quote` command family, Commands page QUOTES tab | [features/quotes.md](features/quotes.md) |
+| Restream | `Integrations/Restream/` (engine, builder, validation, bandwidth, FFmpeg locator/acquisition), Restream page | [features/restream.md](features/restream.md) |
 | Control API | `Api` Bearer-token `/api` surface (`/api/status`, `/api/events/test`) on the embedded web server | [services/embedded-web-server.md](services/embedded-web-server.md) |
 | Event testing | `Integrations/Testing/TestEventPublisher`, Event Testing page | [services/test-event-publisher-service.md](services/test-event-publisher-service.md), [ui/event-testing-viewmodel.md](ui/event-testing-viewmodel.md) |
 | Welcome + auto-role | `DiscordBotManager` member-join flow, per-bot `WelcomeSettings` | [services/discord-bot-runtime.md](services/discord-bot-runtime.md) |
@@ -131,8 +132,10 @@ Where the major subsystems live and which doc covers them:
 | [features/profile-system.md](features/profile-system.md) | Profile management |
 | [features/settings-system.md](features/settings-system.md) | Settings and config |
 | [features/flow-editor-canvas.md](features/flow-editor-canvas.md) | Visual flow editor canvas |
+| [features/workflow-templates.md](features/workflow-templates.md) | Starter workflow templates (Automation page one-click import) |
 | [features/marketplace-sharecodes.md](features/marketplace-sharecodes.md) | Command marketplace + sharecode import |
 | [features/quotes.md](features/quotes.md) | Quote database + `!quote` command family |
+| [features/restream.md](features/restream.md) | Multi-platform FFmpeg restream (ingest, fan-out, verified FFmpeg acquisition, uplink hint) |
 | [features/vyraldeck.md](features/vyraldeck.md) | VyralDeck mobile companion (LAN server, PIN pairing, 22 deck actions) |
 
 ### Services

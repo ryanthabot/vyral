@@ -861,6 +861,24 @@ public partial class MainViewModel : ViewModelBase
                 _logger.LogError(ex, "Error stopping workflow triggers");
             }
 
+            // Stop the restream engine — its FFmpeg fan-out is running the previous
+            // profile's destinations/stream keys and must not keep streaming under
+            // the new profile. The engine is a singleton that outlives the page VM,
+            // so nothing else stops it on a switch.
+            try
+            {
+                var restreamEngine = _serviceProvider.GetService<VyralBot.Integrations.Restream.RestreamEngine>();
+                if (restreamEngine?.IsRunning == true)
+                {
+                    await restreamEngine.StopAsync();
+                    _logger.LogInformation("Stopped restream engine for profile switch");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error stopping restream engine");
+            }
+
             var twitchService = _serviceProvider.GetService<ITwitchService>();
             if (twitchService?.IsConnected == true)
             {

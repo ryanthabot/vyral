@@ -1,14 +1,17 @@
 using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
-using System.Text.Json;
 
 namespace VyralBot.UI.ViewModels;
 
@@ -53,6 +56,12 @@ public partial class EventHistoryViewModel : ViewModelBase
 
     /// <summary>Max rows fetched per query (GetEventStatisticsAsync LIMIT).</summary>
     private const int QueryWindowCap = 10000;
+
+    /// <summary>
+    /// All rows matching the current filters (pre-pagination), kept so CSV
+    /// export covers every page, not just the visible one.
+    /// </summary>
+    private List<EventStatistic> _lastFilteredEvents = new();
 
     [ObservableProperty]
     private int _currentPage = 1;
@@ -118,9 +127,22 @@ public partial class EventHistoryViewModel : ViewModelBase
                 ? SelectedEventType
                 : null;
 
+            // Normalize the custom range: clamp the end to today (the future has
+            // no data) and force start ≤ end so a swapped range doesn't zero out.
+            // Writing back keeps the pickers in sync; no changed-handler loops here.
+            if (EndDate.Date > DateTime.Today)
+            {
+                EndDate = DateTime.Today;
+            }
+
+            if (StartDate.Date > EndDate.Date)
+            {
+                StartDate = EndDate.Date;
+            }
+
             var allEvents = await _dataService.GetEventStatisticsAsync(
                 platformFilter, eventTypeFilter, limit: QueryWindowCap,
-                startDate: StartDate, endDate: EndDate.AddDays(1));
+                startDate: StartDate, endDate: EndDate.Date.AddDays(1));
 
             // The query is ORDER BY Timestamp DESC LIMIT, so a full window means
             // we hold the newest 10,000 rows and older rows in range were cut.
@@ -142,6 +164,7 @@ public partial class EventHistoryViewModel : ViewModelBase
 
             // Calculate totals
             var filteredList = filtered.OrderByDescending(e => e.Timestamp).ToList();
+            _lastFilteredEvents = filteredList;
             TotalEvents = filteredList.Count;
             TotalPages = (int)Math.Ceiling((double)TotalEvents / PageSize);
 
@@ -219,6 +242,68 @@ public partial class EventHistoryViewModel : ViewModelBase
             IsLoading = false;
         }
     }
+
+    /// <summary>
+    /// Export the current filtered rows (all pages, not just the visible one)
+    /// to CSV. UTF-8 with BOM so Excel opens it directly; every field quoted
+    /// and comma-escaped. Respects the 10k query cap: when the window was
+    /// truncated, the status message says so instead of implying completeness.
+    /// </summary>
+    [RelayCommand]
+    private async Task ExportToCsvAsync()
+    {
+        try
+        {
+            if (_lastFilteredEvents.Count == 0)
+            {
+                StatusMessage = "Nothing to export — load events first.";
+                return;
+            }
+
+            var saveDialog = new SaveFileDialog
+            {
+                Title = "Export Event History to CSV",
+                Filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
+                DefaultExt = ".csv",
+                FileName = $"EventHistory_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+            };
+
+            if (saveDialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            var csv = new StringBuilder();
+            csv.AppendLine("Timestamp,Platform,EventType,Username,WasAutoReplied,EventData");
+
+            foreach (var evt in _lastFilteredEvents)
+            {
+                csv.AppendLine(
+                    $"{evt.Timestamp:yyyy-MM-dd HH:mm:ss}," +
+                    $"{Csv(evt.Platform)},{Csv(evt.EventType)},{Csv(evt.Username)}," +
+                    $"{(evt.WasAutoReplied ? "Yes" : "No")},{Csv(evt.EventData)}");
+            }
+
+            // UTF-8 with BOM — File.WriteAllTextAsync without an encoding writes
+            // BOM-less UTF-8, which Excel misreads.
+            await File.WriteAllTextAsync(saveDialog.FileName, csv.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+
+            StatusMessage = TruncationNotice.Length > 0
+                ? $"Exported {_lastFilteredEvents.Count:N0} events (newest {QueryWindowCap:N0}-row window — narrow filters to export older rows) to {saveDialog.FileName}"
+                : $"Exported {_lastFilteredEvents.Count:N0} events to {saveDialog.FileName}";
+
+            _logger.LogInformation("Event history exported to {FileName} ({Count} rows)",
+                saveDialog.FileName, _lastFilteredEvents.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error exporting event history");
+            StatusMessage = $"Export failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>Quote a CSV field, escaping embedded quotes (RFC 4180).</summary>
+    private static string Csv(string? value) => $"\"{(value ?? string.Empty).Replace("\"", "\"\"")}\"";
 
     /// <summary>
     /// Modal OK/cancel confirmation (same pattern as CommandsViewModel and

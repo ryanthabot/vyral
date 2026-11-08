@@ -1,7 +1,7 @@
 name: vyral_deck
 description: VyralDeck — mobile companion app for VyralBot's StreamDeck. Press and customize your stream deck from your phone over Wi-Fi (same network only).
 publish_to: "none"
-version: 1.0.0+1
+version: 1.1.0+1
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

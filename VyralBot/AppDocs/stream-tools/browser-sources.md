@@ -103,8 +103,8 @@ The only producer of WebSocket messages is `SoundService`, which serializes the 
 ### Two copies of the page, and the legacy server
 
 - `src/VyralBot.Api/wwwroot/audio.html` — the **current** copy served by Kestrel (derives URLs from `window.location`; served on the configured port, default 5000).
-- [BrowserSource/audio.html](../../BrowserSource/audio.html) (repo root) — a **legacy** copy that hard-codes `ws://localhost:8080` and `http://localhost:8080/sounds/` (BrowserSource/audio.html:57-58). It belongs to the older [AudioWebSocketServer.cs](../../src/VyralBot.Core/Services/Audio/AudioWebSocketServer.cs), a standalone `HttpListener` implementation that served `<exe>\BrowserSource\audio.html` and sound files from `<exe>\Sounds` on port 8080.
-- The legacy server is dead code: it is no longer registered in DI ("AudioWebSocketServer removed; now handled by Kestrel server", App.xaml.cs:173), and MainViewModel notes "Audio WebSocket server now handled by Kestrel (port 5000)" (MainViewModel.cs:231-232). Only the Kestrel path runs today.
+- [BrowserSource/audio.html](../../BrowserSource/audio.html) (repo root) — a **legacy** copy that hard-codes `ws://localhost:8080` and `http://localhost:8080/sounds/` (BrowserSource/audio.html:57-58). It belonged to the older standalone `AudioWebSocketServer` (HttpListener, port 8080), which has since been **deleted from the codebase** — only the unreferenced HTML copy remains in the repo.
+- The legacy server is gone: it is no longer registered in DI ("AudioWebSocketServer removed; now handled by Kestrel server", App.xaml.cs:306), and MainViewModel notes "Audio WebSocket server now handled by Kestrel (port 5000)" (MainViewModel.cs:361). Only the Kestrel path runs today.
 
 ### ngrok's actual role
 
@@ -119,8 +119,7 @@ The same Kestrel server is also tunneled publicly by ngrok ([NgrokService.cs](..
 | [WebServerService.cs](../../src/VyralBot.Api/Services/WebServerService.cs) | Embedded Kestrel server: static files (`audio.html`, `/sounds/*`), `/audio-ws` WebSocket endpoint, broadcast bridge wiring |
 | [AudioWebSocketBroadcaster.cs](../../src/VyralBot.Core/Services/Audio/AudioWebSocketBroadcaster.cs) | Static delegate that lets Core's SoundService push JSON to connected browser pages without referencing the API project |
 | [SoundService.cs](../../src/VyralBot.Core/Services/Audio/SoundService.cs) | Produces the play-sound broadcasts (`PlaySoundFileAsync`) and serves/uploads the sound files |
-| [IAudioWebSocketServer.cs](../../src/VyralBot.Core/Services/Audio/IAudioWebSocketServer.cs) | Defines the `AudioEvent` message class (serialized camelCase on the wire) plus the legacy server interface |
-| [AudioWebSocketServer.cs](../../src/VyralBot.Core/Services/Audio/AudioWebSocketServer.cs) | Legacy standalone HttpListener WebSocket+HTTP server on port 8080 — dead code, not registered in DI |
+| ~~IAudioWebSocketServer.cs / AudioWebSocketServer.cs~~ | Deleted — the legacy standalone HttpListener server (port 8080) and its `AudioEvent` model were removed from the codebase; only the Kestrel path remains |
 | [WebhookCoordinatorService.cs](../../src/VyralBot.Api/Services/WebhookCoordinatorService.cs) | Starts/stops the Kestrel server (port from `WebServerSettings`) alongside ngrok |
 | [NgrokService.cs](../../src/VyralBot.Api/Services/NgrokService.cs) | Runs the ngrok tunnel used for webhooks (not for the audio page) |
 | [AudioSettingsView.xaml](../../src/VyralBot.UI/Views/AudioSettingsView.xaml) | The Browser Source (OBS) card with the URL, copy button, and setup steps users actually see |
@@ -167,17 +166,15 @@ if (settings.StreamSoundsEnabled)
 }
 ```
 
-And the model both derive from (IAudioWebSocketServer.cs:37-63):
+And the payload SoundService broadcasts today (an anonymous camelCase object, SoundService.cs:287-293 — the old `AudioEvent` class was deleted with the legacy server):
 
 ```csharp
-public class AudioEvent
+var payload = new
 {
-    public required string EventType { get; set; }   // follow, subscribe, raid, ...
-    public required string Platform { get; set; }    // Kick or Twitch
-    public required string SoundFile { get; set; }   // e.g. "follow.wav"
-    public float Volume { get; set; } = 1.0f;        // 0.0 - 1.0
-    public Dictionary<string, string>? Data { get; set; }
-}
+    type = "play",
+    sound = soundFile,
+    volume = broadcastVolume   // final loudness (master × per-event), clamped 0..1
+};
 ```
 
 ### How Kestrel wires the broadcast
@@ -229,5 +226,5 @@ Every item below is verified against the current code. See the [known issues led
 3. **Browser-side volume is applied** — the page sets the audio element's volume from the message's `volume` field (0..1, already master × per-event, clamped server-side). [known issues ledger](../reference/known-issues.md)
 4. **"Connected Clients" on the Audio Settings page is live** — it polls `AudioWebSocketBroadcaster.ConnectedClientCount` every 2 seconds, so you can see whether OBS is attached (see [Audio](audio.md)). [known issues ledger](../reference/known-issues.md)
 5. **The page is effectively localhost-only by configuration** — it derives URLs from `window.location` (port-agnostic), but the URL you configure in OBS is `http://localhost:5000/audio.html` and the server binds localhost, so OBS must run on the same machine; the ngrok public URL serves [Kick webhooks](../settings/web-server-ngrok.md), not the browser source. [known issues ledger](../reference/known-issues.md)
-6. **Legacy dead code ships alongside the current path** — `BrowserSource/audio.html` (port 8080) and the old `AudioWebSocketServer` HttpListener server are unused; only the Kestrel server on 5000 runs (App.xaml.cs:173). [known issues ledger](../reference/known-issues.md)
+6. **Legacy leftovers are unreferenced only** — `BrowserSource/audio.html` (port 8080) remains in the repo but nothing serves it; the old `AudioWebSocketServer` HttpListener server was deleted outright, and only the Kestrel server on 5000 runs (App.xaml.cs:306). [known issues ledger](../reference/known-issues.md)
 7. **No overlay pages exist for anything except audio** — visual alerts are an in-app WPF window ([Visual Alerts](visual-alerts.md)); giveaways and polls have no overlay output at all. [known issues ledger](../reference/known-issues.md)

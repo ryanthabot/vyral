@@ -350,9 +350,27 @@ public partial class DataManagementViewModel : ViewModelBase
                 return;
             }
 
+            // The backup includes the profile's credentials folder. Platform tokens
+            // are encrypted with Windows DPAPI bound to THIS PC + user, so they
+            // cannot be restored on another machine (or another Windows account) —
+            // platforms must be reconnected there. Warn before writing the ZIP so
+            // users don't discover this only after data loss.
+            var warningConfirmed = System.Windows.MessageBox.Show(
+                "The backup includes saved platform logins, encrypted so they only work on this PC and this Windows user.\n\n" +
+                "On another PC (or Windows account) you will need to reconnect Twitch, Kick, YouTube and Discord after importing.\n\n" +
+                "Export anyway?",
+                "Credentials in backup",
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Warning);
+
+            if (warningConfirmed != System.Windows.MessageBoxResult.Yes)
+            {
+                return;
+            }
+
             IsBusy = true;
             var resultPath = await _profileService.ExportProfileAsync(profile.Name, dialog.FileName);
-            StatusMessage = $"Profile exported to {resultPath}";
+            StatusMessage = $"Profile exported to {resultPath}. Note: saved logins in this backup only work on this PC — reconnect platforms after importing elsewhere.";
             _logger.LogInformation("Profile {Profile} exported from Data Management to {Path}", profile.Name, resultPath);
         }
         catch (Exception ex)

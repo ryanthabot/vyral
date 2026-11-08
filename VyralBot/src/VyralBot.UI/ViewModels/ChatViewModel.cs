@@ -3322,7 +3322,8 @@ public class ChatViewModel : ViewModelBase
 					IsBroadcaster = (evt.IsBroadcaster || string.Equals(evt.Username, channel, StringComparison.OrdinalIgnoreCase)),
 					CurrencyBalance = currencyBalance.GetValueOrDefault(),
 					CustomVariables = new Dictionary<string, string>(),
-					DiscordBotId = discordBotId
+					DiscordBotId = discordBotId,
+					DiscordChannelId = evt.ChannelId
 				};
 				string response = await _commandService.ExecuteAsync(evt.Message, context, discordBotId);
 				if (response?.StartsWith("$ACTIONS$", StringComparison.Ordinal) ?? false)

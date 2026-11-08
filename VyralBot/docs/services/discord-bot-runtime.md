@@ -143,6 +143,59 @@ per bot — the owning `DiscordService` tags every join with its `BotId`.
 - **Intent gate applies:** joins (and therefore this feature) only arrive with
   the privileged GuildMembers intent (see above).
 
+## Per-bot ALLOWED CHANNELS (command permissions)
+
+`DiscordBot.{botId}.AllowedChannels` (Configs key, plain JSON string array —
+the same shape as `DiscordBot.{botId}.DisabledBuiltIns`) holds the snowflake
+ids of the channels a bot answers commands in.
+
+- **UI:** the Command channels card on the bot detail page
+  (`DiscordBotDetailViewModel.LoadChannelFeaturesAsync`/`SaveAllowedChannelsAsync`)
+  — a checkbox list of the bot's first guild's text channels, persisted through
+  `IDiscordBotManager.SaveAllowedChannelsAsync`. Empty list = every channel
+  allowed (legacy behavior until channels are picked).
+- **Enforcement:** `CommandService.ExecuteAsync` (Core) — where every unified
+  command is matched. After the per-bot `BotId` scope check it reads the key
+  live through a 30-second TTL cache (`IsDiscordChannelAllowedAsync`) and
+  returns null when the triggering channel is not on the list. The channel id
+  flows in on `CommandContext.DiscordChannelId` (set from
+  `ChatMessageReceivedEvent.ChannelId`). Moderators/broadcasters bypass the
+  check, and the built-in `!mod` family routes through `IDiscordCommandHandler`
+  (`ChatViewModel.TryHandleDiscordModCommandAsync`) — a separate path the
+  allowlist never gates, so mod commands always work for mods.
+- **Model:** `DiscordBotAllowedChannels` (Integrations) owns the key/JSON
+  helpers; Core cannot reference Integrations, so `CommandService` parses the
+  same JSON inline (the `DisabledBuiltIns` precedent).
+- **Cleanup:** removed with the bot by `RemoveBotAsync` →
+  `CleanupBotScopedDataAsync` (per-bot Configs keys).
+
+## Scheduled messages (per-bot recurring announcements)
+
+`DiscordBot.{botId}.ScheduledMessages` (Configs key, JSON list of
+`DiscordBotScheduledMessage`: `Id`, `Enabled`, `ChannelId`, `IntervalMinutes`
+5..1440, `Message`, `NextRunUtc`). Bounded at 25 entries per bot
+(`MaxPerBot`).
+
+- **Timer:** ONE manager-wide `System.Threading.Timer` in
+  `DiscordBotManager` (created in the constructor, disposed in `Dispose`)
+  ticks every 30 seconds as a self-rearming one-shot —
+  `RunScheduledMessagesTickAsync` overlap-guards with an
+  `Interlocked` flag and re-arms in its `finally`, so ticks never stack.
+- **Evaluation:** each tick snapshots the running bot ids, loads each bot's
+  schedules fresh (detail-page saves apply to the very next tick) and, per due
+  entry, sends `FormatMessage` text (`{time}`/`{date}`, local culture) through
+  the bot's own `SendToChannelAsync`, then persists the moved next-run clocks
+  once per bot per tick. A due entry fires ONCE and resets a full interval out
+  — ticks missed while the bot/app was offline are never caught up. A freshly
+  saved entry (`NextRunUtc` null) schedules its first run one interval out.
+  Entries fire only while their bot is connected; every failure is logged at
+  info and never blocks the other bots or entries.
+- **UI:** the Scheduled messages card on the bot detail page (add/edit/remove
+  rows + SAVE through `IDiscordBotManager.SaveScheduledMessagesAsync`, which
+  bounds the list and nulls every `NextRunUtc` so saving restarts the cycle).
+- **Cleanup:** key removed with the bot by `CleanupBotScopedDataAsync`; timer
+  disposed first in `DiscordBotManager.Dispose`.
+
 ## Lifecycle at app level
 
 - Launch auto-start: `MainViewModel.AutoStartDiscordBotsAsync` (Platform row

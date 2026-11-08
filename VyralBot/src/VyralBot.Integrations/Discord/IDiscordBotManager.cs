@@ -142,6 +142,37 @@ public interface IDiscordBotManager
     Task SaveWelcomeSettingsAsync(string botId, DiscordBotWelcomeSettings settings);
 
     /// <summary>
+    /// Loads one bot's ALLOWED CHANNELS command permissions (persisted under
+    /// <c>DiscordBot.{botId}.AllowedChannels</c>). Never null: missing or
+    /// malformed rows yield <see cref="DiscordBotAllowedChannels.Default"/>
+    /// (unrestricted). Enforced by <c>CommandService</c> when the bot's
+    /// commands are matched; moderators/broadcasters are never restricted.
+    /// </summary>
+    Task<DiscordBotAllowedChannels> GetAllowedChannelsAsync(string botId);
+
+    /// <summary>
+    /// Persists one bot's ALLOWED CHANNELS list. An empty list means commands
+    /// work in every channel (legacy behavior). Takes effect on the next
+    /// command — no restart needed.
+    /// </summary>
+    Task SaveAllowedChannelsAsync(string botId, DiscordBotAllowedChannels allowed);
+
+    /// <summary>
+    /// Loads one bot's recurring announcements (persisted under
+    /// <c>DiscordBot.{botId}.ScheduledMessages</c>). Never null: missing or
+    /// malformed rows yield an empty list.
+    /// </summary>
+    Task<IReadOnlyList<DiscordBotScheduledMessage>> GetScheduledMessagesAsync(string botId);
+
+    /// <summary>
+    /// Persists one bot's recurring announcements (bounded by
+    /// <see cref="DiscordBotScheduledMessage.MaxPerBot"/>, extra rows
+    /// dropped). Saving resets every entry's next-run clock, so the cycle
+    /// restarts interval minutes after the save.
+    /// </summary>
+    Task SaveScheduledMessagesAsync(string botId, IReadOnlyList<DiscordBotScheduledMessage> messages);
+
+    /// <summary>
     /// Unassigns the role from every bot, persists the changed row(s) and
     /// raises <see cref="BotsChanged"/>.
     /// </summary>

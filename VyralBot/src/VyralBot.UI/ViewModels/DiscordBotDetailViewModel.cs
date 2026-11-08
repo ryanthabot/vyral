@@ -139,7 +139,45 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
     /// <summary>Reentrancy guard: one AutoStart toggle in flight at a time.</summary>
     private bool _isUpdatingAutoStart;
 
+    // ===== Command channels + scheduled messages (per-bot, persisted as
+    // DiscordBot.{botId}.AllowedChannels / .ScheduledMessages) =====
+
+    /// <summary>True when the bot is connected inside a guild, so channels can be picked.</summary>
+    [ObservableProperty]
+    private bool _hasAllowedChannelOptions = false;
+
+    /// <summary>Status line under the command-channels card's Save button.</summary>
+    [ObservableProperty]
+    private string _allowedChannelsStatus = "";
+
+    /// <summary>True once the schedule list has at least one row (gates the empty state).</summary>
+    [ObservableProperty]
+    private bool _hasScheduledMessages = false;
+
+    /// <summary>True while the schedule list is below the per-bot bound (gates the ADD button).</summary>
+    [ObservableProperty]
+    private bool _hasScheduleCapacity = true;
+
+    /// <summary>Status line under the scheduled-messages card's Save button.</summary>
+    [ObservableProperty]
+    private string _scheduledMessagesStatus = "";
+
+    /// <summary>Reentrancy guard: one allowed-channels save in flight at a time.</summary>
+    private bool _isSavingAllowedChannels;
+
+    /// <summary>Reentrancy guard: one scheduled-messages save in flight at a time.</summary>
+    private bool _isSavingScheduledMessages;
+
+    /// <summary>Shared channel options (bot's first guild) feeding both cards' pickers.</summary>
+    private readonly ObservableCollection<DiscordChannelInfo> _scheduledChannelOptions = new();
+
     public ObservableCollection<DiscordGuildViewModel> Guilds { get; } = new();
+
+    /// <summary>Checkbox rows for the per-bot allowed-channels card.</summary>
+    public ObservableCollection<DiscordChannelPickViewModel> AllowedChannelPicks { get; } = new();
+
+    /// <summary>Editable rows of the per-bot scheduled-messages card.</summary>
+    public ObservableCollection<DiscordScheduledMessageRowViewModel> ScheduledMessages { get; } = new();
 
     /// <summary>Channel options for the welcome channel picker ("(none)" entry first).</summary>
     public ObservableCollection<DiscordChannelInfo> WelcomeChannels { get; } = new();
@@ -247,6 +285,7 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
         await RefreshAsync();
         await LoadBotCommandsAsync();
         await LoadWelcomeAsync();
+        await LoadChannelFeaturesAsync();
     }
 
     /// <summary>
@@ -637,6 +676,223 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
         }
     }
 
+    // ==================================================================
+    // Command channels (per-bot ALLOWED CHANNELS) + Scheduled messages
+    //
+    // Both persist in the manager's per-bot store (Configs keys
+    // "DiscordBot.{botId}.AllowedChannels" / ".ScheduledMessages"). Allowed
+    // channels are ENFORCED by CommandService where the bot's commands are
+    // matched (mods are never restricted); scheduled messages are fired by
+    // the manager's single 30-second timer while the bot is connected.
+    // ==================================================================
+
+    /// <summary>
+    /// Loads this bot's allowed-channel picks and scheduled messages, and
+    /// rebuilds the channel options from the bot's FIRST guild (the same
+    /// first-guild convention as the welcome card). An offline bot keeps its
+    /// saved schedules; the channel pickers stay disabled until it connects.
+    /// </summary>
+    [RelayCommand]
+    public async Task LoadChannelFeaturesAsync()
+    {
+        if (string.IsNullOrEmpty(BotId))
+            return;
+
+        try
+        {
+            var allowed = await _botManager.GetAllowedChannelsAsync(BotId);
+
+            AllowedChannelPicks.Clear();
+            _scheduledChannelOptions.Clear();
+            HasAllowedChannelOptions = false;
+
+            var service = _botManager.Get(BotId);
+            var guild = service?.ConnectedGuilds.FirstOrDefault();
+            if (guild != null && service is { IsConnected: true })
+            {
+                foreach (var channel in guild.TextChannels)
+                {
+                    _scheduledChannelOptions.Add(channel);
+                    AllowedChannelPicks.Add(new DiscordChannelPickViewModel(
+                        channel.Id,
+                        channel.Name,
+                        allowed.IsPicked(channel.Id)));
+                }
+
+                HasAllowedChannelOptions = AllowedChannelPicks.Count > 0;
+            }
+
+            var schedules = await _botManager.GetScheduledMessagesAsync(BotId);
+            ScheduledMessages.Clear();
+            foreach (var schedule in schedules)
+            {
+                ScheduledMessages.Add(new DiscordScheduledMessageRowViewModel(
+                    _scheduledChannelOptions, schedule));
+            }
+
+            UpdateScheduleCapacity();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading channel features for bot {BotId}", BotId);
+            AllowedChannelsStatus = "Could not load the command-channel settings";
+            ScheduledMessagesStatus = "Could not load the scheduled messages";
+        }
+    }
+
+    /// <summary>
+    /// Persists the checked channels as this bot's allowlist. Nothing checked
+    /// = commands work in every channel (legacy behavior).
+    /// </summary>
+    [RelayCommand]
+    private async Task SaveAllowedChannelsAsync()
+    {
+        if (string.IsNullOrEmpty(BotId) || _isSavingAllowedChannels)
+            return;
+
+        _isSavingAllowedChannels = true;
+        try
+        {
+            var picked = AllowedChannelPicks
+                .Where(p => p.IsAllowed)
+                .Select(p => p.Id)
+                .ToList();
+
+            await _botManager.SaveAllowedChannelsAsync(BotId, new DiscordBotAllowedChannels(picked));
+            AllowedChannelsStatus = picked.Count == 0
+                ? "Saved — commands work in every channel"
+                : $"Saved — commands only in {picked.Count} channel(s) (mods are never restricted)";
+            _logger.LogInformation("Saved allowed channels for bot {BotId} ({Count} picked)", BotId, picked.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving allowed channels for bot {BotId}", BotId);
+            AllowedChannelsStatus = $"Could not save: {ex.Message}";
+        }
+        finally
+        {
+            _isSavingAllowedChannels = false;
+        }
+    }
+
+    /// <summary>Adds one draft row (disabled, 30-minute default interval); SAVE persists it.</summary>
+    [RelayCommand]
+    private void AddScheduledMessage()
+    {
+        if (!HasScheduleCapacity)
+            return;
+
+        ScheduledMessages.Add(new DiscordScheduledMessageRowViewModel(_scheduledChannelOptions)
+        {
+            Enabled = false,
+            IntervalText = DiscordBotScheduledMessage.MinIntervalMinutes.ToString()
+        });
+        UpdateScheduleCapacity();
+        ScheduledMessagesStatus = "Draft added — pick a channel, write the message, then SAVE";
+    }
+
+    /// <summary>Row action: drops the row from the editor (nothing is persisted until SAVE).</summary>
+    [RelayCommand]
+    private void RemoveScheduledMessage(DiscordScheduledMessageRowViewModel? row)
+    {
+        if (row == null)
+            return;
+
+        ScheduledMessages.Remove(row);
+        UpdateScheduleCapacity();
+    }
+
+    /// <summary>
+    /// Validates the rows (enabled schedules need a channel and a message;
+    /// the interval must parse and is clamped to 5..1440 minutes) and
+    /// persists them. Saving restarts every schedule's cycle one full
+    /// interval out.
+    /// </summary>
+    [RelayCommand]
+    private async Task SaveScheduledMessagesAsync()
+    {
+        if (string.IsNullOrEmpty(BotId) || _isSavingScheduledMessages)
+            return;
+
+        _isSavingScheduledMessages = true;
+        try
+        {
+            var messages = new List<DiscordBotScheduledMessage>();
+            var index = 0;
+            foreach (var row in ScheduledMessages)
+            {
+                index++;
+                var message = row.Message?.Trim();
+
+                // Drop blank disabled drafts instead of failing the save.
+                if (!row.Enabled && string.IsNullOrWhiteSpace(message))
+                {
+                    continue;
+                }
+
+                if (!int.TryParse(row.IntervalText?.Trim(), out var interval))
+                {
+                    ScheduledMessagesStatus = $"Schedule {index}: the interval must be a number of minutes";
+                    return;
+                }
+
+                if (row.Enabled
+                    && (string.IsNullOrWhiteSpace(message) || string.IsNullOrEmpty(row.SelectedChannelId)))
+                {
+                    ScheduledMessagesStatus = $"Schedule {index}: enabled schedules need a channel and a message";
+                    return;
+                }
+
+                messages.Add(new DiscordBotScheduledMessage(
+                    row.Id,
+                    row.Enabled,
+                    row.SelectedChannelId,
+                    interval,
+                    message));
+            }
+
+            if (messages.Count > DiscordBotScheduledMessage.MaxPerBot)
+            {
+                messages = messages.Take(DiscordBotScheduledMessage.MaxPerBot).ToList();
+            }
+
+            await _botManager.SaveScheduledMessagesAsync(BotId, messages);
+
+            // Re-load so the rows mirror the persisted, bounded, clamped list.
+            var saved = await _botManager.GetScheduledMessagesAsync(BotId);
+            ScheduledMessages.Clear();
+            foreach (var schedule in saved)
+            {
+                ScheduledMessages.Add(new DiscordScheduledMessageRowViewModel(
+                    _scheduledChannelOptions, schedule));
+            }
+
+            UpdateScheduleCapacity();
+            var enabledCount = saved.Count(s => s.Enabled);
+            ScheduledMessagesStatus = enabledCount == 0
+                ? $"Saved {saved.Count} schedule(s) — none enabled yet"
+                : $"Saved — {enabledCount} schedule(s) run while this bot is connected (first post one interval after saving)";
+            _logger.LogInformation("Saved {Count} scheduled message(s) for bot {BotId} ({Enabled} enabled)",
+                saved.Count, BotId, enabledCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving scheduled messages for bot {BotId}", BotId);
+            ScheduledMessagesStatus = $"Could not save: {ex.Message}";
+        }
+        finally
+        {
+            _isSavingScheduledMessages = false;
+        }
+    }
+
+    /// <summary>Keeps the ADD button's enabled state in step with the per-bot row bound.</summary>
+    private void UpdateScheduleCapacity()
+    {
+        HasScheduleCapacity = ScheduledMessages.Count < DiscordBotScheduledMessage.MaxPerBot;
+        HasScheduledMessages = ScheduledMessages.Count > 0;
+    }
+
     [RelayCommand]
     private async Task StartAsync()
     {
@@ -669,6 +925,8 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
             // The gateway now knows the guild's channels/roles — rebuild the
             // welcome card's pickers against them.
             await LoadWelcomeAsync();
+            // Same for the command-channels + scheduled-messages cards.
+            await LoadChannelFeaturesAsync();
         }
     }
 
@@ -735,6 +993,8 @@ public partial class DiscordBotDetailViewModel : ViewModelBase
             // Reconnect = fresh gateway session: rebuild the welcome pickers
             // so they reflect what the bot can see right now.
             await LoadWelcomeAsync();
+            // Same for the command-channels + scheduled-messages cards.
+            await LoadChannelFeaturesAsync();
         }
     }
 
@@ -887,6 +1147,74 @@ public partial class BotCommandRowViewModel : ObservableObject
 
 /// <summary>Read-only reference entry for a built-in Discord moderation command.</summary>
 public sealed record DiscordModCommandInfo(string Name, string Usage, string Description);
+
+/// <summary>
+/// One channel row of the "Command channels" card: the channel's display
+/// fields plus a live checked flag tracking whether it is on this bot's
+/// allowed-channel list.
+/// </summary>
+public partial class DiscordChannelPickViewModel : ObservableObject
+{
+    public string Id { get; }
+    public string Name { get; }
+
+    /// <summary>True while this channel is on the bot's allowed-channel list.</summary>
+    [ObservableProperty]
+    private bool _isAllowed;
+
+    public DiscordChannelPickViewModel(string id, string name, bool isAllowed)
+    {
+        Id = id;
+        Name = name;
+        _isAllowed = isAllowed;
+    }
+}
+
+/// <summary>
+/// One editable row of the "Scheduled messages" card. Rows are drafts until
+/// SAVE persists them through the manager (which restarts every schedule's
+/// cycle); channel options come from the shared per-page collection so all
+/// rows stay in step when the bot reconnects.
+/// </summary>
+public partial class DiscordScheduledMessageRowViewModel : ObservableObject
+{
+    public string Id { get; }
+
+    [ObservableProperty]
+    private bool _enabled;
+
+    [ObservableProperty]
+    private string _message = "";
+
+    /// <summary>Interval in minutes as typed (validated + clamped on save; min 5).</summary>
+    [ObservableProperty]
+    private string _intervalText = "30";
+
+    /// <summary>Selected channel id; null = not picked yet.</summary>
+    [ObservableProperty]
+    private string? _selectedChannelId;
+
+    /// <summary>Channel options shared with the page (bot's first guild, read-only).</summary>
+    public ObservableCollection<DiscordChannelInfo> Channels { get; }
+
+    public DiscordScheduledMessageRowViewModel(ObservableCollection<DiscordChannelInfo> channels)
+    {
+        Channels = channels;
+        Id = Guid.NewGuid().ToString("N");
+    }
+
+    public DiscordScheduledMessageRowViewModel(
+        ObservableCollection<DiscordChannelInfo> channels,
+        DiscordBotScheduledMessage schedule)
+    {
+        Channels = channels;
+        Id = schedule.Id;
+        _enabled = schedule.Enabled;
+        _message = schedule.Message ?? string.Empty;
+        _intervalText = schedule.EffectiveIntervalMinutes.ToString();
+        _selectedChannelId = schedule.ChannelId;
+    }
+}
 
 /// <summary>
 /// Toggle-button label for a custom command row: shows the action clicking

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
@@ -23,11 +24,17 @@ public sealed record RestreamChoice<T>(T Value, string Label)
 }
 
 /// <summary>Serializable, non-secret source settings stored in the config KV (category "Restream").</summary>
+/// <param name="BandwidthCapKbps">
+/// User's uplink budget in kbps for the combined-bitrate hint (defaults to
+/// <see cref="RestreamBandwidth.DefaultCapKbps"/> when null/unset — old saved
+/// settings deserialize as null).
+/// </param>
 public sealed record RestreamSettingsDto(
     RestreamOperationMode Mode,
     int IngestPort,
     string IngestStreamKey,
-    string? FfmpegPathOverride)
+    string? FfmpegPathOverride,
+    int? BandwidthCapKbps = null)
 {
     public RestreamSettingsDto() : this(
         RestreamOperationMode.SinglePC, DefaultPort, DefaultStreamKey, null) { }
@@ -125,6 +132,14 @@ public partial class RestreamDestinationItemViewModel : ObservableObject
     [ObservableProperty]
     private string? _validationMessage;
 
+    /// <summary>
+    /// Raised when a property that shapes the session's bandwidth cost changes
+    /// (bitrate, resolution, audio mode, enabled) — the page ViewModel
+    /// re-evaluates the combined-bitrate hint. Named event so the page can
+    /// unsubscribe on remove/dispose (zero-orphans).
+    /// </summary>
+    public event EventHandler? ConfigurationChanged;
+
     partial void OnPlatformChanged(string value)
     {
         // Only platforms with a well-known ingest get an autofill — Kick/Custom
@@ -150,7 +165,18 @@ public partial class RestreamDestinationItemViewModel : ObservableObject
         {
             BitrateText = RestreamArgumentBuilder.DefaultBitrateKbps(value.Value).ToString();
         }
+
+        ConfigurationChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    // (Setting BitrateText in OnResolutionChanged re-raises via the handler
+    // below — the hint refresh is idempotent, so the double raise is harmless.)
+    partial void OnBitrateTextChanged(string value) => ConfigurationChanged?.Invoke(this, EventArgs.Empty);
+
+    partial void OnAudioModeChanged(RestreamChoice<RestreamAudioMode> value) =>
+        ConfigurationChanged?.Invoke(this, EventArgs.Empty);
+
+    partial void OnEnabledChanged(bool value) => ConfigurationChanged?.Invoke(this, EventArgs.Empty);
 
     public RestreamDestination ToModel() => new(
         Id: Id,
@@ -268,6 +294,21 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _speedText = "—";
 
+    /// <summary>Frames FFmpeg reports as dropped (progress parser), "—" until live.</summary>
+    [ObservableProperty]
+    private string _droppedText = "—";
+
+    /// <summary>
+    /// Combined-bitrate uplink hint from <see cref="RestreamBandwidth"/> —
+    /// null/empty hides the warning; never blocks a session.
+    /// </summary>
+    [ObservableProperty]
+    private string? _bandwidthHint;
+
+    /// <summary>Uplink budget in Mbps (persisted as kbps in the settings DTO).</summary>
+    [ObservableProperty]
+    private string _bandwidthCapMbpsText = $"{RestreamBandwidth.DefaultCapKbps / 1000}";
+
     [ObservableProperty]
     private string _statusMessage = "";
 
@@ -301,7 +342,11 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
         _engine.StatusChanged += OnEngineStatusChanged;
         _engine.LogLine += OnEngineLogLine;
 
-        Destinations.CollectionChanged += (_, _) => IsDestinationsEmpty = Destinations.Count == 0;
+        Destinations.CollectionChanged += (_, _) =>
+        {
+            IsDestinationsEmpty = Destinations.Count == 0;
+            RefreshBandwidthHint();
+        };
 
         _uptimeTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -332,6 +377,10 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
                     ? RestreamSettingsDto.DefaultStreamKey
                     : settings.IngestStreamKey;
                 FfmpegPathOverride = settings.FfmpegPathOverride ?? "";
+                if (settings.BandwidthCapKbps is > 0)
+                {
+                    BandwidthCapMbpsText = (settings.BandwidthCapKbps.Value / 1000.0).ToString("0.#", CultureInfo.InvariantCulture);
+                }
             }
 
             await LoadDestinationsAsync();
@@ -343,11 +392,13 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
         }
 
         RefreshIngestUrls();
+        RefreshBandwidthHint();
         await RefreshFfmpegStatusAsync();
     }
 
     private async Task LoadDestinationsAsync()
     {
+        UntrackDestinations();
         Destinations.Clear();
 
         try
@@ -376,7 +427,7 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
 
             foreach (var model in destinations)
             {
-                Destinations.Add(RestreamDestinationItemViewModel.FromModel(model));
+                TrackDestination(RestreamDestinationItemViewModel.FromModel(model));
             }
         }
         catch (Exception ex)
@@ -407,7 +458,8 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
             IsTwoPcMode ? RestreamOperationMode.TwoPC : RestreamOperationMode.SinglePC,
             ParsedPort(),
             string.IsNullOrWhiteSpace(IngestStreamKey) ? RestreamSettingsDto.DefaultStreamKey : IngestStreamKey.Trim(),
-            string.IsNullOrWhiteSpace(FfmpegPathOverride) ? null : FfmpegPathOverride.Trim());
+            string.IsNullOrWhiteSpace(FfmpegPathOverride) ? null : FfmpegPathOverride.Trim(),
+            ParsedBandwidthCapKbps());
 
         await _dataService.SetConfigValueAsync(
             SettingsConfigKey,
@@ -455,14 +507,31 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
         // Show the row's validation hint immediately (a fresh row has no key
         // yet) instead of waiting for the first edit.
         item.RefreshValidation();
-        Destinations.Add(item);
+        TrackDestination(item);
     }
 
     [RelayCommand]
     private void DeleteDestination(RestreamDestinationItemViewModel item)
     {
+        item.ConfigurationChanged -= OnDestinationConfigurationChanged;
         Destinations.Remove(item);
     }
+
+    private void TrackDestination(RestreamDestinationItemViewModel item)
+    {
+        item.ConfigurationChanged += OnDestinationConfigurationChanged;
+        Destinations.Add(item);
+    }
+
+    private void UntrackDestinations()
+    {
+        foreach (var item in Destinations)
+        {
+            item.ConfigurationChanged -= OnDestinationConfigurationChanged;
+        }
+    }
+
+    private void OnDestinationConfigurationChanged(object? sender, EventArgs e) => RefreshBandwidthHint();
 
     // AllowConcurrentExecutions=false: a double-clicked Start/Restart or a
     // Stop re-click while one is in flight is ignored at the command level;
@@ -507,6 +576,10 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
         }
 
         StatusMessage = "";
+
+        // Status hint, never a block: refresh from the final models so the
+        // moment-of-truth check cannot be stale from row edits.
+        RefreshBandwidthHint();
 
         // Going live persists the exact session configuration: destinations
         // edited without pressing Save would otherwise be lost on the next
@@ -634,6 +707,20 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
             ? port
             : RestreamSettingsDto.DefaultPort;
 
+    /// <summary>Uplink budget in kbps from the Mbps field; invalid/empty falls back to the conservative default.</summary>
+    private int ParsedBandwidthCapKbps() =>
+        double.TryParse(BandwidthCapMbpsText.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var mbps)
+            && mbps is > 0 and < 1000
+            ? (int)(mbps * 1000)
+            : RestreamBandwidth.DefaultCapKbps;
+
+    partial void OnBandwidthCapMbpsTextChanged(string value) => RefreshBandwidthHint();
+
+    private void RefreshBandwidthHint() =>
+        BandwidthHint = RestreamBandwidth.Evaluate(
+            Destinations.Select(d => d.ToModel()).ToList(),
+            ParsedBandwidthCapKbps());
+
     partial void OnIsTwoPcModeChanged(bool value) => RefreshIngestUrls();
 
     partial void OnIngestPortTextChanged(string value) => RefreshIngestUrls();
@@ -736,6 +823,7 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
         BitrateText = status.Stats is { } stats && stats.BitrateKbps > 0 ? $"{stats.BitrateKbps:0} kbps" : "—";
         FpsText = status.Stats is { } s2 && s2.Fps > 0 ? $"{s2.Fps:0.0} fps" : "—";
         SpeedText = status.Stats is { } s3 && s3.SpeedX > 0 ? $"{s3.SpeedX:0.00}×" : "—";
+        DroppedText = status.Stats is { } s4 ? s4.DropFrames.ToString("N0", CultureInfo.InvariantCulture) : "—";
         RefreshUptime();
 
         var runtimeById = status.Destinations.ToDictionary(d => d.Id, StringComparer.Ordinal);
@@ -793,6 +881,7 @@ public partial class RestreamViewModel : ViewModelBase, IDisposable
         // that outlives this page VM, so drop the named handlers or every
         // navigation to this page stacks another subscription.
         _uptimeTimer.Stop();
+        UntrackDestinations();
         _engine.StatusChanged -= OnEngineStatusChanged;
         _engine.LogLine -= OnEngineLogLine;
     }

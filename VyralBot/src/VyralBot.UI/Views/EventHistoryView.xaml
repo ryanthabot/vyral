@@ -91,6 +91,7 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <TextBox Grid.Column="0"
@@ -125,6 +126,13 @@
                     <Button Grid.Column="3"
                            Content="Clear History"
                            Command="{Binding ClearHistoryCommand}"
+                           Style="{StaticResource MaterialDesignOutlinedButton}"
+                           BorderBrush="{DynamicResource BorderPrimaryBrush}"
+                           Padding="20,8"/>
+
+                    <Button Grid.Column="4"
+                           Content="Export CSV"
+                           Command="{Binding ExportToCsvCommand}"
                            Style="{StaticResource MaterialDesignOutlinedButton}"
                            BorderBrush="{DynamicResource BorderPrimaryBrush}"
                            Padding="20,8"/>

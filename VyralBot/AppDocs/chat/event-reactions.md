@@ -102,13 +102,13 @@ One shared EventBus serves both the WPF UI and the embedded Kestrel server, so a
 
 ### The handler pattern
 
-`ChatViewModel` subscribes to all 13 event types during `InitializeAsync` (ChatViewModel.cs:207-270; Kick handlers from :1700, Twitch handlers from :2089). Every handler follows the same shape:
+`ChatViewModel` subscribes to all 13 event types during `InitializeAsync` (ChatViewModel.cs:2151+, the subscription block; Kick handlers from :5841, Twitch handlers from :6385). Every handler follows the same shape:
 
 1. Check the platform display-filter flag (`KickFilterEnabled` / `TwitchFilterEnabled`) — the whole reaction chain is skipped if the platform's chat is hidden.
 2. `IChatEventSettingsService.GetSettingAsync(platform, eventType)` — load the `ChatEventSetting` row; if none exists, stop.
-3. If `ShowInChat` → `AddSystemMessageAsync(platform, text)` (ChatViewModel.cs:2481) — gold `#FFD700` "System" entry.
+3. If `ShowInChat` → `AddSystemMessageAsync(platform, text)` (ChatViewModel.cs:7150) — gold `#FFD700` "System" entry.
 4. `ISoundService.PlayEventSoundAsync(eventType, platform)` — resolves the sound from its own audio settings and event-sound mapping, not from the `ChatEventSetting` row.
-5. `ShowEventAlertAsync(...)` (ChatViewModel.cs:2628) → `IAlertService.ShowAlertAsync` with the persisted Alert Settings applied (animation, position, duration from the `AlertSettings` Configs key; `applySettings = true` by default).
+5. `ShowEventAlertAsync(...)` (ChatViewModel.cs:7381) → `IAlertService.ShowAlertAsync` with the persisted Alert Settings applied (animation, position, duration from the `AlertSettings` Configs key; `applySettings = true` by default).
 6. `ICurrencyService.AwardEventBonusAsync(username, platform, type, count?)` — bonus multiplied for gift-sub counts and raid viewer counts; skipped for Twitch gift-sub *recipients* (the gifter gets the bonus). The Twitch cheer and Kick host handlers now call this too (wired 2026-08-15), with the full multiplier stack (platform × boost × tier × role, `Math.Floor`) applied.
 7. If `AutoReplyEnabled` and a template exists and `_autoReplyService.ShouldSendReply(user, platform, eventType)` passes the rate limiter → `ProcessTemplate(template, variables)` → send via the platform's chat service.
 8. `SaveEventStatisticAsync` — persist the event row with the handler's variable dict as `EventData` and the accurate `WasAutoReplied` (feeds [Event History](../chat-features/event-history.md) and [Statistics](../stream-tools/statistics.md)).
@@ -140,7 +140,7 @@ Two gating variants exist in the wild: most handlers use `if (settings == null) 
 | [AlertService.cs](../../src/VyralBot.UI/Services/AlertService.cs) | Alert overlay window |
 | [CurrencyService.cs](../../src/VyralBot.Core/Services/Currency/CurrencyService.cs) | `AwardEventBonusAsync` — event bonuses |
 
-The handler pattern, trimmed from `OnKickFollowAsync` (ChatViewModel.cs:1700) — all five effects in order, each individually gated:
+The handler pattern, trimmed from `OnKickFollowAsync` (ChatViewModel.cs:5841) — all five effects in order, each individually gated:
 
 ```csharp
 private async Task OnKickFollowAsync(KickFollowEvent evt)

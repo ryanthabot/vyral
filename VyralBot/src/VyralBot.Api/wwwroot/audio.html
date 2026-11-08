@@ -70,6 +70,12 @@
         // Initialize
         connectWebSocket();
         function connectWebSocket() {
+            // Defensive: never let a pending retry plus an explicit call open two
+            // sockets (the orphaned one would schedule its own retries).
+            if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout);
+                reconnectTimeout = null;
+            }
             updateStatus('Connecting to Vyral...', 'connecting');
             ws = new WebSocket(WS_URL);
             ws.onopen = () => {
@@ -122,6 +128,13 @@
         function updateStatus(text, statusClass) {
             statusDiv.textContent = text;
             statusDiv.className = statusClass;
+            // Only the Connected badge auto-hides. If the page drops while a hide
+            // timer from a previous connection is still armed, cancel it so the
+            // Disconnected/Connecting badge stays visible.
+            if (statusClass !== 'connected' && statusHideTimeout) {
+                clearTimeout(statusHideTimeout);
+                statusHideTimeout = null;
+            }
         }
         function hideStatusAfterDelay() {
             if (statusHideTimeout) clearTimeout(statusHideTimeout);

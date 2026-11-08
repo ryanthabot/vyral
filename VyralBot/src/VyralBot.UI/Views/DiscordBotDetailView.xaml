@@ -767,6 +767,245 @@
                     </Grid>
                 </materialDesign:Card>
 
+                <!-- Command Channels Card: per-bot ALLOWED CHANNELS for commands -->
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                     Margin="0,12,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Panel Header -->
+                        <Border Grid.Row="0"
+                                Background="{DynamicResource BackgroundDarkBrush}"
+                                BorderBrush="{DynamicResource BorderColorBrush}"
+                                BorderThickness="0,0,0,1"
+                                Padding="12,8">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <materialDesign:PackIcon Kind="Filter"
+                                                         Width="18"
+                                                         Height="18"
+                                                         Foreground="{DynamicResource DiscordBrush}"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,8,0"/>
+                                <TextBlock Text="Command channels"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Grid.Row="1" Margin="16">
+                            <TextBlock Text="Pick the channels this bot answers commands in. With channels picked, commands posted anywhere else are ignored — moderators are never restricted."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"/>
+
+                            <!-- Channel checkbox list (channels of this bot's first server) -->
+                            <ItemsControl ItemsSource="{Binding AllowedChannelPicks}"
+                                          Margin="0,12,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding Name}"
+                                                  IsChecked="{Binding IsAllowed, Mode=TwoWay}"
+                                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                                  ToolTip="{Binding Id}"
+                                                  Margin="0,0,0,6"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Offline / no-channels hint -->
+                            <TextBlock Text="Start the bot and join it to a server to pick channels."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasAllowedChannelOptions}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <Button Content="SAVE ALLOWED CHANNELS"
+                                    Command="{Binding SaveAllowedChannelsCommand}"
+                                    Style="{StaticResource VyralPlainDiscordButton}"
+                                    Height="40"
+                                    Margin="0,12,0,0"/>
+
+                            <TextBlock Text="Leave everything unchecked to allow commands in every channel. Takes effect on the next command."
+                                       FontSize="11"
+                                       FontStyle="Italic"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
+
+                            <TextBlock Text="{Binding AllowedChannelsStatus}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </materialDesign:Card>
+
+                <!-- Scheduled Messages Card: per-bot recurring announcements -->
+                <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                     Margin="0,12,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Panel Header -->
+                        <Border Grid.Row="0"
+                                Background="{DynamicResource BackgroundDarkBrush}"
+                                BorderBrush="{DynamicResource BorderColorBrush}"
+                                BorderThickness="0,0,0,1"
+                                Padding="12,8">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <materialDesign:PackIcon Kind="CalendarClock"
+                                                         Width="18"
+                                                         Height="18"
+                                                         Foreground="{DynamicResource DiscordBrush}"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,8,0"/>
+                                <TextBlock Text="Scheduled messages"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Grid.Row="1" Margin="16">
+                            <TextBlock Text="Recurring announcements this bot posts on a timer while it is connected — the streamer.bot staple."
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"/>
+
+                            <!-- Schedule rows -->
+                            <ItemsControl ItemsSource="{Binding ScheduledMessages}"
+                                          Margin="0,12,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="{DynamicResource BorderColorBrush}"
+                                                BorderThickness="0,0,0,1"
+                                                Padding="0,0,0,10"
+                                                Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <Grid>
+                                                    <CheckBox Content="Enabled"
+                                                              IsChecked="{Binding Enabled, Mode=TwoWay}"
+                                                              Foreground="{DynamicResource TextPrimaryBrush}"
+                                                              VerticalAlignment="Center"/>
+                                                    <Button Content="REMOVE"
+                                                            Command="{Binding DataContext.RemoveScheduledMessageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Style="{StaticResource VyralPlainOutlineButton}"
+                                                            Height="28"
+                                                            Padding="10,0"
+                                                            FontSize="11"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Center"
+                                                            ToolTip="Remove this schedule row (persisted on SAVE)"/>
+                                                </Grid>
+
+                                                <TextBox Text="{Binding Message, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                         materialDesign:HintAssist.Hint="Message — variables {time} and {date}"
+                                                         AcceptsReturn="False"
+                                                         TextWrapping="Wrap"
+                                                         Margin="0,8,0,0"/>
+
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="8"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <ComboBox Grid.Column="0"
+                                                              ItemsSource="{Binding Channels}"
+                                                              DisplayMemberPath="Name"
+                                                              SelectedValuePath="Id"
+                                                              SelectedValue="{Binding SelectedChannelId, Mode=TwoWay}"
+                                                              Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                                                              materialDesign:HintAssist.Hint="Channel"/>
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBox Text="{Binding IntervalText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                                                 materialDesign:HintAssist.Hint="Minutes"
+                                                                 Width="90"
+                                                                 VerticalAlignment="Center"/>
+                                                        <TextBlock Text="min"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="6,2,0,0"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Empty state -->
+                            <TextBlock Text="No scheduled messages yet — add one to post an announcement on a timer."
+                                       FontSize="11"
+                                       FontStyle="Italic"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasScheduledMessages}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <Button Content="ADD SCHEDULED MESSAGE"
+                                    Command="{Binding AddScheduledMessageCommand}"
+                                    Style="{StaticResource VyralPlainOutlineButton}"
+                                    IsEnabled="{Binding HasScheduleCapacity}"
+                                    Margin="0,8,0,0"
+                                    ToolTip="Up to 25 schedules per bot"/>
+
+                            <Button Content="SAVE SCHEDULED MESSAGES"
+                                    Command="{Binding SaveScheduledMessagesCommand}"
+                                    Style="{StaticResource VyralPlainDiscordButton}"
+                                    Height="40"
+                                    Margin="0,12,0,0"/>
+
+                            <TextBlock Text="Minimum interval is 5 minutes. Enabled schedules post only while this bot is connected; the first post goes out one interval after saving."
+                                       FontSize="11"
+                                       FontStyle="Italic"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
+
+                            <TextBlock Text="{Binding ScheduledMessagesStatus}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </materialDesign:Card>
+
                 <!-- Test Message Card -->
                 <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
                                      Margin="0,12,0,0">

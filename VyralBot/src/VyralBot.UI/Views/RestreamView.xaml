@@ -112,9 +112,11 @@
                             </StackPanel>
                         </Grid>
 
-                        <!-- Live stats -->
+                        <!-- Live stats (aggregate across outputs, parsed from
+                             FFmpeg's -progress machine output) -->
                         <Grid>
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
@@ -138,6 +140,11 @@
                             <StackPanel Grid.Column="3">
                                 <TextBlock Text="SPEED" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Text="{Binding SpeedText}" FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="DROPPED" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="{Binding DroppedText}" FontSize="16" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}"/>
                             </StackPanel>
                         </Grid>
@@ -426,6 +433,32 @@
                                    Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"
                                    Visibility="{Binding IsDestinationsEmpty, Converter={StaticResource BoolToVis}}"
                                    Margin="0,4,0,0"/>
+
+                        <!-- Combined-bitrate uplink hint — status only, never blocks a session -->
+                        <Border Background="{DynamicResource BackgroundTertiaryBrush}"
+                                CornerRadius="6" Padding="12,8" Margin="0,12,0,0"
+                                Visibility="{Binding BandwidthHint, Converter={StaticResource NonNullToVis}}">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="AlertOutline" Width="18" Height="18"
+                                                         Foreground="{DynamicResource WarningBrush}"
+                                                         VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBlock Text="{Binding BandwidthHint, Mode=OneWay}"
+                                           Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <TextBlock Text="Uplink budget (Mbps):" VerticalAlignment="Center" Margin="0,0,10,0"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <TextBox Width="90" Text="{Binding BandwidthCapMbpsText, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     materialDesign:HintAssist.Hint="15"
+                                     ToolTip="Conservative estimate of your upload speed. Vyral warns when the destinations' combined bitrate exceeds 80% of it."/>
+                            <TextBlock Text="Vyral warns when the destinations' combined bitrate exceeds 80% of this budget — a hint, not a block."
+                                       Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" TextWrapping="Wrap"
+                                       VerticalAlignment="Center" Margin="12,0,0,0"/>
+                        </StackPanel>
                     </StackPanel>
                 </materialDesign:Card>
 
@@ -462,7 +495,7 @@
                                     Margin="0,0,12,0">
                                 <StackPanel Orientation="Horizontal">
                                     <materialDesign:PackIcon Kind="Download" Width="18" Height="18" VerticalAlignment="Center"/>
-                                    <TextBlock Text="Download FFmpeg (~90 MB)" Margin="6,0,0,0"/>
+                                    <TextBlock Text="Download FFmpeg (~110 MB)" Margin="6,0,0,0"/>
                                 </StackPanel>
                             </Button>
                             <ProgressBar Width="240" Height="6"
@@ -490,7 +523,7 @@
                                     ToolTip="Pick an existing ffmpeg.exe on disk"/>
                         </Grid>
 
-                        <TextBlock Text="FFmpeg is also used from the system PATH if it is already installed. The restream engine uses the official gyan.dev build (GPL, includes x264)."
+                        <TextBlock Text="Downloads the official gyan.dev FFmpeg 9.0.2 essentials build (GPL, includes x264) and verifies its SHA-256 checksum before installing. FFmpeg is also used from the system PATH if it is already installed."
                                    Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap"
                                    Margin="0,10,0,0"/>
                     </StackPanel>

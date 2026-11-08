@@ -144,7 +144,7 @@ See [Data Layer](../architecture/data-layer.md) for how the per-profile database
 
 ### The auto-connect side effect (intended behavior)
 
-When `MainViewModel.CheckPlatformConnectionsAsync` auto-connects a platform whose DB status is "Connected", it silently flips that platform's `<Platform>ChatEnabled` flag from false to true in the database on first connect (`MainViewModel.cs:437-443` for Twitch, with matching blocks for Kick and YouTube). After review this is **intended**: a connected platform is expected to show in the unified feed by default (KI-14). If you turn chat display off but stay connected, the flag comes back on at next auto-connect.
+When a platform connects (auto-connect at startup runs from `MainViewModel.CheckPlatformConnectionsAsync` through `IPlatformConnectionService`), the connect path silently flips that platform's `<Platform>ChatEnabled` flag from false to true in the database (`PlatformConnectionService.cs:123` for Twitch, with matching blocks for Kick `:201` and YouTube `:262`). After review this is **intended**: a connected platform is expected to show in the unified feed by default (KI-14). If you turn chat display off but stay connected, the flag comes back on at the next connect.
 
 ### ChatEventSettingsService cache (profile-aware since 2026-08-15)
 

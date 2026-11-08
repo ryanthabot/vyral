@@ -43,9 +43,9 @@ There is no connection string swap, no per-call parameter — the swap happens i
 
 ### Schema creation and migration
 
-`DapperDataService.EnsureDatabaseCreatedAsync()` (`DapperDataService.cs:2092+`) creates **34 tables** with `CREATE TABLE IF NOT EXISTS` — Platforms, DiscordBots, Configs, Triggers, Actions, EventLogs, WebServerSettings, WebhookSubscriptions, ChatMessages, ChatEventSettings, AutoReplyRules, EventStatistics, the Currency family (settings, user currency, transactions, rewards, redemptions, linked accounts, streaks, loyalty tiers, game settings, perks, boosts, auctions, auction bids, bank accounts), Giveaways + entries, Polls + votes, UserWatchtime, Variables, Commands, CommandCooldowns — plus 68 indexes. It runs at startup on the profile-aware service.
+`DapperDataService.EnsureDatabaseCreatedAsync()` (`DapperDataService.cs:3390+`) creates **50 tables** with `CREATE TABLE IF NOT EXISTS` — Platforms, DiscordBots, Configs, Triggers, Actions, EventLogs, WebServerSettings, WebhookSubscriptions, ChatMessages, ChatEventSettings, AutoReplyRules, EventStatistics, the Currency family (settings, user currency, transactions, rewards, redemptions, linked accounts, streaks, loyalty tiers, game settings, perks, boosts, auctions, auction bids, bank accounts), Giveaways + entries, Polls + votes, UserWatchtime, Variables, Commands, CommandCooldowns, Quotes, Workflows + WorkflowExecutions, moderation tables and more — plus 88 indexes. It runs at startup on the profile-aware service.
 
-There is no migration framework. Column additions are handled inline: `pragma_table_info` checks followed by `ALTER TABLE ADD COLUMN` (for example the per-platform chat-enabled flags, `DapperDataService.cs:2132-2234`). Adding a column means editing this method; there is no version table.
+There is no migration framework. Column additions are handled inline: `pragma_table_info` checks followed by `ALTER TABLE ADD COLUMN` (for example the per-platform chat-enabled flags, `DapperDataService.cs:3434+`). Adding a column means editing this method; there is no version table.
 
 ### What lives where
 

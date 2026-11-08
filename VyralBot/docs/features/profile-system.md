@@ -81,16 +81,25 @@ File-based profile management with portable storage. Each profile has its own SQ
           vyralbot.db
 ```
 
-## Profile Switch Flow
+## Profile Switch Flow (live, no restart)
 ```
 User selects profile → SettingsViewModel.SwitchProfileCommand
   → ProfileService.SwitchProfileAsync(name, pin)
-    → ValidatePinAsync (SHA256 comparison)
+    → ValidatePinAsync (PBKDF2 v2; legacy SHA256 auto-migrates)
     → Write name to current_profile.txt
     → EventBus.PublishAsync(ProfileSwitchedEvent)
       ↓
-ProfileAwareDataService (subscribed? checks on next call)
-  → GetCurrentService() detects profile change
+MainViewModel (subscribed) — DisconnectAllPlatformsAsync:
+  stops command timers, workflow triggers (cancels in-flight runs),
+  RESTREAM ENGINE (old profile's destinations must not keep streaming),
+  Twitch/Kick/YouTube/Discord + all Discord bots
+  → disposes Platforms/Chat/Settings VMs+scopes → OnProfileLoadedAsync()
+    (reloads settings, reconnects the new profile's platforms)
+Other ProfileSwitchedEvent subscribers (cache invalidation):
+  ChatEventSettingsService, CurrencyService (settings + unified-target
+  caches), SoundService (re-resolves per-profile sounds directory)
+      ↓
+ProfileAwareDataService.GetCurrentService() detects profile change
   → Creates new DapperDataService with new DB path
       ↓
 All data operations now use new profile's database
@@ -100,6 +109,6 @@ All data operations now use new profile's database
 - **Portable storage** at project root (not %AppData%) for easy backup/transfer
 - **File-based** profile metadata (profile.json) — not in database
 - **Per-profile SQLite databases** for complete data isolation
-- **SHA256 PIN hashing** for profile protection
+- **PBKDF2 v2 PIN hashing** (salted, 100k iterations, fixed-time compare; legacy SHA256 migrates on unlock) for profile protection
 - **EventBus integration** for profile switch notifications
-- **ZIP export/import** for profile portability
+- **ZIP export** for profile portability — includes credentials (DPAPI-wrapped, machine-bound; UI warns before export). Import is service-level only, no UI.

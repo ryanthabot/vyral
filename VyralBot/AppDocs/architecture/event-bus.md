@@ -66,7 +66,7 @@ Some producers also write [variables](../chat-features/variables.md) directly as
 
 ### The command pipeline event
 
-`ChatMessageReceivedEvent` ([ChatMessageReceivedEvent.cs](../../src/VyralBot.Core/Models/ChatMessageReceivedEvent.cs)) is the generic "a chat message arrived" event that `ChatViewModel.OnChatMessageReceivedAsync` (`ChatViewModel.cs:592`) consumes. That handler is the orchestrator for the entire command pipeline: `CommandService` (`!commands`), currency/giveaway/poll/watchtime chat commands, watchtime activity tracking, and chat-activity currency.
+`ChatMessageReceivedEvent` ([ChatMessageReceivedEvent.cs](../../src/VyralBot.Core/Models/ChatMessageReceivedEvent.cs)) is the generic "a chat message arrived" event that `ChatViewModel.OnChatMessageReceivedAsync` (`ChatViewModel.cs:3166`) consumes. That handler is the orchestrator for the entire command pipeline: `CommandService` (`!commands`), currency/giveaway/poll/watchtime/quote chat commands, watchtime activity tracking, and chat-activity currency.
 
 Since the 2026-08-15 fix, **all chat integrations publish it** — `TwitchService.OnMessageReceived`, `KickLibChatService.OnChatMessage` (MessageId `"kick:{id}"`), the `YouTubeChatService` polling loop (`"youtube:{id}"`), and `DiscordService.OnMessageReceivedAsync` (`"discord:{id}"`, Platform `"Discord"`) — fire-and-forget alongside their typed events. The consumer dedupes by `MessageId` (Kick's Pusher + webhook double delivery is safe) and skips the bot's own echoed messages. This was previously the single biggest wiring gap in the app (KI-1, resolved); see the [known issues ledger](../reference/known-issues.md) and [Commands](../chat-features/commands.md).
 

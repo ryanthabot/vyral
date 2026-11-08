@@ -16,12 +16,37 @@
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="Sounds Management" 
-                       Style="{StaticResource MaterialDesignHeadline4TextBlock}" 
+            <TextBlock Text="Sounds Management"
+                       Style="{StaticResource MaterialDesignHeadline4TextBlock}"
                        Margin="0,0,0,5"/>
-            <TextBlock Text="Upload sound files and assign them to chat events" 
-                       Style="{StaticResource MaterialDesignBody2TextBlock}" 
+            <TextBlock Text="Upload sound files and assign them to chat events"
+                       Style="{StaticResource MaterialDesignBody2TextBlock}"
                        Foreground="{DynamicResource MaterialDesignBodyLight}"/>
+            <!-- Master volume: global multiplier applied on top of every per-event
+                 volume (same AudioSettings value SoundService and the Audio Settings
+                 page use). Persisted debounced on drag-release. -->
+            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                <materialDesign:PackIcon Kind="VolumeHigh"
+                                         Width="20"
+                                         Height="20"
+                                         VerticalAlignment="Center"
+                                         Foreground="{DynamicResource PrimaryBrush}"/>
+                <TextBlock Text="Master Volume"
+                           Style="{StaticResource MaterialDesignBody2TextBlock}"
+                           VerticalAlignment="Center"
+                           Margin="8,0,12,0"/>
+                <Slider Minimum="0"
+                        Maximum="100"
+                        Width="240"
+                        VerticalAlignment="Center"
+                        Value="{Binding MasterVolumePercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        ToolTip="Global multiplier for every event sound (Streamer and browser source)"/>
+                <TextBlock Text="{Binding MasterVolumePercent, StringFormat={}{0}%}"
+                           Style="{StaticResource MaterialDesignBody2TextBlock}"
+                           VerticalAlignment="Center"
+                           MinWidth="42"
+                           Margin="12,0,0,0"/>
+            </StackPanel>
         </StackPanel>
 
         <!-- Main Content -->
@@ -46,35 +71,76 @@
                                    Style="{StaticResource MaterialDesignHeadline6TextBlock}"/>
                     </Border>
 
-                    <!-- Sound Files List -->
+                    <!-- Sound Files List (accepts dragged audio files) -->
                     <ListBox Grid.Row="1"
                              ItemsSource="{Binding SoundFiles}"
                              SelectedItem="{Binding SelectedSoundFile}"
+                             AllowDrop="True"
                              Margin="10">
+                        <i:Interaction.Triggers>
+                            <i:EventTrigger EventName="DragOver">
+                                <i:InvokeCommandAction Command="{Binding DragOverSoundFilesCommand}"
+                                                       PassEventArgsToCommand="True"/>
+                            </i:EventTrigger>
+                            <i:EventTrigger EventName="Drop">
+                                <i:InvokeCommandAction Command="{Binding DropSoundFilesCommand}"
+                                                       PassEventArgsToCommand="True"/>
+                            </i:EventTrigger>
+                        </i:Interaction.Triggers>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <materialDesign:PackIcon Grid.Column="0"
-                                                            Kind="MusicNote"
-                                                            Width="20"
-                                                            Height="20"
-                                                            VerticalAlignment="Center"
-                                                            Margin="0,0,10,0"/>
+                                    <!-- Per-file test play (previews at master volume) -->
+                                    <Button Grid.Column="0"
+                                            Command="{Binding DataContext.PlayFileCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding Name}"
+                                            Style="{StaticResource MaterialDesignFlatButton}"
+                                            Height="26"
+                                            MinWidth="26"
+                                            Padding="4,0"
+                                            Margin="0,0,8,0"
+                                            VerticalAlignment="Center"
+                                            ToolTip="Play (preview at master volume)">
+                                        <materialDesign:PackIcon Kind="Play"
+                                                                 Width="16"
+                                                                 Height="16"/>
+                                    </Button>
                                     <TextBlock Grid.Column="1"
-                                              Text="{Binding}"
-                                              TextWrapping="Wrap"
-                                              VerticalAlignment="Center"/>
+                                               Text="{Binding Name}"
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Center"/>
+                                    <!-- Duration (.wav only - read from the header) -->
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding Duration}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               FontSize="11"
+                                               VerticalAlignment="Center"
+                                               Margin="8,0,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource MaterialDesignCaptionTextBlock}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasDuration}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
 
-                    <!-- Empty state: shown while the sound library is empty -->
+                    <!-- Empty state: shown while the sound library is empty.
+                         Hit-test disabled so drag-drop lands on the ListBox behind it. -->
                     <StackPanel Grid.Row="1"
+                                IsHitTestVisible="False"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 Margin="24">
@@ -100,7 +166,7 @@
                                    Foreground="{DynamicResource TextPrimaryBrush}"
                                    HorizontalAlignment="Center"
                                    Margin="0,0,0,8"/>
-                        <TextBlock Text="Upload a file with the Upload Sound button below, then assign it to chat events on the right."
+                        <TextBlock Text="Drop audio files here (.wav, .mp3, .ogg, .m4a) or use the Upload Sound button below, then assign them to chat events on the right."
                                    FontSize="12"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"

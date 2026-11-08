@@ -153,7 +153,7 @@ No audio files ship with the app; nothing is ever auto-assigned. If you want tho
 | [SoundsView.xaml](../../src/VyralBot.UI/Views/SoundsView.xaml) | The two-panel layout: Sound Library (list + Upload/Play/Delete buttons) and the Event Sound Assignments DataGrid |
 | [SoundService.cs](../../src/VyralBot.Core/Services/Audio/SoundService.cs) | Per-profile sounds directory + one-time legacy migration, file storage (upload/delete/list), `PlayEventSoundAsync` / `PlaySoundFileAsync` pipeline (MediaPlayer local playback), config-key lookups, default-sound check |
 | [ISoundService.cs](../../src/VyralBot.Core/Services/Audio/ISoundService.cs) | Service interface used by the page and by ChatViewModel (incl. `GetSoundsDirectory`) |
-| [IAudioWebSocketServer.cs](../../src/VyralBot.Core/Services/Audio/IAudioWebSocketServer.cs) | Defines the `AudioEvent` message class (serialized camelCase on the wire) plus the legacy server interface |
+| ~~IAudioWebSocketServer.cs~~ | Deleted with the legacy 8080 server — broadcasts now use an inline camelCase payload from SoundService (see [Browser Sources](browser-sources.md)) |
 | [AudioWebSocketBroadcaster.cs](../../src/VyralBot.Core/Services/Audio/AudioWebSocketBroadcaster.cs) | Static delegate carrying broadcasts from SoundService to the Kestrel server's WebSocket clients |
 | [WebServerService.cs](../../src/VyralBot.Api/Services/WebServerService.cs) | Kestrel server that serves `/sounds/*` from the profile sounds directory (wwwroot fallback) and hosts `/audio-ws` |
 | [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) | The fourteen event handlers that actually trigger sounds at runtime |

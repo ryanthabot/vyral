@@ -729,7 +729,7 @@ public partial class ConditionRuleRowViewModel : ObservableObject
     /// <summary>Refills the row from a stored leaf object (tolerates missing keys).</summary>
     public void LoadLeaf(JsonElement leaf)
     {
-        string Type() => leaf.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() ?? string.Empty : string.Empty;
+        string LeafType() => leaf.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() ?? string.Empty : string.Empty;
         string Str(string name)
         {
             if (leaf.TryGetProperty(name, out var v))
@@ -740,36 +740,36 @@ public partial class ConditionRuleRowViewModel : ObservableObject
             return string.Empty;
         }
 
-        switch (Type())
+        switch (LeafType())
         {
             case "user_has_role":
-                _type = RuleTypes.First(t => t.Key == "user_has_role");
+                Type = RuleTypes.First(t => t.Key == "user_has_role");
                 RoleId = Str("roleId");
                 break;
             case "message_contains":
-                _type = RuleTypes.First(t => t.Key == "message_contains");
+                Type = RuleTypes.First(t => t.Key == "message_contains");
                 Text = Str("text");
                 CaseSensitive = leaf.TryGetProperty("caseSensitive", out var cs) && cs.ValueKind == JsonValueKind.True;
                 break;
             case "variable_equals":
-                _type = RuleTypes.First(t => t.Key == "variable_equals");
+                Type = RuleTypes.First(t => t.Key == "variable_equals");
                 VariableName = Str("variableName");
                 Value = Str("value");
                 break;
             case "variable_exists":
-                _type = RuleTypes.First(t => t.Key == "variable_exists");
+                Type = RuleTypes.First(t => t.Key == "variable_exists");
                 VariableName = Str("variableName");
                 break;
             case "time_between":
-                _type = RuleTypes.First(t => t.Key == "time_between");
+                Type = RuleTypes.First(t => t.Key == "time_between");
                 StartHour = Str("startHour");
                 EndHour = Str("endHour");
                 break;
             case "user_is_bot":
-                _type = RuleTypes.First(t => t.Key == "user_is_bot");
+                Type = RuleTypes.First(t => t.Key == "user_is_bot");
                 break;
             case "channel_is":
-                _type = RuleTypes.First(t => t.Key == "channel_is");
+                Type = RuleTypes.First(t => t.Key == "channel_is");
                 ChannelName = Str("channelName");
                 break;
         }
@@ -1628,10 +1628,16 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 return; // one of the other two tabs was checked — nothing to do
             }
 
-            bool actionsChanged = _isActionsTab;
-            bool optionsChanged = _isOptionsTab;
+            bool actionsChanged = IsActionsTab;
+            bool optionsChanged = IsOptionsTab;
+            // Deliberate direct field writes: the generated setters re-enter
+            // OnIsActionsTabChanged/OnIsOptionsTabChanged, whose snap-back logic
+            // resurrects the tab being cleared — "conditions active" (both off)
+            // is only reachable by bypassing the setters.
+#pragma warning disable MVVMTK0034
             _isActionsTab = false;
             _isOptionsTab = false;
+#pragma warning restore MVVMTK0034
             if (actionsChanged)
             {
                 OnPropertyChanged(nameof(IsActionsTab));
@@ -2673,8 +2679,8 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     /// <summary>Maps a persisted trigger into the toolbar form fields.</summary>
     private void LoadTriggerIntoForm(FlowTriggerDto trigger)
     {
-        _selectedTriggerType = TriggerTypes.FirstOrDefault(t => string.Equals(t.Key, trigger.Type, StringComparison.OrdinalIgnoreCase))
-                               ?? TriggerTypes.First(t => t.Key == WorkflowTriggerTypes.Manual);
+        SelectedTriggerType = TriggerTypes.FirstOrDefault(t => string.Equals(t.Key, trigger.Type, StringComparison.OrdinalIgnoreCase))
+                              ?? TriggerTypes.First(t => t.Key == WorkflowTriggerTypes.Manual);
         OnPropertyChanged(nameof(SelectedTriggerType));
         NotifyTriggerFlagsChanged();
 
@@ -6655,17 +6661,17 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     /// </summary>
     public bool IsEventListTab
     {
-        get => !_isCommandListTab;
+        get => !IsCommandListTab;
         set
         {
-            if (!value || !_isCommandListTab)
+            if (!value || !IsCommandListTab)
             {
                 return; // unchecking means the other tab was picked; already on Events
             }
 
-            _isCommandListTab = false;
-            OnPropertyChanged(nameof(IsCommandListTab));
-            OnPropertyChanged(nameof(IsEventListTab));
+            // The generated setter raises IsCommandListTab and the partial
+            // OnIsCommandListTabChanged handler raises IsEventListTab.
+            IsCommandListTab = false;
         }
     }
 

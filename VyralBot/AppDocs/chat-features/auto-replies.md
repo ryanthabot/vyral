@@ -41,7 +41,7 @@ Auto-replies are limited to one per user + event + platform per 30 seconds. If t
 
 **Settings storage** — [ChatEventSetting.cs](../../src/VyralBot.Data/Entities/ChatEventSetting.cs): one row per `(Platform, EventType)` with `ShowInChat`, `AutoReplyEnabled`, `AutoReplyMessage`, plus sound columns. **[ChatEventSettingsService.cs](../../src/VyralBot.Core/Services/Chat/ChatEventSettingsService.cs)** wraps them in a read-through cache (dictionary keyed `"{Platform}:{EventType}"`, lazy-loaded once under a `SemaphoreSlim`; saves write through; `InvalidateCache()` forces a reload). Helpers: `IsEventEnabledAsync` (ShowInChat), `IsAutoReplyEnabledAsync`, `GetAutoReplyMessageAsync`, `GetSoundSettingsAsync`.
 
-**Execution** — the per-event handlers in `ChatViewModel` (e.g. `OnKickFollowAsync` at `ChatViewModel.cs:1700`). For every event, gated by the setting:
+**Execution** — the per-event handlers in `ChatViewModel` (e.g. `OnKickFollowAsync` at `ChatViewModel.cs:5841`). For every event, gated by the setting:
 
 1. Optional system message in the chat feed (`ShowInChat`).
 2. `SoundService.PlayEventSoundAsync` (see [Sounds](../stream-tools/sounds.md)).

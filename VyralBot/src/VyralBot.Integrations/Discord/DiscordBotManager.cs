@@ -69,6 +69,12 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
     // Assigned asynchronously (SubscribeAsync) right after construction.
     private Guid? _memberJoinedSubscriptionId;
 
+    // Scheduled messages: ONE manager-wide timer (self-rearming one-shot, so
+    // ticks never overlap) evaluating every running bot's due schedules.
+    private readonly System.Threading.Timer? _scheduledMessagesTimer;
+    private int _scheduledMessagesTickInProgress;
+    private static readonly TimeSpan ScheduledMessagesTickInterval = TimeSpan.FromSeconds(30);
+
     public event Action? BotsChanged;
 
     /// <summary>
@@ -115,6 +121,16 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
         // manager-wide subscription dispatches to the right bot. Fire-and-forget
         // init (a constructor cannot await); failures are logged, never thrown.
         _ = SubscribeToMemberJoinsAsync();
+
+        // Recurring announcements: a single 30-second one-shot timer (re-armed
+        // after each evaluation) checks every running bot's schedules. Bots'
+        // schedules are read fresh from the store, so detail-page saves apply
+        // to the very next tick.
+        _scheduledMessagesTimer = new System.Threading.Timer(
+            _ => _ = RunScheduledMessagesTickAsync(),
+            null,
+            ScheduledMessagesTickInterval,
+            Timeout.InfiniteTimeSpan);
     }
 
     /// <summary>
@@ -502,15 +518,18 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
 
         // Per-bot Configs rows ("DiscordBot.{botId}.*"): the integrations list
         // and disabled-built-ins written by the bot's integrations page and by
-        // flow saves, plus the welcome/auto-role settings of the detail page.
-        // Without this the keys linger as orphans forever.
+        // flow saves, plus the welcome/auto-role settings, allowed channels
+        // and scheduled messages of the detail page. Without this the keys
+        // linger as orphans forever.
         try
         {
             var configKeys = new[]
             {
                 $"DiscordBot.{botId}.Integrations",
                 $"DiscordBot.{botId}.DisabledBuiltIns",
-                DiscordBotWelcomeSettings.ConfigKey(botId)
+                DiscordBotWelcomeSettings.ConfigKey(botId),
+                DiscordBotAllowedChannels.ConfigKey(botId),
+                DiscordBotScheduledMessage.ConfigKey(botId)
             };
 
             int deleted = 0;
@@ -1080,6 +1099,264 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
             // Defensive: the EventBus also guards handlers, but the welcome
             // feature must never surface as a bus error either way.
             _logger.LogWarning(ex, "⚠️ Welcome/auto-role handling failed for a Discord member join");
+        }
+    }
+
+    // ==================================================================
+    // Per-bot ALLOWED CHANNELS + SCHEDULED MESSAGES
+    //
+    // Both live in the per-bot Configs store ("Discord.{botId}.*" siblings of
+    // the welcome settings). Allowed channels are ENFORCED where commands are
+    // matched — CommandService reads the same key live (30s cache) — while the
+    // scheduled messages are acted on here by the manager-wide timer.
+    // ==================================================================
+
+    /// <inheritdoc />
+    public async Task<DiscordBotAllowedChannels> GetAllowedChannelsAsync(string botId)
+    {
+        if (string.IsNullOrWhiteSpace(botId))
+        {
+            return DiscordBotAllowedChannels.Default;
+        }
+
+        try
+        {
+            var json = await _dataService
+                .GetConfigValueAsync(DiscordBotAllowedChannels.ConfigKey(botId))
+                .ConfigureAwait(false);
+            return DiscordBotAllowedChannels.FromJson(json);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ Could not load allowed channels for bot {BotId}; treating it as unrestricted", botId);
+            return DiscordBotAllowedChannels.Default;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task SaveAllowedChannelsAsync(string botId, DiscordBotAllowedChannels allowed)
+    {
+        if (string.IsNullOrWhiteSpace(botId) || allowed == null)
+        {
+            return;
+        }
+
+        await _dataService
+            .SetConfigValueAsync(DiscordBotAllowedChannels.ConfigKey(botId), allowed.ToJson())
+            .ConfigureAwait(false);
+        _logger.LogInformation("✅ Saved allowed channels for Discord bot {BotId} ({Count} channel(s) picked)",
+            botId, allowed.ChannelIds.Count);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DiscordBotScheduledMessage>> GetScheduledMessagesAsync(string botId)
+    {
+        if (string.IsNullOrWhiteSpace(botId))
+        {
+            return [];
+        }
+
+        try
+        {
+            var json = await _dataService
+                .GetConfigValueAsync(DiscordBotScheduledMessage.ConfigKey(botId))
+                .ConfigureAwait(false);
+            return DiscordBotScheduledMessage.ListFromJson(json);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "⚠️ Could not load scheduled messages for bot {BotId}; treating it as none", botId);
+            return [];
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task SaveScheduledMessagesAsync(string botId, IReadOnlyList<DiscordBotScheduledMessage> messages)
+    {
+        if (string.IsNullOrWhiteSpace(botId) || messages == null)
+        {
+            return;
+        }
+
+        // Bounded list + reset every entry's next-run clock: a null NextRunUtc
+        // makes the timer schedule the first run one full interval out, so an
+        // edit never replays stale due times from before the save.
+        var bounded = messages
+            .Take(DiscordBotScheduledMessage.MaxPerBot)
+            .Select(m => m with { NextRunUtc = null })
+            .ToList();
+
+        await _dataService
+            .SetConfigValueAsync(DiscordBotScheduledMessage.ConfigKey(botId), DiscordBotScheduledMessage.ListToJson(bounded))
+            .ConfigureAwait(false);
+        _logger.LogInformation("✅ Saved {Count} scheduled message(s) for Discord bot {BotId}", bounded.Count, botId);
+    }
+
+    /// <summary>
+    /// One 30-second tick: evaluates every running bot's due schedules.
+    /// Overlap-guarded (a single evaluation in flight); re-arms the one-shot
+    /// timer in the finally block so a slow tick DELAYS the next instead of
+    /// stacking, and stops re-arming once the manager is disposed.
+    /// </summary>
+    private async Task RunScheduledMessagesTickAsync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (Interlocked.CompareExchange(ref _scheduledMessagesTickInProgress, 1, 0) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await EvaluateScheduledMessagesAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Defensive: the tick runs as a fire-and-forget task and must
+            // never surface as an unobserved task exception.
+            _logger.LogWarning(ex, "⚠️ Scheduled-message evaluation failed");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _scheduledMessagesTickInProgress, 0);
+
+            if (!_disposed && _scheduledMessagesTimer != null)
+            {
+                try
+                {
+                    _scheduledMessagesTimer.Change(ScheduledMessagesTickInterval, Timeout.InfiniteTimeSpan);
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Manager disposed mid-tick — nothing left to re-arm.
+                }
+            }
+        }
+    }
+
+    private async Task EvaluateScheduledMessagesAsync()
+    {
+        List<string> botIds;
+        lock (_sync)
+        {
+            botIds = _running.Keys.ToList();
+        }
+
+        foreach (var botId in botIds)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            try
+            {
+                await EvaluateBotScheduledMessagesAsync(botId).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                // One bot's failure must never stop the other bots' schedules.
+                _logger.LogInformation(ex, "ℹ️ Scheduled messages skipped for bot {BotId} this tick", botId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fires one bot's due schedules through its own service instance. A due
+    /// entry fires ONCE and its next run is reset a full interval out — ticks
+    /// missed while the bot/app was offline are never caught up. Persistence
+    /// happens once per tick, only when a next-run clock actually moved.
+    /// </summary>
+    private async Task EvaluateBotScheduledMessagesAsync(string botId)
+    {
+        if (Get(botId) is not { IsConnected: true } service)
+        {
+            return;
+        }
+
+        string? json;
+        try
+        {
+            json = await _dataService
+                .GetConfigValueAsync(DiscordBotScheduledMessage.ConfigKey(botId))
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "ℹ️ Could not read scheduled messages for bot {BotId} this tick", botId);
+            return;
+        }
+
+        var schedules = DiscordBotScheduledMessage.ListFromJson(json);
+        if (schedules.Count == 0)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        var changed = false;
+
+        for (var i = 0; i < schedules.Count; i++)
+        {
+            var schedule = schedules[i];
+            if (!schedule.Enabled
+                || string.IsNullOrWhiteSpace(schedule.ChannelId)
+                || string.IsNullOrWhiteSpace(schedule.Message))
+            {
+                continue;
+            }
+
+            // Freshly saved entry (NextRunUtc null): schedule its first run
+            // one interval out instead of firing the moment it is saved.
+            if (schedule.NextRunUtc is not { } dueAt)
+            {
+                schedules[i] = schedule with { NextRunUtc = now.AddMinutes(schedule.EffectiveIntervalMinutes) };
+                changed = true;
+                continue;
+            }
+
+            if (dueAt > now)
+            {
+                continue;
+            }
+
+            schedules[i] = schedule with { NextRunUtc = now.AddMinutes(schedule.EffectiveIntervalMinutes) };
+            changed = true;
+
+            try
+            {
+                var text = DiscordBotScheduledMessage.FormatMessage(schedule.Message);
+                var sent = await service
+                    .SendToChannelAsync(schedule.ChannelId!, text, null)
+                    .ConfigureAwait(false);
+                if (sent)
+                {
+                    _logger.LogInformation("📅 Sent a scheduled message for bot {BotId} to channel {ChannelId}",
+                        botId, schedule.ChannelId);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "ℹ️ Scheduled message for bot {BotId} was not sent (channel '{ChannelId}' unresolvable — deleted?)",
+                        botId, schedule.ChannelId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogInformation(ex, "ℹ️ Scheduled message send failed for bot {BotId} in channel {ChannelId}",
+                    botId, schedule.ChannelId);
+            }
+        }
+
+        if (changed)
+        {
+            await _dataService
+                .SetConfigValueAsync(DiscordBotScheduledMessage.ConfigKey(botId), DiscordBotScheduledMessage.ListToJson(schedules))
+                .ConfigureAwait(false);
         }
     }
 
@@ -1878,6 +2155,11 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
         }
 
         _disposed = true;
+
+        // Stop the scheduled-message tick FIRST so a callback can never race
+        // the service teardown below (the tick's overlap guard + _disposed
+        // check make a mid-flight tick a safe no-op after this point).
+        _scheduledMessagesTimer?.Dispose();
 
         List<ManagedBot> bots;
         lock (_sync)

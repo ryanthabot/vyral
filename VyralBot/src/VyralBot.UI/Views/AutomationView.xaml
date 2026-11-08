@@ -619,6 +619,11 @@
                         Command="{Binding NewWorkflowCommand}"
                         Style="{StaticResource VyralPlainPrimaryButton}"
                         Margin="0,0,12,0"/>
+                <Button Content="TEMPLATES"
+                        Command="{Binding ShowTemplatesCommand}"
+                        Style="{StaticResource VyralPlainOutlineButton}"
+                        Margin="0,0,12,0"
+                        ToolTip="Browse one-click starter workflows — imported disabled so you can edit them first"/>
                 <Button Content="REFRESH"
                         Command="{Binding LoadWorkflowsCommand}"
                         Style="{StaticResource VyralPlainOutlineButton}"
@@ -760,6 +765,128 @@
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
+
+                <!-- ============================================================
+                     TEMPLATES: one-click starter workflows (imported disabled)
+                     ============================================================ -->
+                <materialDesign:Card Padding="20"
+                                     Background="{DynamicResource CardBackgroundBrush}"
+                                     Effect="{DynamicResource CardShadow}"
+                                     Margin="0,8,0,0"
+                                     Visibility="{Binding IsTemplatesVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="RocketLaunch"
+                                                         Width="18"
+                                                         Height="18"
+                                                         Foreground="{DynamicResource PrimaryLightBrush}"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,8,0"/>
+                                <TextBlock Text="STARTER TEMPLATES"
+                                           FontSize="14"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,12,0"/>
+                                <TextBlock Text="one click adds the workflow disabled — edit it, then flip Enabled to arm it"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+
+                            <Button Grid.Column="1"
+                                    Content="CLOSE"
+                                    Command="{Binding CloseTemplatesCommand}"
+                                    Style="{StaticResource VyralPlainOutlineButton}"
+                                    Height="32"/>
+                        </Grid>
+
+                        <ItemsControl ItemsSource="{Binding Templates}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{DynamicResource BackgroundDarkBrush}"
+                                            BorderBrush="{DynamicResource BorderColorBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Padding="12"
+                                            Margin="0,0,0,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Name}"
+                                                               FontSize="15"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                                               VerticalAlignment="Center"/>
+                                                    <Border Background="{DynamicResource SuccessGreenBrush}"
+                                                            CornerRadius="3"
+                                                            Padding="8,2"
+                                                            Margin="10,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            Visibility="{Binding IsImported, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                        <TextBlock Text="IMPORTED"
+                                                                   FontSize="10"
+                                                                   FontWeight="Bold"
+                                                                   Foreground="White"/>
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Description}"
+                                                           FontSize="12"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           Margin="0,4,0,0"
+                                                           TextWrapping="Wrap"/>
+
+                                                <!-- Trigger + platform chips -->
+                                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                    <Border BorderBrush="{DynamicResource BorderAccentBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="3"
+                                                            Padding="8,3"
+                                                            Margin="0,0,8,0">
+                                                        <TextBlock Text="{Binding TriggerSummary}" Style="{StaticResource VyralChipText}"/>
+                                                    </Border>
+                                                    <Border BorderBrush="{DynamicResource BorderSecondaryBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="3"
+                                                            Padding="8,3">
+                                                        <TextBlock Text="{Binding Platforms}" Style="{StaticResource VyralChipText}">
+                                                            <TextBlock.Foreground>
+                                                                <SolidColorBrush Color="{StaticResource TextSecondary}"/>
+                                                            </TextBlock.Foreground>
+                                                        </TextBlock>
+                                                    </Border>
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <Button Grid.Column="1"
+                                                    Content="IMPORT"
+                                                    Command="{Binding DataContext.ImportTemplateCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource VyralPlainPrimaryButton}"
+                                                    Height="32"
+                                                    VerticalAlignment="Center"
+                                                    Margin="16,0,0,0"
+                                                    IsEnabled="{Binding DataContext.IsBusy, Converter={StaticResource InvertBooleanConverter}, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    ToolTip="Add this workflow (disabled) to your list — edit it, then flip Enabled"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </materialDesign:Card>
 
                 <!-- ============================================================
                      BUILDER: selected / new workflow

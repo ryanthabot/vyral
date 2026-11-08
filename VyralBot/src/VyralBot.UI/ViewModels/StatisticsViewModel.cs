@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Text;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -43,6 +44,10 @@ public partial class StatisticsViewModel : ViewModelBase
 
     [ObservableProperty]
     private int _totalEvents;
+
+    /// <summary>Result of the last export attempt, shown under the filter card.</summary>
+    [ObservableProperty]
+    private string _statusMessage = string.Empty;
 
     [ObservableProperty]
     private ObservableCollection<string> _availableEventTypes = new()
@@ -98,8 +103,10 @@ public partial class StatisticsViewModel : ViewModelBase
         IsLoading = true;
         try
         {
+            var (startDate, endDate) = ClampDateRange();
+
             // Load event counts
-            var counts = await _statisticsService.GetEventCountsByTypeAsync(StartDate, EndDate);
+            var counts = await _statisticsService.GetEventCountsByTypeAsync(startDate, endDate);
             EventCounts.Clear();
             TotalEvents = 0;
 
@@ -199,7 +206,9 @@ public partial class StatisticsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Export statistics to CSV file.
+    /// Export the current filter's aggregated rows (Platform/EventType/Count,
+    /// same data as the Event Counts grid) to CSV. UTF-8 with BOM so Excel
+    /// opens it directly; every field quoted and comma-escaped.
     /// </summary>
     [RelayCommand]
     private async Task ExportToCsvAsync()
@@ -214,21 +223,48 @@ public partial class StatisticsViewModel : ViewModelBase
                 FileName = $"EventStatistics_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
             };
 
-            if (saveDialog.ShowDialog() == true)
+            if (saveDialog.ShowDialog() != true)
             {
-                IsLoading = true;
-                var csv = await _statisticsService.ExportToCsvAsync(StartDate, EndDate, SelectedPlatform);
-                await File.WriteAllTextAsync(saveDialog.FileName, csv);
-
-                MessageBox.Show($"Statistics exported successfully to:\n{saveDialog.FileName}", 
-                    "Export Complete", MessageBoxButton.OK, MessageBoxImage.Information);
-
-                _logger.LogInformation("Statistics exported to {FileName}", saveDialog.FileName);
+                return;
             }
+
+            IsLoading = true;
+            var (startDate, endDate) = ClampDateRange();
+
+            // Re-aggregate from the service with the CURRENT filters so the file
+            // matches the grid even if the user changed a picker without Refresh.
+            var counts = await _statisticsService.GetEventCountsByTypeAsync(startDate, endDate);
+
+            var csv = new StringBuilder();
+            csv.AppendLine("Platform,EventType,Count");
+
+            var rowCount = 0;
+            foreach (var platform in counts.OrderBy(p => p.Key, StringComparer.Ordinal))
+            {
+                if (SelectedPlatform != null &&
+                    !platform.Key.Equals(SelectedPlatform, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                foreach (var eventType in platform.Value.OrderBy(e => e.Key, StringComparer.Ordinal))
+                {
+                    csv.AppendLine($"{Csv(platform.Key)},{Csv(eventType.Key)},{eventType.Value}");
+                    rowCount++;
+                }
+            }
+
+            // UTF-8 with BOM (encoderShouldEmitUTF8Identifier) — File.WriteAllTextAsync
+            // without an encoding writes UTF-8 WITHOUT BOM, which Excel misreads.
+            await File.WriteAllTextAsync(saveDialog.FileName, csv.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+
+            StatusMessage = $"Exported {rowCount} aggregated rows to {saveDialog.FileName}";
+            _logger.LogInformation("Statistics exported to {FileName} ({Rows} rows)", saveDialog.FileName, rowCount);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error exporting statistics");
+            StatusMessage = $"Export failed: {ex.Message}";
             MessageBox.Show($"Error exporting statistics: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
@@ -236,6 +272,42 @@ public partial class StatisticsViewModel : ViewModelBase
             IsLoading = false;
         }
     }
+
+    /// <summary>
+    /// Normalize the custom date range: clamp the end to tomorrow-midnight
+    /// (the exclusive upper bound — nothing future exists yet) and force
+    /// start ≤ end. Writes clamped values back so the pickers reflect them.
+    /// </summary>
+    private (DateTime Start, DateTime End) ClampDateRange()
+    {
+        var maxEnd = DateTime.Today.AddDays(1);
+        var end = EndDate ?? maxEnd;
+        if (end > maxEnd)
+        {
+            end = maxEnd;
+        }
+
+        var start = StartDate ?? end.AddDays(-30);
+        if (start > end)
+        {
+            start = end;
+        }
+
+        if (EndDate != end)
+        {
+            EndDate = end;
+        }
+
+        if (StartDate != start)
+        {
+            StartDate = start;
+        }
+
+        return (start, end);
+    }
+
+    /// <summary>Quote a CSV field, escaping embedded quotes (RFC 4180).</summary>
+    private static string Csv(string? value) => $"\"{(value ?? string.Empty).Replace("\"", "\"\"")}\"";
 
     /// <summary>
     /// Refresh statistics with current filters.

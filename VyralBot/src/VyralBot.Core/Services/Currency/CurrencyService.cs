@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using VyralBot.Core.Services.EventBus;
 using VyralBot.Core.Services.Linking;
 using VyralBot.Core.Services.StreamStatus;
 using VyralBot.Data;
@@ -28,7 +29,8 @@ public class CurrencyService : ICurrencyService
         ICurrencyBoostService boostService,
         ILoyaltyTierService loyaltyTierService,
         IMultiPlatformBonusService? multiPlatformBonus = null,
-        IStreamLiveRegistry? streamLiveRegistry = null)
+        IStreamLiveRegistry? streamLiveRegistry = null,
+        IEventBus? eventBus = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
@@ -36,6 +38,26 @@ public class CurrencyService : ICurrencyService
         _loyaltyTierService = loyaltyTierService ?? throw new ArgumentNullException(nameof(loyaltyTierService));
         _multiPlatformBonus = multiPlatformBonus;
         _streamLiveRegistry = streamLiveRegistry;
+
+        // The settings cache and the per-account unified-target cache are not
+        // keyed by profile, so they must be dropped whenever the active profile
+        // changes — otherwise the new profile is served the previous profile's
+        // currency settings / link resolutions until the TTLs expire.
+        if (eventBus != null)
+        {
+            eventBus.SubscribeAsync<ProfileSwitchedEvent>(async e =>
+            {
+                _logger.LogInformation(
+                    "Profile switched ({OldProfile} -> {NewProfile}); invalidating currency caches",
+                    e.OldProfileName, e.NewProfileName);
+
+                _cachedSettings = null;
+                _settingsCacheTime = DateTime.MinValue;
+                _unifiedCache.Clear();
+                _unifiedConfigCheckedAtUtc = DateTime.MinValue;
+                await Task.CompletedTask;
+            });
+        }
     }
 
     public async Task<CurrencySetting?> GetSettingsAsync()

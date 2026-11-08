@@ -77,7 +77,7 @@ Database variables (like your social links — `{twitter}`, `{discord}`, `{full-
 | [VariableReplacementService.cs](../../src/VyralBot.Core/Services/Variables/VariableReplacementService.cs) | `{placeholder}` resolution for typed text |
 | [PlatformToBrushConverter.cs](../../src/VyralBot.UI/Converters/PlatformToBrushConverter.cs) | Colors the SEND button from the selected platform |
 
-The send-to-all parallel fan-out (ChatViewModel.cs:1161, trimmed) — one task per platform, errors collected, single synthetic feed entry after:
+The send-to-all parallel fan-out (ChatViewModel.cs:4982, trimmed) — one task per platform, errors collected, single synthetic feed entry after:
 
 ```csharp
 foreach (var platform in ConnectedPlatforms.Where(p => !p.IsAllPlatforms))
@@ -117,7 +117,7 @@ foreach (var platform in ConnectedPlatforms.Where(p => !p.IsAllPlatforms))
 }
 ```
 
-Echo-suppression key recording before a single-platform Twitch send (ChatViewModel.cs:957) — recorded *before* the await because the echo can arrive very fast:
+Echo-suppression key recording before a single-platform Twitch send (ChatViewModel.cs, inside the platform send paths — e.g. the echoKey block near :5011) — recorded *before* the await because the echo can arrive very fast:
 
 ```csharp
 // Track sent message BEFORE sending (echo arrives very fast!)
@@ -131,7 +131,7 @@ lock (_recentMessagesLock)
 await _twitchService.SendMessageAsync(messageText);
 ```
 
-Context variables available to manual sends (ChatViewModel.cs:1944) — Twitch, Kick, and Discord have real values; other platforms get placeholders:
+Context variables available to manual sends (ChatViewModel.cs, `BuildContextVariables`) — Twitch, Kick, and Discord have real values; other platforms get placeholders:
 
 ```csharp
 private Dictionary<string, string> BuildContextVariables(string platformName)
@@ -168,7 +168,7 @@ Nothing about sending is persisted. The pieces involved at runtime:
 | Data | Where | Notes |
 |---|---|---|
 | `MessageInput` | In-memory VM property | Cleared after a successful send |
-| `ConnectedPlatforms` / `SelectedPlatform` | In-memory VM list | Rebuilt by `UpdateConnectedPlatforms()` (ChatViewModel.cs:517) on connect/disconnect; TikTok hardcoded out |
+| `ConnectedPlatforms` / `SelectedPlatform` | In-memory VM list | Rebuilt by `UpdateConnectedPlatforms()` (ChatViewModel.cs:2931) on connect/disconnect; TikTok hardcoded out |
 | Echo-suppression keys | `_recentTwitchMessages` / `_recentKickMessages` / `_recentYoutubeMessages` / `_recentDiscordMessages` dictionaries | 10 s window (15 s YouTube); content-keyed, matched only against the bot's own sending accounts |
 | Platform connection state | `Platform` rows (per-profile SQLite) | Drives `IsConnected` checks per service |
 

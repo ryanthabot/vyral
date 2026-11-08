@@ -20,9 +20,9 @@ Vyral connects platforms with very different depths, and the differences matter 
 | Command timers | ✅ | ✅ | ✅ while live (skipped + retried when offline) | ✅ incl. a pinned bot | ❌ |
 | Moderation enforcement | ✅ **full** (Helix timeout/ban/delete) | ⚠️ notice-only | ⚠️ notice-only | ✅ ban/timeout native (delete degrades to notice) | ❌ none |
 | Announcement broadcast | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Dashboard w/ stream preview | ✅ | ✅ | ❌ | fleet DASHBOARD tab + per-bot dashboards, no preview | ❌ |
+| Dashboard w/ stream preview | ✅ | ✅ | ✅ (live-page preview) | fleet DASHBOARD tab + per-bot dashboards, no preview | ❌ |
 
-Sources: transports and events per the [Platforms overview](overview.md) table; timer platform list `CommandsViewModel.cs:156` (Twitch/Kick/Discord/YouTube) and the sender's platform switch `CommandTimerService.cs` (YouTube case sends via `IYouTubeService`, skips unstamped while not live); YouTube Super Chat publishing `YouTubeChatService.cs` + the reaction handler `ChatViewModel.OnYouTubeSuperChatAsync`; Twitch redemption pipeline `TwitchEventSubService` → `ChatViewModel.OnTwitchChannelPointsRedeemAsync` → `WorkflowTriggerService` key `rewardredeemed`; moderation levels from `ModerationPlatformParity.Table` (ModerationActionService.cs) rendered on the Moderator dashboard; announcement fan-out `ChatViewModel.cs:4275-4339`.
+Sources: transports and events per the [Platforms overview](overview.md) table; timer platform list `CommandsViewModel.cs:190` (Twitch/Kick/Discord/YouTube) and the sender's platform switch `CommandTimerService.cs` (YouTube case sends via `IYouTubeService`, skips unstamped while not live); YouTube Super Chat publishing `YouTubeChatService.cs` + the reaction handler `ChatViewModel.OnYouTubeSuperChatAsync`; Twitch redemption pipeline `TwitchEventSubService` → `ChatViewModel.OnTwitchChannelPointsRedeemAsync` → `WorkflowTriggerService` key `rewardredeemed`; moderation levels from `ModerationPlatformParity.Table` (ModerationActionService.cs) rendered on the Moderator dashboard; announcement fan-out `ChatViewModel.cs:4484-4548`.
 
 ## User Guide
 
@@ -35,20 +35,20 @@ Sources: transports and events per the [Platforms overview](overview.md) table; 
 
 ### Cross-platform announcements
 
-One broadcast primitive fans out to **Twitch, Kick, YouTube and Discord** — always and only those four: `SendAnnouncementToConnectedPlatformsAsync` iterates exactly that array and sends to each **connected** service, skipping (with a log line) any that isn't (ChatViewModel.cs:4275-4339). It powers:
+One broadcast primitive fans out to **Twitch, Kick, YouTube and Discord** — always and only those four: `SendAnnouncementToConnectedPlatformsAsync` iterates exactly that array and sends to each **connected** service, skipping (with a log line) any that isn't (ChatViewModel.cs:4484-4548). It powers:
 
 - the chat box's **announcement** send,
 - account-link celebrations ("🔗 X just linked Twitch - now on 3 platforms!"),
 - viewer-goal completions,
 - giveaway intake-mode traffic notices,
-- giveaway/poll scheduler announcements (those can be limited to chosen platforms via their allowed-platforms setting, ChatViewModel.cs:4184-4273).
+- giveaway/poll scheduler announcements (those can be limited to chosen platforms via their allowed-platforms setting, `SendSchedulerAnnouncementAsync` at ChatViewModel.cs:4393).
 
-The Discord leg can be routed through a specific bot — the one holding the **GiveawayAnnouncements** role — when the announcement is giveaway-related; otherwise it uses the normal send target (ChatViewModel.cs:4311-4327). TikTok is never a target because there is no service to send through.
+The Discord leg can be routed through a specific bot — the one holding the **GiveawayAnnouncements** role — when the announcement is giveaway-related; otherwise it uses the normal send target (inside the same fan-out method). TikTok is never a target because there is no service to send through.
 
 ## How It Works (Developer)
 
 - Every platform publishes typed events plus the platform-agnostic `ChatMessageReceivedEvent` onto the [Event Bus](../architecture/event-bus.md), so the command/auto-reply pipeline runs everywhere chat exists; per-platform event handlers in `ChatViewModel` then fire the shared reactions (sounds/alerts/currency/statistics) — implemented for the Twitch and Kick event families (redemptions included), YouTube memberships, and YouTube Super Chats.
-- **The timer platform list is the contract**: the editor's `TimerPlatforms` list and the sender's platform switch stay in sync (`"Twitch", "Kick", "Discord", "YouTube"`, CommandsViewModel.cs:156); an unknown platform still lands in the default case that logs a skip.
+- **The timer platform list is the contract**: the editor's `TimerPlatforms` list and the sender's platform switch stay in sync (`"Twitch", "Kick", "Discord", "YouTube"`, CommandsViewModel.cs:190); an unknown platform still lands in the default case that logs a skip.
 - **Announcement routing** resolves the Discord send target through `IDiscordBotManager` (role-resolved bot → pinned → primary), which is the same routing manual chat sends use.
 - **TikTok's honesty is load-bearing**: the Platforms card never opens its (dead-end) wizard; the TikTok quick-settings card is behind a coming-soon gate with an explicit comment that no chat pipeline exists (PlatformsViewModel.cs:1765-1769; TiktokChatSettingsViewModel.cs:18-22).
 
@@ -56,11 +56,11 @@ The Discord leg can be routed through a specific bot — the one holding the **G
 
 | File | Role |
 |---|---|
-| [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) | Announcement fan-out (:4275-4339), YouTube membership handling (:4341-4371), per-platform event handlers |
-| [CommandsViewModel.cs](../../src/VyralBot.UI/ViewModels/CommandsViewModel.cs) | Timer platform choices (:156) and the Discord bot scope picker |
-| [CommandTimerService.cs](../../src/VyralBot.UI/Services/CommandTimerService.cs) | Timer firing + per-platform send switch (:245-291) |
-| [YouTubeChatService.cs](../../src/VyralBot.Integrations/YouTube/YouTubeChatService.cs) | Polling chat + Super Chat / Super Sticker synthesis (:770-792) |
-| [PlatformsViewModel.cs](../../src/VyralBot.UI/ViewModels/PlatformsViewModel.cs) | TikTok coming-soon gate (:1754-1785) |
+| [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) | Announcement fan-out (:4484-4548), YouTube membership handling (:4550+), per-platform event handlers |
+| [CommandsViewModel.cs](../../src/VyralBot.UI/ViewModels/CommandsViewModel.cs) | Timer platform choices (:190) and the Discord bot scope picker |
+| [CommandTimerService.cs](../../src/VyralBot.UI/Services/CommandTimerService.cs) | Timer firing + per-platform send switch (:350-383) |
+| [YouTubeChatService.cs](../../src/VyralBot.Integrations/YouTube/YouTubeChatService.cs) | Polling chat + Super Chat / Super Sticker synthesis (:785+) |
+| [PlatformsViewModel.cs](../../src/VyralBot.UI/ViewModels/PlatformsViewModel.cs) | TikTok coming-soon gate (:1755-1785) |
 | [WorkflowTriggerService.cs](../../src/VyralBot.UI/Services/WorkflowTriggerService.cs) | Per-platform trigger matching incl. platform filters |
 | [overview.md](overview.md) + per-platform pages | Transport/auth details per platform |
 
@@ -70,11 +70,11 @@ Per-platform connection state is one `Platforms` row each (see [Platforms overvi
 
 ## Status & Known Issues
 
-1. **YouTube events stop short of workflow triggers** — memberships and Super Chats feed alerts, sounds, currency and statistics, but no `superchat`-style workflow trigger key exists yet; the flow editor's Event trigger cannot fire on them.
+1. **YouTube Super Chats stop short of workflow triggers** — memberships DO have a workflow trigger (their own canonical `membership` key, distinct from the follow/sub family, with `isMilestone` filterable), but Super Chats feed alerts, sounds, currency and statistics only; no `superchat`-style workflow trigger key exists yet.
 2. **Twitch redemption scope is opt-in by re-auth** — connections authorized before the redemption scope was added need one re-authorize for `channel.channel_points_custom_reward_redemption.add` to be subscribed ([Twitch](twitch.md)).
 3. **TikTok overclaims nowhere anymore** — the card, its click message and the chat-settings gate all say coming soon with no chat backend (PlatformsViewModel.cs:1772). The older description of a clickable four-step TikTok wizard on [TikTok & OBS](tiktok-discord-obs.md) predates this gate.
-4. **Announcements skip silently-by-design** — a disconnected platform is skipped with a log warning, never queued (ChatViewModel.cs:4210, 4221, 4232, 4263).
+4. **Announcements skip silently-by-design** — a disconnected platform is skipped with a log warning, never queued (ChatViewModel.cs:4419, 4430, 4441, 4472 for the scheduler legs; the fan-out itself checks each service's `IsConnected`).
 
 ### Verified against (2026-11-07)
 
-`ChatViewModel.cs` (announcement fan-out :4275-4339; YouTube membership + `OnYouTubeSuperChatAsync`; `OnTwitchChannelPointsRedeemAsync`), `CommandsViewModel.cs` (TimerPlatforms :156 incl. "YouTube"), `CommandTimerService.cs` (per-platform send switch with the YouTube case), `YouTubeChatService.cs` (special-event mapping incl. `PublishSuperChatEvent`), `TwitchEventSubService.cs` (redemption subscription + handler), `WorkflowTriggerService.cs` (`rewardredeemed` dispatch for Twitch + Kick; `discordmemberjoined` / `discordboost`), `ModerationActionService.cs` (`ModerationPlatformParity.Table` + adapter registrations in App.xaml.cs), `PlatformsViewModel.cs` (TikTok selection gate), plus the existing verified [Platforms overview](overview.md) table for transports.
+`ChatViewModel.cs` (announcement fan-out :4484-4548; YouTube membership + `OnYouTubeSuperChatAsync`; `OnTwitchChannelPointsRedeemAsync`), `CommandsViewModel.cs` (TimerPlatforms :190 incl. "YouTube"), `CommandTimerService.cs` (per-platform send switch with the YouTube case), `YouTubeChatService.cs` (special-event mapping incl. `PublishSuperChatEvent`), `TwitchEventSubService.cs` (redemption subscription + handler), `WorkflowTriggerService.cs` (`rewardredeemed` dispatch for Twitch + Kick; `discordmemberjoined` / `discordboost`), `ModerationActionService.cs` (`ModerationPlatformParity.Table` + adapter registrations in App.xaml.cs), `PlatformsViewModel.cs` (TikTok selection gate), plus the existing verified [Platforms overview](overview.md) table for transports.

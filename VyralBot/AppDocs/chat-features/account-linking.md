@@ -151,7 +151,7 @@ Every cross-platform feature keys off the viewer ID, not the username pair: `Vie
 | [CurrencyCommandService.cs](../../src/VyralBot.Core/Services/Currency/CurrencyCommandService.cs) | `!link` family handlers and the `Linking.Enabled` gate. |
 | [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) | Discord DM link intake (matcher + in-DM handler). |
 | [LinkedAccount.cs](../../src/VyralBot.Data/Entities/LinkedAccount.cs) / [LinkCode.cs](../../src/VyralBot.Data/Entities/LinkCode.cs) | The identity rows and the outstanding-code rows. |
-| [DapperDataService.cs](../../src/VyralBot.Data/DapperDataService.cs) | `LinkedAccounts` and `LinkCodes` tables (`DapperDataService.cs:3183` / `:3199`). |
+| [DapperDataService.cs](../../src/VyralBot.Data/DapperDataService.cs) | `LinkedAccounts` and `LinkCodes` tables (`DapperDataService.cs:3822` / `:3841`). |
 
 ## Data & Settings
 

@@ -93,6 +93,11 @@ public class StatisticsService : IStatisticsService
                 TotalValue = g.Sum(s => ExtractValueFromEventData(s.EventData))
             })
             .OrderByDescending(u => u.TotalValue > 0 ? u.TotalValue : u.Count)
+            // Deterministic tie-breaks (same rule the wave-2 leaderboard fix uses):
+            // equal scores order by username then platform, ordinal, so the top-N
+            // is stable across reloads and platforms.
+            .ThenBy(u => u.Username, StringComparer.Ordinal)
+            .ThenBy(u => u.Platform, StringComparer.Ordinal)
             .Take(limit)
             .ToList();
 
@@ -117,6 +122,8 @@ public class StatisticsService : IStatisticsService
                 TotalValue = g.Sum(s => ExtractValueFromEventData(s.EventData))
             })
             .OrderByDescending(u => u.Count)
+            .ThenBy(u => u.Username, StringComparer.Ordinal)
+            .ThenBy(u => u.Platform, StringComparer.Ordinal)
             .Take(limit)
             .ToList();
 

@@ -13,18 +13,19 @@ Related pages: [Commands](../chat-features/commands.md), [Currency & Rewards](..
 When the pipeline is alive, every incoming chat message flows through `OnChatMessageReceivedAsync` in [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs), fed by the platform-agnostic [ChatMessageReceivedEvent](../../src/VyralBot.Core/Models/ChatMessageReceivedEvent.cs):
 
 1. Per-platform display filters are applied.
-2. **Unified commands** (`CommandService`): if the message starts with `!`, `?`, or `.` (`CommandService.cs:15`), the message is looked up in the `Commands` table. If a row matches (and is enabled, platform-allowed, permission-passing, off-cooldown), its response is sent and processing **stops**.
-3. **Currency commands**: any `!` message falls through to `CurrencyCommandService.ProcessCommandAsync` (`ChatViewModel.cs:660`).
-4. **Giveaway commands**: any `!` message falls through to `GiveawayCommandService.ProcessCommandAsync` (`ChatViewModel.cs:689`) — includes custom entry keywords.
-5. **Poll commands**: messages starting with `!poll` go to `PollCommandService.ProcessCommandAsync` (`ChatViewModel.cs:724`).
-6. **Watchtime commands**: messages starting with `!watchtime` go to `WatchtimeCommandService.ProcessCommandAsync` (`ChatViewModel.cs:759`).
-7. Finally, watchtime activity is recorded and chat-activity currency is awarded (for non-command messages).
+2. **Unified commands** (`CommandService`): if the message starts with `!`, `?`, or `.` (`CommandService.cs:23`), the message is looked up in the `Commands` table. If a row matches (and is enabled, platform-allowed, permission-passing, off-cooldown), its response is sent and processing **stops**.
+3. **Currency commands**: any `!` message falls through to `CurrencyCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3367`).
+4. **Giveaway commands**: any `!` message falls through to `GiveawayCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3428`) — includes custom entry keywords.
+5. **Poll commands**: messages starting with `!poll` go to `PollCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3462`).
+6. **Watchtime commands**: messages starting with `!watchtime` go to `WatchtimeCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3496`).
+7. **Quote commands**: messages starting with `!quote` go to `QuoteService.ProcessCommandAsync` (`ChatViewModel.cs:3530`).
+8. Finally, watchtime activity is recorded and chat-activity currency is awarded (for non-command messages).
 
 Notes that apply across the whole catalog:
 
 - **Prefixes**: the unified command engine treats `!`, `?`, and `.` identically — `.socials` and `?socials` both resolve to `!socials`. The feature command services (currency/giveaway/poll/watchtime) only recognize `!`.
-- **Response delivery**: command responses are sent back to **Twitch, Kick, and Discord** (`ChatViewModel.cs:640-647` plus the Discord branch at :778). Entries, votes, and balances are recorded for any platform, but a message from YouTube/TikTok gets its reply silently dropped. On Discord the reply goes through **the bot that received the message**, to that bot's active channel (picked on the [Discord bots page](../platforms/discord.md#multiple-bots)), not necessarily the channel the command was typed in.
-- **Per-bot scope (Discord only)**: a custom command's `Commands.BotId` pins it to one Discord bot; `null` (the default) means every bot answers it. Execution compares the stored `BotId` against the origin bot of the triggering message and silently skips mismatches (`CommandService.cs:84-96`). The tables below do not carry a scope column because scope is per-row state you set in the builder — see [Commands](../chat-features/commands.md#bot-scope). Twitch and Kick are never affected by bot scope, and neither are the built-ins' platform toggles.
+- **Response delivery**: command responses are sent back to **Twitch, Kick, YouTube, and Discord** — each fallback branch switches on the event's platform and sends through that platform's service (Discord via `SendDiscordReplyAsync` through the **bot that received the message**, to that bot's active channel, picked on the [Discord bots page](../platforms/discord.md#multiple-bots), not necessarily the channel the command was typed in). Entries, votes, and balances are recorded for any platform; a platform with no send path (e.g. TikTok) has its reply silently dropped.
+- **Per-bot scope (Discord only)**: a custom command's `Commands.BotId` pins it to one Discord bot; `null` (the default) means every bot answers it. Execution compares the stored `BotId` against the origin bot of the triggering message and silently skips mismatches (`CommandService.cs:175-183`). The tables below do not carry a scope column because scope is per-row state you set in the builder — see [Commands](../chat-features/commands.md#bot-scope). Twitch and Kick are never affected by bot scope, and neither are the built-ins' platform toggles.
 - **Two permission behaviors**: `CommandService` silently ignores unauthorized and on-cooldown users (no feedback). The currency/giveaway/poll services reply with an explicit "You must be a moderator to use !x" / "Only moderators can..." message.
 - **Cooldowns**: unified commands have per-command global and per-user cooldowns (stored in `CommandCooldowns`); the feature command services have none of their own (games have their own internal cooldowns via `CurrencyGameSettings`).
 - **Command context**: `CommandContext.IsBroadcaster` is fed from the event's `IsBroadcaster` flag, so broadcaster-only commands fire for the channel owner on every platform (broadcaster = channel owner on Twitch/Kick, video owner on YouTube). `CommandContext.DiscordBotId` carries the origin bot for Discord messages (null elsewhere).
@@ -37,7 +38,7 @@ Implemented in [CommandService.cs](../../src/VyralBot.Core/Services/Commands/Com
 
 ### Seeded built-ins (21 rows)
 
-Seeded once into an empty database at [DapperDataService.cs](../../src/VyralBot.Data/DapperDataService.cs):3172-3554; a migration pass at `DapperDataService.cs:3556-3581` re-adds the 16 currency commands on existing databases.
+Seeded once into an empty database at [DapperDataService.cs](../../src/VyralBot.Data/DapperDataService.cs):4799-5158; a migration pass at `DapperDataService.cs:5198+` re-adds missing currency commands on existing databases.
 
 The 5 meta commands have real handler code; the 16 currency rows are discoverability/enable flags only — their seeded `Response` text is help text, and actual behavior comes from `CurrencyCommandService` (next section).
 
@@ -47,7 +48,7 @@ The 5 meta commands have real handler code; the 16 currency rows are discoverabi
 | `!uptime` | none | Everyone | Placeholder: replies "Stream uptime tracking not yet implemented. Coming soon!" — no uptime tracking exists. | [CommandService.cs](../../src/VyralBot.Core/Services/Commands/CommandService.cs) (`ExecuteUptimeAsync`) |
 | `!socials` | none | Everyone | Returns the stored response template, which resolves `{twitter}`, `{discord}`, `{youtube}` from the Variables table. | [CommandService.cs](../../src/VyralBot.Core/Services/Commands/CommandService.cs) |
 | `!discord` | none | Everyone | Returns the stored template resolving `{discord}`. | [CommandService.cs](../../src/VyralBot.Core/Services/Commands/CommandService.cs) |
-| `!watchtime` | none | Everyone | Seed row for discoverability; the built-in handler deliberately defers (`CommandService.cs:148` returns null) so the real `WatchtimeCommandService` below answers instead. | [DapperDataService.cs](../../src/VyralBot.Data/DapperDataService.cs) (seed) |
+| `!watchtime` | none | Everyone | Seed row for discoverability; the built-in handler deliberately defers (`CommandService.cs:355` returns null) so the real `WatchtimeCommandService` below answers instead. | [DapperDataService.cs](../../src/VyralBot.Data/DapperDataService.cs) (seed) |
 | `!points` | `[@user]` | Everyone | Seeded help row; real behavior in the currency table below. | [DapperDataService.cs](../../src/VyralBot.Data/DapperDataService.cs) (seed) |
 | `!leaderboard` | `[n]` | Everyone | Seeded help row. | [DapperDataService.cs](../../src/VyralBot.Data/DapperDataService.cs) (seed) |
 | `!gamble` | `<amount\|all>` | Everyone | Seeded help row. | [DapperDataService.cs](../../src/VyralBot.Data/DapperDataService.cs) (seed) |
@@ -67,7 +68,7 @@ The 5 meta commands have real handler code; the 16 currency rows are discoverabi
 
 ### Custom commands (user-defined)
 
-Created in the [visual flow editor](../chat-features/commands.md#from-command-to-flow) (Commands → NEW COMMAND; **SAVE** adopts the command into a flow). Any name starting with `!`, `?`, or `.` (name is lower-cased on save); cannot collide with a built-in. The response is a template supporting all [variables](variables-catalog.md), plus these context variables supplied by the engine: `{username}`, `{platform}`, `{channel}`, `{balance}`, `{role}` (`CommandService.cs:325-353`). Each row can optionally be pinned to one Discord bot via its `BotId` ("This bot only" in the bot scope bar) — null runs on every bot.
+Created in the [visual flow editor](../chat-features/commands.md#from-command-to-flow) (Commands → NEW COMMAND; **SAVE** adopts the command into a flow). Any name starting with `!`, `?`, or `.` (name is lower-cased on save); cannot collide with a built-in. The response is a template supporting all [variables](variables-catalog.md), plus these context variables supplied by the engine: `{username}`, `{platform}`, `{channel}`, `{balance}`, `{role}` (`CommandService.cs:525+`, `ParseVariables`). Each row can optionally be pinned to one Discord bot via its `BotId` ("This bot only" in the bot scope bar) — null runs on every bot.
 
 | Command | Arguments | Permission | What it does | Source |
 |---|---|---|---|---|
@@ -77,7 +78,7 @@ Created in the [visual flow editor](../chat-features/commands.md#from-command-to
 
 ## Currency commands
 
-Implemented in [CurrencyCommandService.cs](../../src/VyralBot.Core/Services/Currency/CurrencyCommandService.cs) — the alias switch is at `CurrencyCommandService.cs:53-78`. 22 handlers, 28 recognized names. Any `!` message reaches this service (fallback after the unified engine). Feature page: [Currency & Rewards](../stream-tools/currency.md).
+Implemented in [CurrencyCommandService.cs](../../src/VyralBot.Core/Services/Currency/CurrencyCommandService.cs) — the alias switch is at `CurrencyCommandService.cs:67-98`. 28 handlers, 36 recognized names. Any `!` message reaches this service (fallback after the unified engine). Feature page: [Currency & Rewards](../stream-tools/currency.md).
 
 Moderator-gated commands reply "You must be a moderator to use !x" when denied (visible, unlike the unified engine's silence).
 

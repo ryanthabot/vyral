@@ -12,6 +12,12 @@ public class CommandService : ICommandService
     private readonly IDataService _dataService;
     private readonly IVariableReplacementService _variableReplacementService;
     private readonly ILogger<CommandService> _logger;
+    // Per-bot ALLOWED CHANNELS cache: botId -> (picked channel ids, expiry).
+    // Bounded by the bot count and short-lived (30s TTL) so a save on the bot
+    // detail page applies to the next commands without a DB read per message.
+    private readonly Dictionary<string, (string[] Allowed, DateTime ExpiresAt)> _allowedChannelsCache = new(StringComparer.Ordinal);
+    private readonly object _allowedChannelsCacheLock = new();
+    private static readonly TimeSpan AllowedChannelsCacheTtl = TimeSpan.FromSeconds(30);
     // Defaults match the pre-settings hardcoding; InitializeAsync replaces them
     // with the Settings → Commands values ("Commands.Prefixes").
     private char[] _commandPrefixes = ['!', '?', '.'];
@@ -182,6 +188,23 @@ public class CommandService : ICommandService
                 return null;
             }
 
+            // Per-bot ALLOWED CHANNELS (Discord only): when the origin bot has
+            // channels picked ("DiscordBot.{botId}.AllowedChannels", edited on
+            // the bot detail page), commands issued in any other channel are
+            // ignored. Moderators/broadcasters are never restricted — mod
+            // commands always work for mods (the built-in !mod family routes
+            // through IDiscordCommandHandler, a separate path that never
+            // reaches this check anyway).
+            if (context.Platform.Equals("Discord", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrEmpty(effectiveBotId)
+                && !(context.IsModerator || context.IsBroadcaster)
+                && !await IsDiscordChannelAllowedAsync(effectiveBotId, context.DiscordChannelId).ConfigureAwait(false))
+            {
+                _logger.LogDebug("Skipping command {Command} for bot {BotId}: channel {ChannelId} is not in the bot's allowed-channel list",
+                    commandName, effectiveBotId, context.DiscordChannelId ?? "(unknown)");
+                return null;
+            }
+
             // Check platform-specific enable status
             if (context.Platform.Equals("Kick", StringComparison.OrdinalIgnoreCase) && !command.EnabledOnKick)
                 return null;
@@ -247,6 +270,71 @@ public class CommandService : ICommandService
         {
             _logger.LogError(ex, "Failed to execute command from message: {Message}", message);
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Per-bot ALLOWED CHANNELS resolution for Discord messages. Reads the
+    /// Configs key <c>DiscordBot.{botId}.AllowedChannels</c> (a plain JSON
+    /// string array persisted by the bot detail page — the same shape as
+    /// <c>DiscordBot.{botId}.DisabledBuiltIns</c>) through a 30-second TTL
+    /// cache. An empty/missing list means every channel is allowed (legacy
+    /// behavior); with channels picked, only those ids pass — a null/unknown
+    /// channel id (e.g. a DM while an allowlist exists) does not.
+    /// </summary>
+    private async Task<bool> IsDiscordChannelAllowedAsync(string botId, string? channelId)
+    {
+        string[]? allowed;
+        lock (_allowedChannelsCacheLock)
+        {
+            allowed = _allowedChannelsCache.TryGetValue(botId, out var entry) && entry.ExpiresAt > DateTime.UtcNow
+                ? entry.Allowed
+                : null;
+        }
+
+        if (allowed == null)
+        {
+            var json = await _dataService.GetConfigValueAsync($"DiscordBot.{botId}.AllowedChannels").ConfigureAwait(false);
+            allowed = ParseAllowedChannelIds(json);
+
+            lock (_allowedChannelsCacheLock)
+            {
+                _allowedChannelsCache[botId] = (allowed, DateTime.UtcNow.Add(AllowedChannelsCacheTtl));
+            }
+        }
+
+        if (allowed.Length == 0)
+        {
+            return true;
+        }
+
+        var id = channelId?.Trim();
+        return !string.IsNullOrEmpty(id) && allowed.Contains(id, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Parses the allowed-channel JSON; null, blank or malformed rows yield an
+    /// empty array (unrestricted — a broken row must never lock a bot out of
+    /// its own commands).
+    /// </summary>
+    private static string[] ParseAllowedChannelIds(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(json)?
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id.Trim())
+                .Distinct(StringComparer.Ordinal)
+                .ToArray() ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
         }
     }
 

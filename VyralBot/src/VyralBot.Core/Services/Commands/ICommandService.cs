@@ -105,4 +105,14 @@ public class CommandContext
     /// different bot.
     /// </summary>
     public string? DiscordBotId { get; init; }
+
+    /// <summary>
+    /// Discord snowflake id of the channel the triggering message was posted
+    /// in (guild text channel or DM channel). Null for non-Discord platforms
+    /// or when the transport does not expose one. Feeds the per-bot ALLOWED
+    /// CHANNELS check in <see cref="ICommandService.ExecuteAsync"/> (Configs
+    /// key <c>DiscordBot.{botId}.AllowedChannels</c>): a bot with channels
+    /// picked ignores commands from every other channel.
+    /// </summary>
+    public string? DiscordChannelId { get; init; }
 }

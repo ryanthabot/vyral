@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Windows.Media;
 using System.Windows.Threading;
 using VyralBot.Core.Services.Audio;
+using VyralBot.Core.Services.EventBus;
 using VyralBot.Core.Services.Profiles;
 
 namespace VyralBot.Core.Services.Audio;
@@ -15,31 +16,58 @@ public class SoundService : ISoundService
 {
     private readonly ILogger<SoundService> _logger;
     private readonly IDataService _dataService;
-    private readonly string _soundsDirectory;
+    private readonly IProfileService? _profileService;
+    private readonly string _globalDirectory = Path.Combine(AppContext.BaseDirectory, "wwwroot", "sounds");
+    private string _soundsDirectory;
 
     public SoundService(
         ILogger<SoundService> logger,
         IDataService dataService,
-        IProfileService? profileService = null)
+        IProfileService? profileService = null,
+        IEventBus? eventBus = null)
     {
         _logger = logger;
         _dataService = dataService;
+        _profileService = profileService;
 
         // Legacy app-global location: wwwroot/sounds under the app output. Still used
         // verbatim on first run (before any profile exists) and kept as the static-root
         // fallback for browser sources.
-        var globalDirectory = Path.Combine(AppContext.BaseDirectory, "wwwroot", "sounds");
 
         // Sounds are user data, so the default location is the current profile's data
-        // folder (profiles are the app's user-data boundary). Profile switching requires
-        // an app restart, so resolving the directory once at construction is safe.
-        var profileName = profileService?.GetCurrentProfileName();
-        _soundsDirectory = string.IsNullOrWhiteSpace(profileName)
-            ? globalDirectory
-            : Path.Combine(profileService!.GetProfileDataPath(profileName), "sounds");
-
+        // folder (profiles are the app's user-data boundary). Profiles can also be
+        // switched live mid-session (Settings → Switch Profile), so the directory is
+        // re-resolved on every ProfileSwitchedEvent instead of being fixed at
+        // construction.
+        _soundsDirectory = ResolveSoundsDirectory();
         Directory.CreateDirectory(_soundsDirectory);
-        MigrateLegacySounds(globalDirectory);
+        MigrateLegacySounds(_globalDirectory);
+
+        if (eventBus != null)
+        {
+            eventBus.SubscribeAsync<ProfileSwitchedEvent>(async e =>
+            {
+                _logger.LogInformation(
+                    "Profile switched ({OldProfile} -> {NewProfile}); switching sounds directory",
+                    e.OldProfileName, e.NewProfileName);
+
+                _soundsDirectory = ResolveSoundsDirectory();
+                Directory.CreateDirectory(_soundsDirectory);
+                await Task.CompletedTask;
+            });
+        }
+    }
+
+    /// <summary>
+    /// Resolves the active sounds directory: the current profile's data folder when a
+    /// profile is active, else the legacy app-global wwwroot/sounds location.
+    /// </summary>
+    private string ResolveSoundsDirectory()
+    {
+        var profileName = _profileService?.GetCurrentProfileName();
+        return string.IsNullOrWhiteSpace(profileName)
+            ? _globalDirectory
+            : Path.Combine(_profileService!.GetProfileDataPath(profileName), "sounds");
     }
 
     /// <summary>

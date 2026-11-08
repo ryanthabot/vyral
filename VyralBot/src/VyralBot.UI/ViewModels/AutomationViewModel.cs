@@ -307,6 +307,35 @@ public partial class WorkflowListItemViewModel : ObservableObject
     private static int CountNodes(List<WorkflowNode>? nodes) => nodes?.Count ?? 0;
 }
 
+/// <summary>
+/// One row of the TEMPLATES panel: display fields for a
+/// <see cref="WorkflowTemplates"/> starter template plus per-row import
+/// feedback. Carries the template so IMPORT can hand it straight to
+/// <see cref="WorkflowTemplates.CreateWorkflow"/>.
+/// </summary>
+public partial class WorkflowTemplateItemViewModel : ObservableObject
+{
+    public WorkflowTemplate Template { get; }
+
+    public string Key => Template.Key;
+    public string Name => Template.Name;
+    public string Description => Template.Description;
+    public string Platforms => Template.Platforms;
+
+    /// <summary>Human-readable trigger summary chip ("event Twitch.raid", "!hello", …).</summary>
+    public string TriggerSummary { get; }
+
+    /// <summary>Flips true once this row's template has been imported this session.</summary>
+    [ObservableProperty]
+    private bool _isImported;
+
+    public WorkflowTemplateItemViewModel(WorkflowTemplate template)
+    {
+        Template = template ?? throw new ArgumentNullException(nameof(template));
+        TriggerSummary = WorkflowRuntime.SummarizeTrigger(WorkflowJson.FromTrigger(template.TriggerJson));
+    }
+}
+
 /// <summary>One row of the execution-history grid.</summary>
 public class WorkflowExecutionItemViewModel
 {
@@ -481,6 +510,17 @@ public partial class AutomationViewModel : ViewModelBase
 
     partial void OnExecutionsChanged(ObservableCollection<WorkflowExecutionItemViewModel> value)
         => OnPropertyChanged(nameof(HasExecutions));
+
+    // ======================================================================
+    // Starter templates
+    // ======================================================================
+
+    /// <summary>Embedded starter templates (TEMPLATES panel), in catalog order.</summary>
+    public ObservableCollection<WorkflowTemplateItemViewModel> Templates { get; } =
+        new(WorkflowTemplates.Templates.Select(t => new WorkflowTemplateItemViewModel(t)));
+
+    [ObservableProperty]
+    private bool _isTemplatesVisible;
 
     public AutomationViewModel(
         ILogger<AutomationViewModel> logger,
@@ -1332,5 +1372,63 @@ public partial class AutomationViewModel : ViewModelBase
             });
 
         return string.Join(" → ", types);
+    }
+
+    // ======================================================================
+    // Starter templates
+    // ======================================================================
+
+    [RelayCommand]
+    public void ShowTemplates()
+    {
+        IsTemplatesVisible = true;
+        StatusMessage = $"{Templates.Count} starter templates — IMPORT adds the workflow disabled so you can edit it before it goes live.";
+    }
+
+    [RelayCommand]
+    public void CloseTemplates()
+    {
+        IsTemplatesVisible = false;
+    }
+
+    [RelayCommand]
+    public async Task ImportTemplateAsync(WorkflowTemplateItemViewModel? item)
+    {
+        if (item == null)
+        {
+            return;
+        }
+
+        try
+        {
+            IsBusy = true;
+
+            var workflow = WorkflowTemplates.CreateWorkflow(item.Template);
+            if (workflow == null)
+            {
+                // Guarded parse failure — the embedded JSON did not yield a node graph.
+                StatusMessage = $"Template \"{item.Name}\" could not be parsed — nothing was imported.";
+                return;
+            }
+
+            await _dataService.SaveWorkflowAsync(WorkflowJson.ToRow(workflow));
+            await _triggerService.ReloadAsync();
+
+            _logger.LogInformation("Imported workflow template '{TemplateKey}' as '{WorkflowName}' ({WorkflowId}, disabled)",
+                item.Template.Key, workflow.Name, workflow.Id);
+
+            item.IsImported = true;
+            await LoadWorkflowsAsync();
+            StatusMessage = $"\"{workflow.Name}\" imported disabled — edit it, then flip Enabled to arm it.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to import workflow template {TemplateKey}", item.Template.Key);
+            StatusMessage = $"Import failed: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 }

@@ -17,6 +17,8 @@
 | Bot roles | Single-select linking/giveaway checkboxes (`IDiscordBotManager.AssignRoleAsync`) |
 | Startup | Per-bot `AutoStart` flag (load/flip/save via `UpdateBotAsync`) |
 | Welcome & Auto-Role | See below |
+| Command channels | Per-bot ALLOWED CHANNELS checkbox list (see below) |
+| Scheduled messages | Per-bot recurring announcements: add/edit/remove rows (see below) |
 | Test Message | `SendOwnerTestMessageAsync` to a private test channel |
 | Commands | Built-in mod commands (read-only) + this bot's custom commands; EDIT opens the visual builder overlay |
 | Integrations | `DiscordBotIntegrationsCard` control (external services + conflicts) |
@@ -40,6 +42,38 @@ Per-bot "welcome message + auto-role on join", applied live by the manager's
   through `IDiscordBotManager.SaveWelcomeSettingsAsync` (Configs key
   `DiscordBot.{botId}.WelcomeSettings`). A null selection (bot offline,
   pickers unavailable) keeps the previously stored id instead of wiping it.
+
+## Command channels card
+
+Per-bot ALLOWED CHANNELS command permissions, enforced live by
+`CommandService` (see `services/discord-bot-runtime.md` for the wiring).
+
+- **Checkbox list** → `AllowedChannelPicks` (first guild's text channels,
+  rebuilt by `LoadChannelFeaturesAsync` on page load and after
+  Start/Reconnect); a checked channel is on the bot's allowlist.
+- **SAVE** → `SaveAllowedChannelsAsync` persists a `DiscordBotAllowedChannels`
+  through `IDiscordBotManager.SaveAllowedChannelsAsync` (Configs key
+  `DiscordBot.{botId}.AllowedChannels`). Nothing checked = every channel
+  allowed (legacy behavior). Takes effect on the next command; moderators are
+  never restricted.
+- Offline hint line while `HasAllowedChannelOptions` is false.
+
+## Scheduled messages card
+
+Per-bot recurring announcements (message template, channel, interval minutes
+min 5, enable toggle) fired by the manager's single 30-second timer while the
+bot is connected — see `services/discord-bot-runtime.md`.
+
+- **Rows** → `ScheduledMessages` (`DiscordScheduledMessageRowViewModel`):
+  enable toggle, message template (`{time}`/`{date}` variables), channel
+  picker (shared first-guild options) and interval in minutes.
+- **ADD SCHEDULED MESSAGE** → appends a disabled draft (bounded at 25 per
+  bot); **REMOVE** drops a row. Nothing persists until SAVE.
+- **SAVE** → `SaveScheduledMessagesAsync` validates (enabled rows need a
+  channel + message; interval parsed then clamped 5..1440), persists through
+  `IDiscordBotManager.SaveScheduledMessagesAsync` (Configs key
+  `DiscordBot.{botId}.ScheduledMessages`, cycle restarts one interval out)
+  and reloads the persisted list. Empty state until the first row exists.
 
 ## Conventions kept
 

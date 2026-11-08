@@ -30,7 +30,8 @@
 
         <!-- Filters -->
         <materialDesign:Card Grid.Row="1" Padding="15" Margin="0,0,0,15">
-            <Grid>
+            <StackPanel>
+                <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
@@ -65,11 +66,19 @@
                             Command="{Binding RefreshCommand}" 
                             Style="{StaticResource MaterialDesignRaisedButton}"
                             Margin="0,0,10,0"/>
-                    <Button Content="Export CSV" 
-                            Command="{Binding ExportToCsvCommand}" 
+                    <Button Content="Export CSV"
+                            Command="{Binding ExportToCsvCommand}"
                             Style="{StaticResource MaterialDesignOutlinedButton}"/>
                 </StackPanel>
-            </Grid>
+                </Grid>
+
+                <!-- Export status (success row count / failure reason) -->
+                <TextBlock Text="{Binding StatusMessage}"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,10,0,0"
+                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+            </StackPanel>
         </materialDesign:Card>
 
         <!-- Main Content -->

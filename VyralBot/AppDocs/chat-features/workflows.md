@@ -23,7 +23,7 @@ The numbers, straight from the code:
 | **Slash command** | A native Discord `/name` is invoked | Registered per bot on each connected bot; 5 s dedup per bot\|command\|user\|channel |
 | **Button click / Select menu** | A workflow-sent Discord component is used | Component child flows (`ComponentKey`) |
 | **Mod command** | `!mod <verb>` with a custom verb | Minimum tier on the TrialMod < Mod < SeniorMod < Admin ladder |
-| **Event** | A platform event publishes (follow/subscribe/giftsub/host/raid/cheer/**rewardredeemed**/discord member+boost aliases normalized) | Event type + **platform filter** + optional guard expression |
+| **Event** | A platform event publishes (follow/subscribe/giftsub/host/raid/cheer/**rewardredeemed**/YouTube **membership** (own key, `isMilestone` filterable)/discord member+boost aliases normalized) | Event type + **platform filter** + optional guard expression |
 | **Timer** | Every N minutes (60 s internal tick) | Interval minutes |
 | **Manual** | The RUN button / API | — |
 
