@@ -18,6 +18,13 @@ public class CommandTimer
     /// <summary>Minutes between fires (minimum enforced by the UI: 5).</summary>
     public int IntervalMinutes { get; set; } = 30;
 
+    /// <summary>
+    /// Minimum chat messages that must arrive on the target platform between
+    /// fires before the timer may fire again (streamer.bot-style chat-activity
+    /// gate). 0 = fire regardless of chat activity.
+    /// </summary>
+    public int MinimumMessages { get; set; } = 0;
+
     /// <summary>Destination platform: "Twitch", "Kick" or "Discord".</summary>
     public required string TargetPlatform { get; set; } = "Twitch";
 

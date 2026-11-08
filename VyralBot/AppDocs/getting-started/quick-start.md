@@ -66,6 +66,7 @@ That is the whole editing model now: *every* command — built-in or custom — 
 - **Make follows/subs loud** — assign [sounds](../stream-tools/sounds.md) and [visual alerts](../stream-tools/visual-alerts.md) to events; try them safely from [Event Testing](../chat-features/event-testing.md).
 - **Borrow commands** — browse the community [Marketplace](../chat-features/marketplace.md) from the Commands page and import a ready-made flow.
 - **Link your viewers across platforms** — one `!link` code merges a viewer's Twitch/Kick/YouTube/Discord wallets for bonuses and goals: [Account Linking](../chat-features/account-linking.md).
+- **Greet Discord newcomers** — a Discord bot's dashboard has a **Welcome & Auto-Role** card (welcome message with `{user}`/`{username}`/`{server}` plus a role granted on join): [Discord → Welcome & Auto-Role](../platforms/discord.md#welcome--auto-role).
 - **Go deeper** — the honest per-platform capability sheet is [Multi-Platform Parity](../platforms/multi-platform.md); everything else starts at the [Overview](../index.md).
 
 ## Status & Known Issues

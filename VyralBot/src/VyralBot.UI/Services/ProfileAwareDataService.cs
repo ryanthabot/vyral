@@ -261,6 +261,15 @@ public class ProfileAwareDataService : IDataService
     public Task SaveCommandTimerAsync(CommandTimer timer) => GetCurrentService().SaveCommandTimerAsync(timer);
     public Task DeleteCommandTimerAsync(string id) => GetCurrentService().DeleteCommandTimerAsync(id);
 
+    // Quote operations (chat quote database)
+    public Task<Quote> AddQuoteAsync(Quote quote) => GetCurrentService().AddQuoteAsync(quote);
+    public Task<Quote?> GetQuoteByNumberAsync(int number) => GetCurrentService().GetQuoteByNumberAsync(number);
+    public Task<Quote?> GetRandomQuoteAsync() => GetCurrentService().GetRandomQuoteAsync();
+    public Task<IEnumerable<Quote>> SearchQuotesAsync(string searchText, int limit = 20) => GetCurrentService().SearchQuotesAsync(searchText, limit);
+    public Task<IEnumerable<Quote>> GetQuotesAsync() => GetCurrentService().GetQuotesAsync();
+    public Task<bool> DeleteQuoteAsync(int number) => GetCurrentService().DeleteQuoteAsync(number);
+    public Task<int> GetQuoteCountAsync() => GetCurrentService().GetQuoteCountAsync();
+
     // AutoReplyRule operations
     public Task<IEnumerable<AutoReplyRule>> GetAutoReplyRulesAsync() => GetCurrentService().GetAutoReplyRulesAsync();
     public Task<IEnumerable<AutoReplyRule>> GetAutoReplyRulesByPlatformAndEventAsync(string platform, string eventType) => GetCurrentService().GetAutoReplyRulesByPlatformAndEventAsync(platform, eventType);

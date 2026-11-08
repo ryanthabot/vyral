@@ -28,6 +28,13 @@ builder.Services.AddSingleton<NgrokService>();
 builder.Services.AddSingleton<KickWebhookSubscriptionService>();
 builder.Services.AddSingleton<WebhookCoordinatorService>();
 
+// Control API: TestEventPublisher publishes the canned test events; the status
+// service resolves platform/OBS/restream state lazily (absent here → defaults).
+builder.Services.AddSingleton<VyralBot.Integrations.Testing.TestEventPublisher>();
+builder.Services.AddSingleton<ControlApiStatusService>();
+builder.Services.AddSingleton<VyralBot.Core.Services.Statistics.IStatisticsService,
+    VyralBot.Core.Services.Statistics.StatisticsService>();
+
 // Configure logging
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
@@ -52,6 +59,9 @@ app.UseStaticFiles();
 
 // Add webhook validation middleware
 app.UseMiddleware<KickWebhookValidationMiddleware>();
+
+// Absolute gate for the control API (must run before MapControllers)
+app.UseMiddleware<ControlApiAuthMiddleware>();
 
 // Configure routing
 app.UseRouting();

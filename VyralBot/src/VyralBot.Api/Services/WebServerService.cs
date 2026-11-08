@@ -66,6 +66,23 @@ public class WebServerService : IDisposable
             builder.Services.AddSingleton(_parentServices.GetRequiredService<VyralBot.Core.Services.EventBus.IEventBus>());
             builder.Services.AddSingleton(_parentServices.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>());
 
+            // Control API dependencies, forwarded from the WPF host container. Optional:
+            // when a service is not registered (self-host scenario) we skip the child
+            // registration instead of failing server start — the affected route then
+            // degrades (503 api_disabled for auth, connected:false for status).
+            void FromParent<TService>() where TService : class
+            {
+                var instance = _parentServices.GetService<TService>();
+                if (instance != null)
+                {
+                    builder.Services.AddSingleton(instance);
+                }
+            }
+            FromParent<VyralBot.Api.Services.ControlApiStatusService>();
+            FromParent<VyralBot.Api.Services.NgrokService>(); // token source for ControlApiAuthMiddleware
+            FromParent<VyralBot.Core.Services.Statistics.IStatisticsService>();
+            FromParent<VyralBot.Integrations.Testing.TestEventPublisher>();
+
             // Add ASP.NET Core services
             builder.Services.AddControllers()
                 .AddApplicationPart(typeof(VyralBot.Api.Controllers.WebhooksController).Assembly);
@@ -130,6 +147,10 @@ public class WebServerService : IDisposable
                 FileProvider = new PhysicalFileProvider(wwwrootPath)
             });
             _app.UseRouting();
+            // Absolute gate for the control API: every /api request must present the
+            // webhook auth token as a Bearer header. Runs before the Kick webhook
+            // middleware and MapControllers, so no /api route can ever be unauthenticated.
+            _app.UseMiddleware<VyralBot.Api.Middleware.ControlApiAuthMiddleware>();
             _app.UseMiddleware<VyralBot.Api.Middleware.KickWebhookValidationMiddleware>();
             _app.MapControllers();
 

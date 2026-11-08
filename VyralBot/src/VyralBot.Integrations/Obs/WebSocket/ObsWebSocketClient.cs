@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace VyralBot.Integrations.Obs.WebSocket;
 
@@ -12,9 +13,16 @@ public sealed record ObsRemoteStatus(bool Connected, string? CurrentScene, bool 
 /// obs-websocket 5 client over ClientWebSocket: connects to ws://localhost:{port},
 /// answers the Hello challenge via ObsWebSocketAuth, then multiplexes opcode-6
 /// requests against opcode-7 responses and mirrors opcode-5 events into
-/// ObsRemoteStatus. v1 is deliberately simple: one connection, no auto-reconnect.
-/// The password only ever feeds the auth hash — it is never sent in clear and
-/// never appears in exceptions, status messages, or logs.
+/// ObsRemoteStatus. With <c>autoReconnect: true</c> any non-user-initiated loss
+/// (OBS quit, socket drop, rejected auth, failed first connect) schedules an
+/// exponential-backoff retry loop (1s → 2s → 4s → … capped at 30s, unlimited
+/// attempts) that re-reads the password through the provider on every attempt,
+/// re-runs the Identify handshake (which re-establishes the event stream) and
+/// refreshes scene/stream state after each successful reconnect. User-initiated
+/// Disconnect/Dispose cancels the loop. The password only ever feeds the auth
+/// hash — it is never sent in clear and never appears in exceptions, status
+/// messages, or logs. Inbound messages over <see cref="MaxInboundMessageBytes"/>
+/// are drained and dropped so a hostile or garbling peer cannot balloon memory.
 /// </summary>
 public sealed class ObsWebSocketClient : IDisposable
 {
@@ -25,8 +33,21 @@ public sealed class ObsWebSocketClient : IDisposable
     private const int HandshakeTimeoutMs = 5000;
     private const int RequestTimeoutMs = 5000;
 
-    private readonly string password;
+    // Sends hold the send lock — a stalled TCP peer must not wedge it forever.
+    private const int SendTimeoutMs = 10000;
+
+    // Reconnect backoff ladder: 1s doubling to a 30s ceiling, unlimited attempts.
+    private const int ReconnectFirstDelayMs = 1000;
+    private const int ReconnectMaxDelayMs = 30000;
+
+    // Legit obs-websocket messages (even huge scene-item lists) stay far below
+    // this; anything bigger is treated as a hostile/garbled peer and dropped.
+    private const int MaxInboundMessageBytes = 4 * 1024 * 1024;
+
+    private readonly Func<string> passwordProvider;
     private readonly int port;
+    private readonly bool autoReconnect;
+    private readonly ILogger? logger;
     private readonly SemaphoreSlim sendLock = new(1, 1);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement>> pending = new();
 
@@ -39,11 +60,33 @@ public sealed class ObsWebSocketClient : IDisposable
     private string? currentScene;
     private int closeReported;
     private int disposed;
+    private int reconnectLoopActive;
+    private CancellationTokenSource? reconnectCts;
 
-    public ObsWebSocketClient(string password, int port = 4455)
+    /// <param name="password">Fixed password (no per-reconnect refresh).</param>
+    public ObsWebSocketClient(string password, int port = 4455, bool autoReconnect = false, ILogger? logger = null)
     {
-        this.password = password ?? throw new ArgumentNullException(nameof(password));
+        if (password is null)
+        {
+            throw new ArgumentNullException(nameof(password));
+        }
+
+        this.passwordProvider = () => password;
         this.port = port;
+        this.autoReconnect = autoReconnect;
+        this.logger = logger;
+    }
+
+    /// <param name="passwordProvider">
+    /// Invoked on EVERY connect/reconnect attempt so an edited OBS password is
+    /// picked up live (the value feeds the auth hash only — never log it).
+    /// </param>
+    public ObsWebSocketClient(Func<string> passwordProvider, int port = 4455, bool autoReconnect = false, ILogger? logger = null)
+    {
+        this.passwordProvider = passwordProvider ?? throw new ArgumentNullException(nameof(passwordProvider));
+        this.port = port;
+        this.autoReconnect = autoReconnect;
+        this.logger = logger;
     }
 
     public bool IsConnected => connected;
@@ -53,79 +96,34 @@ public sealed class ObsWebSocketClient : IDisposable
 
     public async Task ConnectAsync(CancellationToken ct = default)
     {
-        ObjectDisposedException.ThrowIf(disposed != 0, this);
         if (connected)
         {
             return;
         }
 
-        handshake = NewTcs();
-        Volatile.Write(ref closeReported, 0);
-        receivedCloseStatus = null;
-        closingByUser = false;
-
-        // A previous generation's socket (e.g. after a 4009 close) must not
-        // linger: its receive loop would fire into the fresh handshake.
-        if (Interlocked.Exchange(ref socket, null) is { } stale)
-        {
-            try
-            {
-                stale.Dispose();
-            }
-            catch (Exception)
-            {
-                // Best-effort — the new connection does not depend on it.
-            }
-        }
-
-        var ws = new ClientWebSocket();
         try
         {
-            // ClientWebSocket has no connect timeout of its own — bound it, or a
-            // silently dropped handshake lingers for minutes on OS-level timers.
-            using var connectTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            connectTimeout.CancelAfter(HandshakeTimeoutMs);
-            await ws.ConnectAsync(new Uri($"ws://localhost:{port}"), connectTimeout.Token).ConfigureAwait(false);
+            await ConnectCoreAsync(ct).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        catch (Exception ex) when (autoReconnect && ex is not OperationCanceledException && disposed == 0 && !closingByUser)
         {
-            ws.Dispose();
-            throw new InvalidOperationException(
-                $"Could not reach OBS on port {port} — is OBS running with remote control enabled?");
-        }
-        catch (Exception ex) when (ex is WebSocketException or IOException)
-        {
-            ws.Dispose();
-            throw new InvalidOperationException(
-                $"Could not reach OBS on port {port} — is OBS running with remote control enabled?", ex);
-        }
-
-        socket = ws;
-        _ = Task.Run(() => ReceiveLoopAsync(ws));
-
-        try
-        {
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(HandshakeTimeoutMs);
-            await handshake.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            await DisconnectAsync().ConfigureAwait(false);
-            throw new InvalidOperationException(
-                $"OBS did not finish the remote-control handshake on port {port} within {HandshakeTimeoutMs / 1000} s — is the WebSocket server enabled?");
-        }
-
-        if (!connected)
-        {
-            // Disconnect was requested while the handshake was still in flight.
-            throw new InvalidOperationException($"The OBS connection on port {port} was closed before the handshake finished.");
+            // A FIRST connect that never got a socket (OBS still starting, its
+            // websocket server not listening yet) produces no HandleServerClose —
+            // schedule the retry loop here so "OBS is coming up" self-heals.
+            // StartReconnectLoop is a no-op when a loop already runs.
+            StartReconnectLoop();
+            throw;
         }
     }
 
+    /// <summary>
+    /// User-initiated disconnect: closes the socket AND cancels the reconnect
+    /// loop (a pending retry after a lost connection must not fire afterwards).
+    /// </summary>
     public async Task DisconnectAsync()
     {
         closingByUser = true;
+        CancelReconnect();
         connected = false;
         FailPending("The OBS connection was closed.");
         var ws = Interlocked.Exchange(ref socket, null);
@@ -217,11 +215,230 @@ public sealed class ObsWebSocketClient : IDisposable
         }
 
         closingByUser = true;
+        CancelReconnect();
         connected = false;
         FailPending("The OBS client was disposed.");
         socket?.Dispose();
         socket = null;
         sendLock.Dispose();
+    }
+
+    // ---------- connection core (shared by ConnectAsync + the retry loop) ----------
+
+    private async Task ConnectCoreAsync(CancellationToken ct)
+    {
+        ObjectDisposedException.ThrowIf(disposed != 0, this);
+
+        handshake = NewTcs();
+        Volatile.Write(ref closeReported, 0);
+        receivedCloseStatus = null;
+        closingByUser = false;
+
+        // A previous generation's socket (e.g. after a 4009 close) must not
+        // linger: its receive loop would fire into the fresh handshake.
+        if (Interlocked.Exchange(ref socket, null) is { } stale)
+        {
+            try
+            {
+                stale.Dispose();
+            }
+            catch (Exception)
+            {
+                // Best-effort — the new connection does not depend on it.
+            }
+        }
+
+        var ws = new ClientWebSocket();
+        try
+        {
+            // ClientWebSocket has no connect timeout of its own — bound it, or a
+            // silently dropped handshake lingers for minutes on OS-level timers.
+            using var connectTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            connectTimeout.CancelAfter(HandshakeTimeoutMs);
+            await ws.ConnectAsync(new Uri($"ws://localhost:{port}"), connectTimeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            ws.Dispose();
+            throw new InvalidOperationException(
+                $"Could not reach OBS on port {port} — is OBS running with remote control enabled?");
+        }
+        catch (Exception ex) when (ex is WebSocketException or IOException)
+        {
+            ws.Dispose();
+            throw new InvalidOperationException(
+                $"Could not reach OBS on port {port} — is OBS running with remote control enabled?", ex);
+        }
+
+        if (disposed != 0 || closingByUser)
+        {
+            // Dispose/disconnect raced the TCP handshake — drop the fresh
+            // socket instead of resurrecting a connection the user closed.
+            ws.Dispose();
+            throw new InvalidOperationException(
+                $"The OBS connection on port {port} was closed before the handshake finished.");
+        }
+
+        socket = ws;
+        _ = Task.Run(() => ReceiveLoopAsync(ws));
+
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(HandshakeTimeoutMs);
+            await handshake.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // NOTE: not DisconnectAsync — that would set closingByUser and read
+            // as "user asked to stop" for the reconnect loop.
+            AbortSocket(ws);
+            throw new InvalidOperationException(
+                $"OBS did not finish the remote-control handshake on port {port} within {HandshakeTimeoutMs / 1000} s — is the WebSocket server enabled?");
+        }
+
+        if (!connected)
+        {
+            // Disconnect was requested while the handshake was still in flight.
+            throw new InvalidOperationException($"The OBS connection on port {port} was closed before the handshake finished.");
+        }
+    }
+
+    // ---------- auto-reconnect ----------
+
+    /// <summary>
+    /// Single-flight starter for the retry loop: started from HandleServerClose
+    /// (connection lost) — never when the user disconnected or the client died.
+    /// </summary>
+    private void StartReconnectLoop()
+    {
+        if (!autoReconnect || disposed != 0 || closingByUser)
+        {
+            return;
+        }
+
+        if (Interlocked.Exchange(ref reconnectLoopActive, 1) != 0)
+        {
+            return; // already scheduled/running
+        }
+
+        var cts = new CancellationTokenSource();
+        reconnectCts = cts;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await ReconnectLoopAsync(cts.Token).ConfigureAwait(false);
+            }
+            finally
+            {
+                cts.Dispose();
+                if (ReferenceEquals(reconnectCts, cts))
+                {
+                    reconnectCts = null;
+                }
+
+                Volatile.Write(ref reconnectLoopActive, 0);
+            }
+        });
+    }
+
+    private async Task ReconnectLoopAsync(CancellationToken ct)
+    {
+        var delayMs = ReconnectFirstDelayMs;
+        var attempt = 1;
+        while (!ct.IsCancellationRequested && !closingByUser && disposed == 0)
+        {
+            RaiseStatus($"The OBS connection on port {port} was lost — reconnecting in {delayMs / 1000.0:0.#} s…");
+            logger?.LogInformation(
+                "obs-websocket connection on port {Port} lost — reconnect attempt {Attempt} in {DelayMs} ms",
+                port, attempt, delayMs);
+
+            try
+            {
+                await Task.Delay(delayMs, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                break; // user disconnect / dispose
+            }
+
+            if (closingByUser || disposed != 0 || connected)
+            {
+                break;
+            }
+
+            try
+            {
+                // ConnectCore re-reads the password via the provider, so an
+                // edited OBS password (or a 4009 on the stale one) resolves here.
+                await ConnectCoreAsync(ct).ConfigureAwait(false);
+                return; // Identified → events re-subscribed + state refreshed
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (ObjectDisposedException)
+            {
+                break; // client disposed mid-reconnect
+            }
+            catch (Exception)
+            {
+                // Still unreachable / rejected — back off and try again.
+                delayMs = Math.Min(delayMs * 2, ReconnectMaxDelayMs);
+                attempt++;
+            }
+        }
+    }
+
+    private void CancelReconnect()
+    {
+        try
+        {
+            reconnectCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Loop already ended — nothing to cancel.
+        }
+    }
+
+    /// <summary>
+    /// After every (re)connect the Identify handshake re-establishes the event
+    /// stream, but events missed while offline are gone — re-read scene and
+    /// stream state so the status reflects now, not the moment of the drop.
+    /// </summary>
+    private async Task RefreshStateAfterReconnectAsync()
+    {
+        try
+        {
+            if (await GetCurrentProgramSceneAsync().ConfigureAwait(false) is { } scene)
+            {
+                currentScene = scene;
+            }
+        }
+        catch (Exception)
+        {
+            // Last known scene stands.
+        }
+
+        try
+        {
+            var data = await SendRequestAsync("GetStreamStatus", null).ConfigureAwait(false);
+            if (data.ValueKind == JsonValueKind.Object
+                && data.TryGetProperty("outputActive", out var outputActive)
+                && outputActive.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                streamActive = outputActive.GetBoolean();
+            }
+        }
+        catch (Exception)
+        {
+            // Last known stream state stands.
+        }
+
+        RaiseStatus(null);
     }
 
     // ---------- receive loop ----------
@@ -236,7 +453,7 @@ public sealed class ObsWebSocketClient : IDisposable
                 var message = await ReceiveMessageAsync(ws, buffer).ConfigureAwait(false);
                 if (message is null)
                 {
-                    HandleServerClose();
+                    HandleServerClose(ws);
                     return;
                 }
 
@@ -245,14 +462,20 @@ public sealed class ObsWebSocketClient : IDisposable
         }
         catch (Exception)
         {
-            HandleServerClose();
+            HandleServerClose(ws);
         }
     }
 
-    /// <summary>Accumulates frames until EndOfMessage; null once the peer closed.</summary>
+    /// <summary>
+    /// Accumulates frames until EndOfMessage; null once the peer closed. A
+    /// message over <see cref="MaxInboundMessageBytes"/> stops being buffered
+    /// but is drained to its end so the next message resyncs, and is returned
+    /// as an empty string (which fails JSON parsing and is dropped).
+    /// </summary>
     private async Task<string?> ReceiveMessageAsync(ClientWebSocket ws, byte[] buffer)
     {
         using var message = new MemoryStream();
+        var oversized = false;
         while (true)
         {
             var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None).ConfigureAwait(false);
@@ -262,16 +485,36 @@ public sealed class ObsWebSocketClient : IDisposable
                 return null;
             }
 
-            message.Write(buffer, 0, result.Count);
+            if (!oversized)
+            {
+                if (message.Length + result.Count > MaxInboundMessageBytes)
+                {
+                    oversized = true;
+                    message.SetLength(0);
+                    logger?.LogError(
+                        "Dropped an inbound obs-websocket message over the {MaxBytes} byte cap on port {Port} — the remote is misbehaving or corrupted.",
+                        MaxInboundMessageBytes, port);
+                }
+                else
+                {
+                    message.Write(buffer, 0, result.Count);
+                }
+            }
+
             if (result.EndOfMessage)
             {
-                return Encoding.UTF8.GetString(message.ToArray());
+                return oversized ? string.Empty : Encoding.UTF8.GetString(message.ToArray());
             }
         }
     }
 
     private async Task HandleMessageAsync(string json)
     {
+        if (string.IsNullOrEmpty(json))
+        {
+            return; // dropped oversized message
+        }
+
         JsonDocument document;
         try
         {
@@ -303,6 +546,9 @@ public sealed class ObsWebSocketClient : IDisposable
                     connected = true;
                     handshake.TrySetResult(true);
                     RaiseStatus(null);
+                    // Fire-and-forget: re-reads scene/stream state missed while
+                    // offline (harmless on a first connect, vital on reconnect).
+                    _ = RefreshStateAfterReconnectAsync();
                     break;
                 case EventOp:
                     OnEvent(data);
@@ -324,10 +570,14 @@ public sealed class ObsWebSocketClient : IDisposable
             challenge = StringOrNull(auth, "challenge");
         }
 
+        // Omitting eventSubscriptions subscribes to ALL events — that IS the
+        // re-subscription on every reconnect (the Identify is re-sent each time).
         var identify = new Dictionary<string, object?> { ["rpcVersion"] = 1 };
         if (salt is not null && challenge is not null)
         {
-            identify["authentication"] = ObsWebSocketAuth.ComputeAuthentication(password, salt, challenge);
+            // Fresh read per attempt: an edited OBS password applies to the
+            // next reconnect without recreating this client.
+            identify["authentication"] = ObsWebSocketAuth.ComputeAuthentication(passwordProvider(), salt, challenge);
         }
 
         var ws = socket;
@@ -404,8 +654,26 @@ public sealed class ObsWebSocketClient : IDisposable
                 : default);
     }
 
-    private void HandleServerClose()
+    private void HandleServerClose(ClientWebSocket owner)
     {
+        var current = Volatile.Read(ref socket);
+        if (current is not null && !ReferenceEquals(current, owner))
+        {
+            // A stale generation closed after a newer attempt replaced it —
+            // only dispose the corpse; it must not fail the fresh handshake
+            // nor kick off a spurious reconnect round.
+            try
+            {
+                owner.Dispose();
+            }
+            catch (Exception)
+            {
+                // Best-effort.
+            }
+
+            return;
+        }
+
         connected = false;
         FailPending("The OBS connection was closed.");
         if (Interlocked.Exchange(ref closeReported, 1) != 0)
@@ -430,6 +698,13 @@ public sealed class ObsWebSocketClient : IDisposable
             var message = $"The OBS connection on port {port} was closed — is OBS still running?";
             handshake.TrySetException(new InvalidOperationException(message));
             RaiseStatus(message);
+        }
+
+        // Non-user loss on a reconnect-enabled client → schedule the backoff
+        // loop (StartReconnectLoop is a no-op when already running/disabled).
+        if (!closingByUser && disposed == 0)
+        {
+            StartReconnectLoop();
         }
     }
 
@@ -480,11 +755,38 @@ public sealed class ObsWebSocketClient : IDisposable
         await sendLock.WaitAsync().ConfigureAwait(false);
         try
         {
-            await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None).ConfigureAwait(false);
+            // No external token here: any cancellation IS the send timeout.
+            using var timeout = new CancellationTokenSource(SendTimeoutMs);
+            try
+            {
+                await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Stalled TCP — abort so the receive loop notices and the
+                // reconnect loop (when enabled) takes over.
+                AbortSocket(ws);
+                throw new TimeoutException(
+                    $"Sending to OBS on port {port} stalled for over {SendTimeoutMs / 1000} s — the connection will be dropped.");
+            }
         }
         finally
         {
             sendLock.Release();
+        }
+    }
+
+    /// <summary>Disposes a socket generation and unlinks it from the field if it is still the current one.</summary>
+    private void AbortSocket(ClientWebSocket ws)
+    {
+        Interlocked.CompareExchange(ref socket, null, ws);
+        try
+        {
+            ws.Dispose();
+        }
+        catch (Exception)
+        {
+            // Best-effort.
         }
     }
 

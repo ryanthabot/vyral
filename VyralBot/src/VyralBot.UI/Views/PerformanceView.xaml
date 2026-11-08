@@ -375,10 +375,14 @@
 
             <!-- ===== Secondary metrics strip ===== -->
             <Border Style="{StaticResource SectionCard}">
-                <UniformGrid Columns="6">
+                <UniformGrid Columns="7">
                     <StackPanel Margin="0,0,12,0">
                         <TextBlock Text="Private memory" Style="{StaticResource TileTitle}"/>
                         <TextBlock Text="{Binding PrivateMemoryMb, StringFormat={}{0:F0} MB}" Style="{StaticResource Cell}"/>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,12,0">
+                        <TextBlock Text="Managed heap" Style="{StaticResource TileTitle}"/>
+                        <TextBlock Text="{Binding ManagedHeapMb, StringFormat={}{0:F0} MB}" Style="{StaticResource Cell}"/>
                     </StackPanel>
                     <StackPanel Margin="0,0,12,0">
                         <TextBlock Text="Handles" Style="{StaticResource TileTitle}"/>

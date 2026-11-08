@@ -368,6 +368,22 @@ public interface IDataService
     Task SaveCommandTimerAsync(CommandTimer timer);
     Task DeleteCommandTimerAsync(string id);
 
+    // Quotes (chat quote database, "!quote" family — Commands page QUOTES tab)
+    /// <summary>Inserts a quote and returns it with the autoassigned <see cref="Quote.Number"/> set.</summary>
+    Task<Quote> AddQuoteAsync(Quote quote);
+    /// <summary>Fetches one quote by its stable per-profile number.</summary>
+    Task<Quote?> GetQuoteByNumberAsync(int number);
+    /// <summary>Uniform random quote (SQL ORDER BY RANDOM() LIMIT 1).</summary>
+    Task<Quote?> GetRandomQuoteAsync();
+    /// <summary>Case-insensitive substring search on Text/AddedBy, best (lowest) numbers first.</summary>
+    Task<IEnumerable<Quote>> SearchQuotesAsync(string searchText, int limit = 20);
+    /// <summary>Every quote, lowest number first (the QUOTES tab grid).</summary>
+    Task<IEnumerable<Quote>> GetQuotesAsync();
+    /// <summary>Deletes one quote by number; true when a row was removed.</summary>
+    Task<bool> DeleteQuoteAsync(int number);
+    /// <summary>Total quote count (header + !quotecount).</summary>
+    Task<int> GetQuoteCountAsync();
+
     // Auto-Reply Rules
     Task<IEnumerable<AutoReplyRule>> GetAutoReplyRulesAsync();
     Task<IEnumerable<AutoReplyRule>> GetAutoReplyRulesByPlatformAndEventAsync(string platform, string eventType);

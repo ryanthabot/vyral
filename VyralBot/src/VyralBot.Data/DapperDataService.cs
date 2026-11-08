@@ -1874,10 +1874,10 @@ public class DapperDataService : IDataService
         {
             await conn.ExecuteAsync(@"
                 INSERT INTO CommandTimers (
-                    Id, Name, CommandName, IntervalMinutes, TargetPlatform,
+                    Id, Name, CommandName, IntervalMinutes, MinimumMessages, TargetPlatform,
                     BotId, IsEnabled, LastRunAt, CreatedAt, UpdatedAt
                 ) VALUES (
-                    @Id, @Name, @CommandName, @IntervalMinutes, @TargetPlatform,
+                    @Id, @Name, @CommandName, @IntervalMinutes, @MinimumMessages, @TargetPlatform,
                     @BotId, @IsEnabled, @LastRunAt, @CreatedAt, @UpdatedAt
                 )", timer);
         }
@@ -1888,6 +1888,7 @@ public class DapperDataService : IDataService
                     Name = @Name,
                     CommandName = @CommandName,
                     IntervalMinutes = @IntervalMinutes,
+                    MinimumMessages = @MinimumMessages,
                     TargetPlatform = @TargetPlatform,
                     BotId = @BotId,
                     IsEnabled = @IsEnabled,
@@ -1901,6 +1902,75 @@ public class DapperDataService : IDataService
     {
         using var conn = CreateConnection();
         await conn.ExecuteAsync("DELETE FROM CommandTimers WHERE Id = @Id", new { Id = id });
+    }
+
+    // Quotes (chat quote database, "!quote" family — Commands page QUOTES tab)
+    public async Task<Quote> AddQuoteAsync(Quote quote)
+    {
+        using var conn = CreateConnection();
+        quote.CreatedAt = quote.CreatedAt == default ? DateTime.UtcNow : quote.CreatedAt;
+
+        await conn.ExecuteAsync(
+            @"INSERT INTO Quotes (Text, AddedBy, Platform, CreatedAt)
+              VALUES (@Text, @AddedBy, @Platform, @CreatedAt)", quote);
+
+        // Same connection, so last_insert_rowid() is this insert's rowid
+        // (mirrors the AutoReplyRules/ObsSceneCollections insert pattern).
+        quote.Number = (int)conn.QuerySingle<long>("SELECT last_insert_rowid()");
+        return quote;
+    }
+
+    public async Task<Quote?> GetQuoteByNumberAsync(int number)
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<Quote>(
+            "SELECT * FROM Quotes WHERE Number = @Number", new { Number = number });
+    }
+
+    public async Task<Quote?> GetRandomQuoteAsync()
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<Quote>(
+            "SELECT * FROM Quotes ORDER BY RANDOM() LIMIT 1");
+    }
+
+    public async Task<IEnumerable<Quote>> SearchQuotesAsync(string searchText, int limit = 20)
+    {
+        var pattern = "%" + (searchText ?? string.Empty).Trim() + "%";
+        if (pattern == "%%")
+        {
+            return Enumerable.Empty<Quote>();
+        }
+
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<Quote>(
+            @"SELECT * FROM Quotes
+              WHERE Text LIKE @Pattern COLLATE NOCASE
+                 OR AddedBy LIKE @Pattern COLLATE NOCASE
+              ORDER BY Number ASC LIMIT @Limit",
+            new { Pattern = pattern, Limit = limit });
+    }
+
+    public async Task<IEnumerable<Quote>> GetQuotesAsync()
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<Quote>(
+            "SELECT * FROM Quotes ORDER BY Number ASC");
+    }
+
+    public async Task<bool> DeleteQuoteAsync(int number)
+    {
+        using var conn = CreateConnection();
+        var removed = await conn.ExecuteAsync(
+            "DELETE FROM Quotes WHERE Number = @Number", new { Number = number });
+        return removed > 0;
+    }
+
+    public async Task<int> GetQuoteCountAsync()
+    {
+        using var conn = CreateConnection();
+        return (int)await conn.ExecuteScalarAsync<long>(
+            "SELECT COUNT(*) FROM Quotes");
     }
 
     // Auto-Reply Rules
@@ -3226,6 +3296,7 @@ public class DapperDataService : IDataService
     {
         ("Commands", "Commands"),
         ("CommandTimers", "Command timers"),
+        ("Quotes", "Quotes"),
         ("Workflows", "Workflows"),
         ("WorkflowExecutions", "Workflow executions"),
         ("EventLogs", "Event history"),
@@ -4359,6 +4430,7 @@ public class DapperDataService : IDataService
                 Name TEXT NOT NULL,
                 CommandName TEXT NOT NULL,
                 IntervalMinutes INTEGER NOT NULL DEFAULT 30,
+                MinimumMessages INTEGER NOT NULL DEFAULT 0,
                 TargetPlatform TEXT NOT NULL DEFAULT 'Twitch',
                 BotId TEXT,
                 IsEnabled INTEGER NOT NULL DEFAULT 1,
@@ -4368,6 +4440,19 @@ public class DapperDataService : IDataService
             );
             CREATE INDEX IF NOT EXISTS IX_CommandTimers_IsEnabled ON CommandTimers(IsEnabled);
             CREATE INDEX IF NOT EXISTS IX_CommandTimers_CommandName ON CommandTimers(CommandName);
+        ");
+
+        // Quotes: chat quote database (streamer.bot staple). Number is a small
+        // stable autoincrement so viewers can recall quotes with !quote <n>.
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS Quotes (
+                Number INTEGER PRIMARY KEY AUTOINCREMENT,
+                Text TEXT NOT NULL,
+                AddedBy TEXT NOT NULL DEFAULT '',
+                Platform TEXT NOT NULL DEFAULT '',
+                CreatedAt TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS IX_Quotes_CreatedAt ON Quotes(CreatedAt);
         ");
 
         // Visual automation engine (VyralBot.Workflows): workflow definitions.
@@ -4458,6 +4543,17 @@ public class DapperDataService : IDataService
         if (commandActionsJsonExists == 0)
         {
             await conn.ExecuteAsync(@"ALTER TABLE Commands ADD COLUMN ActionsJson TEXT;").ConfigureAwait(false);
+        }
+
+        // Migration: timer chat-activity gate — minimum messages between fires
+        // (0 = fire regardless; pre-existing rows keep that behavior).
+        var commandTimerMinimumMessagesExists = await conn.ExecuteScalarAsync<long>(@"
+            SELECT COUNT(*) FROM pragma_table_info('CommandTimers') WHERE name='MinimumMessages';
+        ").ConfigureAwait(false);
+        if (commandTimerMinimumMessagesExists == 0)
+        {
+            await conn.ExecuteAsync(
+                @"ALTER TABLE CommandTimers ADD COLUMN MinimumMessages INTEGER NOT NULL DEFAULT 0;").ConfigureAwait(false);
         }
 
         // Add webhook columns to Platforms table if they don't exist

@@ -1,17 +1,17 @@
 # Commands View (Commands page)
 
 ## Overview
-Daily-driver command management surface: BUILT-IN / CUSTOM / TIMERS / HELP tabs
-plus the marketplace overlay. Every command EDIT and NEW COMMAND opens the
-visual flow editor (`FlowEditorView` overlay hosted by `CommandsView`) — saving
-a seeded flow ADOPTS the command row.
+Daily-driver command management surface: BUILT-IN / CUSTOM / TIMERS / QUOTES /
+HELP tabs plus the marketplace overlay. Every command EDIT and NEW COMMAND
+opens the visual flow editor (`FlowEditorView` overlay hosted by
+`CommandsView`) — saving a seeded flow ADOPTS the command row.
 
 ## Source Files
 | File | Description |
 |------|-------------|
 | `src/VyralBot.UI/Views/CommandsView.xaml` | Tabs, grids, search bar, overlays |
 | `src/VyralBot.UI/Views/CommandsView.xaml.cs` | Flow-editor / marketplace overlay hosting |
-| `src/VyralBot.UI/ViewModels/CommandsViewModel.cs` | List state, bot scope, search, duplicate, timers |
+| `src/VyralBot.UI/ViewModels/CommandsViewModel.cs` | List state, bot scope, search, duplicate, timers, quotes |
 
 ## Toolbar / header
 - **Search box** (`SearchText`): case-insensitive substring filter on command
@@ -39,9 +39,25 @@ a seeded flow ADOPTS the command row.
 
 ## Timers tab
 CRUD + interval (min 5) + platform picker (`TimerPlatforms`:
-Twitch/Kick/Discord/YouTube only) + Discord bot target. Firing is handled by
-`CommandTimerService`. Minimum-messages-between-fires is NOT in the data model
-yet (gap).
+Twitch/Kick/Discord/YouTube only) + Discord bot target + min messages between
+fires (numeric field, 0–1000, shown as the "Min Msgs" grid column). Firing is
+handled by `CommandTimerService`: timers with `CommandTimer.MinimumMessages >
+0` only fire once that many chat messages arrived on their platform since the
+platform's last fire (chat-activity gate counted from
+`ChatMessageReceivedEvent`; the per-platform counter is bounded, zeroed when a
+timer on that platform fires and cleared when the scheduler stops). 0 (the
+column default for pre-existing rows) = fire regardless of chat activity.
+
+## QUOTES tab
+Chat quote database (`IQuoteService`, see `docs/features/quotes.md`): count
+header, search box (`QuoteSearchText` → `SearchQuotesAsync`, CLEAR resets to
+the full lowest-number-first list), REFRESH, a grid of # / Quote / Author
+(`AddedBy`) / Platform / Date (`QuoteDateConverter`, local time) with a
+per-row DELETE (ConfirmDialog), an empty-state card while
+`ShowQuoteEmptyState` is true, and an add box (`NewQuoteText` + ADD —
+dashboard rows store AddedBy/Platform "Manual"). The `!quote` command family
+(!quote / !quote <n> / !quote search / mod-only add+del, !quotecount) is
+answered by `QuoteService` in the ChatViewModel pipeline on every platform.
 
 ## HELP tab
 Variable list, permission levels, bot scope, where commands run (incl. the

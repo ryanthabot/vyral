@@ -14,6 +14,7 @@ using VyralBot.Core.Services.Performance;
 using VyralBot.Core.Services.Profiles;
 using VyralBot.Core.Services.Currency;
 using VyralBot.Core.Services.Linking;
+using VyralBot.Core.Services.Quotes;
 using VyralBot.Core.Services.Commands;
 using VyralBot.Core.Services.Variables;
 using VyralBot.Core.Services;
@@ -203,6 +204,9 @@ public partial class App : Application
                 // Giveaway/Poll scheduler: auto-ends giveaways and polls at their ScheduledEndTime
                 services.AddHostedService<GiveawayPollSchedulerService>();
 
+                // Quotes system (chat quote database — !quote family, Commands page QUOTES tab)
+                services.AddSingleton<IQuoteService, QuoteService>();
+
                 // Watchtime system
                 services.AddSingleton<WatchtimeService>();
             services.AddSingleton<VyralBot.Core.Services.StreamStatus.IStreamLiveRegistry, VyralBot.Integrations.StreamStatus.StreamLiveRegistry>();
@@ -293,6 +297,10 @@ public partial class App : Application
                 services.AddSingleton<NgrokService>();
                 services.AddSingleton<KickWebhookSubscriptionService>();
                 services.AddSingleton<WebhookCoordinatorService>();
+
+                // Control API (token-gated /api routes on the embedded web server)
+                services.AddSingleton<VyralBot.Api.Services.ControlApiStatusService>();
+                services.AddSingleton<VyralBot.Integrations.Testing.TestEventPublisher>();
 
                 // Audio services
                 // AudioWebSocketServer removed; now handled by Kestrel server
@@ -550,22 +558,34 @@ public partial class App : Application
                 return; // Environment.Exit never returns; here for the compiler
             }
 
-            // Kill leftover WebView2 processes from previous runs FIRST.
-            // Scoped to processes whose command line references VyralBot's WebView2
-            // temp user-data folder — other applications' WebView2 processes are untouched (KI-23).
-            await Task.Run(KillLeftoverVyralWebView2Processes);
-
-            // Clean up WebView2 temp cache from previous runs
-            try
+            // Kill leftover WebView2 processes from previous runs, then clear the
+            // temp cache. Scoped to processes whose command line references
+            // VyralBot's WebView2 temp user-data folder — other applications'
+            // WebView2 processes are untouched (KI-23).
+            // FIRE-AND-FORGET (startup latency): the PowerShell spawn (bounded at
+            // 5s) plus the recursive cache delete used to run BEFORE the window
+            // showed and dominated cold-start latency, yet nothing on the startup
+            // path depends on the cleanup finishing first — the WebView2
+            // environment pre-warm started in the App constructor already races
+            // it, and no msedgewebview2.exe child of THIS run exists yet (those
+            // spawn with the first WebView2 control, long after profile load), so
+            // the kill can only touch last run's leftovers. Order is preserved
+            // inside the task: kill first (release locks), then delete; the
+            // delete stays best-effort (locked files are ignored, as before).
+            _ = Task.Run(async () =>
             {
-                var tempFolder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "VyralBot_WebView2_Temp");
-                if (System.IO.Directory.Exists(tempFolder))
+                await KillLeftoverVyralWebView2ProcessesAsync().ConfigureAwait(false);
+                try
                 {
-                    System.IO.Directory.Delete(tempFolder, recursive: true);
-                    Log.Information("🧹 Cleared WebView2 temp cache from previous run");
+                    var tempFolder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "VyralBot_WebView2_Temp");
+                    if (System.IO.Directory.Exists(tempFolder))
+                    {
+                        System.IO.Directory.Delete(tempFolder, recursive: true);
+                        Log.Information("🧹 Cleared WebView2 temp cache from previous run");
+                    }
                 }
-            }
-            catch { /* Ignore if locked or doesn't exist */ }
+                catch { /* Ignore if locked or doesn't exist */ }
+            });
 
             Log.Information("Starting application host (WPF + Kestrel on demand)...");
             await _host!.StartAsync();
@@ -1035,7 +1055,7 @@ public partial class App : Application
     /// Targeted via the process command line so WebView2 processes owned by other
     /// applications on the machine are never touched (KI-23).
     /// </summary>
-    private static void KillLeftoverVyralWebView2Processes()
+    private static async Task KillLeftoverVyralWebView2ProcessesAsync()
     {
         try
         {
@@ -1061,14 +1081,16 @@ public partial class App : Application
                 return;
             }
 
-            if (!process.WaitForExit(5_000))
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+                Log.Information("Targeted WebView2 cleanup completed (VyralBot-owned processes only)");
+            }
+            catch (OperationCanceledException)
             {
                 try { process.Kill(entireProcessTree: true); } catch { }
                 Log.Warning("Targeted WebView2 cleanup timed out; PowerShell process force-killed");
-            }
-            else
-            {
-                Log.Information("Targeted WebView2 cleanup completed (VyralBot-owned processes only)");
             }
         }
         catch (Exception ex)
@@ -1347,7 +1369,7 @@ public partial class App : Application
             try
             {
                 Log.Information("Killing VyralBot WebView2 runtime processes to free memory...");
-                KillLeftoverVyralWebView2Processes();
+                KillLeftoverVyralWebView2ProcessesAsync().GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {

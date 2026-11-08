@@ -8,6 +8,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using VyralBot.Core.Services.Commands;
+using VyralBot.Core.Services.Quotes;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
 using VyralBot.Integrations.Discord;
@@ -54,6 +55,12 @@ public partial class CommandsViewModel : ViewModelBase
     private readonly ICommandService _commandService;
     private readonly IDiscordBotManager? _discordBotManager;
     private readonly IDataService? _dataService;
+
+    /// <summary>
+    /// Quote database (Commands page QUOTES tab). Null when DI skipped it —
+    /// the tab then shows an "unavailable" status instead of throwing.
+    /// </summary>
+    private readonly IQuoteService? _quoteService;
 
     /// <summary>
     /// Trigger-service reload after deleting a flow that adopted a command, so
@@ -155,6 +162,10 @@ public partial class CommandsViewModel : ViewModelBase
     [ObservableProperty]
     private int _timerIntervalMinutes = 30;
 
+    /// <summary>Chat-activity gate: min messages on the platform between fires (0 = always fire).</summary>
+    [ObservableProperty]
+    private int _timerMinimumMessages = 0;
+
     [ObservableProperty]
     private string _timerTargetPlatform = "Twitch";
 
@@ -189,13 +200,15 @@ public partial class CommandsViewModel : ViewModelBase
         ICommandService commandService,
         IDiscordBotManager? discordBotManager = null,
         IDataService? dataService = null,
-        WorkflowTriggerService? triggerService = null)
+        WorkflowTriggerService? triggerService = null,
+        IQuoteService? quoteService = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _commandService = commandService ?? throw new ArgumentNullException(nameof(commandService));
         _discordBotManager = discordBotManager;
         _dataService = dataService;
         _triggerService = triggerService;
+        _quoteService = quoteService;
 
         if (_discordBotManager != null)
         {
@@ -212,6 +225,7 @@ public partial class CommandsViewModel : ViewModelBase
             await LoadCommandsAsync();
             await RefreshBotsAsync();
             await LoadTimersAsync();
+            await LoadQuotesAsync();
             _logger.LogInformation("CommandsViewModel initialized successfully");
         }
         catch (Exception ex)
@@ -858,6 +872,7 @@ public partial class CommandsViewModel : ViewModelBase
         TimerName = "";
         TimerCommandName = TimerCommandNames.FirstOrDefault() ?? "";
         TimerIntervalMinutes = 30;
+        TimerMinimumMessages = 0;
         TimerTargetPlatform = "Twitch";
         SelectedTimerBot = TimerBotOptions.FirstOrDefault(); // "Primary bot"
         TimerIsEnabled = true;
@@ -882,6 +897,7 @@ public partial class CommandsViewModel : ViewModelBase
         TimerName = timer.Name;
         TimerCommandName = timer.CommandName;
         TimerIntervalMinutes = timer.IntervalMinutes;
+        TimerMinimumMessages = timer.MinimumMessages;
         TimerTargetPlatform = timer.TargetPlatform;
         SelectedTimerBot = TimerBotOptions.FirstOrDefault(b => b.Id == timer.BotId)
             ?? TimerBotOptions.FirstOrDefault();
@@ -928,6 +944,12 @@ public partial class CommandsViewModel : ViewModelBase
             return;
         }
 
+        if (TimerMinimumMessages < 0 || TimerMinimumMessages > 1000)
+        {
+            StatusMessage = "Minimum messages must be between 0 and 1000";
+            return;
+        }
+
         var platform = TimerPlatforms.Contains(TimerTargetPlatform) ? TimerTargetPlatform : "Twitch";
 
         try
@@ -939,6 +961,7 @@ public partial class CommandsViewModel : ViewModelBase
                 Name = name,
                 CommandName = commandName,
                 IntervalMinutes = TimerIntervalMinutes,
+                MinimumMessages = TimerMinimumMessages,
                 TargetPlatform = platform,
                 // Discord only: null means the manager's Primary bot sends it.
                 BotId = platform == "Discord" ? SelectedTimerBot?.Id : null,
@@ -1035,6 +1058,177 @@ public partial class CommandsViewModel : ViewModelBase
             _logger.LogError(ex, "Failed to toggle timer: {TimerName}", timer.Name);
             StatusMessage = $"Failed to toggle timer: {ex.Message}";
         }
+    }
+
+    // ----------------------------------------------------------------------
+    // Quotes tab (chat quote database — !quote family)
+    // ----------------------------------------------------------------------
+
+    [ObservableProperty]
+    private ObservableCollection<Quote> _quotes = new();
+
+    [ObservableProperty]
+    private Quote? _selectedQuote;
+
+    /// <summary>Add-box text for a new quote (added as AddedBy/Platform "Manual").</summary>
+    [ObservableProperty]
+    private string _newQuoteText = "";
+
+    /// <summary>Quote-search box text; empty lists every quote (lowest number first).</summary>
+    [ObservableProperty]
+    private string _quoteSearchText = "";
+
+    /// <summary>Count header: "3 quotes" / "1 quote" / "No quotes yet".</summary>
+    [ObservableProperty]
+    private string _quoteCountText = "No quotes yet";
+
+    /// <summary>True while the grid shows zero rows (drives the empty-state card).</summary>
+    [ObservableProperty]
+    private bool _showQuoteEmptyState = true;
+
+    partial void OnQuoteSearchTextChanged(string value)
+    {
+        // Fire-and-forget by design: the textbox re-triggers this on each
+        // keystroke, and awaiting here would block the UI thread's input path.
+        _ = LoadQuotesAsync();
+    }
+
+    /// <summary>
+    /// Loads the quote grid: search results when the quote-search box has text,
+    /// otherwise every quote (lowest number first). Updates the count header
+    /// and the empty-state flag.
+    /// </summary>
+    [RelayCommand]
+    public async Task LoadQuotesAsync()
+    {
+        if (_quoteService == null)
+        {
+            QuoteCountText = "Quotes unavailable";
+            return;
+        }
+
+        try
+        {
+            var query = QuoteSearchText?.Trim();
+            var quotes = string.IsNullOrWhiteSpace(query)
+                ? await _quoteService.GetQuotesAsync()
+                : await _quoteService.SearchQuotesAsync(query);
+
+            Quotes.Clear();
+            foreach (var quote in quotes)
+            {
+                Quotes.Add(quote);
+            }
+
+            var total = await _quoteService.GetQuoteCountAsync();
+            QuoteCountText = total == 0
+                ? "No quotes yet"
+                : total == 1
+                    ? "1 quote"
+                    : $"{total} quotes{(string.IsNullOrWhiteSpace(query) ? "" : $" matching '{query}'")}";
+            ShowQuoteEmptyState = Quotes.Count == 0;
+
+            _logger.LogInformation("Loaded {ShownCount} quote(s) for the QUOTES tab", Quotes.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load quotes");
+            StatusMessage = "Failed to load quotes";
+        }
+    }
+
+    /// <summary>Adds the add-box text as a quote from the dashboard ("Manual").</summary>
+    [RelayCommand]
+    private async Task AddQuoteAsync()
+    {
+        if (_quoteService == null)
+        {
+            StatusMessage = "Quotes unavailable — cannot add";
+            return;
+        }
+
+        var text = NewQuoteText?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            StatusMessage = "Type the quote text first";
+            return;
+        }
+
+        try
+        {
+            var quote = await _quoteService.AddQuoteAsync(new Quote
+            {
+                Text = text,
+                AddedBy = "Manual",
+                Platform = "Manual"
+            });
+
+            NewQuoteText = "";
+            QuoteSearchText = ""; // show the full list so the new row is visible
+            StatusMessage = $"Quote #{quote.Number} added";
+            _logger.LogInformation("Added quote #{Number} from the dashboard", quote.Number);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to add quote");
+            StatusMessage = $"Failed to add quote: {ex.Message}";
+        }
+    }
+
+    /// <summary>Row action: deletes one quote after a confirmation dialog.</summary>
+    [RelayCommand]
+    private async Task DeleteQuoteAsync(Quote? quote)
+    {
+        if (_quoteService == null)
+        {
+            StatusMessage = "Quotes unavailable — cannot delete";
+            return;
+        }
+
+        quote ??= SelectedQuote;
+        if (quote == null)
+        {
+            StatusMessage = "No quote selected";
+            return;
+        }
+
+        if (!Confirm($"Delete quote #{quote.Number}? This cannot be undone."))
+        {
+            StatusMessage = "Delete cancelled";
+            return;
+        }
+
+        try
+        {
+            var deleted = await _quoteService.DeleteQuoteAsync(quote.Number);
+            if (!deleted)
+            {
+                StatusMessage = $"Quote #{quote.Number} no longer exists";
+                return;
+            }
+
+            if (SelectedQuote == quote)
+            {
+                SelectedQuote = null;
+            }
+
+            StatusMessage = $"Quote #{quote.Number} deleted";
+            _logger.LogInformation("Deleted quote #{Number} from the dashboard", quote.Number);
+
+            await LoadQuotesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete quote #{Number}", quote.Number);
+            StatusMessage = $"Failed to delete quote: {ex.Message}";
+        }
+    }
+
+    /// <summary>Quote-search CLEAR button: resets the filter to the full list.</summary>
+    [RelayCommand]
+    private void ClearQuoteSearch()
+    {
+        QuoteSearchText = "";
     }
 }
 
@@ -1157,6 +1351,25 @@ public class CommandTimerBotLabelConverter : IValueConverter
         return string.IsNullOrEmpty(timer.BotId)
             ? "Primary"
             : CommandsViewModel.BotDisplayName(timer.BotId);
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}
+
+/// <summary>
+/// Quotes grid "Date" column: the UTC stamp (<see cref="Quote.CreatedAt"/>)
+/// shown in local time, or "—" for rows without one.
+/// </summary>
+public class QuoteDateConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return value is DateTime utc && utc != default
+            ? utc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)
+            : "—";
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

@@ -935,6 +935,13 @@ public class FakeDataService : IDataService
     public Task<IEnumerable<CommandTimer>> GetCommandTimersAsync() => throw new NotImplementedException(NotImplemented);
     public Task SaveCommandTimerAsync(CommandTimer timer) => throw new NotImplementedException(NotImplemented);
     public Task DeleteCommandTimerAsync(string id) => throw new NotImplementedException(NotImplemented);
+    public Task<Quote> AddQuoteAsync(Quote quote) => throw new NotImplementedException(NotImplemented);
+    public Task<Quote?> GetQuoteByNumberAsync(int number) => throw new NotImplementedException(NotImplemented);
+    public Task<Quote?> GetRandomQuoteAsync() => throw new NotImplementedException(NotImplemented);
+    public Task<IEnumerable<Quote>> SearchQuotesAsync(string searchText, int limit = 20) => throw new NotImplementedException(NotImplemented);
+    public Task<IEnumerable<Quote>> GetQuotesAsync() => throw new NotImplementedException(NotImplemented);
+    public Task<bool> DeleteQuoteAsync(int number) => throw new NotImplementedException(NotImplemented);
+    public Task<int> GetQuoteCountAsync() => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<AutoReplyRule>> GetAutoReplyRulesAsync() => throw new NotImplementedException(NotImplemented);
     public Task<IEnumerable<AutoReplyRule>> GetAutoReplyRulesByPlatformAndEventAsync(string platform, string eventType) => throw new NotImplementedException(NotImplemented);
     public Task<AutoReplyRule?> GetAutoReplyRuleAsync(int id) => throw new NotImplementedException(NotImplemented);

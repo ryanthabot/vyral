@@ -148,4 +148,40 @@ public class WatchtimeGatingTests
     {
         Assert.True(CurrencyService.IsDiscordChannelAllowed("777", "777,"));
     }
+
+    // ------------------------------------------------------------------
+    // Wave-6 additions: the gate's platform match and defaults
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void StreamPlatformMatch_IsCaseInsensitive()
+    {
+        // Platforms arrive from chat rows/user data — casing is not guaranteed.
+        Assert.True(WatchtimeService.ShouldAccrueWatchtime("twitch", isLive: true));
+        Assert.True(WatchtimeService.ShouldAccrueWatchtime("KICK", isLive: true));
+        Assert.True(WatchtimeService.ShouldAccrueWatchtime("youTube", isLive: true));
+        Assert.False(WatchtimeService.ShouldAccrueWatchtime("twitch", isLive: false));
+        Assert.False(WatchtimeService.ShouldAccrueWatchtime("KICK", isLive: false));
+    }
+
+    [Fact]
+    public void UnknownPlatform_FollowsTheLiveFlag()
+    {
+        // The gate is Discord-specific: any other platform (e.g. TikTok)
+        // accrues by the same live-status rule as Twitch/Kick/YouTube.
+        Assert.True(WatchtimeService.ShouldAccrueWatchtime("TikTok", isLive: true));
+        Assert.False(WatchtimeService.ShouldAccrueWatchtime("TikTok", isLive: false));
+        Assert.True(WatchtimeService.ShouldAccrueWatchtime("TikTok", isLive: null));
+    }
+
+    [Fact]
+    public void NullOrEmptyPlatform_IsNeverTreatedAsDiscord()
+    {
+        // Rows without a platform follow the live flag (null isLive → accrue,
+        // matching the pre-gating back-compat default).
+        Assert.True(WatchtimeService.ShouldAccrueWatchtime(null, isLive: true));
+        Assert.True(WatchtimeService.ShouldAccrueWatchtime(null, isLive: null));
+        Assert.False(WatchtimeService.ShouldAccrueWatchtime(null, isLive: false));
+        Assert.True(WatchtimeService.ShouldAccrueWatchtime("", isLive: true));
+    }
 }

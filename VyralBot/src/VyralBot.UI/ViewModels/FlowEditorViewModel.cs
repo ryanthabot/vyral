@@ -1401,7 +1401,7 @@ public class FlowTriggerDto
 
     /// <summary>
     /// Platform filter for command triggers (List of "Twitch", "Kick",
-    /// "YouTube", "Discord", "TikTok"); null/empty = all platforms. Round-trips
+    /// "YouTube", "Discord"); null/empty = all platforms. Round-trips
     /// through drafts / undo snapshots / exports next to the persisted
     /// <see cref="WorkflowTrigger.Platforms"/>.
     /// </summary>
@@ -1413,7 +1413,7 @@ public class FlowTriggerDto
 
 /// <summary>
 /// One toggle chip of the command-trigger platform filter
-/// (Twitch/Kick/YouTube/Discord/TikTok). None toggled on = the command runs on
+/// (Twitch/Kick/YouTube/Discord). None toggled on = the command runs on
 /// every platform.
 /// </summary>
 public partial class FlowPlatformChipViewModel : ObservableObject
@@ -1506,7 +1506,10 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     private static readonly string[] PalettePlatforms = { "Any", "Twitch", "Kick", "Discord", "YouTube" };
 
     /// <summary>Platforms a command trigger can be filtered to (contract order); none = all.</summary>
-    private static readonly string[] CommandPlatforms = { "Twitch", "Kick", "YouTube", "Discord", "TikTok" };
+    // TikTok is intentionally absent: it has no chat pipeline, so no messages
+    // (and therefore no commands) can ever fire there — the chip would be a
+    // silent no-op. NormalizePlatforms drops it from legacy triggers.
+    private static readonly string[] CommandPlatforms = { "Twitch", "Kick", "YouTube", "Discord" };
 
     private readonly ILogger<FlowEditorViewModel> _logger;
     private readonly IDataService _dataService;
@@ -2019,7 +2022,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     public ObservableCollection<string> PlatformOptions { get; } = new(PalettePlatforms);
 
     /// <summary>
-    /// Command-trigger platform filter chips (Twitch/Kick/YouTube/Discord/TikTok).
+    /// Command-trigger platform filter chips (Twitch/Kick/YouTube/Discord).
     /// None selected = the command fires on every platform (persisted as a null
     /// <see cref="WorkflowTrigger.Platforms"/>).
     /// </summary>

@@ -39,7 +39,7 @@ src/
 | `KickSettingsViewModel` | 422 | Kick platform settings |
 | `GiveawayViewModel` | 416 | Giveaway management |
 | `NgrokSetupWizardViewModel` | 416 | Ngrok OAuth wizard |
-| `EventTestingViewModel` | 397 | Event testing UI |
+| `EventTestingViewModel` | 171 | Event testing UI (17 test fires via `TestEventPublisher`) |
 | `PollViewModel` | 399 | Poll management |
 | `CurrencyViewModel` | 367 | Currency system UI |
 | `ProfileSelectorViewModel` | 363 | Profile selection (manual INPC) |

@@ -64,6 +64,7 @@ public partial class PerformanceViewModel : ViewModelBase
     [ObservableProperty] private double _cpuPercent;
     [ObservableProperty] private double _memoryMb;
     [ObservableProperty] private double _privateMemoryMb;
+    [ObservableProperty] private double _managedHeapMb;
     [ObservableProperty] private int _threadCount;
     [ObservableProperty] private int _handleCount;
     [ObservableProperty] private long _gcTotalCollections;
@@ -218,6 +219,7 @@ public partial class PerformanceViewModel : ViewModelBase
             CpuPercent = sample.CpuPercent;
             MemoryMb = sample.WorkingSetMb;
             PrivateMemoryMb = sample.PrivateMemoryMb;
+            ManagedHeapMb = sample.HeapBytes / 1024.0 / 1024.0;
             ThreadCount = sample.ThreadCount;
             HandleCount = sample.HandleCount;
             GcTotalCollections = (long)sample.Gen0Collections + sample.Gen1Collections + sample.Gen2Collections;

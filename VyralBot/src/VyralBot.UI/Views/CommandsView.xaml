@@ -14,6 +14,7 @@
         <vm:CommandScopeActionLabelConverter x:Key="CommandScopeActionLabelConverter"/>
         <vm:CommandTimerLastRunConverter x:Key="CommandTimerLastRunConverter"/>
         <vm:CommandTimerBotLabelConverter x:Key="CommandTimerBotLabelConverter"/>
+        <vm:QuoteDateConverter x:Key="QuoteDateConverter"/>
         <vm:CommandFlowManagedToolTipConverter x:Key="CommandFlowManagedToolTipConverter"/>
         <vm:CommandLastUsedConverter x:Key="CommandLastUsedConverter"/>
 
@@ -716,6 +717,16 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
+                            <DataGridTextColumn Header="Min Msgs" Binding="{Binding MinimumMessages}" Width="80">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
                             <DataGridTextColumn Header="Platform" Binding="{Binding TargetPlatform}" Width="90">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
@@ -780,6 +791,7 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -837,6 +849,21 @@
                                     <CheckBox Content="Enabled" IsChecked="{Binding TimerIsEnabled}"
                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
                                 </StackPanel>
+
+                                <!-- Minimum messages between fires (chat-activity gate) -->
+                                <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,12,0,0">
+                                    <TextBlock Text="Min messages between fires (0 = always)"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding TimerMinimumMessages, UpdateSourceTrigger=PropertyChanged}"
+                                             Padding="8"
+                                             MaxWidth="220"
+                                             HorizontalAlignment="Left"/>
+                                    <TextBlock Text="Timer only fires when at least this many chat messages arrived on its platform since its last fire — keeps timers quiet in dead chat."
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               FontSize="11"
+                                               TextWrapping="Wrap"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
                             </Grid>
 
                             <!-- Action buttons -->
@@ -857,6 +884,225 @@
                                         Style="{StaticResource VyralPlainOutlineButton}"/>
                             </StackPanel>
                         </StackPanel>
+                    </materialDesign:Card>
+                </Grid>
+            </TabItem>
+
+            <!-- Quotes Tab -->
+            <TabItem Header="QUOTES">
+                <Grid Margin="0,16,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Toolbar: count header + search box -->
+                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <materialDesign:PackIcon Grid.Column="0"
+                                                 Kind="FormatQuote"
+                                                 Width="20"
+                                                 Height="20"
+                                                 Foreground="{DynamicResource PrimaryHueMidBrush}"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0"/>
+
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding QuoteCountText}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap"/>
+
+                        <Grid Grid.Column="2" Margin="0,0,12,0" VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <materialDesign:PackIcon Grid.Column="0"
+                                                     Kind="Magnify"
+                                                     Width="18"
+                                                     Height="18"
+                                                     Foreground="{DynamicResource TextSecondaryBrush}"
+                                                     VerticalAlignment="Center"
+                                                     Margin="0,0,6,0"/>
+
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding QuoteSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                     VerticalAlignment="Center"
+                                     materialDesign:HintAssist.Hint="Search quotes"
+                                     ToolTip="Filter quotes by text or author"/>
+
+                            <Button Grid.Column="2"
+                                    Content="CLEAR"
+                                    Command="{Binding ClearQuoteSearchCommand}"
+                                    Style="{StaticResource VyralPlainOutlineButton}"
+                                    Height="30"
+                                    Padding="12,0"
+                                    Margin="6,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding QuoteSearchText, Converter={StaticResource StringToVisibilityConverter}}"
+                                    ToolTip="Clear the quote search"/>
+                        </Grid>
+
+                        <Button Grid.Column="3"
+                                Content="REFRESH"
+                                Command="{Binding LoadQuotesCommand}"
+                                Style="{StaticResource VyralPlainOutlineButton}"
+                                Height="34"
+                                ToolTip="Reload the quote list"/>
+                    </Grid>
+
+                    <!-- Quotes DataGrid -->
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding Quotes}"
+                              SelectedItem="{Binding SelectedQuote, Mode=TwoWay}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              Background="{DynamicResource CardBackgroundBrush}"
+                              Foreground="{DynamicResource TextPrimaryBrush}"
+                              BorderBrush="{DynamicResource BorderColorBrush}"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{DynamicResource BorderColorBrush}"
+                              RowBackground="Transparent"
+                              IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="#" Binding="{Binding Number}" Width="50">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryHueMidBrush}"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Quote" Binding="{Binding Text}" Width="*">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                        <Setter Property="TextWrapping" Value="Wrap"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Author" Binding="{Binding AddedBy}" Width="120">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource SecondaryHueMidBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Platform" Binding="{Binding Platform}" Width="90">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Date" Width="130">
+                                <DataGridTextColumn.Binding>
+                                    <Binding Path="CreatedAt" Converter="{StaticResource QuoteDateConverter}"/>
+                                </DataGridTextColumn.Binding>
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+                                        <Setter Property="Padding" Value="5"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTemplateColumn Header="Actions" Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="DELETE"
+                                                Command="{Binding DataContext.DeleteQuoteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource VyralPlainDangerButton}"
+                                                Height="28"
+                                                Padding="10,0"
+                                                HorizontalAlignment="Center"
+                                                ToolTip="Delete this quote (asks for confirmation)"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Empty state -->
+                    <Border Grid.Row="1"
+                            Background="{DynamicResource CardBackgroundBrush}"
+                            BorderBrush="{DynamicResource BorderColorBrush}"
+                            BorderThickness="1"
+                            Padding="24"
+                            CornerRadius="4"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            Visibility="{Binding ShowQuoteEmptyState, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <StackPanel>
+                            <materialDesign:PackIcon Kind="FormatQuote"
+                                                     Width="36"
+                                                     Height="36"
+                                                     Foreground="{DynamicResource TextMutedBrush}"
+                                                     HorizontalAlignment="Center"
+                                                     Margin="0,0,0,10"/>
+                            <TextBlock Text="No quotes yet"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,0,0,6"/>
+                            <TextBlock Text="Add one below, or let mods use !quote add &lt;text&gt; in chat on any platform."
+                                       FontSize="13"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Add box -->
+                    <materialDesign:Card Grid.Row="2"
+                                         Padding="16,12"
+                                         Background="{DynamicResource CardBackgroundBrush}"
+                                         Effect="{DynamicResource CardShadow}"
+                                         Margin="0,12,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding NewQuoteText, UpdateSourceTrigger=PropertyChanged}"
+                                     Padding="8"
+                                     VerticalAlignment="Center"
+                                     materialDesign:HintAssist.Hint="New quote — what did they say?"
+                                     ToolTip="Type the quote text, then ADD"/>
+
+                            <Button Grid.Column="1"
+                                    Content="ADD"
+                                    Command="{Binding AddQuoteCommand}"
+                                    Style="{StaticResource VyralPlainPrimaryButton}"
+                                    Margin="12,0,0,0"
+                                    VerticalAlignment="Center"
+                                    ToolTip="Add this quote to the database"/>
+                        </Grid>
                     </materialDesign:Card>
                 </Grid>
             </TabItem>
@@ -889,7 +1135,7 @@
                                 <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" TextWrapping="Wrap" Text="Currency: !points (!balance, !currency) • !daily • !rank (!tier) • !leaderboard (!top) • !gamble (!bet) • !slots • !duel / !accept • !heist • !roulette • !store (!shop) • !rewards • !redeem • !bank • !deposit / !withdraw • !bid"/>
                                 <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" TextWrapping="Wrap" Text="Moderators: !give • !take • !boost • !auction"/>
                                 <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" TextWrapping="Wrap" Text="Linking: !link • !linkcode • !linked • !unlink / !delink • !goals • !mystatus • !mp (!multiplatform)"/>
-                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" Text="Engagement: !poll • !giveaway (join with the entry keyword)"/>
+                                <TextBlock Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" Text="Engagement: !poll • !giveaway (join with the entry keyword) • !quote (!quote add/del are mod-only, plus !quotecount)"/>
                             </StackPanel>
                         </Border>
 

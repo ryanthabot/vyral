@@ -13,8 +13,49 @@ off by default, PIN-paired device tokens).
 |---|---|---|---|
 | `/webhooks/kick` | POST | RSA-SHA256 signature (`KickWebhookValidationMiddleware`) | Publishes Kick platform events to `IEventBus` (bot actions, currency). |
 | `/webhooks/health` | GET | none | Static health JSON. |
+| `/api/status` | GET | Bearer token (`ControlApiAuthMiddleware`) | Uptime, platform connections/live flags, OBS state, restream state+stats, viewer counts. |
+| `/api/stats/today` | GET | Bearer token | Event counts by type+platform since local midnight (from `IStatisticsService`). |
+| `/api/events/test` | POST | Bearer token | Fires a canned test event via `TestEventPublisher` — the exact payloads of the Event Testing page. Body: `{"type":"twitch.follow","username":"...","message":"..."}` (≤16 KB). |
+| `/api/version` | GET | Bearer token | Entry-assembly version + .NET runtime version. |
 | `/audio-ws` | WS | loopback Origin check + 16-connection cap | One-way push of sound-play messages for OBS browser sources. |
 | `/*` (static) | GET | none | `/sounds/*` is served first from the active profile's sounds folder (`ISoundService.GetSoundsDirectory()` — `appdata/profiles/<name>/data/sounds`), then falls back to `wwwroot` (`audio.html`, legacy `/sounds/*`) from `AppContext.BaseDirectory`. |
+
+## Control API (`/api`) — community-tool surface
+
+A minimal, read-mostly API for community tools (the streamer.bot-style
+ecosystem). **Auth is absolute, not per-route**: `ControlApiAuthMiddleware`
+gates the entire `/api` path prefix in the pipeline *before* `MapControllers`,
+so every current and future `/api` route — including unknown paths that would
+404 — requires a valid token first. There is no unauthenticated `/api` route.
+
+- **Token**: the existing webhook auth token (the ngrok auth token stored
+  per-profile in `ngrok_credentials.json`, loaded by `NgrokService`). No new
+  secret to manage; it is never logged.
+- **Transport**: `Authorization: Bearer <token>`. Both provided and configured
+  tokens are SHA-256 hashed and compared with
+  `CryptographicOperations.FixedTimeEquals` (same pattern as VyralDeck device
+  tokens — digest comparison also removes length as an oracle).
+- **Responses**: missing/bad token → `401 {"error":"unauthorized"}` with
+  `WWW-Authenticate: Bearer`; no token configured → `503 {"error":"api_disabled"}`;
+  body over 16 KB → `413` (both the `Content-Length` check and a lowered
+  `IHttpMaxRequestBodySizeFeature` limit for chunked bodies).
+- **No secrets in payloads**: status exposes booleans, enum strings, counters
+  and timestamps only — no paths, tokens, tunnel URLs or restream destination
+  details (destination URLs embed stream keys).
+- **Services**: `ControlApiStatusService` (Api project, singleton in the WPF
+  host DI, forwarded into the Kestrel child container by `WebServerService`)
+  aggregates platforms/OBS/restream lazily via `IServiceProvider` so it never
+  forces engine startup; it caches the latest Kick viewer count from
+  `KickStreamStatusEvent` (Twitch/YouTube do not publish viewer counts on the
+  bus yet — they report `null`). `TestEventPublisher` (Integrations) is the
+  single source of test-event payloads, shared by the Event Testing page and
+  `POST /api/events/test`.
+
+**ngrok exposure**: when the tunnel runs, `/api` is public — but the Bearer
+gate applies identically (the middleware is host-agnostic), and CORS remains
+**default-deny** (no `UseCors`/`AddCors` anywhere in the app, none added): no
+`Access-Control-Allow-Origin` is ever emitted, so browsers cannot read
+responses cross-origin even with a valid token.
 
 ## Webhook pipeline (order matters)
 
@@ -32,6 +73,10 @@ warning (KI-19).
 
 The controller maps malformed JSON to **400** (not 500) and all other failures
 to a generic 500 string — no stack traces or paths in responses.
+
+Middleware order in the embedded host: metrics → websockets → static files →
+routing → **ControlApiAuthMiddleware** → KickWebhookValidationMiddleware →
+controllers → `/audio-ws` map.
 
 ## audio-ws
 
@@ -52,6 +97,7 @@ responses cross-origin. Browser sources are served same-origin from this host.
 ## Secrets
 
 - ngrok auth token: per-profile credentials JSON, never logged (only its path).
+  Doubles as the control API Bearer token (fixed-time digest compare).
 - Deck tokens: 128-bit hex from `RandomNumberGenerator`, compared with
   `CryptographicOperations.FixedTimeEquals`, never logged.
 - Webhook logs contain message IDs/headers/lengths only — never full payloads.

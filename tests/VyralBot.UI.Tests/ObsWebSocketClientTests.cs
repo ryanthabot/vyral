@@ -202,6 +202,75 @@ public class ObsWebSocketClientTests
         }));
     }
 
+    // ---------- ObsWebSocketClient: auto-reconnect / frame cap ----------
+
+    [Fact]
+    public async Task Client_AutoReconnect_RetriesUntilFreshPasswordAccepted()
+    {
+        using var server = new ResilientFakeObsServer("fresh-password", FreePort());
+        server.Start();
+
+        // The "stored token": stale at first, edited (in OBS settings) right
+        // after the first rejection — the retry must read it fresh per attempt.
+        var storedPassword = "stale-password";
+        using var client = new ObsWebSocketClient(() => storedPassword, server.Port, autoReconnect: true);
+
+        // First connect is rejected with 4009 (stale password).
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => client.ConnectAsync());
+        Assert.Contains("4009", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("stale-password", ex.Message, StringComparison.Ordinal);
+
+        storedPassword = "fresh-password"; // user fixed the password in OBS
+
+        Assert.True(WaitUntil(() => client.IsConnected, 15000),
+            $"client did not reconnect with the fresh password (connections seen: {server.ConnectionCount})");
+        Assert.True(server.ConnectionCount >= 2);
+    }
+
+    [Fact]
+    public async Task Client_AutoReconnect_UserDisconnect_CancelsRetryLoop()
+    {
+        using var server = new ResilientFakeObsServer("right-password", FreePort());
+        server.Start();
+        using var client = new ObsWebSocketClient("right-password", server.Port, autoReconnect: true);
+        await client.ConnectAsync();
+        Assert.True(client.IsConnected);
+
+        server.KillCurrentConnection(); // OBS "crashes" — schedules a retry
+        Assert.True(WaitUntil(() => !client.IsConnected));
+
+        await client.DisconnectAsync(); // user-initiated — must cancel the retry
+        var count = server.ConnectionCount;
+
+        await Task.Delay(2600); // an uncancelled loop would have retried by now
+
+        Assert.Equal(count, server.ConnectionCount);
+        Assert.False(client.IsConnected);
+    }
+
+    [Fact]
+    public async Task Client_OversizedInboundMessage_Dropped_ConnectionSurvives()
+    {
+        using var server = new ResilientFakeObsServer("right-password", FreePort());
+        server.Start();
+        using var client = new ObsWebSocketClient("right-password", server.Port);
+        var statuses = new List<ObsRemoteStatus>();
+        client.StatusChanged += s => { lock (statuses) statuses.Add(s); };
+        await client.ConnectAsync();
+
+        // One 5 MiB single message (over the 4 MiB inbound cap) followed by a
+        // legitimate event — the huge frame must be drained+dropped and the
+        // connection must stay usable, not OOM or desync.
+        await server.SendHugeMessageAsync(5 * 1024 * 1024);
+        server.SendEvent("""{"op":5,"d":{"eventType":"CurrentProgramSceneChanged","eventData":{"sceneName":"Starting Soon"}}}""");
+
+        Assert.True(WaitUntil(() =>
+        {
+            lock (statuses) return statuses.Any(s => s.Connected && s.CurrentScene == "Starting Soon");
+        }, 10000));
+        Assert.True(client.IsConnected);
+    }
+
     // ---------- helpers ----------
 
     private static bool WaitUntil(Func<bool> condition, int timeoutMs = 5000)
@@ -363,6 +432,197 @@ public class ObsWebSocketClientTests
         private static async Task<string?> ReceiveAsync(WebSocket ws)
         {
             var buffer = new byte[16 * 1024];
+            using var message = new MemoryStream();
+            while (true)
+            {
+                var result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                if (result.MessageType == WebSocketMessageType.Close) return null;
+                message.Write(buffer, 0, result.Count);
+                if (result.EndOfMessage) return Encoding.UTF8.GetString(message.ToArray());
+            }
+        }
+
+        public void Dispose()
+        {
+            try { socket?.Abort(); } catch { /* already gone */ }
+            try { listener.Close(); } catch { /* already gone */ }
+        }
+    }
+
+    /// <summary>
+    /// Multi-connection obs-websocket stand-in for the reconnect/frame-cap
+    /// tests: accepts connections one after another, authenticates against a
+    /// mutable expected password (4009 close otherwise) and answers the
+    /// requests the client issues after (re)connecting.
+    /// </summary>
+    private sealed class ResilientFakeObsServer : IDisposable
+    {
+        private readonly HttpListener listener = new();
+        private readonly SemaphoreSlim sendLock = new(1, 1);
+        private WebSocket? socket;
+        private int connectionCount;
+
+        public ResilientFakeObsServer(string expectedPassword, int port)
+        {
+            ExpectedPassword = expectedPassword;
+            listener.Prefixes.Add($"http://localhost:{port}/");
+            listener.Start();
+            Port = port;
+        }
+
+        public string ExpectedPassword { get; set; }
+
+        public int Port { get; }
+
+        public int ConnectionCount => Volatile.Read(ref connectionCount);
+
+        public void Start() => _ = Task.Run(AcceptLoopAsync);
+
+        public void KillCurrentConnection()
+        {
+            try { socket?.Abort(); } catch { /* already gone */ }
+        }
+
+        public void SendEvent(string json) => _ = SendAsync(json);
+
+        /// <summary>One huge invalid-JSON message of <paramref name="totalBytes"/>, split into 64 KiB frames.</summary>
+        public async Task SendHugeMessageAsync(int totalBytes)
+        {
+            var ws = socket;
+            if (ws is null || ws.State != WebSocketState.Open)
+            {
+                throw new InvalidOperationException("No connection to flood.");
+            }
+
+            var chunk = new byte[64 * 1024];
+            Array.Fill(chunk, (byte)'x');
+            chunk[0] = (byte)'{';
+            await sendLock.WaitAsync();
+            try
+            {
+                var sent = 0;
+                while (sent < totalBytes)
+                {
+                    var n = Math.Min(chunk.Length, totalBytes - sent);
+                    var last = sent + n >= totalBytes;
+                    await ws.SendAsync(new ArraySegment<byte>(chunk, 0, n), WebSocketMessageType.Text, last, CancellationToken.None);
+                    sent += n;
+                }
+            }
+            finally
+            {
+                sendLock.Release();
+            }
+        }
+
+        private async Task AcceptLoopAsync()
+        {
+            while (true)
+            {
+                HttpListenerContext http;
+                try
+                {
+                    http = await listener.GetContextAsync();
+                }
+                catch (Exception)
+                {
+                    return; // listener disposed — shut down
+                }
+
+                try
+                {
+                    var ws = (await http.AcceptWebSocketAsync(null)).WebSocket;
+                    Interlocked.Increment(ref connectionCount);
+                    await ServeConnectionAsync(ws);
+                }
+                catch (Exception)
+                {
+                    // connection-level failure — accept the next one
+                }
+            }
+        }
+
+        private async Task ServeConnectionAsync(WebSocket ws)
+        {
+            socket = ws;
+            var hello = "{\"op\":0,\"d\":{\"obsWebSocketVersion\":\"5.4.2-test\",\"rpcVersion\":1,\"authentication\":{\"challenge\":\""
+                + FakeObsServer.Challenge + "\",\"salt\":\"" + FakeObsServer.Salt + "\"}}}";
+            await SendAsync(hello);
+
+            var buffer = new byte[16 * 1024];
+            while (ws.State == WebSocketState.Open)
+            {
+                string? message;
+                try
+                {
+                    message = await ReceiveAsync(ws, buffer);
+                }
+                catch (Exception)
+                {
+                    return; // aborted mid-read
+                }
+
+                if (message is null)
+                {
+                    return;
+                }
+
+                using var doc = JsonDocument.Parse(message);
+                var op = doc.RootElement.GetProperty("op").GetInt32();
+                if (op == 1)
+                {
+                    var auth = doc.RootElement.GetProperty("d").GetProperty("authentication").GetString();
+                    var expected = ObsWebSocketAuth.ComputeAuthentication(ExpectedPassword, FakeObsServer.Salt, FakeObsServer.Challenge);
+                    if (!string.Equals(auth, expected, StringComparison.Ordinal))
+                    {
+                        await ws.CloseOutputAsync((WebSocketCloseStatus)4009, "Invalid authentication", CancellationToken.None);
+                        return;
+                    }
+
+                    await SendAsync("{\"op\":2,\"d\":{\"negotiatedRpcVersion\":1}}");
+                }
+                else if (op == 6)
+                {
+                    var d = doc.RootElement.GetProperty("d");
+                    var requestType = d.GetProperty("requestType").GetString()!;
+                    var requestId = d.GetProperty("requestId").GetString()!;
+                    var responseData = requestType switch
+                    {
+                        "GetCurrentProgramScene" => "{\"currentProgramSceneName\":\"Game\"}",
+                        "GetStreamStatus" => "{\"outputActive\":true}",
+                        _ => "{}",
+                    };
+                    await SendAsync(FakeObsServer.Success(requestId, responseData));
+                }
+            }
+        }
+
+        private async Task SendAsync(string json)
+        {
+            var ws = socket;
+            if (ws is null || ws.State != WebSocketState.Open)
+            {
+                return;
+            }
+
+            var bytes = Encoding.UTF8.GetBytes(json);
+            await sendLock.WaitAsync();
+            try
+            {
+                await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+            }
+            catch (Exception)
+            {
+                // client already gone
+            }
+            finally
+            {
+                sendLock.Release();
+            }
+        }
+
+        private static async Task<string?> ReceiveAsync(WebSocket ws, byte[] buffer)
+        {
             using var message = new MemoryStream();
             while (true)
             {

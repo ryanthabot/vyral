@@ -1,181 +1,376 @@
 <UserControl x:Class="VyralBot.UI.Views.EventTestingView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:converters="clr-namespace:VyralBot.UI.Converters"
              xmlns:viewModels="clr-namespace:VyralBot.UI.ViewModels"
-             mc:Ignorable="d" 
+             mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=viewModels:EventTestingViewModel}"
              d:DesignHeight="900" d:DesignWidth="800"
-             Background="{DynamicResource BackgroundDarkBrush}">
-    
+             Background="{DynamicResource BackgroundPrimaryBrush}">
+
+    <UserControl.Resources>
+        <converters:PlatformToBrushConverter x:Key="PlatformToBrush"/>
+    </UserControl.Resources>
+
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="20">
-            <!-- Header -->
-            <materialDesign:Card Background="{DynamicResource BackgroundMediumBrush}" 
-                                Margin="0,0,0,20" Padding="20">
+
+            <!-- Header + safety warning -->
+            <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                 Margin="0,0,0,15" Padding="20">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="TestTube" 
-                                                Width="32" Height="32"
-                                                VerticalAlignment="Center"
-                                                Margin="0,0,12,0"/>
-                        <TextBlock Text="Event Testing Tool" 
-                                  Style="{StaticResource MaterialDesignHeadline5TextBlock}"
-                                  VerticalAlignment="Center"/>
+                        <materialDesign:PackIcon Kind="TestTube"
+                                                 Width="32" Height="32"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,12,0"
+                                                 Foreground="{DynamicResource PrimaryBrush}"/>
+                        <TextBlock Text="Event Testing Tool"
+                                   Style="{StaticResource MaterialDesignHeadline5TextBlock}"
+                                   VerticalAlignment="Center"/>
                     </StackPanel>
-                    <TextBlock Text="Developer tool for testing chat events manually. Events are published to the EventBus and will trigger all normal handlers (display, auto-reply, sounds, etc.)"
-                              Style="{StaticResource MaterialDesignBody2TextBlock}"
-                              Opacity="0.7"
-                              Margin="0,8,0,0"
-                              TextWrapping="Wrap"/>
+                    <TextBlock Text="Verify your setup without live traffic. Every button publishes the real platform event through the EventBus, so the live pipeline runs end to end."
+                               Style="{StaticResource MaterialDesignBody2TextBlock}"
+                               Opacity="0.7"
+                               Margin="0,8,0,12"
+                               TextWrapping="Wrap"/>
+
+                    <Border BorderBrush="{DynamicResource WarningBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12,10">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="AlertOutline"
+                                                     Width="22" Height="22"
+                                                     Foreground="{DynamicResource WarningBrush}"
+                                                     VerticalAlignment="Top"
+                                                     Margin="0,0,10,0"/>
+                            <StackPanel>
+                                <TextBlock Text="FIRES REAL EVENTS - WORKFLOWS REALLY EXECUTE"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource WarningBrush}"
+                                           Margin="0,0,0,4"/>
+                                <TextBlock Text="These are not simulations. Each click runs every live handler: alerts pop, sounds play, statistics rows are written (visible in Statistics), currency bonuses are awarded, auto-replies send to connected channels, and any workflow with a matching event trigger executes for real. Disable workflows first if you only want to observe alerts."
+                                           Style="{StaticResource MaterialDesignBody2TextBlock}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </materialDesign:Card>
+
+            <!-- Per-click fired status line -->
+            <Border Background="{DynamicResource CardBackgroundBrush}"
+                    CornerRadius="6"
+                    Padding="12,10"
+                    Margin="0,0,0,15">
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="CheckCircleOutline"
+                                             Width="20" Height="20"
+                                             Margin="0,0,10,0"
+                                             VerticalAlignment="Center">
+                        <materialDesign:PackIcon.Style>
+                            <Style TargetType="materialDesign:PackIcon">
+                                <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding LastFireFailed}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
+                                        <Setter Property="Kind" Value="AlertOutline"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </materialDesign:PackIcon.Style>
+                    </materialDesign:PackIcon>
+                    <TextBlock Text="{Binding LastFireStatus}"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource MaterialDesignBody2TextBlock}">
+                                <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding LastFireFailed}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
 
             <!-- Configuration -->
-            <materialDesign:Card Background="{DynamicResource BackgroundMediumBrush}" 
-                                Margin="0,0,0,20" Padding="20">
+            <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                 Margin="0,0,0,15" Padding="20">
                 <StackPanel>
-                    <TextBlock Text="Test Configuration" 
-                              Style="{StaticResource MaterialDesignHeadline6TextBlock}"
-                              Margin="0,0,0,12"/>
-                    
-                    <TextBox materialDesign:HintAssist.Hint="Test Username"
-                            Text="{Binding TestUsername, UpdateSourceTrigger=PropertyChanged}"
-                            Margin="0,0,0,12"/>
-                    
-                    <TextBox materialDesign:HintAssist.Hint="Test Message (for events with messages)"
-                            Text="{Binding TestMessage, UpdateSourceTrigger=PropertyChanged}"
-                            TextWrapping="Wrap"
-                            AcceptsReturn="True"
-                            MinHeight="60"/>
-                </StackPanel>
-            </materialDesign:Card>
+                    <TextBlock Text="Test Configuration"
+                               Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                               Margin="0,0,0,12"/>
 
-            <!-- Kick Events -->
-            <materialDesign:Card Background="{DynamicResource BackgroundMediumBrush}" 
-                                Margin="0,0,0,20" Padding="20">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                        <materialDesign:PackIcon Kind="Kickstarter" 
-                                                Width="24" Height="24"
-                                                VerticalAlignment="Center"
-                                                Margin="0,0,8,0"
-                                                Foreground="{DynamicResource KickBrush}"/>
-                        <TextBlock Text="Kick Events" 
-                                  Style="{StaticResource MaterialDesignHeadline6TextBlock}"
-                                  VerticalAlignment="Center"/>
-                    </StackPanel>
-                    
-                    <UniformGrid Columns="2" Rows="3">
-                        <Button Content="Follow Event"
-                               Command="{Binding TriggerKickFollowCommand}"
-                               Margin="0,0,8,8"
-                               Style="{StaticResource MaterialDesignRaisedButton}"/>
-                        
-                        <Button Content="Subscribe Event"
-                               Command="{Binding TriggerKickSubscribeCommand}"
-                               Margin="8,0,0,8"
-                               Style="{StaticResource MaterialDesignRaisedButton}"/>
-                        
-                        <Button Content="Gift Sub Event"
-                               Command="{Binding TriggerKickGiftSubCommand}"
-                               Margin="0,0,8,8"
-                               Style="{StaticResource MaterialDesignRaisedButton}"/>
-                        
-                        <Button Content="Host Event"
-                               Command="{Binding TriggerKickHostCommand}"
-                               Margin="8,0,0,8"
-                               Style="{StaticResource MaterialDesignRaisedButton}"/>
-                        
-                        <Button Content="Kicks Gifted Event"
-                               Command="{Binding TriggerKickKicksGiftedCommand}"
-                               Margin="0,0,8,8"
-                               Style="{StaticResource MaterialDesignRaisedButton}"/>
-                        
-                        <Button Content="Reward Redeemed Event"
-                               Command="{Binding TriggerKickRewardRedeemedCommand}"
-                               Margin="8,0,0,8"
-                               Style="{StaticResource MaterialDesignRaisedButton}"/>
-                    </UniformGrid>
+                    <TextBox materialDesign:HintAssist.Hint="Test Username"
+                             Text="{Binding TestUsername, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,0,0,12"/>
+
+                    <TextBox materialDesign:HintAssist.Hint="Test Message (for events with messages)"
+                             Text="{Binding TestMessage, UpdateSourceTrigger=PropertyChanged}"
+                             TextWrapping="Wrap"
+                             AcceptsReturn="True"
+                             MinHeight="60"/>
                 </StackPanel>
             </materialDesign:Card>
 
             <!-- Twitch Events -->
-            <materialDesign:Card Background="{DynamicResource BackgroundMediumBrush}" 
-                                Margin="0,0,0,20" Padding="20">
+            <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                 Margin="0,0,0,15" Padding="20">
                 <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                        <materialDesign:PackIcon Kind="Twitch" 
-                                                Width="24" Height="24"
-                                                VerticalAlignment="Center"
-                                                Margin="0,0,8,0"
-                                                Foreground="{DynamicResource TwitchBrush}"/>
-                        <TextBlock Text="Twitch Events" 
-                                  Style="{StaticResource MaterialDesignHeadline6TextBlock}"
-                                  VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <materialDesign:PackIcon Kind="Twitch"
+                                                 Width="22" Height="22"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="{DynamicResource TwitchBrush}"/>
+                        <TextBlock Text="Twitch Events"
+                                   Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                                   Foreground="{DynamicResource TwitchBrush}"
+                                   VerticalAlignment="Center"/>
                     </StackPanel>
-                    
-                    <UniformGrid Columns="2" Rows="3">
-                        <Button Content="Follow Event"
-                               Command="{Binding TriggerTwitchFollowCommand}"
-                               Margin="0,0,8,8"
-                               Style="{StaticResource MaterialDesignRaisedButton}"/>
-                        
-                        <Button Content="Subscribe Event"
-                               Command="{Binding TriggerTwitchSubscribeCommand}"
-                               Margin="8,0,0,8"
-                               Style="{StaticResource MaterialDesignRaisedButton}"/>
-                        
-                        <Button Content="Resub Event"
-                               Command="{Binding TriggerTwitchResubCommand}"
-                               Margin="0,0,8,8"
-                               Style="{StaticResource MaterialDesignRaisedButton}"/>
-                        
-                        <Button Content="Gift Sub Event"
-                               Command="{Binding TriggerTwitchGiftSubCommand}"
-                               Margin="8,0,0,8"
-                               Style="{StaticResource MaterialDesignRaisedButton}"/>
-                        
-                        <Button Content="Raid Event"
-                               Command="{Binding TriggerTwitchRaidCommand}"
-                               Margin="0,0,8,8"
-                               Style="{StaticResource MaterialDesignRaisedButton}"/>
-                        
-                        <Button Content="Cheer Event"
-                               Command="{Binding TriggerTwitchCheerCommand}"
-                               Margin="8,0,0,8"
-                               Style="{StaticResource MaterialDesignRaisedButton}"/>
-                    </UniformGrid>
+                    <Rectangle Height="2" Width="140" HorizontalAlignment="Left"
+                               Fill="{DynamicResource TwitchBrush}" Margin="0,0,0,14"/>
+
+                    <WrapPanel>
+                        <Button Content="Follow"
+                                Command="{Binding TriggerTwitchFollowCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        <Button Content="Subscribe"
+                                Command="{Binding TriggerTwitchSubscribeCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        <Button Content="Resub"
+                                Command="{Binding TriggerTwitchResubCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        <Button Content="Gift Sub"
+                                Command="{Binding TriggerTwitchGiftSubCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        <Button Content="Raid (200 viewers)"
+                                Command="{Binding TriggerTwitchRaidCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        <Button Content="Cheer (100 bits)"
+                                Command="{Binding TriggerTwitchCheerCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        <Button Content="Channel Points Redeem"
+                                Command="{Binding TriggerTwitchChannelPointsRedeemCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                    </WrapPanel>
                 </StackPanel>
             </materialDesign:Card>
 
-            <!-- Output Log -->
-            <materialDesign:Card Background="{DynamicResource BackgroundMediumBrush}" 
-                                Padding="20">
+            <!-- Kick Events -->
+            <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                 Margin="0,0,0,15" Padding="20">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <materialDesign:PackIcon Kind="Kickstarter"
+                                                 Width="22" Height="22"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="{DynamicResource KickBrush}"/>
+                        <TextBlock Text="Kick Events"
+                                   Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                                   Foreground="{DynamicResource KickBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Rectangle Height="2" Width="140" HorizontalAlignment="Left"
+                               Fill="{DynamicResource KickBrush}" Margin="0,0,0,14"/>
+
+                    <WrapPanel>
+                        <Button Content="Follow"
+                                Command="{Binding TriggerKickFollowCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        <Button Content="Subscribe"
+                                Command="{Binding TriggerKickSubscribeCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        <Button Content="Gift Sub"
+                                Command="{Binding TriggerKickGiftSubCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        <Button Content="Host (150 viewers)"
+                                Command="{Binding TriggerKickHostCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        <Button Content="Kicks Gifted (1000)"
+                                Command="{Binding TriggerKickKicksGiftedCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        <Button Content="Reward Redeemed"
+                                Command="{Binding TriggerKickRewardRedeemedCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                    </WrapPanel>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- YouTube Events -->
+            <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                 Margin="0,0,0,15" Padding="20">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <materialDesign:PackIcon Kind="Youtube"
+                                                 Width="22" Height="22"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="{DynamicResource YouTubeBrush}"/>
+                        <TextBlock Text="YouTube Events"
+                                   Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                                   Foreground="{DynamicResource YouTubeBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Rectangle Height="2" Width="140" HorizontalAlignment="Left"
+                               Fill="{DynamicResource YouTubeBrush}" Margin="0,0,0,14"/>
+
+                    <WrapPanel>
+                        <Button Content="Super Chat ($5.00)"
+                                Command="{Binding TriggerYouTubeSuperChatCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        <Button Content="Membership (new member)"
+                                Command="{Binding TriggerYouTubeMembershipCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                    </WrapPanel>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- Discord Events -->
+            <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                 Margin="0,0,0,15" Padding="20">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <materialDesign:PackIcon Kind="Robot"
+                                                 Width="22" Height="22"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="{DynamicResource DiscordBrush}"/>
+                        <TextBlock Text="Discord Events"
+                                   Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                                   Foreground="{DynamicResource DiscordBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Rectangle Height="2" Width="140" HorizontalAlignment="Left"
+                               Fill="{DynamicResource DiscordBrush}" Margin="0,0,0,14"/>
+
+                    <WrapPanel>
+                        <Button Content="Member Joined"
+                                Command="{Binding TriggerDiscordMemberJoinedCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        <Button Content="Server Boost"
+                                Command="{Binding TriggerDiscordBoostCommand}"
+                                MinWidth="200" Margin="0,0,8,8"
+                                Style="{StaticResource MaterialDesignRaisedButton}"/>
+                    </WrapPanel>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- Last 10 fired log -->
+            <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}"
+                                 Padding="20">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <TextBlock Text="Event Log" 
-                                  Style="{StaticResource MaterialDesignHeadline6TextBlock}"
-                                  VerticalAlignment="Center"
-                                  Margin="0,0,12,0"/>
+                        <materialDesign:PackIcon Kind="History"
+                                                 Width="20" Height="20"
+                                                 Foreground="{DynamicResource TextSecondaryBrush}"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0"/>
+                        <TextBlock Text="Last 10 Fired"
+                                   Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,12,0"/>
                         <Button Content="Clear Log"
-                               Command="{Binding ClearLogCommand}"
-                               Style="{StaticResource MaterialDesignOutlinedButton}"
-                               Padding="8,4"/>
+                                Command="{Binding ClearLogCommand}"
+                                Style="{StaticResource MaterialDesignOutlinedButton}"
+                                Padding="8,4"/>
                     </StackPanel>
-                    
+
+                    <TextBlock Text="No events fired yet."
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               FontStyle="Italic"
+                               Margin="0,0,0,8">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RecentFires.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
                     <Border BorderBrush="{DynamicResource BorderLightBrush}"
-                           BorderThickness="1"
-                           CornerRadius="4"
-                           Background="{DynamicResource BackgroundDarkBrush}"
-                           Padding="12">
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Background="{DynamicResource BackgroundPrimaryBrush}"
+                            Padding="12,6">
                         <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
-                            <TextBlock Text="{Binding OutputLog}"
-                                      FontFamily="Consolas"
-                                      FontSize="11"
-                                      TextWrapping="Wrap"/>
+                            <ItemsControl ItemsSource="{Binding RecentFires}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="{DynamicResource BorderLightBrush}"
+                                                BorderThickness="0,0,0,1"
+                                                Padding="0,6">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Time}"
+                                                           FontFamily="Consolas"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,12,0"/>
+                                                <TextBlock Text="{Binding Platform}"
+                                                           FontFamily="Consolas"
+                                                           FontWeight="Bold"
+                                                           Foreground="{Binding Platform, Converter={StaticResource PlatformToBrush}}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,12,0"/>
+                                                <TextBlock Text="FAILED"
+                                                           FontWeight="Bold"
+                                                           Foreground="{DynamicResource ErrorBrush}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,12,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Failed}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding EventName}"
+                                                           FontWeight="Bold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,12,0"/>
+                                                <TextBlock Text="{Binding Detail}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </ScrollViewer>
                     </Border>
                 </StackPanel>

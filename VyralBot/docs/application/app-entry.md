@@ -21,6 +21,7 @@ App Constructor
     → ConfigureServices (60+ registrations)
 
 App.OnStartup
+  → (fire-and-forget) WebView2 leftover kill + temp-cache clear (background task, bounded 5s)
   → Start host
   → Initialize database (DapperDataService)
   → Start TriggerEngine

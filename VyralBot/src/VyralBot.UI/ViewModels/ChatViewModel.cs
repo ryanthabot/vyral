@@ -26,6 +26,7 @@ using VyralBot.Core.Services.EventBus;
 using VyralBot.Core.Services.EventBus.Events;
 using VyralBot.Core.Services.Linking;
 using VyralBot.Core.Services.Moderation;
+using VyralBot.Core.Services.Quotes;
 using VyralBot.Core.Services.StreamEffects;
 using VyralBot.Core.Services.Variables;
 using VyralBot.Data;
@@ -95,6 +96,8 @@ public class ChatViewModel : ViewModelBase
 	private readonly WatchtimeService? _watchtimeService;
 
 	private readonly WatchtimeCommandService? _watchtimeCommandService;
+
+	private readonly IQuoteService? _quoteService;
 
 	private readonly IVariableReplacementService? _variableReplacementService;
 
@@ -2101,7 +2104,7 @@ public class ChatViewModel : ViewModelBase
 		return Task.CompletedTask;
 	}
 
-	public ChatViewModel(ILogger<ChatViewModel> logger, IEventBus eventBus, ITwitchService twitchService, IKickService kickService, IYouTubeService youtubeService, IDiscordService discordService, IDiscordBotManager discordBotManager, KickSettingsViewModel kickSettings, IChatMessageStore chatStore, IChatEventSettingsService eventSettingsService, IAutoReplyService autoReplyService, IDiscordCommandHandler? discordCommandHandler = null, ICurrencyService? currencyService = null, ICurrencyCommandService? currencyCommandService = null, ICommandService? commandService = null, ISoundService? soundService = null, IAlertService? alertService = null, GiveawayCommandService? giveawayCommandService = null, PollCommandService? pollCommandService = null, WatchtimeService? watchtimeService = null, WatchtimeCommandService? watchtimeCommandService = null, IVariableReplacementService? variableReplacementService = null, IDataService? dataService = null, CommandActionRunner? commandActionRunner = null, WorkflowTriggerService? workflowTriggerService = null, IResponseWaiterRegistry? responseWaiters = null, ILinkCodeService? linkCodeService = null, IViewerStatusService? viewerStatusService = null, ISocialGoalService? socialGoalService = null, StreamEffectCommandRouter? streamEffectRouter = null, IConnectedChannelService? connectedChannels = null, IChatModerationEngine? chatModerationEngine = null, ModerationActionService? moderationActionService = null)
+	public ChatViewModel(ILogger<ChatViewModel> logger, IEventBus eventBus, ITwitchService twitchService, IKickService kickService, IYouTubeService youtubeService, IDiscordService discordService, IDiscordBotManager discordBotManager, KickSettingsViewModel kickSettings, IChatMessageStore chatStore, IChatEventSettingsService eventSettingsService, IAutoReplyService autoReplyService, IDiscordCommandHandler? discordCommandHandler = null, ICurrencyService? currencyService = null, ICurrencyCommandService? currencyCommandService = null, ICommandService? commandService = null, ISoundService? soundService = null, IAlertService? alertService = null, GiveawayCommandService? giveawayCommandService = null, PollCommandService? pollCommandService = null, WatchtimeService? watchtimeService = null, WatchtimeCommandService? watchtimeCommandService = null, IVariableReplacementService? variableReplacementService = null, IDataService? dataService = null, CommandActionRunner? commandActionRunner = null, WorkflowTriggerService? workflowTriggerService = null, IResponseWaiterRegistry? responseWaiters = null, ILinkCodeService? linkCodeService = null, IViewerStatusService? viewerStatusService = null, ISocialGoalService? socialGoalService = null, StreamEffectCommandRouter? streamEffectRouter = null, IConnectedChannelService? connectedChannels = null, IChatModerationEngine? chatModerationEngine = null, ModerationActionService? moderationActionService = null, IQuoteService? quoteService = null)
 	{
 		_logger = logger ?? throw new ArgumentNullException("logger");
 		_eventBus = eventBus ?? throw new ArgumentNullException("eventBus");
@@ -2136,6 +2139,7 @@ public class ChatViewModel : ViewModelBase
 		_connectedChannels = connectedChannels;
 		_chatModerationEngine = chatModerationEngine ?? ChatModerationEngine.Shared;
 		_moderationActionService = moderationActionService ?? ModerationActionService.Shared;
+		_quoteService = quoteService;
 		_currencyService = currencyService;
 		_currencyCommandService = currencyCommandService;
 		_commandService = commandService;
@@ -3518,6 +3522,40 @@ public class ChatViewModel : ViewModelBase
 				_logger.LogError(ex22, "Error processing watchtime command: {Command}", evt.Message);
 			}
 		}
+		if (_quoteService != null && evt.Message.StartsWith("!quote"))
+		{
+			try
+			{
+				string response6 = await _quoteService.ProcessCommandAsync(evt.Message, evt.Username, evt.Platform, evt.IsModerator);
+				if (response6 != null)
+				{
+					if (string.Equals(evt.Platform, "Twitch", StringComparison.OrdinalIgnoreCase))
+					{
+						await _twitchService.SendMessageAsync(response6);
+					}
+					else if (string.Equals(evt.Platform, "Kick", StringComparison.OrdinalIgnoreCase))
+					{
+						await _kickService.SendMessageAsync(response6);
+					}
+					else if (string.Equals(evt.Platform, "YouTube", StringComparison.OrdinalIgnoreCase))
+					{
+						await _youtubeService.SendMessageAsync(response6);
+					}
+					else if (string.Equals(evt.Platform, "Discord", StringComparison.OrdinalIgnoreCase))
+					{
+						await SendDiscordReplyAsync(response6, discordBotId, discordDmChannelId, evt.Username);
+					}
+					_logger.LogDebug("Processed quote command: {Command} -> {Response}", evt.Message, response6);
+				}
+			}
+			catch (Exception ex)
+			{
+				Exception ex29 = ex;
+				Exception ex30 = ex29;
+				Exception ex31 = ex30;
+				_logger.LogError(ex31, "Error processing quote command: {Command}", evt.Message);
+			}
+		}
 		if (_watchtimeService != null)
 		{
 			try
@@ -4497,6 +4535,22 @@ public class ChatViewModel : ViewModelBase
 		// Membership is YouTube's subscribe equivalent — alert parity with the
 		// Twitch/Kick subscribe handlers ("New Subscriber!" is covered by the
 		// SubscribeAlertsEnabled toggle in AlertSettings).
+		// New members play the "membership" sound row (SoundsViewModel
+		// "YouTube"/"membership"); milestone renewals stay silent here, matching
+		// how Twitch splits subscribe vs. resub into separate sound events.
+		// Same placement point as the Twitch subscribe handler: sound first,
+		// then the alert.
+		if (!evt.IsMilestone && _soundService != null)
+		{
+			try
+			{
+				await _soundService.PlayEventSoundAsync("membership", "YouTube");
+			}
+			catch (Exception exception)
+			{
+				_logger.LogError(exception, "Failed to play sound for YouTube membership");
+			}
+		}
 		await ShowEventAlertAsync("New Subscriber!", evt.Username, evt.IsMilestone ? $"Milestone: {evt.Level}" : $"Thanks for joining ({evt.Level})!", "YouTube");
 		if (_viewerStatusService != null)
 		{

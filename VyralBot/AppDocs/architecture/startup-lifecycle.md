@@ -1,6 +1,6 @@
 # Startup & Lifecycle
 
-> How Vyral boots (single-instance guard → host → MainWindow-first → profile decision tree), what runs in what order after a profile loads, how profile hot-switching tears down and rebuilds the world, and how aggressively the app shuts down.
+> How Vyral boots (single-instance guard → host → MainWindow-first → profile decision tree), what runs in what order after a profile loads, how profile hot-switching tears down and rebuilds the world, how aggressively the app shuts down — and where its logs and crash reports live.
 
 ## Overview
 
@@ -16,7 +16,7 @@ Related pages: [Profiles](../getting-started/profiles.md) for the user-facing si
 ### Constructor (`App()`)
 
 1. **Single-instance mutex** `VyralBot_SingleInstance_Mutex` (`App.xaml.cs:59`). A second instance shows a MessageBox and exits — profiles cannot run concurrently.
-2. **Serilog**: console + rolling daily file `logs/vyralbot-.txt` under the exe directory, 7 days retained.
+2. **Serilog**: console + rolling daily file `logs/vyralbot-.txt` under the exe directory — caps below keep a 24/7 stream box's disk bounded even under a crash loop.
 3. **GC**: `GCSettings.LatencyMode = SustainedLowLatency` (a documented "TIER 4" optimization).
 4. **WebView2 prewarm** on a background thread via `WebView2EnvironmentManager.PreWarmAsync()`.
 5. **Host build**: full DI registration — EventBus, TriggerEngine, currency/giveaway/poll/watchtime services, Twitch/Kick/YouTube integrations, the web-server stack (`WebServerDependencyTracker`, `WebServerService`, `NgrokService`, `KickWebhookSubscriptionService`, `WebhookCoordinatorService`), all ViewModels, and `MainWindow` itself as singletons; views transient.
@@ -74,6 +74,22 @@ Nearly every `NavigateToX` command in `MainViewModel` follows the same sequence:
 
 A 10-second **foreground watchdog thread** starts first — if cleanup deadlocks, it force-kills the process. Then: release the mutex → stop the host (5 s timeout) → kill tracked child processes via `IProcessManager` → clean ChatViewModel → stop `WebhookCoordinatorService` (Kestrel + ngrok) *before* host dispose → dispose Twitch/Kick services → run the scoped WebView2 cleanup again (only processes referencing `VyralBot_WebView2_Temp`) → double aggressive `GC.Collect` → suppress WeakEventTable exceptions from `base.OnExit`.
 
+## Logs & Crash Reports
+
+**Where logs live.** Serilog writes daily-rolling files next to the executable: `<Vyral.exe folder>\logs\vyralbot-YYYYMMDD.txt` (`App.LogDirectory` = `AppDomain.CurrentDomain.BaseDirectory\logs`). Each file is capped at **25 MB** (it rolls within the day once the cap is hit) and **10 files are retained** — a ~250 MB worst-case disk footprint even if the app crash-loops. There is deliberately **no async wrapper**: every write flushes synchronously, so the final lines before a hard crash are in the file (the fatal handlers below call `Log.CloseAndFlush` themselves, because `OnExit` does not run on a hard crash). Log level is Information.
+
+**The crash pipeline.** Three global exception handlers are wired in the `App` constructor *before* the host is built, so boot failures are covered too. Every exception they touch is first passed through `CrashReport.Format` — see the scrubbing note below:
+
+- **UI-thread exception** (`DispatcherUnhandledException`) — the app is still alive: the scrubbed report is logged at Fatal level and shown in the crash dialog; once you acknowledge it, the exception is marked handled and **the process keeps running**.
+- **Terminating exception** (`AppDomain.UnhandledException`) — the last-chance handler for background-thread throws: logs (scrubbed), flushes the log *here* (no `OnExit` will run), shows the dialog best-effort.
+- **Unobserved task exception** (`TaskScheduler.UnobservedTaskException`) — fire-and-forget noise from the finalizer thread: marked observed so the CLR does not kill the process, logged at Error level (scrubbed), no dialog.
+
+Boot failures (host build, startup) skip the dialog and show a plain MessageBox containing the scrubbed report **plus the log directory path** — that box is what users paste into bug reports.
+
+**What the crash dialog shows.** The borderless dark-theme **ErrorDialog** displays the full scrubbed exception report — exception type, message, stack trace, and the whole inner-exception chain (aggregates are unwrapped) — with a **copy button** for pasting into a ticket. It is reentrancy-safe: a second exception while the dialog is already open *appends* to the open window instead of stacking a second modal.
+
+**Secrets are scrubbed.** Every exception surfaced to the dialog or logged by the global handlers goes through `CrashReport` ([CrashReport.cs](../../src/VyralBot.UI/Services/CrashReport.cs)) first, which replaces known credential shapes with `***REDACTED***`: `Authorization:` headers (any scheme), bare `Bearer` tokens, Twitch IRC `oauth:` passwords, **RTMP(S) stream keys** (the scheme+host+app prefix is kept for diagnosis; the key segment is redacted), and named assignments/query parameters (`access_token`, `refresh_token`, `client_secret`, `bot_token`, `api_key`, `stream_key`, `auth_token`, `webhook_token`, `password`, `secret`, `token`, `key`). Scrubbing is deliberately over-broad — a redacted report is still diagnosable; a leaked stream key is not. Nothing you copy out of the dialog should contain a live credential.
+
 ## Key classes
 
 | Class | Role |
@@ -95,6 +111,8 @@ A 10-second **foreground watchdog thread** starts first — if cleanup deadlocks
 | [ProfileService.cs](../../src/VyralBot.Core/Services/Profiles/ProfileService.cs) | Profile storage and switching |
 | [ProfileSettingsLoader.cs](../../src/VyralBot.UI/Services/ProfileSettingsLoader.cs) | Ordered settings initialization |
 | [WebView2EnvironmentManager.cs](../../src/VyralBot.UI/Services/WebView2EnvironmentManager.cs) | WebView2 prewarm |
+| [CrashReport.cs](../../src/VyralBot.UI/Services/CrashReport.cs) | Crash-report formatting with secret scrubbing (the `Scrub`/`Format` pair behind the crash pipeline) |
+| [ErrorDialog.xaml.cs](../../src/VyralBot.UI/Views/ErrorDialog.xaml.cs) | The reentrancy-safe crash dialog (append-on-second-exception, copy button) |
 
 The profile decision tree in miniature:
 

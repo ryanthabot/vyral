@@ -368,7 +368,7 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var client = new ObsWebSocketClient(config.ServerPassword, config.Port);
+        var client = new ObsWebSocketClient(ReadRemotePasswordFresh, config.Port, autoReconnect: true, logger: _logger);
         _remoteClient = client;
         client.StatusChanged += OnRemoteStatusChanged;
         RemoteStatusText = "Remote control: connecting…";
@@ -379,8 +379,37 @@ public partial class ObsHostViewModel : ViewModelBase, IDisposable
         }
         catch (Exception ex)
         {
-            // Unreachable port / disabled server / bad handshake — degrade to a line.
+            // Unreachable port / disabled server / bad handshake — degrade to a
+            // line; with auto-reconnect the client keeps retrying in the
+            // background and the status line follows its StatusChanged events.
             RemoteStatusText = $"Remote control: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Re-reads the obs-websocket password straight from OBS's config.json on
+    /// every call — the client's connect/reconnect attempts each invoke this,
+    /// so a password edited in OBS's WebSocket Server Settings is picked up by
+    /// the next retry without re-entering the page. Falls back to the value
+    /// captured at page init when the file is momentarily unreadable. The value
+    /// feeds the auth hash only and is never logged or surfaced.
+    /// </summary>
+    private string ReadRemotePasswordFresh()
+    {
+        var fallback = _remoteConfig?.ServerPassword ?? string.Empty;
+        try
+        {
+            var install = _locator.Locate();
+            if (install is null)
+            {
+                return fallback;
+            }
+
+            return ObsWebSocketConfigEditor.Read(install.ConfigDir)?.ServerPassword ?? fallback;
+        }
+        catch (Exception)
+        {
+            return fallback;
         }
     }
 

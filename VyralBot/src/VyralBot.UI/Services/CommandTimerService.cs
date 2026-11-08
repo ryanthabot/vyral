@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using System.Threading;
+using VyralBot.Core.Models;
 using VyralBot.Core.Services.Commands;
+using VyralBot.Core.Services.EventBus;
 using VyralBot.Core.Services.Variables;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
@@ -27,6 +29,13 @@ namespace VyralBot.UI.Services;
 /// via CommandActionRunner — and sends it to the target platform. LastRunAt
 /// is stamped ONLY when something was actually sent. All failures are logged
 /// and never crash the tick.
+///
+/// Chat-activity gate (streamer.bot standard): timers with
+/// CommandTimer.MinimumMessages &gt; 0 only fire when at least that many chat
+/// messages arrived on their platform since the platform's last fire — counted
+/// from ChatMessageReceivedEvent on the event bus while the service runs, and
+/// reset (cleared on stop / zeroed on fire) so quiet chat pauses every gated
+/// timer on that platform.
 /// </summary>
 public class CommandTimerService
 {
@@ -39,6 +48,9 @@ public class CommandTimerService
     // connected YouTube channel's live chat.
     private readonly IYouTubeService _youTubeService;
     private readonly IVariableReplacementService _variableReplacementService;
+    // Publishes ChatMessageReceivedEvent from every chat pipeline — feeds the
+    // per-platform message counters for the MinimumMessages gate.
+    private readonly IEventBus _eventBus;
     // Runs action-sequence commands (Command.ActionsJson) — the same executor
     // the chat command path uses. Null when DI skipped it: those commands are
     // then skipped with a warning instead of crashing the tick.
@@ -47,6 +59,14 @@ public class CommandTimerService
     private readonly TimeSpan _tickInterval = TimeSpan.FromSeconds(30);
     private Timer? _tickTimer;
     private int _tickRunning; // 1 while a tick is executing (reentrancy guard)
+
+    // Chat-activity gate: messages received per platform since the last timer
+    // fire on that platform. Bounded (capped) so a dead platform can't grow it
+    // forever; reset whenever a timer on the platform actually fires.
+    private readonly Dictionary<string, int> _messagesSinceFire = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _counterLock = new();
+    private const int MaxTrackedMessages = 10_000;
+    private Guid? _chatSubscriptionId;
 
     /// <summary>True while the scheduler is started (a profile is active).</summary>
     public bool IsRunning => _tickTimer != null;
@@ -59,6 +79,7 @@ public class CommandTimerService
         IDiscordBotManager discordBotManager,
         IYouTubeService youTubeService,
         IVariableReplacementService variableReplacementService,
+        IEventBus eventBus,
         CommandActionRunner? commandActionRunner = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -68,20 +89,27 @@ public class CommandTimerService
         _discordBotManager = discordBotManager ?? throw new ArgumentNullException(nameof(discordBotManager));
         _youTubeService = youTubeService ?? throw new ArgumentNullException(nameof(youTubeService));
         _variableReplacementService = variableReplacementService ?? throw new ArgumentNullException(nameof(variableReplacementService));
+        _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
         _commandActionRunner = commandActionRunner;
     }
 
     /// <summary>Starts the scheduler. Idempotent — a second call is a no-op.</summary>
-    public Task StartAsync()
+    public async Task StartAsync()
     {
         if (_tickTimer != null)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         _tickTimer = new Timer(_ => _ = TickAsync(), null, _tickInterval, _tickInterval);
+
+        // Count chat messages per platform for the MinimumMessages gate.
+        if (_chatSubscriptionId == null)
+        {
+            _chatSubscriptionId = await _eventBus.SubscribeAsync<ChatMessageReceivedEvent>(OnChatMessageReceivedAsync);
+        }
+
         _logger.LogInformation("CommandTimerService started (checking timers every {Seconds}s)", _tickInterval.TotalSeconds);
-        return Task.CompletedTask;
     }
 
     /// <summary>Stops the scheduler and disposes the tick timer. Safe to call twice.</summary>
@@ -91,8 +119,57 @@ public class CommandTimerService
         _tickTimer = null;
         timer?.Dispose();
 
+        // Stop counting chat: a restart (profile switch) starts from a clean
+        // slate so stale counts don't satisfy the gate in the next profile.
+        if (_chatSubscriptionId is { } subscriptionId)
+        {
+            _eventBus.Unsubscribe(subscriptionId);
+            _chatSubscriptionId = null;
+        }
+
+        lock (_counterLock)
+        {
+            _messagesSinceFire.Clear();
+        }
+
         _logger.LogInformation("CommandTimerService stopped");
         return Task.CompletedTask;
+    }
+
+    /// <summary>Bounded per-platform chat counter feeding the MinimumMessages gate.</summary>
+    private Task OnChatMessageReceivedAsync(ChatMessageReceivedEvent evt)
+    {
+        if (string.IsNullOrEmpty(evt.Platform))
+        {
+            return Task.CompletedTask;
+        }
+
+        lock (_counterLock)
+        {
+            _messagesSinceFire.TryGetValue(evt.Platform, out var count);
+            _messagesSinceFire[evt.Platform] = Math.Min(count + 1, MaxTrackedMessages);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// True when the timer's chat-activity gate is satisfied: 0 means always;
+    /// otherwise at least <see cref="CommandTimer.MinimumMessages"/> messages
+    /// must have arrived on the timer's platform since its last fire.
+    /// </summary>
+    private bool MeetsMessageGate(CommandTimer timer)
+    {
+        if (timer.MinimumMessages <= 0)
+        {
+            return true;
+        }
+
+        lock (_counterLock)
+        {
+            return _messagesSinceFire.TryGetValue(timer.TargetPlatform, out var count)
+                && count >= timer.MinimumMessages;
+        }
     }
 
     private async Task TickAsync()
@@ -122,6 +199,14 @@ public class CommandTimerService
                 // Never-run timers fire on the first tick after start.
                 var lastRun = timer.LastRunAt ?? DateTime.MinValue;
                 if (now - lastRun < TimeSpan.FromMinutes(timer.IntervalMinutes))
+                {
+                    continue;
+                }
+
+                // Chat-activity gate: skip (without stamping LastRunAt) until
+                // enough chat messages arrived on the platform — the slot
+                // fires on the first tick after the threshold is reached.
+                if (!MeetsMessageGate(timer))
                 {
                     continue;
                 }
@@ -211,6 +296,13 @@ public class CommandTimerService
         }
 
         await MarkRanAsync(timer, now);
+
+        // The fired timer's chat-activity window restarts: viewers must send
+        // MinimumMessages messages again before this platform's timers re-arm.
+        lock (_counterLock)
+        {
+            _messagesSinceFire[timer.TargetPlatform] = 0;
+        }
 
         _logger.LogInformation("Command timer {TimerName} fired {CommandName} on {Platform}",
             timer.Name, timer.CommandName, timer.TargetPlatform);
