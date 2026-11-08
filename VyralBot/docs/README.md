@@ -92,6 +92,21 @@ src/
 | `VyralBot.Data/DapperDataService.cs` | SQLite/Dapper implementation (2749 lines) |
 | `VyralBot.Data/Entities/` | 23 entity files (Guid IDs) |
 
+## Subsystem Map
+
+Where the major subsystems live and which doc covers them:
+
+| Subsystem | Entry points | Doc |
+|---|---|---|
+| Quotes | `Core/Services/Quotes/QuoteService`, `!quote` command family, Commands page QUOTES tab | [features/quotes.md](features/quotes.md) |
+| Control API | `Api` Bearer-token `/api` surface (`/api/status`, `/api/events/test`) on the embedded web server | [services/embedded-web-server.md](services/embedded-web-server.md) |
+| Event testing | `Integrations/Testing/TestEventPublisher`, Event Testing page | [services/test-event-publisher-service.md](services/test-event-publisher-service.md), [ui/event-testing-viewmodel.md](ui/event-testing-viewmodel.md) |
+| Welcome + auto-role | `DiscordBotManager` member-join flow, per-bot `WelcomeSettings` | [services/discord-bot-runtime.md](services/discord-bot-runtime.md) |
+| Discord dashboard tab | `DiscordDashboardView`/`ViewModel` (fleet KPIs, mod actions, workflow runs) | [ui/discord-dashboard.md](ui/discord-dashboard.md), [ui/discord-bot-detail.md](ui/discord-bot-detail.md) |
+| VyralDeck / StreamDeck | `UI/Services/VyralDeck/` (server, pairing, executor), `mobile/vyral_deck/` | [features/vyraldeck.md](features/vyraldeck.md) |
+| Crash pipeline | `App` global handlers, `CrashReport`, crash dialog | [services/crash-pipeline.md](services/crash-pipeline.md) |
+| OBS remote control | `Integrations/Obs/WebSocket/ObsWebSocketClient` | [services/obs-websocket-client.md](services/obs-websocket-client.md) |
+
 ## Documentation Index
 
 ### Architecture
@@ -116,6 +131,9 @@ src/
 | [features/profile-system.md](features/profile-system.md) | Profile management |
 | [features/settings-system.md](features/settings-system.md) | Settings and config |
 | [features/flow-editor-canvas.md](features/flow-editor-canvas.md) | Visual flow editor canvas |
+| [features/marketplace-sharecodes.md](features/marketplace-sharecodes.md) | Command marketplace + sharecode import |
+| [features/quotes.md](features/quotes.md) | Quote database + `!quote` command family |
+| [features/vyraldeck.md](features/vyraldeck.md) | VyralDeck mobile companion (LAN server, PIN pairing, 22 deck actions) |
 
 ### Services
 | Doc | Description |
@@ -132,7 +150,10 @@ src/
 | [services/lightweight-twitch-irc.md](services/lightweight-twitch-irc.md) | LightweightTwitchIrc |
 | [services/moderation.md](services/moderation.md) | Auto-moderation + mod commands + platform parity |
 | [services/discord-bot-runtime.md](services/discord-bot-runtime.md) | Discord gateway + multi-bot manager |
-| [services/embedded-web-server.md](services/embedded-web-server.md) | Embedded Kestrel web server |
+| [services/embedded-web-server.md](services/embedded-web-server.md) | Embedded Kestrel web server (webhooks + Bearer control API) |
+| [services/crash-pipeline.md](services/crash-pipeline.md) | Global exception handling, secret scrubbing, crash dialog |
+| [services/obs-websocket-client.md](services/obs-websocket-client.md) | obs-websocket 5 remote-control client |
+| [services/test-event-publisher-service.md](services/test-event-publisher-service.md) | TestEventPublisher (canned events for testing + control API) |
 | [services/performance-monitor.md](services/performance-monitor.md) | Performance + pooling |
 | [services/profile-service.md](services/profile-service.md) | ProfileService |
 | [services/process-management.md](services/process-management.md) | Process management |
@@ -152,6 +173,7 @@ src/
 | [ui/main-window.md](ui/main-window.md) | MainWindow layout |
 | [ui/chat-viewmodel.md](ui/chat-viewmodel.md) | ChatViewModel |
 | [ui/chat-view.md](ui/chat-view.md) | Chat view |
+| [ui/commands-view.md](ui/commands-view.md) | Commands page (built-in/custom/timers/quotes tabs) |
 | [ui/dashboard-viewmodel.md](ui/dashboard-viewmodel.md) | DashboardViewModel |
 | [ui/dashboard-view.md](ui/dashboard-view.md) | Dashboard view |
 | [ui/platforms-viewmodel.md](ui/platforms-viewmodel.md) | PlatformsViewModel |
@@ -164,12 +186,18 @@ src/
 | [ui/converters.md](ui/converters.md) | Value converters |
 | [ui/converters-reference.md](ui/converters-reference.md) | Converter reference |
 | [ui/dialogs-and-modals.md](ui/dialogs-and-modals.md) | Dialogs |
+| [ui/discord-bot-detail.md](ui/discord-bot-detail.md) | Per-bot Discord dashboard |
+| [ui/discord-dashboard.md](ui/discord-dashboard.md) | Discord DASHBOARD tab (fleet KPIs, mod actions, workflow runs) |
+| [ui/event-testing-viewmodel.md](ui/event-testing-viewmodel.md) | Event Testing page (TestEventPublisher UI) |
+| [ui/performance-view.md](ui/performance-view.md) | Performance tab (live metrics, health, child processes) |
+| [ui/viewer-hub.md](ui/viewer-hub.md) | Viewer Hub (linking, bonuses, odds, goals) |
 | [ui/kick-ui-viewmodels.md](ui/kick-ui-viewmodels.md) | Kick ViewModels |
 | [ui/kick-web-setup-viewmodel.md](ui/kick-web-setup-viewmodel.md) | Kick OAuth setup |
 | [ui/twitch-settings-viewmodel.md](ui/twitch-settings-viewmodel.md) | Twitch ViewModels |
 | [ui/oauth-setup-wizards.md](ui/oauth-setup-wizards.md) | OAuth setup wizards |
 | [ui/setup-views-xaml.md](ui/setup-views-xaml.md) | Setup XAML views |
 | [ui/theme-system.md](ui/theme-system.md) | Theme system |
+| [ui/THEMING.md](ui/THEMING.md) | Theming guide (switch/extend themes) |
 | [ui/view-code-behind.md](ui/view-code-behind.md) | Code-behind patterns |
 
 ### Other
@@ -179,3 +207,4 @@ src/
 | [integrations/twitch-irc-client.md](integrations/twitch-irc-client.md) | IRC client details |
 | [KICK_API_COMPLETE_DOCUMENTATION.md](KICK_API_COMPLETE_DOCUMENTATION.md) | Kick public API reference |
 | [copilot-instructions.md](copilot-instructions.md) | Coding guidelines |
+| [CHANGELOG.md](CHANGELOG.md) | Release changelog |

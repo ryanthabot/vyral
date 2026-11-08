@@ -86,7 +86,8 @@
                         Foreground="{DynamicResource TextSecondaryBrush}"
                         Height="34"
                         Margin="8,0,0,0"
-                        ToolTip="Marketplace connection settings">
+                        ToolTip="Marketplace connection settings"
+                        AutomationProperties.Name="Marketplace connection settings">
                     <materialDesign:PackIcon Kind="Cog" Width="16" Height="16"/>
                 </Button>
 
@@ -338,6 +339,7 @@
                 BorderThickness="0,1,0,0"
                 Padding="18,8">
             <TextBlock Text="{Binding StatusText}"
+            ToolTip="{Binding StatusText}"
                        FontSize="12"
                        Foreground="{DynamicResource TextSecondaryBrush}"
                        TextTrimming="CharacterEllipsis"/>

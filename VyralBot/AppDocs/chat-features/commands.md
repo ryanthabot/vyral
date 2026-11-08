@@ -14,7 +14,7 @@ Typing a command in a real chat works end to end: every chat integration publish
 
 ## User Guide
 
-Open **Chat Features → Commands** in the sidebar. The page is titled **Commands** ("Every command — built-in or custom — edits in the Visual Builder. SAVE adopts it into a flow Vyral runs.") and has a bot scope bar plus four tabs (**BUILT-IN**, **CUSTOM**, **TIMERS**, **HELP**). The header also carries the **MARKETPLACE** button — the community store of shared command flows, browsable and importable without leaving the page ([Marketplace & Sharecodes](marketplace.md)).
+Open **Chat Features → Commands** in the sidebar. The page is titled **Commands** ("Every command — built-in or custom — edits in the Visual Builder. SAVE adopts it into a flow Vyral runs.") and has a bot scope bar plus five tabs (**BUILT-IN**, **CUSTOM**, **TIMERS**, **QUOTES**, **HELP**). The header also carries the **MARKETPLACE** button — the community store of shared command flows, browsable and importable without leaving the page ([Marketplace & Sharecodes](marketplace.md)). The QUOTES tab manages the `!quote` database — it has its own page: [Quotes](quotes.md).
 
 ### The bot scope bar
 
@@ -92,7 +92,15 @@ Per-bot scoping is Discord-only and answers one question: *which Discord bot ans
 
 The scope applies at execution time from the **origin bot** — the bot that actually received the message (see [How It Works](#how-it-works-developer)). The Twitch/Kick toggles are independent: a command with Kick unchecked never fires on Kick whatever its bot scope.
 
-### Tab 3: Help
+### Tab 3: Timers
+
+Schedules any command to fire automatically — see [Timers (scheduled commands)](#timers-scheduled-commands) below.
+
+### Tab 4: Quotes
+
+A searchable grid over the `!quote` database (add, browse, search, confirm-guarded delete) — full documentation on the dedicated [Quotes](quotes.md) page.
+
+### Tab 5: Help
 
 A static reference page listing the command variables (`{username}`, `{platform}`, `{channel}`, `{balance}`, `{role}`), the permission hierarchy, the two bot-scope modes, and examples. It mirrors the rules enforced in code.
 
@@ -141,6 +149,7 @@ ChatMessageReceivedEvent (published by Twitch / Kick / YouTube / Discord chat se
        GiveawayCommandService.ProcessCommandAsync   (any "!..." message; "!giveaway ..." + custom entry keyword)
        PollCommandService.ProcessCommandAsync       ("!poll*")
        WatchtimeCommandService.ProcessCommandAsync  ("!watchtime*")
+       QuoteService.ProcessCommandAsync             ("!quote*" — replies on Twitch/Kick/YouTube/Discord; see [Quotes](quotes.md))
   └─ WatchtimeService.RecordUserActivityAsync       (watchtime tracking)
   └─ CurrencyService.AwardChatActivityAsync         (chat-activity currency, non-"!" messages)
 ```
@@ -161,8 +170,9 @@ The flow side: `RefreshFlowManagedIdsAsync` (`:263`) tracks the Command row ids 
 | [ICommandService.cs](../../src/VyralBot.Core/Services/Commands/ICommandService.cs) | Service interface (`IsCommand`, `ExecuteAsync` with `discordBotId`, CRUD helpers, `HasPermission`) + `CommandContext` with `DiscordBotId` |
 | [CommandFlowTemplates.cs](../../src/VyralBot.UI/Services/CommandFlowTemplates.cs) | Command row → editable flow template conversion: built-ins to a `builtin` node, moderation commands to a `moderate` node, custom commands to send/random-switch/action chains |
 | [CommandsViewModel.cs](../../src/VyralBot.UI/ViewModels/CommandsViewModel.cs) | Page ViewModel: bot scope bar (live via `BotsChanged`), flow-managed id tracking, flow-aware delete, built-in/custom split |
-| [CommandsView.xaml](../../src/VyralBot.UI/Views/CommandsView.xaml) | Page layout: scope bar, four tabs, grids with per-row toggles, and the full-size Visual Builder overlay host |
+| [CommandsView.xaml](../../src/VyralBot.UI/Views/CommandsView.xaml) | Page layout: scope bar, five tabs (built-in/custom/timers/quotes/help grids), and the full-size Visual Builder overlay host |
 | [CommandsView.xaml.cs](../../src/VyralBot.UI/Views/CommandsView.xaml.cs) | Code-behind: opens the overlay (fresh conversion vs. reusing the adopting flow) |
+| [CommandTimerService.cs](../../src/VyralBot.UI/Services/CommandTimerService.cs) | Timers scheduler: 30 s tick, per-platform chat counters for the `MinimumMessages` gate, counter reset after each fire |
 | [FlowEditorViewModel.cs](../../src/VyralBot.UI/ViewModels/FlowEditorViewModel.cs) | The shared visual editor VM: `InitializeFromCommandAsync` conversion entry, save-time adoption (`AdoptCommandOwnershipAsync`, `MergeDisabledBuiltInsAsync`) — see [Automation](automation.md) |
 | `CommandFlowManagedToolTipConverter` (in [CommandsViewModel.cs](../../src/VyralBot.UI/ViewModels/CommandsViewModel.cs)) | "🎨 managed by a flow" grid tooltip converter |
 | [Command.cs](../../src/VyralBot.Data/Entities/Command.cs) | Entity: name, response, permission, cooldowns, platform flags, `BotId` (null = all bots), usage counters |
@@ -203,7 +213,18 @@ Seeded built-in commands (21, inserted only when the `Commands` table is empty; 
 
 ## Timers (scheduled commands)
 
-The **Timers** tab schedules any command to fire automatically: pick a command, set an interval in minutes (minimum 5), and choose the target — Twitch, Kick, or a specific Discord bot (the bot's active channel). The scheduler ticks every 30 seconds, resolves the command's response with variables, sends it, and records Last Run. Timers bypass chat permissions and cooldowns (they are scheduled, not user invocations) and only run while the app is open with a profile loaded.
+The **Timers** tab schedules any command to fire automatically: pick a command, set an interval in minutes (minimum 5), choose the target — Twitch, Kick, or a specific Discord bot (the bot's active channel) — and optionally set **Min messages between fires**. The scheduler ticks every 30 seconds, resolves the command's response with variables, sends it, and records Last Run. Timers bypass chat permissions and cooldowns (they are scheduled, not user invocations) and only run while the app is open with a profile loaded.
+
+### MinimumMessages — the chat-activity gate
+
+**Min messages between fires (0 = always)** keeps timers quiet in dead chat: a timer with the field set to N only fires when **at least N chat messages have arrived on its target platform since that platform's last timer fire**. The grid shows the value in a **Min Msgs** column (validated 0–1000).
+
+How the gate behaves (all verified against `CommandTimerService`):
+
+- **0 (the default) = always fire** — the interval alone decides. This is classic timer behavior.
+- **The gate is per-platform, per-fire-window.** The service counts every chat message (any chatter, any content) on each platform; firing any timer on a platform **resets that platform's counter to 0**, so all timers targeting it must wait for N fresh messages again.
+- **A gated timer fires at the first tick after the threshold** — the 30-second tick checks interval first, then the gate; while the gate is unsatisfied the timer's Last Run is *not* stamped, so it does not skip a cycle or restart the interval.
+- Typical use: `!socials` every 30 minutes with Min Msgs = 10 → the announcement waits until chat is actually alive instead of talking to an empty room at 3 AM.
 
 ## Data & Settings
 
@@ -211,6 +232,8 @@ Stored in the per-profile SQLite database (see [Data Layer](../architecture/data
 
 - **Commands** — one row per command. Key columns: `Name` (normalized `!name`), `Response`, `Permission` (default `Everyone`), `GlobalCooldown`, `UserCooldown`, `IsEnabled`, `IsBuiltIn`, `EnabledOnKick`, `EnabledOnTwitch`, `BotId` (null = all Discord bots; added by `ALTER TABLE` migration on first run), `UsageCount`, `LastUsedAt`, `CreatedAt`, `UpdatedAt`. Deletes are guarded server-side with `AND IsBuiltIn = 0`. A flow-adopted row keeps all of this — it is only disabled (`IsEnabled = 0`), and the owning flow carries `SourceCommandId` = the row's id.
 - **CommandCooldowns** — expiry rows per (CommandId, Username `null` for global, Platform), written on every successful execution.
+- **CommandTimers** — one row per timer (Timers tab): `Id`, `Name`, `CommandName`, `IntervalMinutes`, `MinimumMessages` (chat-activity gate, 0 = always), `TargetPlatform` ("Twitch"/"Kick"/"Discord"), `BotId` (Discord destination bot), `IsEnabled`, `LastRunAt`. See [Timers](#timers-scheduled-commands).
+- **Quotes** — the `!quote` database; see [Quotes → Data & Settings](quotes.md#data--settings) and the [Database Reference](../reference/database-reference.md).
 
 ## Status & Known Issues
 

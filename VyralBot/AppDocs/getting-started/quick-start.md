@@ -64,6 +64,7 @@ That is the whole editing model now: *every* command — built-in or custom — 
 ## Where to go next
 
 - **Make follows/subs loud** — assign [sounds](../stream-tools/sounds.md) and [visual alerts](../stream-tools/visual-alerts.md) to events; try them safely from [Event Testing](../chat-features/event-testing.md).
+- **Start a quote book** — mods add the best lines with `!quote add <text>` on any platform, viewers recall them with `!quote`, `!quote 42`, or `!quote search <text>`; manage the list on the Commands page's QUOTES tab: [Quotes](../chat-features/quotes.md).
 - **Borrow commands** — browse the community [Marketplace](../chat-features/marketplace.md) from the Commands page and import a ready-made flow.
 - **Link your viewers across platforms** — one `!link` code merges a viewer's Twitch/Kick/YouTube/Discord wallets for bonuses and goals: [Account Linking](../chat-features/account-linking.md).
 - **Greet Discord newcomers** — a Discord bot's dashboard has a **Welcome & Auto-Role** card (welcome message with `{user}`/`{username}`/`{server}` plus a role granted on join): [Discord → Welcome & Auto-Role](../platforms/discord.md#welcome--auto-role).

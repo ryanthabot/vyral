@@ -1772,12 +1772,12 @@ public class DapperDataService : IDataService
                     Id, Name, Response, Permission, GlobalCooldown, UserCooldown,
                     IsEnabled, IsBuiltIn, EnabledOnKick, EnabledOnTwitch,
                     UsageCount, LastUsedAt, CreatedAt, UpdatedAt, BotId,
-                    ResponsesJson, ActionsJson
+                    ResponsesJson, ActionsJson, PlatformResponsesJson
                 ) VALUES (
                     @Id, @Name, @Response, @Permission, @GlobalCooldown, @UserCooldown,
                     @IsEnabled, @IsBuiltIn, @EnabledOnKick, @EnabledOnTwitch,
                     @UsageCount, @LastUsedAt, @CreatedAt, @UpdatedAt, @BotId,
-                    @ResponsesJson, @ActionsJson
+                    @ResponsesJson, @ActionsJson, @PlatformResponsesJson
                 )", command);
         }
         else
@@ -1795,6 +1795,7 @@ public class DapperDataService : IDataService
                     BotId = @BotId,
                     ResponsesJson = @ResponsesJson,
                     ActionsJson = @ActionsJson,
+                    PlatformResponsesJson = @PlatformResponsesJson,
                     UpdatedAt = @UpdatedAt
                 WHERE Id = @Id", command);
         }
@@ -4543,6 +4544,17 @@ public class DapperDataService : IDataService
         if (commandActionsJsonExists == 0)
         {
             await conn.ExecuteAsync(@"ALTER TABLE Commands ADD COLUMN ActionsJson TEXT;").ConfigureAwait(false);
+        }
+
+        // Migration: per-platform command responses — JSON object mapping
+        // platform name → reply text ({"Twitch":"...","Kick":"..."}). NULL =
+        // the single Response applies everywhere (backward compatible).
+        var commandPlatformResponsesJsonExists = await conn.ExecuteScalarAsync<long>(@"
+            SELECT COUNT(*) FROM pragma_table_info('Commands') WHERE name='PlatformResponsesJson';
+        ").ConfigureAwait(false);
+        if (commandPlatformResponsesJsonExists == 0)
+        {
+            await conn.ExecuteAsync(@"ALTER TABLE Commands ADD COLUMN PlatformResponsesJson TEXT;").ConfigureAwait(false);
         }
 
         // Migration: timer chat-activity gate — minimum messages between fires

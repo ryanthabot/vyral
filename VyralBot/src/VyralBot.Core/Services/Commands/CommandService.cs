@@ -224,9 +224,10 @@ public class CommandService : ICommandService
             }
             else
             {
-                // Custom command: random replies win when configured,
+                // Custom command: per-platform response override wins when
+                // authored for the ORIGINATING platform, then random replies,
                 // falling back to the single Response.
-                response = PickResponse(command);
+                response = PickResponse(command, context.Platform);
                 if (response == null)
                     return null;
             }
@@ -264,19 +265,27 @@ public class CommandService : ICommandService
             // ExecuteAsync fall through so the real implementation answers
             // instead of this placeholder shadowing it (see KI-18).
             "!watchtime" => null,
-            "!socials" => command.Response, // Uses template in Response
-            "!discord" => command.Response,
-            _ => command.Response
+            "!socials" => StoredResponse(command, context), // Uses template in Response
+            "!discord" => StoredResponse(command, context),
+            _ => StoredResponse(command, context)
         };
     }
 
     /// <summary>
-    /// Picks the reply for a custom command: a random entry from
+    /// Picks the reply for a custom command: a per-platform override from
+    /// <see cref="Command.PlatformResponsesJson"/> when one is authored for
+    /// the ORIGINATING platform, else a random entry from
     /// <see cref="Command.ResponsesJson"/> when alternate replies are
     /// configured, otherwise the single <see cref="Command.Response"/>.
     /// </summary>
-    private static string? PickResponse(Command command)
+    private static string? PickResponse(Command command, string platform)
     {
+        var platformResponse = command.ResolvePlatformResponse(platform);
+        if (platformResponse is not null)
+        {
+            return platformResponse;
+        }
+
         var alternates = ParseResponses(command.ResponsesJson);
         if (alternates.Count > 0)
         {
@@ -285,6 +294,14 @@ public class CommandService : ICommandService
 
         return command.Response;
     }
+
+    /// <summary>
+    /// The stored reply text for a built-in command on the ORIGINATING
+    /// platform: the per-platform override when authored, else the row's
+    /// single <see cref="Command.Response"/> template.
+    /// </summary>
+    private static string StoredResponse(Command command, CommandContext context) =>
+        command.ResolvePlatformResponse(context.Platform) ?? command.Response;
 
     /// <summary>
     /// Deserializes the ResponsesJson string array. Empty, null, blank or

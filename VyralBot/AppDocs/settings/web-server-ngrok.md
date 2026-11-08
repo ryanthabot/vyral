@@ -1,14 +1,15 @@
 # API, Web Server & ngrok
 
-> The API & Webhooks category controls Vyral's embedded Kestrel web server and its ngrok tunnel — the shared infrastructure behind Kick webhooks, the OBS audio browser source, and the public health endpoint.
+> The API & Webhooks category controls Vyral's embedded Kestrel web server and its ngrok tunnel — the shared infrastructure behind Kick webhooks, the OBS audio browser source, the public health endpoint, and the token-gated **Control API** (`/api/status`, `/api/stats/today`, `/api/version`, `POST /api/events/test`).
 
 ## Overview
 
-Vyral runs a small ASP.NET Core (Kestrel) web server inside the desktop process, listening on localhost (default port 5000), and optionally exposes it to the internet through an ngrok tunnel. Everything internet-facing flows through this one stack:
+Vyral runs a small ASP.NET Core (Kestrel) web server inside the desktop process, listening on **localhost only** (default port 5000), and optionally exposes it to the internet through an ngrok tunnel. Everything internet-facing flows through this one stack:
 
 - **Kick webhooks** — channel events (follows, subscriptions, moderation, stream metadata) delivered from Kick's servers to `{public-url}/webhooks/kick`. This is the only platform that needs inbound webhooks: Twitch uses an outbound EventSub WebSocket and YouTube polls the API.
 - **Browser-source audio** — the server hosts `audio.html` and the `/sounds/*` files plus a `/audio-ws` WebSocket, so OBS (or any browser) can play event sounds on the stream. See [Browser Sources](../stream-tools/browser-sources.md).
 - **Health endpoint** — `GET /webhooks/health` returns a simple JSON status payload, used by the TEST HEALTH button and the setup wizard.
+- **Control API** — a minimal, read-mostly JSON API under `/api` for community tools and streamer dashboards: live status, today's event counts, the app version, and a way to fire a test event over HTTP. Token-gated (see [The Control API](#the-control-api)).
 
 The whole stack is managed from **Settings → API & Webhooks** and one prerequisite: the 4-step **Ngrok Setup Wizard**.
 
@@ -56,6 +57,37 @@ Edits to the Authentication Token here **persist** (fixed 2026-08-15): Save call
 - **Auto-reconnect on launch** — with Auto-start on Launch enabled, each start of Vyral brings the whole stack up automatically during profile load.
 - **Automatic Kick webhook healing on URL rotation** — if the free-plan tunnel URL changes, the coordinator refreshes the Kick token if needed and resubscribes the webhooks to the new URL (fixed 2026-08-15); the manual off/on toggle is only the fallback if that fails.
 
+### The Control API
+
+Four JSON routes under `/api`, aimed at community tools, overlay dashboards, and scripts. **Every** request must carry `Authorization: Bearer <token>` where the token is the **same webhook auth token** — i.e. the ngrok Authentication Token saved in your profile (see below). There is no separate API key to create.
+
+| Route | Method | Returns |
+|---|---|---|
+| `/api/status` | GET | Live runtime status: uptime, platform connection states, OBS / restream state, per-platform viewer counts |
+| `/api/stats/today` | GET | Event counts by type + platform recorded since **local midnight** (`{ date, sinceLocalMidnight, counts }`) |
+| `/api/version` | GET | App version (informational + file version) and the .NET runtime version |
+| `/api/events/test` | POST | Fires one canned test event — the exact same payloads as the [Event Testing](../chat-features/event-testing.md) page |
+
+**Finding / setting the token.** The Bearer token is the ngrok Authentication Token: set it via the **Ngrok Setup Wizard** (RUN SETUP on the Ngrok Tunnel card) or the ngrok configuration screen (**CONFIGURE** → Authentication Token → SAVE SETTINGS). It is stored per-profile in `ngrok_credentials.json` inside the profile folder. If **no token is configured, the whole `/api` branch answers `503 {"error":"api_disabled"}`** — the API is off until you set one.
+
+**Firing a test event.** `POST /api/events/test` with a small JSON body:
+
+```bash
+curl -X POST http://localhost:5000/api/events/test \
+     -H "Authorization: Bearer <your-ngrok-auth-token>" \
+     -H "Content-Type: application/json" \
+     -d '{ "type": "twitch.cheer", "username": "CoolViewer", "message": "hi" }'
+```
+
+`type` must be one of the 17 ids in `TestEventPublisher.SupportedEventTypes` (e.g. `twitch.follow`, `twitch.channelpointsredeem`, `kick.host`, `youtube.superchat`, `discord.boost`); `username` and `message` are optional (defaulting to `TestUser123` / "This is a test message"). The event is published onto the real event bus — **the same warning as the Event Testing page applies: workflows really execute**. Unknown types return `400 {"error":"unknown_event_type","supported":[...]}`, bad JSON `400 invalid_json`, a missing type `400 missing_type` (with the supported list).
+
+**Where you can call it from:**
+
+- **Loopback** — the server binds localhost only, so anything on this PC (`http://localhost:5000/api/...`) works while the Webhook Server is started.
+- **Over the internet via ngrok** — with the tunnel running, the same routes answer at `{public-url}/api/...`, and the Bearer token becomes the only thing standing between the public URL and your bot. That is by design (fixed-time token comparison, 16 KB body cap, no secrets in any response), but treat the ngrok token accordingly.
+
+Failure responses are fail-closed: missing/malformed/wrong token → `401 {"error":"unauthorized"}` (with `WWW-Authenticate: Bearer`); bodies over 16 KB → `413 payload_too_large`; no token configured → `503 api_disabled`.
+
 ### Troubleshooting
 
 | Symptom | Cause and fix |
@@ -66,6 +98,8 @@ Edits to the Authentication Token here **persist** (fixed 2026-08-15): Save call
 | Kick webhook toggle will not enable | Requires the webhook server running, a Kick access token in the database, and a stored user ID. Start the server first; reconnect Kick if credentials are missing. |
 | Public URL changed and Kick events stopped | Usually heals itself — the coordinator resubscribes automatically. If it warned instead, toggle Kick webhooks off and on to resubscribe manually. |
 | STOP is refused | A feature (Kick webhooks) depends on the server; the card lists active dependencies. Disable them first. |
+| Control API returns 503 `api_disabled` | No webhook auth token is configured for this profile — run the ngrok setup wizard or save a token on the configuration screen. |
+| Control API returns 401 `unauthorized` | The Bearer token does not match the profile's ngrok Authentication Token (the exact string from ngrok's dashboard, saved via wizard or CONFIGURE). |
 
 ## How It Works (Developer)
 
@@ -88,6 +122,10 @@ The full internals — middleware order, signature validation, subscription orch
 | [WebhookCoordinatorService.cs](../../src/VyralBot.Api/Services/WebhookCoordinatorService.cs) | Orchestrates Kestrel + ngrok + Kick subscriptions; auto-start; URL-change warning |
 | [NgrokService.cs](../../src/VyralBot.Api/Services/NgrokService.cs) | Spawns the ngrok process, polls its local API for the public URL, monitors for changes, persists the per-profile token |
 | [WebServerService.cs](../../src/VyralBot.Api/Services/WebServerService.cs) | The embedded Kestrel host: controllers, validation middleware, static files, `/audio-ws` |
+| [ApiController.cs](../../src/VyralBot.Api/Controllers/ApiController.cs) | Control API routes: `/api/status`, `/api/stats/today`, `/api/version`, `POST /api/events/test` |
+| [ControlApiAuthMiddleware.cs](../../src/VyralBot.Api/Middleware/ControlApiAuthMiddleware.cs) | Fail-closed Bearer gate for every `/api` path (token = webhook token, fixed-time compare, 16 KB body cap) |
+| [ControlApiStatusService.cs](../../src/VyralBot.Api/Services/ControlApiStatusService.cs) | Builds the `/api/status` payload: uptime, platform/OBS/restream state, viewer counts |
+| [TestEventPublisher.cs](../../src/VyralBot.Integrations/Testing/TestEventPublisher.cs) | The 17 canned test-event payloads — shared by the Event Testing page and the control API |
 
 The settings-page save path — token and DB fields together (the token write was added 2026-08-15):
 
@@ -123,6 +161,8 @@ Process.Start(new ProcessStartInfo
 
 ## Gotchas / Status & Known Issues
 
+- **The Control API reuses the webhook token on purpose** — there is deliberately no second credential to manage; the ngrok Authentication Token is the Bearer token. The trade-off: anyone who can start a tunnel for this ngrok account can call the API, so treat the token like a password. The gate is a path-prefix middleware, so any future route under `/api` is auth-gated by construction, including through a public tunnel.
+- **`POST /api/events/test` fires real events** — same payloads as the [Event Testing](../chat-features/event-testing.md) page, same consequences (workflows execute, currency is awarded). Point it at a scratch profile when experimenting.
 - **Token edits in the Ngrok Configuration screen persist** (fixed 2026-08-15) — Save writes `ngrok_credentials.json` through `NgrokService.SaveAuthTokenAsync`, the same file the wizard writes.
 - **`WebServerSettings.IsEnabled` is a legacy column** — removed from the ViewModel on 2026-08-15; the column still exists in the table but nothing reads or writes it.
 - **URL rotation heals automatically** — the coordinator refreshes the Kick OAuth token if needed and resubscribes the webhooks to the new URL; the manual off/on toggle remains only as the failure fallback (fixed 2026-08-15).

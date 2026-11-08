@@ -124,10 +124,14 @@ dotnet build src/VyralBot.sln
 - `event-system.md` - All event types (3 core + 8 Kick + 9 Twitch) and EventBus flow
 - `kick-integration.md` - KickLib integration (KickLibChatService, KickLibOAuthService)
 - `marketplace-sharecodes.md` - Command marketplace (GitHub store + BotGhost relay), sharecode/offline-code import safety
+- `quotes.md` - Quote database + `!quote` command family (QuoteService, QUOTES tab)
 - `twitch-integration.md` - LightweightTwitchIrc + TwitchEventSubService + TwitchOAuthService
+- `vyraldeck.md` - VyralDeck mobile companion: LAN server (5199/5198), PIN pairing, 22 deck actions
+- `youtube-integration.md` - YouTube Data API chat + SuperChat
 - `platform-management.md` - Platform entity, PlatformsViewModel, connection flows
 - `profile-system.md` - ProfileService, portable storage, per-profile databases
 - `settings-system.md` - SettingsViewModel, Config entity, sub-VMs
+- `flow-editor-canvas.md` - Visual workflow editor canvas
 
 **Update when:** Adding new platforms, changing OAuth flows, modifying automation logic
 
@@ -153,19 +157,26 @@ dotnet build src/VyralBot.sln
 - `twitch-settings-viewmodel.md` - Twitch settings + related VMs
 - `settings-viewmodels.md` - Sub-setting VMs (WebServer, Audio, Sounds, Alerts, Variables, per-platform chat)
 - `oauth-setup-wizards.md` - All OAuth/setup base classes and implementations
+- `event-testing-viewmodel.md` - Event Testing page (fires real events via TestEventPublisher)
 
 **Views:**
 - `main-window.md` - MainWindow layout
 - `dashboard-view.md` - Dashboard UI
 - `chat-view.md` - Chat display UI
+- `commands-view.md` - Commands page (built-in/custom/timers/quotes tabs)
 - `settings-view.md` - Settings UI
 - `platforms-view.md` - Platform management UI
 - `setup-views-xaml.md` - Setup wizard XAML views
 - `settings-views-xaml.md` - Settings XAML views (including per-platform chat settings)
 - `view-code-behind.md` - Code-behind patterns, UI services, controls, behaviors
+- `discord-dashboard.md` - Discord DASHBOARD tab (fleet KPIs, mod actions, workflow runs)
+- `discord-bot-detail.md` - Per-bot Discord dashboard + visual command builder
+- `performance-view.md` - Performance tab (live metrics, component health)
+- `viewer-hub.md` - Viewer Hub (linking, bonuses, odds, goals)
 
 **Other:**
 - `theme-system.md` - Resource dictionary theming
+- `THEMING.md` - Theming guide (switch/extend themes)
 - `converters.md` - 19 IValueConverter files overview
 - `converters-reference.md` - All converter implementations detailed
 - `dialogs-and-modals.md` - ConfirmDialog, ErrorDialog, CustomDialog, AlertOverlay
@@ -185,6 +196,13 @@ dotnet build src/VyralBot.sln
 - `kick-service.md` - KickLibChatService (KickLib WebSocket + REST)
 - `kick-oauth-service.md` - KickLibOAuthService (PKCE via KickLib)
 - `lightweight-twitch-irc.md` - WebSocket IRC client (377 lines)
+- `moderation.md` - Auto-moderation + mod commands + platform parity
+- `workflow-runtime.md` - Workflow graph interpreter + run cancellation
+- `discord-bot-runtime.md` - Discord gateway + multi-bot manager (welcome/auto-role)
+- `embedded-web-server.md` - Embedded Kestrel server (webhooks + Bearer control API)
+- `test-event-publisher-service.md` - TestEventPublisher (canned events for the Event Testing page + control API)
+- `crash-pipeline.md` - Global exception handling, secret scrubbing, crash dialog
+- `obs-websocket-client.md` - obs-websocket 5 remote-control client
 - `performance-monitor.md` - PerformanceMonitor, EventPool, PooledBuffer
 - `process-management.md` - Process management
 
@@ -260,11 +278,11 @@ VyralBot/
 │   ├── current_profile.txt      # Active profile tracker
 │   └── README.md                # Documentation for users
 ├── logs/                        # ⚠️ Application logs (git ignored)
-├── docs/                        # 54 documentation files
+├── docs/                        # 80 documentation files
 │   ├── architecture/            # 6 files
-│   ├── features/                # 7 files
-│   ├── ui/                      # 23 files
-│   ├── services/                # 12 files
+│   ├── features/                # 12 files
+│   ├── ui/                      # 30 files
+│   ├── services/                # 19 files
 │   ├── models/                  # 4 files
 │   ├── integrations/            # 1 file
 │   ├── application/             # 1 file
@@ -966,7 +984,7 @@ The project root contains key reference documents:
 
 ## 📊 File Count Maintenance
 
-**Current Status:** 54 documentation files in docs/ (as of June 2025)
+**Current Status:** 80 documentation files in docs/ (as of November 2026)
 
 ### When Adding Files:
 1. Update `docs/README.md` progress indicators
@@ -1227,8 +1245,8 @@ dotnet-counters monitor --process-id <pid> --counters System.Runtime,Microsoft.A
 | Profile system | `docs/features/profile-system.md` |
 | Twitch integration | `docs/features/twitch-integration.md` |
 | Kick integration | `docs/features/kick-integration.md` |
-| All services | `docs/services/` folder (12 files) |
-| All UI components | `docs/ui/` folder (23 files) |
+| All services | `docs/services/` folder (19 files) |
+| All UI components | `docs/ui/` folder (30 files) |
 | All models | `docs/models/` folder (4 files) |
 | Documentation map | `docs/README.md` |
 
@@ -1244,7 +1262,7 @@ Follow these principles, and VyralBot will remain maintainable, performant, and 
 ---
 
 *Last Updated: June 2025*
-*Documentation Files: 54*
+*Documentation Files: 80*
 
 Goals:
 1. Understand the entire system from docs alone
@@ -1444,5 +1462,5 @@ Users can export/import profiles via UI to migrate data. OAuth tokens need re-au
 ---
 
 *Last Updated: June 2025*
-*Documentation Files: 54*
+*Documentation Files: 80*
 *Project Status: Active Development*

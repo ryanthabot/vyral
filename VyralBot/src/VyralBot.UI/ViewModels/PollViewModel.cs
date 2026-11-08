@@ -41,6 +41,29 @@ public partial class PollViewModel : ViewModelBase
     [ObservableProperty]
     private ObservableCollection<PollVote> _votes = new();
 
+    // Empty-state flags for the polls list / votes grid.
+    [ObservableProperty]
+    private bool _hasPolls;
+
+    [ObservableProperty]
+    private bool _hasVotes;
+
+    // ----- Edit-before-start (Pending polls only) -----
+    // Non-null while the create dialog is editing an existing Pending poll
+    // instead of creating a new one.
+    private Guid? _editingPollId;
+
+    [ObservableProperty]
+    private string _pollDialogTitle = "Create New Poll";
+
+    [ObservableProperty]
+    private string _createPollButtonText = "Create Poll";
+
+    // True while the dialog is in edit mode (set by EditPollAsync on success,
+    // cleared by ResetEditor); the view checks it before opening the dialog.
+    [ObservableProperty]
+    private bool _isEditingPoll;
+
     // Create poll form fields
     [ObservableProperty]
     private string _newPollQuestion = string.Empty;
@@ -125,6 +148,8 @@ public partial class PollViewModel : ViewModelBase
                 {
                     Polls.Add(poll);
                 }
+
+                HasPolls = Polls.Count > 0;
             });
 
             _logger.LogInformation("Loaded {Count} polls", polls.Count());
@@ -162,6 +187,7 @@ public partial class PollViewModel : ViewModelBase
                     Votes.Add(vote);
                 }
 
+                HasVotes = Votes.Count > 0;
                 TotalVotes = totalVotes;
 
                 // Format results
@@ -183,6 +209,76 @@ public partial class PollViewModel : ViewModelBase
             _logger.LogError(ex, "Error loading votes for poll {PollId}", SelectedPoll?.Id.ToString() ?? "unknown");
             StatusMessage = $"Error loading votes: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// Loads the selected Pending poll into the create form so its question,
+    /// options and settings can be edited BEFORE it starts (once a poll is
+    /// Active, votes reference option indexes and editing is disabled).
+    /// Called by the view's Edit button; the dialog opens afterwards.
+    /// </summary>
+    [RelayCommand]
+    private Task EditPollAsync()
+    {
+        if (SelectedPoll == null)
+        {
+            StatusMessage = "❌ Please select a poll to edit";
+            return Task.CompletedTask;
+        }
+
+        var selected = SelectedPoll;
+
+        if (selected.Status != PollStatus.Pending)
+        {
+            StatusMessage = "❌ Only pending (not yet started) polls can be edited";
+            return Task.CompletedTask;
+        }
+
+        _editingPollId = selected.Id;
+        NewPollQuestion = selected.Question;
+
+        var options = JsonSerializer.Deserialize<string[]>(selected.Options) ?? Array.Empty<string>();
+        NewPollOptions = string.Join(Environment.NewLine, options);
+
+        NewPollAllowMultipleVotes = selected.AllowMultipleVotes;
+        NewPollFollowersOnly = selected.FollowersOnly;
+        NewPollSubscribersOnly = selected.SubscribersOnly;
+        NewPollMinWatchtime = selected.MinWatchtimeMinutes;
+        NewPollAllowedPlatforms = selected.AllowedPlatforms;
+        NewPollScheduledEnd = selected.ScheduledEndTime?.ToLocalTime();
+
+        PollDialogTitle = "Edit Poll";
+        CreatePollButtonText = "Save Changes";
+        IsEditingPoll = true;
+        StatusMessage = $"Editing poll '{selected.Question}' (not started yet)";
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Returns the create/edit dialog to "create" mode. Called by the view's
+    /// code-behind before a fresh "Create New Poll" click so a cancelled edit
+    /// never leaves the dialog stuck in "Save Changes" mode.
+    /// </summary>
+    public void ResetEditor()
+    {
+        if (_editingPollId == null && PollDialogTitle == "Create New Poll")
+        {
+            return;
+        }
+
+        _editingPollId = null;
+        IsEditingPoll = false;
+        PollDialogTitle = "Create New Poll";
+        CreatePollButtonText = "Create Poll";
+        NewPollQuestion = string.Empty;
+        NewPollOptions = "Option 1\nOption 2\nOption 3";
+        NewPollAllowMultipleVotes = false;
+        NewPollFollowersOnly = false;
+        NewPollSubscribersOnly = false;
+        NewPollMinWatchtime = 0;
+        NewPollAllowedPlatforms = "All";
+        NewPollScheduledEnd = null;
     }
 
     [RelayCommand]
@@ -215,13 +311,57 @@ public partial class PollViewModel : ViewModelBase
             }
 
             IsLoading = true;
+
+            // DatePicker yields a local wall-clock time; normalize to UTC so
+            // the auto-end scheduler (which compares against DateTime.UtcNow)
+            // fires at the time the streamer actually picked.
+            var scheduledEndUtc = NewPollScheduledEnd?.ToUniversalTime();
+
+            if (_editingPollId is Guid editingId)
+            {
+                StatusMessage = "Saving poll changes...";
+
+                var poll = await _dataService.GetPollAsync(editingId);
+                if (poll == null)
+                {
+                    StatusMessage = "❌ Poll no longer exists";
+                    return;
+                }
+
+                if (poll.Status != PollStatus.Pending)
+                {
+                    StatusMessage = "❌ Poll already started — only pending polls can be edited";
+                    return;
+                }
+
+                poll.Question = NewPollQuestion;
+                poll.Options = JsonSerializer.Serialize(options);
+                poll.ScheduledEndTime = scheduledEndUtc;
+                poll.AllowMultipleVotes = NewPollAllowMultipleVotes;
+                poll.AllowedPlatforms = NewPollAllowedPlatforms;
+                poll.FollowersOnly = NewPollFollowersOnly;
+                poll.SubscribersOnly = NewPollSubscribersOnly;
+                poll.MinWatchtimeMinutes = NewPollMinWatchtime;
+                await _dataService.SavePollAsync(poll);
+
+                await LoadPollsAsync();
+                SelectedPoll = Polls.FirstOrDefault(p => p.Id == editingId);
+
+                ResetEditor();
+                DialogHost.Close("RootDialog");
+
+                StatusMessage = $"✅ Poll '{poll.Question}' updated";
+                _logger.LogInformation("Updated pending poll: {Question}", poll.Question);
+                return;
+            }
+
             StatusMessage = "Creating poll...";
 
-            var poll = await _pollService.CreatePollAsync(
+            var created = await _pollService.CreatePollAsync(
                 NewPollQuestion,
                 options,
                 "Admin", // Creator username - could get from user context
-                NewPollScheduledEnd,
+                scheduledEndUtc,
                 NewPollAllowMultipleVotes,
                 NewPollAllowedPlatforms,
                 NewPollFollowersOnly,
@@ -244,8 +384,8 @@ public partial class PollViewModel : ViewModelBase
             // the "RootDialog" identifier) so the round-trip completes.
             DialogHost.Close("RootDialog");
 
-            StatusMessage = $"✅ Poll '{poll.Question}' created successfully!";
-            _logger.LogInformation("Created poll: {Question}", poll.Question);
+            StatusMessage = $"✅ Poll '{created.Question}' created successfully!";
+            _logger.LogInformation("Created poll: {Question}", created.Question);
         }
         catch (Exception ex)
         {

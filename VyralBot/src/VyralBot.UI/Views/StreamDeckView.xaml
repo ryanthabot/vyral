@@ -93,7 +93,8 @@
                                                Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"/>
                                     <Button Style="{StaticResource MaterialDesignIconButton}"
                                             Command="{Binding RegeneratePinCommand}"
-                                            ToolTip="New PIN (invalidates the old one)" Margin="8,0,0,0">
+                                            ToolTip="New PIN (invalidates the old one)" Margin="8,0,0,0"
+                                            AutomationProperties.Name="Regenerate pairing PIN">
                                         <materialDesign:PackIcon Kind="Refresh" Width="20" Height="20"/>
                                     </Button>
                                 </StackPanel>
@@ -297,22 +298,26 @@
                             </ItemsControl>
                             <Button Style="{StaticResource MaterialDesignIconButton}"
                                     Command="{Binding AddPageCommand}"
-                                    ToolTip="Add a page" Margin="4,0">
+                                    ToolTip="Add a page" Margin="4,0"
+                                    AutomationProperties.Name="Add page">
                                 <materialDesign:PackIcon Kind="Plus" Width="20" Height="20"/>
                             </Button>
                             <Button Style="{StaticResource MaterialDesignIconButton}"
                                     Command="{Binding DeletePageCommand}" CommandParameter="{Binding SelectedPage}"
-                                    ToolTip="Delete the page shown below">
+                                    ToolTip="Delete the page shown below"
+                                    AutomationProperties.Name="Delete page">
                                 <materialDesign:PackIcon Kind="DeleteOutline" Width="20" Height="20"/>
                             </Button>
                             <Button Style="{StaticResource MaterialDesignIconButton}"
                                     Command="{Binding MovePageLeftCommand}"
-                                    ToolTip="Move the selected page left">
+                                    ToolTip="Move the selected page left"
+                                    AutomationProperties.Name="Move page left">
                                 <materialDesign:PackIcon Kind="ChevronLeft" Width="20" Height="20"/>
                             </Button>
                             <Button Style="{StaticResource MaterialDesignIconButton}"
                                     Command="{Binding MovePageRightCommand}"
-                                    ToolTip="Move the selected page right">
+                                    ToolTip="Move the selected page right"
+                                    AutomationProperties.Name="Move page right">
                                 <materialDesign:PackIcon Kind="ChevronRight" Width="20" Height="20"/>
                             </Button>
                         </StackPanel>
@@ -337,6 +342,7 @@
                                         <StackPanel VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Icon}" FontSize="22" HorizontalAlignment="Center"/>
                                             <TextBlock Text="{Binding Label}" FontSize="13" FontWeight="SemiBold"
+                                            ToolTip="{Binding Label}"
                                                        HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
                                                        MaxWidth="130" TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>

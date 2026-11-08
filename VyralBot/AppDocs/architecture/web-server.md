@@ -42,8 +42,11 @@ _app.UseWebSockets();                                        // /audio-ws upgrad
 _app.UseStaticFiles();                                       // wwwroot: audio.html, /sounds/*
 _app.UseRouting();
 _app.UseMiddleware<KickWebhookValidationMiddleware>();       // signature gate for /webhooks/kick
-_app.MapControllers();                                       // WebhooksController
+_app.UseMiddleware<ControlApiAuthMiddleware>();              // Bearer gate for every /api path
+_app.MapControllers();                                       // WebhooksController + ApiController
 ```
+
+The `ControlApiAuthMiddleware` entry gates the **Control API** (`ApiController`: `GET /api/status`, `GET /api/stats/today`, `GET /api/version`, `POST /api/events/test`) — every `/api` request must carry `Authorization: Bearer <webhook token>` (the ngrok auth token via `NgrokService`; fixed-time SHA-256 compare, 16 KB body cap, `503 api_disabled` when no token is configured). Because it is a path-prefix middleware, any future `/api` route is gated by construction. User-facing documentation: [API, Web Server & ngrok → The Control API](../settings/web-server-ngrok.md#the-control-api).
 
 5. The server runs via `Task.Run(() => _app.RunAsync(cts.Token))`; `StopAsync` cancels with a timeout.
 
@@ -131,6 +134,8 @@ A thin wrapper over KickLib's `IKickApi.EventSubscriptions` (resolved from a sco
 | [KickWebhookSubscriptionService.cs](../../src/VyralBot.Api/Services/KickWebhookSubscriptionService.cs) | Rate-limited KickLib subscribe/unsubscribe wrapper |
 | [WebServerDependencyTracker.cs](../../src/VyralBot.Core/Services/WebServer/WebServerDependencyTracker.cs) | Dependency registry behind `CanDisableWebServer()` |
 | [WebhooksController.cs](../../src/VyralBot.Api/Controllers/WebhooksController.cs) | Header dispatch, event mapping, health endpoint |
+| [ApiController.cs](../../src/VyralBot.Api/Controllers/ApiController.cs) | Control API: `/api/status`, `/api/stats/today`, `/api/version`, `POST /api/events/test` (fires the shared `TestEventPublisher`) |
+| [ControlApiAuthMiddleware.cs](../../src/VyralBot.Api/Middleware/ControlApiAuthMiddleware.cs) | Fail-closed Bearer gate for `/api` (webhook token, fixed-time compare, 16 KB cap, 503 when unconfigured) |
 | [KickWebhookValidationMiddleware.cs](../../src/VyralBot.Api/Middleware/KickWebhookValidationMiddleware.cs) | RSA-SHA256 signature validation with 1h key cache and test bypass |
 | [AudioWebSocketBroadcaster.cs](../../src/VyralBot.Core/Services/Audio/AudioWebSocketBroadcaster.cs) | One-field static bridge (`Func<string, Task>?`) from Core to the Kestrel client set |
 | [WebServerEntities.cs](../../src/VyralBot.Data/Entities/WebServerEntities.cs) | `WebServerSettings` (Id=1 single row) and `WebhookSubscription` entities |

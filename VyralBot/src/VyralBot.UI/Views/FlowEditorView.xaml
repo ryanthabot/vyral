@@ -582,6 +582,7 @@
 
                     <StackPanel Grid.Column="2" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Block.Title}"
+                        ToolTip="{Binding Block.Title}"
                                    FontSize="12.5"
                                    FontWeight="Bold"
                                    Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
@@ -847,6 +848,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
                         <TextBlock Text="{Binding DisplayName}"
+                        ToolTip="{Binding DisplayName}"
                                    FontSize="12.5"
                                    FontWeight="Bold"
                                    Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
@@ -1074,6 +1076,7 @@
                     </Border>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Name}"
+                        ToolTip="{Binding Name}"
                                    FontSize="12.5"
                                    FontWeight="Bold"
                                    Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
@@ -1140,6 +1143,7 @@
                                Margin="0,0,7,2"/>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Name}"
+                        ToolTip="{Binding Name}"
                                    FontSize="12.5"
                                    FontWeight="Bold"
                                    Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
@@ -1910,6 +1914,7 @@
                                                    VerticalAlignment="Center"/>
                                     </Border>
                                     <TextBlock Text="{Binding SelectedBlock.Title}"
+                                    ToolTip="{Binding SelectedBlock.Title}"
                                                FontSize="15"
                                                FontWeight="Bold"
                                                Foreground="{DynamicResource FlowCanvasTextPrimaryBrush}"
@@ -2572,6 +2577,38 @@
                                                    FontSize="10.5"
                                                    Foreground="{DynamicResource TextMutedBrush}"/>
                                     </StackPanel>
+
+                                    <!-- Per-platform responses: optional reply overrides — a non-blank
+                                         box wins on its platform, blank boxes use the default response.
+                                         Persisted on the linked Command row (PlatformResponsesJson). -->
+                                    <Expander Header="Per-platform responses"
+                                              Margin="0,12,0,0"
+                                              IsExpanded="False"
+                                              Visibility="{Binding IsTriggerCommand, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                              ToolTip="Send a different reply text on specific platforms">
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Text="Leave blank to use the default response. A filled box is used when the command fires on that platform."
+                                                       FontSize="10.5"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       TextWrapping="Wrap"/>
+                                            <TextBlock Text="Twitch" Style="{StaticResource FlowFieldLabel}"/>
+                                            <TextBox Text="{Binding PlatformResponseTwitch, UpdateSourceTrigger=PropertyChanged}"
+                                                     materialDesign:HintAssist.Hint="Twitch-only reply"
+                                                     ToolTip="Reply sent when this command runs on Twitch — blank uses the default response"/>
+                                            <TextBlock Text="Kick" Style="{StaticResource FlowFieldLabel}"/>
+                                            <TextBox Text="{Binding PlatformResponseKick, UpdateSourceTrigger=PropertyChanged}"
+                                                     materialDesign:HintAssist.Hint="Kick-only reply"
+                                                     ToolTip="Reply sent when this command runs on Kick — blank uses the default response"/>
+                                            <TextBlock Text="YouTube" Style="{StaticResource FlowFieldLabel}"/>
+                                            <TextBox Text="{Binding PlatformResponseYouTube, UpdateSourceTrigger=PropertyChanged}"
+                                                     materialDesign:HintAssist.Hint="YouTube-only reply"
+                                                     ToolTip="Reply sent when this command runs on YouTube — blank uses the default response"/>
+                                            <TextBlock Text="Discord" Style="{StaticResource FlowFieldLabel}"/>
+                                            <TextBox Text="{Binding PlatformResponseDiscord, UpdateSourceTrigger=PropertyChanged}"
+                                                     materialDesign:HintAssist.Hint="Discord-only reply"
+                                                     ToolTip="Reply sent when this command runs on Discord — blank uses the default response"/>
+                                        </StackPanel>
+                                    </Expander>
 
                                     <!-- button / select hint -->
                                     <Border Background="{DynamicResource CardHoverBrush}"

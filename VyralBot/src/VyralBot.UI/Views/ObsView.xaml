@@ -126,7 +126,8 @@
                     </Button>
                     <Button Command="{Binding LoadCommand}"
                             Style="{StaticResource MaterialDesignIconButton}"
-                            ToolTip="Refresh">
+                            ToolTip="Refresh"
+                            AutomationProperties.Name="Refresh">
                         <materialDesign:PackIcon Kind="Refresh" Width="20" Height="20"/>
                     </Button>
                 </StackPanel>

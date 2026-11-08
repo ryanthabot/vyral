@@ -79,7 +79,11 @@ its logger). `LoadAutoModConfigCommand` (page init) loads + applies the rules;
 `SaveAutoModConfigCommand` normalizes + persists + applies; exemption toggles
 are uniform across rules in the UI (config stores them per rule);
 `TestAutoModMessageCommand` evaluates a sample message without executing
-anything; `ResetAutoModEscalationCommand` clears all viewer state. The parity
+anything; `ResetAutoModEscalationCommand` clears all viewer state. The card's
+text areas cover every engine list surface (Wave 7 audit): link allowlist,
+banned words, **word allowlist** (words that never count as banned — editor
+added in Wave 7, previously engine-configurable but not exposed) and exempt
+users, one entry per line. The parity
 card renders `ModerationPlatformParity.Snapshot` rows — platform name,
 enforcement-level badge (Full / Notice-only / None) and a detail line — so the
 display always mirrors the audit Table.

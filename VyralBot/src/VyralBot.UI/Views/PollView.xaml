@@ -62,29 +62,43 @@
                        Command="{Binding RefreshCommand}"/>
             </StackPanel>
 
-            <!-- Poll List -->
-            <ListBox Grid.Row="1" 
-                    ItemsSource="{Binding Polls}"
-                    SelectedItem="{Binding SelectedPoll, Mode=TwoWay}"
-                    ScrollViewer.VerticalScrollBarVisibility="Auto">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Margin="0,8">
-                            <TextBlock Text="{Binding Question}" 
-                                      FontWeight="Bold"
-                                      TextWrapping="Wrap"
-                                      Margin="0,0,0,4"/>
-                            <WrapPanel>
-                                <materialDesign:Chip Style="{StaticResource StatusChip}"/>
-                                <materialDesign:Chip Content="{Binding TotalVotes, StringFormat='{}{0} votes'}" 
-                                                    Margin="4,0" Background="{DynamicResource SurfacePressedBrush}"/>
-                            </WrapPanel>
-                            <TextBlock Text="{Binding CreatedAt, StringFormat='Created: {0:g}'}" 
-                                      FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
-                        </StackPanel>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+            <!-- Poll List (with empty state) -->
+            <Grid Grid.Row="1">
+                <ListBox ItemsSource="{Binding Polls}"
+                        SelectedItem="{Binding SelectedPoll, Mode=TwoWay}"
+                        ScrollViewer.VerticalScrollBarVisibility="Auto"
+                        Visibility="{Binding HasPolls, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,8">
+                                <TextBlock Text="{Binding Question}"
+                                          FontWeight="Bold"
+                                          TextWrapping="Wrap"
+                                          Margin="0,0,0,4"/>
+                                <WrapPanel>
+                                    <materialDesign:Chip Style="{StaticResource StatusChip}"/>
+                                    <materialDesign:Chip Content="{Binding TotalVotes, StringFormat='{}{0} votes'}"
+                                                        Margin="4,0" Background="{DynamicResource SurfacePressedBrush}"/>
+                                </WrapPanel>
+                                <TextBlock Text="{Binding CreatedAt, StringFormat='Created: {0:g}'}"
+                                          FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- Empty state: no polls created yet -->
+                <StackPanel VerticalAlignment="Top"
+                            Margin="0,24,0,0"
+                            Visibility="{Binding HasPolls, Converter={StaticResource InvertBooleanToVisibilityConverter}}">
+                    <TextBlock Text="📊 No polls yet"
+                               Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                               Margin="0,0,0,4"/>
+                    <TextBlock Text="Create a poll with the button above — viewers vote from chat with !poll vote &lt;number&gt;."
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                </StackPanel>
+            </Grid>
         </Grid>
 
         <!-- Right Panel: Poll Details -->
@@ -126,6 +140,21 @@
                                    Style="{StaticResource MaterialDesignRaisedButton}"
                                    Command="{Binding StartPollCommand}"
                                    Margin="4"/>
+                            <Button Content="✏️ Edit"
+                                   Click="EditPollButton_Click"
+                                   ToolTip="Edit question/options before the poll starts"
+                                   Margin="4">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignOutlinedButton}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedPoll.Status}" Value="Pending">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
                             <Button Content="🏁 End"
                                    Style="{StaticResource MaterialDesignRaisedButton}"
                                    Command="{Binding EndPollCommand}"
@@ -179,18 +208,27 @@
             <!-- Votes List -->
             <GroupBox Grid.Row="1" Header="Votes" Margin="0,16,0,0"
                      Style="{StaticResource MaterialDesignCardGroupBox}">
-                <DataGrid ItemsSource="{Binding Votes}"
-                         AutoGenerateColumns="False"
-                         CanUserAddRows="False"
-                         IsReadOnly="True"
-                         SelectionMode="Single">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Username" Binding="{Binding Username}" Width="*"/>
-                        <DataGridTextColumn Header="Platform" Binding="{Binding Platform}" Width="100"/>
-                        <DataGridTextColumn Header="Option #" Binding="{Binding OptionIndex, Converter={StaticResource PlusOneConverter}}" Width="80"/>
-                        <DataGridTextColumn Header="Voted At" Binding="{Binding VotedAt, StringFormat='{}{0:g}'}" Width="150"/>
-                    </DataGrid.Columns>
-                </DataGrid>
+                <Grid>
+                    <DataGrid ItemsSource="{Binding Votes}"
+                             AutoGenerateColumns="False"
+                             CanUserAddRows="False"
+                             IsReadOnly="True"
+                             SelectionMode="Single"
+                             Visibility="{Binding HasVotes, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Username" Binding="{Binding Username}" Width="*"/>
+                            <DataGridTextColumn Header="Platform" Binding="{Binding Platform}" Width="100"/>
+                            <DataGridTextColumn Header="Option #" Binding="{Binding OptionIndex, Converter={StaticResource PlusOneConverter}}" Width="80"/>
+                            <DataGridTextColumn Header="Voted At" Binding="{Binding VotedAt, StringFormat='{}{0:g}'}" Width="150"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Empty state: poll selected but nobody voted yet -->
+                    <TextBlock Text="No votes yet — viewers vote from chat with !poll vote &lt;number&gt;."
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding HasVotes, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
+                </Grid>
             </GroupBox>
 
             <!-- Status Message (no Snackbar: sibling views surface StatusMessage
@@ -208,7 +246,7 @@
         <materialDesign:DialogHost x:Name="CreatePollDialog" Identifier="RootDialog" Grid.ColumnSpan="2">
             <materialDesign:DialogHost.DialogContent>
                 <StackPanel Width="500" Margin="16">
-                    <TextBlock Text="Create New Poll" 
+                    <TextBlock Text="{Binding PollDialogTitle}"
                               Style="{StaticResource MaterialDesignHeadline5TextBlock}"
                               Margin="0,0,0,16"/>
 
@@ -254,7 +292,7 @@
                                Command="{x:Static materialDesign:DialogHost.CloseDialogCommand}"
                                CommandParameter="False"
                                Margin="0,0,8,0"/>
-                        <Button Content="Create Poll"
+                        <Button Content="{Binding CreatePollButtonText}"
                                Style="{StaticResource MaterialDesignRaisedButton}"
                                Command="{Binding CreatePollCommand}"
                                CommandParameter="{Binding ElementName=CreatePollDialog}"/>

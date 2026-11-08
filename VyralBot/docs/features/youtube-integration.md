@@ -53,7 +53,18 @@ same pattern for all special types.
   e.g. "$5.00"), `message` (comment, sticker text for stickers). Event-sound row:
   `EventSound_YouTube_cheer` (ChatViewModel plays `PlayEventSoundAsync("cheer",
   "YouTube")`); `EventSound_YouTube_membership` is seeded for the membership handler.
-  `YouTubeMembershipEvent` has no workflow trigger in V1.
+
+### YouTubeMembershipEvent (Wave 7 workflow trigger)
+- **Workflow trigger:** `WorkflowTriggerService` subscribes this event and
+  dispatches the canonical event key `membership` — its OWN key, deliberately
+  NOT `subscribe` (that key carries Twitch/Kick subs via the "sub" alias), so
+  Twitch subs and YouTube memberships are separately targetable. Authored
+  "Membership" normalizes via the separator strip; "YouTube Membership" /
+  "yt_membership" and the API-style "sponsor"/"newSponsor" spellings alias
+  onto it. Variables: `username`, `level` (mirrored as `tier` for parity with
+  Twitch-sub conditions), `userId`, `isMilestone` (milestone renewals can be
+  filtered with a Conditions guard like `{isMilestone} = false`). The flow
+  editor's event-type combo offers `membership`.
 
 ## Command timer fan-out
 `src/VyralBot.UI/Services/CommandTimerService.cs` injects `IYouTubeService` (the same

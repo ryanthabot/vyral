@@ -37,6 +37,30 @@ opens the visual flow editor (`FlowEditorView` overlay hosted by
   bot scope; YouTube = runs whenever the command is enabled (no flag column);
   TikTok = no chat pipeline, never selectable anywhere on this page.
 
+## Per-platform responses
+One command, a different reply text per platform (streamers want
+platform-specific calls-to-action). The flow editor's command-trigger panel
+carries a collapsible **Per-platform responses** expander (visible only for
+"Prefix command" triggers) with four boxes — Twitch / Kick / YouTube /
+Discord — hint "leave blank to use the default response". Values persist on
+the linked Command row as `Command.PlatformResponsesJson`
+(`{"Twitch":"...","Kick":"..."}`; blank boxes dropped, all-blank → NULL) on
+SAVE, and load from the row on EDIT (both the seeded-row path and the
+adopted-flow path). No new grid columns — the grids stay lean; the edit flow
+(flow editor) shows them.
+
+Resolution precedence, everywhere the row's reply text is picked for the
+ORIGINATING platform: a non-blank `PlatformResponsesJson` entry wins, else
+random `ResponsesJson` replies, else the single `Response`. Pick sites:
+`CommandService.PickResponse`/`StoredResponse` (chat pipeline — custom
+commands AND stored built-in templates like `!socials`/`!discord`) and
+`CommandTimerService.FireTimerAsync` (timers, keyed by `TargetPlatform`).
+Null/blank entries keep the legacy single-response behavior — fully backward
+compatible (additive `ALTER TABLE Commands ADD COLUMN PlatformResponsesJson
+TEXT` migration; helpers live on the entity: `Command.ParsePlatformResponses`
+/ `ResolvePlatformResponse` / `BuildPlatformResponsesJson`). Round-trip
+coverage: `tests/VyralBot.UI.Tests/PlatformResponsesRoundTripTests.cs`.
+
 ## Timers tab
 CRUD + interval (min 5) + platform picker (`TimerPlatforms`:
 Twitch/Kick/Discord/YouTube only) + Discord bot target + min messages between

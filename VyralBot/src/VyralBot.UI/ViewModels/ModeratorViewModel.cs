@@ -682,6 +682,10 @@ public partial class ModeratorViewModel : ViewModelBase
     [ObservableProperty]
     private string _bannedWordsText = string.Empty;
 
+    /// <summary>One word per line — never counts as banned (overrides the banned list).</summary>
+    [ObservableProperty]
+    private string _wordAllowlistText = string.Empty;
+
     /// <summary>One username per line — never auto-moderated.</summary>
     [ObservableProperty]
     private string _exemptUsersText = string.Empty;
@@ -762,6 +766,7 @@ public partial class ModeratorViewModel : ViewModelBase
             };
             rules.LinkAllowlist = SplitList(LinkAllowlistText);
             rules.BannedWordList = SplitList(BannedWordsText);
+            rules.WordAllowlist = SplitList(WordAllowlistText);
             rules.ExemptUsers = SplitList(ExemptUsersText);
 
             await _autoModRepository.SaveAsync(rules);
@@ -861,6 +866,7 @@ public partial class ModeratorViewModel : ViewModelBase
 
             LinkAllowlistText = string.Join(Environment.NewLine, rules.LinkAllowlist);
             BannedWordsText = string.Join(Environment.NewLine, rules.BannedWordList);
+            WordAllowlistText = string.Join(Environment.NewLine, rules.WordAllowlist);
             ExemptUsersText = string.Join(Environment.NewLine, rules.ExemptUsers);
 
             AutoModRules.Clear();

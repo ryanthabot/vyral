@@ -51,10 +51,55 @@
     </UserControl.Resources>
 
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="350"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Active-giveaway banner: always visible while a giveaway is live,
+             regardless of which giveaway is selected in the list below. -->
+        <Border Grid.Row="0"
+                Margin="16,16,16,0"
+                Padding="12,8"
+                CornerRadius="4"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource PrimaryBrush}"
+                BorderThickness="2"
+                Visibility="{Binding ActiveGiveaway, Converter={StaticResource NullToVisibilityConverter}}">
+            <StackPanel Orientation="Horizontal">
+                <materialDesign:PackIcon Kind="GiftOutline"
+                                         Width="20" Height="20"
+                                         VerticalAlignment="Center"
+                                         Margin="0,0,8,0"
+                                         Foreground="{DynamicResource PrimaryBrush}"/>
+                <TextBlock Text="LIVE GIVEAWAY:"
+                           FontWeight="Bold"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"/>
+                <TextBlock Text="{Binding ActiveGiveaway.Name}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,12,0"/>
+                <TextBlock VerticalAlignment="Center"
+                           Margin="0,0,12,0"
+                           Foreground="{DynamicResource TextSecondaryBrush}">
+                    <Run Text="type "/>
+                    <Run Text="{Binding ActiveGiveaway.EntryKeyword, StringFormat='!{0}', Mode=OneWay}" FontWeight="Bold"/>
+                    <Run Text=" to enter"/>
+                </TextBlock>
+                <!-- Scheduled-end countdown (ticking, updated by the VM every second) -->
+                <TextBlock Text="{Binding ActiveGiveawayCountdown}"
+                           VerticalAlignment="Center"
+                           FontWeight="Bold"
+                           Foreground="{DynamicResource WarningBrush}"
+                           Visibility="{Binding ActiveGiveawayCountdown, Converter={StaticResource StringToVisibilityConverter}}"/>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="350"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
         <!-- Left Panel: Giveaway List & Create Form -->
         <Grid Grid.Column="0" Margin="16">
@@ -94,23 +139,24 @@
                 </Button>
             </StackPanel>
 
-            <!-- Giveaway List -->
-            <ListBox Grid.Row="1"
-                    ItemsSource="{Binding Giveaways}"
-                    SelectedItem="{Binding SelectedGiveaway}"
-                    Margin="0,0,0,16"
-                    ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <materialDesign:Card Padding="12" Margin="0,0,0,8">
-                            <StackPanel>
-                                <DockPanel>
-                                    <materialDesign:Chip Style="{StaticResource StatusChip}" DockPanel.Dock="Right"/>
-                                    <TextBlock Text="{Binding Name}" 
-                                              FontWeight="Bold" 
-                                              FontSize="16"
-                                              TextTrimming="CharacterEllipsis"/>
-                                </DockPanel>
+            <!-- Giveaway List (with empty state) -->
+            <Grid Grid.Row="1" Margin="0,0,0,16">
+                <ListBox ItemsSource="{Binding Giveaways}"
+                        SelectedItem="{Binding SelectedGiveaway}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        Visibility="{Binding HasGiveaways, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <materialDesign:Card Padding="12" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <materialDesign:Chip Style="{StaticResource StatusChip}" DockPanel.Dock="Right"/>
+                                        <TextBlock Text="{Binding Name}"
+                                            ToolTip="{Binding Name}"
+                                                  FontWeight="Bold"
+                                                  FontSize="16"
+                                                  TextTrimming="CharacterEllipsis"/>
+                                    </DockPanel>
                                 
                                 <TextBlock Text="{Binding Description}" 
                                           TextWrapping="Wrap"
@@ -141,10 +187,23 @@
                                           Opacity="0.6"
                                           Margin="0,4,0,0"/>
                             </StackPanel>
-                        </materialDesign:Card>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                            </materialDesign:Card>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- Empty state: no giveaways created yet -->
+                <StackPanel VerticalAlignment="Top"
+                            Margin="0,24,0,0"
+                            Visibility="{Binding HasGiveaways, Converter={StaticResource InvertBooleanToVisibilityConverter}}">
+                    <TextBlock Text="🎁 No giveaways yet"
+                               Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                               Margin="0,0,0,4"/>
+                    <TextBlock Text="Create your first giveaway with the button above — entries come in from chat via the entry keyword."
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                </StackPanel>
+            </Grid>
 
             <!-- Status Message -->
             <materialDesign:Card Grid.Row="2" 
@@ -190,6 +249,25 @@
                                         <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding SelectedGiveaway.Status}" Value="Active">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+
+                            <!-- Re-draw (reroll) excluding previous winners: completed giveaways only -->
+                            <Button Content="🎲 Re-draw"
+                                   Command="{Binding RedrawWinnersCommand}"
+                                   Margin="0,0,8,0"
+                                   ToolTip="Draw new winners, excluding everyone who won the previous draw">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Setter Property="Background" Value="{DynamicResource WarningBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedGiveaway.Status}" Value="Completed">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -365,17 +443,18 @@
                     <!-- Entries List -->
                     <materialDesign:Card Padding="16">
                         <StackPanel>
-                            <TextBlock Text="Entries" 
+                            <TextBlock Text="Entries"
                                       Style="{StaticResource MaterialDesignHeadline6TextBlock}"
                                       Margin="0,0,0,12"/>
-                            
+
                             <DataGrid ItemsSource="{Binding Entries}"
                                      AutoGenerateColumns="False"
                                      CanUserAddRows="False"
                                      CanUserDeleteRows="False"
                                      IsReadOnly="True"
                                      SelectionMode="Single"
-                                     MaxHeight="400">
+                                     MaxHeight="400"
+                                     Visibility="{Binding HasEntries, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Username" Binding="{Binding Username}" Width="*"/>
                                     <DataGridTextColumn Header="Platform" Binding="{Binding Platform}" Width="Auto"/>
@@ -385,6 +464,12 @@
                                     <DataGridTextColumn Header="Entered At" Binding="{Binding EnteredAt, StringFormat='{}{0:g}'}" Width="Auto"/>
                                 </DataGrid.Columns>
                             </DataGrid>
+
+                            <!-- Empty state: giveaway selected but nobody entered yet -->
+                            <TextBlock Text="No entries yet — viewers enter from chat with the entry keyword."
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Margin="0,8,0,0"
+                                       Visibility="{Binding HasEntries, Converter={StaticResource InvertBooleanToVisibilityConverter}}"/>
                         </StackPanel>
                     </materialDesign:Card>
                 </StackPanel>
@@ -508,9 +593,10 @@
             </ScrollViewer>
             </Grid>
         </Grid>
+        </Grid>
 
         <!-- Loading Overlay -->
-        <Grid Grid.ColumnSpan="2" 
+        <Grid Grid.Row="1" Grid.ColumnSpan="2"
               Background="{DynamicResource OverlayBackgroundBrush}"
               Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
             <ProgressBar Style="{StaticResource MaterialDesignCircularProgressBar}"

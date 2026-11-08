@@ -131,6 +131,10 @@
           "title": "Commands"
         },
         {
+          "path": "chat-features/quotes.md",
+          "title": "Quotes"
+        },
+        {
           "path": "chat-features/marketplace.md",
           "title": "Marketplace & Sharecodes"
         },

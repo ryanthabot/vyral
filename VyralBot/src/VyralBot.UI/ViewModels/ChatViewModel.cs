@@ -4133,6 +4133,22 @@ public class ChatViewModel : ViewModelBase
 		{
 			return await IsTwitchFollowerAsync(username);
 		}
+		// Non-Twitch platforms have no direct follow API check here; fall
+		// back to the recorded viewer status (follow events are recorded for
+		// Kick/Twitch, so FollowersOnly giveaways/polls are enforceable there
+		// instead of rejecting every non-Twitch viewer).
+		if (_viewerStatusService != null)
+		{
+			try
+			{
+				var status = await _viewerStatusService.GetStatusAsync(username, platform);
+				return status?.IsFollower == true;
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, "Failed to look up recorded follower status for {Username} ({Platform})", username, platform);
+			}
+		}
 		return false;
 	}
 

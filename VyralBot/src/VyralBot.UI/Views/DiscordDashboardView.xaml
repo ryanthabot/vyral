@@ -158,6 +158,7 @@
                                 <Button Command="{Binding RefreshCommand}"
                                         Style="{StaticResource MaterialDesignIconButton}"
                                         ToolTip="Refresh the whole dashboard"
+                                        AutomationProperties.Name="Refresh dashboard"
                                         Width="28" Height="28" Padding="0"
                                         HorizontalAlignment="Right">
                                     <materialDesign:PackIcon Kind="Refresh" Width="16" Height="16"/>

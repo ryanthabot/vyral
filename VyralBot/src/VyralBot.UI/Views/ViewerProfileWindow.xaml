@@ -120,7 +120,8 @@
                     </Button>
                     <Button Click="Close_Click"
                             Style="{StaticResource MaterialDesignFlatButton}"
-                            ToolTip="Close">
+                            ToolTip="Close"
+                            AutomationProperties.Name="Close">
                         <materialDesign:PackIcon Kind="Close"
                                                  Width="18" Height="18"
                                                  Foreground="{DynamicResource ErrorRedBrush}"/>

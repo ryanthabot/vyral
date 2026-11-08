@@ -323,6 +323,7 @@
                     <Button Command="{Binding DecreaseChatFontSizeCommand}"
                           Style="{StaticResource MaterialDesignIconButton}"
                           ToolTip="Decrease chat font size"
+                          AutomationProperties.Name="Decrease chat font size"
                           Width="32"
                           Height="32"
                           Margin="0,0,8,0">
@@ -332,6 +333,7 @@
                     <Button Command="{Binding IncreaseChatFontSizeCommand}"
                           Style="{StaticResource MaterialDesignIconButton}"
                           ToolTip="Increase chat font size"
+                          AutomationProperties.Name="Increase chat font size"
                           Width="32"
                           Height="32"
                           Margin="0,0,8,0">
@@ -360,6 +362,7 @@
                     <Button Command="{Binding LoadHistoryCommand}"
                           Style="{StaticResource MaterialDesignIconButton}"
                           ToolTip="Load Chat History (200 messages)"
+                          AutomationProperties.Name="Load chat history"
                           Width="32"
                           Height="32"
                           Margin="0,0,8,0">
@@ -369,6 +372,7 @@
                     <Button Command="{Binding ClearChatCommand}"
                           Style="{StaticResource MaterialDesignIconButton}"
                           ToolTip="Clear Chat (UI only)"
+                          AutomationProperties.Name="Clear chat"
                           Width="32"
                           Height="32"
                           Margin="0,0,8,0">
@@ -378,6 +382,7 @@
                     <Button Command="{Binding ClearHistoryCommand}"
                           Style="{StaticResource MaterialDesignIconButton}"
                           ToolTip="Delete Chat History from Database"
+                          AutomationProperties.Name="Delete chat history"
                           Width="32"
                           Height="32">
                         <materialDesign:PackIcon Kind="DatabaseRemove" Width="18" Height="18"/>
@@ -712,7 +717,8 @@
                                             Style="{StaticResource MaterialDesignIconButton}"
                                             Width="32"
                                             Height="32"
-                                            ToolTip="Open DM">
+                                            ToolTip="Open DM"
+                                            AutomationProperties.Name="Open DM">
                                         <materialDesign:PackIcon Kind="Check" Width="18" Height="18"/>
                                     </Button>
                                 </StackPanel>
@@ -758,7 +764,8 @@
                                     Style="{StaticResource MaterialDesignIconButton}"
                                     Width="32"
                                     Height="32"
-                                    ToolTip="All conversations">
+                                    ToolTip="All conversations"
+                                    AutomationProperties.Name="All conversations">
                                 <materialDesign:PackIcon Kind="ArrowLeft" Width="18" Height="18"/>
                             </Button>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0">
@@ -781,7 +788,8 @@
                                     Width="32"
                                     Height="32"
                                     Margin="4,0,0,0"
-                                    ToolTip="Reload this conversation's full saved history">
+                                    ToolTip="Reload this conversation's full saved history"
+                                    AutomationProperties.Name="Reload conversation history">
                                 <materialDesign:PackIcon Kind="History" Width="18" Height="18"/>
                             </Button>
                             <Button Grid.Column="3"
@@ -790,7 +798,8 @@
                                     Width="32"
                                     Height="32"
                                     Margin="4,0,0,0"
-                                    ToolTip="Delete this conversation's saved DM history">
+                                    ToolTip="Delete this conversation's saved DM history"
+                                    AutomationProperties.Name="Delete conversation history">
                                 <materialDesign:PackIcon Kind="Delete" Width="18" Height="18"/>
                             </Button>
                         </Grid>
@@ -843,6 +852,7 @@
                                             <!-- Username + last-message preview -->
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding Username}"
+                                                ToolTip="{Binding Username}"
                                                            FontSize="13"
                                                            FontWeight="SemiBold"
                                                            Foreground="{DynamicResource TextPrimaryBrush}"
@@ -948,6 +958,7 @@
                                             <!-- Username + matched snippet -->
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding Username}"
+                                                ToolTip="{Binding Username}"
                                                            FontSize="13"
                                                            FontWeight="SemiBold"
                                                            Foreground="{DynamicResource TextPrimaryBrush}"
@@ -1130,7 +1141,8 @@
                                     Command="{Binding RefreshChannelsCommand}"
                                     Style="{StaticResource MaterialDesignIconButton}"
                                     Width="32" Height="32"
-                                    ToolTip="Refresh from Discord">
+                                    ToolTip="Refresh from Discord"
+                                    AutomationProperties.Name="Refresh channels from Discord">
                                 <materialDesign:PackIcon Kind="Refresh" Width="18" Height="18"/>
                             </Button>
                             <StackPanel Orientation="Horizontal">
@@ -1210,6 +1222,7 @@
                                                 <Button Style="{StaticResource MaterialDesignIconButton}" Margin="0,0,4,0"
                                                         Width="32" Height="32"
                                                         ToolTip="Use as the bot's main channel"
+                                                        AutomationProperties.Name="Set as main channel"
                                                         Command="{Binding DataContext.SetAsMainChannelCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         CommandParameter="{Binding}">
                                                     <materialDesign:PackIcon Kind="StarOutline" Width="18" Height="18"/>
@@ -1217,6 +1230,7 @@
                                                 <Button Style="{StaticResource MaterialDesignIconButton}"
                                                         Width="32" Height="32"
                                                         ToolTip="Open this channel in chat"
+                                                        AutomationProperties.Name="Open channel in chat"
                                                         Command="{Binding DataContext.OpenChannelInChatCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         CommandParameter="{Binding}">
                                                     <materialDesign:PackIcon Kind="ArrowRight" Width="18" Height="18"/>

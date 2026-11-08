@@ -27,6 +27,8 @@ Navigate to OBS → the app **launches or adopts obs64**, finds its main Qt wind
 
 **Remote control**: the tab enables OBS's obs-websocket server when it's off (never while obs64 is running — the flag is only read at OBS startup), then connects a client so bot features can drive OBS. Status line shows "Remote control: connected — scene X • stream live" (ObsHostViewModel.cs:301-404). This is the same channel the [StreamDeck](vyraldeck.md) OBS actions use.
 
+**Remote control auto-reconnects** (remote mode only): if the OBS connection drops for any reason other than you disconnecting — OBS restarted, the websocket server toggled, the machine slept — the client retries **indefinitely with exponential backoff, 1 s doubling to a 30 s ceiling**, and each reconnect re-reads the obs-websocket password straight from OBS's own config (so a password changed in OBS's WebSocket Server Settings is picked up by the next retry without re-entering the page), re-subscribes events, and refreshes scene/stream state (ObsWebSocketClient.cs:39-41, 346-391; ObsHostViewModel.cs:371). The status line narrates every attempt ("The OBS connection on port 4455 was lost — reconnecting in 2 s…"), and a manual STOP truly stops — no zombie loop.
+
 **When OBS isn't installed**: the acquisition panel downloads the latest official OBS Studio Windows installer (GitHub releases feed) with byte progress and runs it silently (`/S`) (ObsAcquisitionService.cs:45-47, 140-200, 313).
 
 ### Bot Studio: embedded libobs
@@ -78,7 +80,7 @@ Separate from the Collections tab, `ObsCollectionUpdateService` can merge the up
 | [ObsOutputService.cs](../../src/VyralBot.Integrations/Obs/Engine/ObsOutputService.cs) | Stream/Record/ReplayBuffer outputs from the OBS profile |
 | [ObsAcquisitionService.cs](../../src/VyralBot.Integrations/Obs/Hosting/ObsAcquisitionService.cs) | GitHub-release resolve → download → silent `/S` install, with progress |
 | [ObsSceneCollectionStore.cs](../../src/VyralBot.Integrations/Obs/ObsSceneCollectionStore.cs) | Verbatim import / byte-identical export of collection JSON |
-| [ObsWebSocketClient.cs](../../src/VyralBot.Integrations/Obs/WebSocket/ObsWebSocketClient.cs) / [ObsWebSocketConfigEditor.cs](../../src/VyralBot.Integrations/Obs/Hosting/ObsWebSocketConfigEditor.cs) | obs-websocket client + config read/enable |
+| [ObsWebSocketClient.cs](../../src/VyralBot.Integrations/Obs/WebSocket/ObsWebSocketClient.cs) / [ObsWebSocketConfigEditor.cs](../../src/VyralBot.Integrations/Obs/Hosting/ObsWebSocketConfigEditor.cs) | obs-websocket client (optional `autoReconnect`: backoff ladder 1 s→30 s, unlimited attempts, password re-read per attempt) + config read/enable |
 
 ## Data & Settings
 

@@ -83,7 +83,8 @@
                                 <Button Command="{Binding StartRestreamCommand}"
                                         Style="{StaticResource MaterialDesignRaisedButton}"
                                         Margin="0,0,8,0"
-                                        ToolTip="While running: stops and restarts the session with your current settings — destinations auto-disabled after repeated failures are re-included.">
+                                        ToolTip="While running: stops and restarts the session with your current settings — destinations auto-disabled after repeated failures are re-included."
+                                        AutomationProperties.Name="Restart restream session">
                                     <StackPanel Orientation="Horizontal">
                                         <materialDesign:PackIcon Kind="Play" Width="18" Height="18" VerticalAlignment="Center"/>
                                         <TextBlock Margin="6,0,0,0">
@@ -356,7 +357,8 @@
                                                         Command="{Binding DataContext.DeleteDestinationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         CommandParameter="{Binding}"
                                                         Style="{StaticResource MaterialDesignIconButton}"
-                                                        ToolTip="Remove destination">
+                                                        ToolTip="Remove destination"
+                                                        AutomationProperties.Name="Remove destination">
                                                     <materialDesign:PackIcon Kind="Delete" Width="18" Height="18"/>
                                                 </Button>
                                             </Grid>

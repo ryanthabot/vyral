@@ -11,7 +11,7 @@ The numbered, severity-tagged inventory of every known defect, wiring gap, dead 
 - **Limitation** — an honest current-state boundary (an API that does not exist, a deliberate degradation), documented rather than promised.
 - **Doc drift** — shipped root documents that disagree with the code.
 
-Counts (as of 2026-11-07, after marathon wave 5): 53 entries — **23 resolved**, **6 partially resolved**, **1 intended behavior (documented)**, and **23 open limitations** (KI-26–KI-28, KI-30–KI-33, KI-36–KI-38, KI-40–KI-42, KI-44–KI-47, KI-50–KI-53; KI-29, KI-35, KI-39 and KI-43 in that first range are counted as resolved). Original severity split of the 25 pre-fix entries: 7 Critical, 9 Wiring gaps, 2 Dead surface, 6 Security, 1 Doc drift.
+Counts (as of 2026-11-07, after marathon wave 6): 53 entries — **23 resolved**, **6 partially resolved**, **1 intended behavior (documented)**, and **23 open limitations** (KI-26–KI-28, KI-30–KI-33, KI-36–KI-38, KI-40–KI-42, KI-44–KI-47, KI-50–KI-53; KI-29, KI-35, KI-39 and KI-43 in that first range are counted as resolved). Original severity split of the 25 pre-fix entries: 7 Critical, 9 Wiring gaps, 2 Dead surface, 6 Security, 1 Doc drift. Wave-6 features (quotes, event-testing upgrade, control API, timer activity gate, OBS auto-reconnect) were re-checked against code and contributed no new entries.
 
 Resolved entries are kept below (never deleted) with a ✅ marker and a one-line description of the fix; partially resolved entries carry ◐ with what remains.
 
@@ -438,7 +438,7 @@ While the app's Google OAuth consent screen is in **Testing** status, Google exp
 
 ## Fixes and newly-documented limitations (2026-11-07 marathon reconciliation)
 
-Everything below was verified against the code during the 24-hour production marathon (waves 0–5). The two resolved entries predate the marathon (fixed in the 2026-10-18 full-app audit pass, commit `7a341d8`) but had never been entered in this ledger; the four limitations are honest current-state boundaries surfaced by the marathon's parity and moderation work.
+Everything below was verified against the code during the 24-hour production marathon (waves 0–6). The two resolved entries predate the marathon (fixed in the 2026-10-18 full-app audit pass, commit `7a341d8`) but had never been entered in this ledger; the four limitations are honest current-state boundaries surfaced by the marathon's parity and moderation work.
 
 ### KI-48 (Critical) — Alert queue stalled after the first alert
 

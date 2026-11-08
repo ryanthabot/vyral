@@ -118,6 +118,13 @@ public class GiveawayService : IDisposable
     private readonly ConcurrentQueue<EntryRequest> _pendingEntries = new();
     private GiveawayIntakeMode _intakeMode = GiveawayIntakeMode.Live;
 
+    // Serializes entry persistence against winner draws: the draw holds this
+    // gate across its entry snapshot + completion save, and every entry
+    // persist re-validates the giveaway status inside the gate — so the draw
+    // is atomic over a consistent snapshot and no entry can slip in (or be
+    // confirmed) between the snapshot and the giveaway being completed.
+    private readonly SemaphoreSlim _drawGate = new(1, 1);
+
     // Lazily-started flush loop lifecycle (only one loop runs at a time).
     private readonly object _flushGate = new();
     private Task? _flushLoopTask;
@@ -327,16 +334,30 @@ public class GiveawayService : IDisposable
         }
 
         // Live intake: persist immediately.
-        var (persisted, entryCount, _) = await PersistEntryAsync(request);
-        if (!persisted)
+        var (outcome, entryCount, _) = await PersistEntryAsync(request);
+        if (outcome == EntryPersistOutcome.GiveawayClosed)
+        {
+            return (false, "This giveaway is not currently active.");
+        }
+
+        if (outcome != EntryPersistOutcome.Persisted)
         {
             return (false, "You have already entered this giveaway!");
         }
 
-        // Update giveaway stats
-        giveaway.TotalEntries = await _dataService.GetGiveawayEntryCountAsync(giveaway.Id);
-        giveaway.UniqueParticipants = await _dataService.GetGiveawayUniqueParticipantsAsync(giveaway.Id);
-        await _dataService.SaveGiveawayAsync(giveaway);
+        // Update giveaway stats on a FRESH read: a draw may have completed the
+        // giveaway while this entry persisted, and saving the stale entity
+        // (still Status=Active) would resurrect a completed giveaway.
+        var freshGiveaway = await _dataService.GetGiveawayAsync(giveaway.Id);
+        if (freshGiveaway != null && freshGiveaway.Status == GiveawayStatus.Active)
+        {
+            freshGiveaway.TotalEntries = await _dataService.GetGiveawayEntryCountAsync(giveaway.Id);
+            freshGiveaway.UniqueParticipants = await _dataService.GetGiveawayUniqueParticipantsAsync(giveaway.Id);
+            await _dataService.SaveGiveawayAsync(freshGiveaway);
+
+            giveaway.TotalEntries = freshGiveaway.TotalEntries;
+            giveaway.UniqueParticipants = freshGiveaway.UniqueParticipants;
+        }
 
         await PublishSafeAsync(new GiveawayEntryEvent
         {
@@ -357,34 +378,187 @@ public class GiveawayService : IDisposable
     }
 
     /// <summary>
-    /// Draws random winner(s) from the active giveaway entries
+    /// Draws random winner(s) from the active giveaway entries.
+    /// Atomic over a consistent snapshot: the draw gate is held across the
+    /// timed-queue flush, the entry snapshot and the completion save, while
+    /// every entry persist re-validates the giveaway status inside the same
+    /// gate — so entries arriving mid-draw either land in the snapshot or are
+    /// rejected with "not active" (never confirmed-then-lost), and two
+    /// concurrent draws (chat + UI) can never double-pick winners.
     /// </summary>
     public async Task<(bool Success, List<string> Winners, string Message)> DrawWinnersAsync(Guid giveawayId)
     {
-        var giveaway = await _dataService.GetGiveawayAsync(giveawayId);
-        if (giveaway == null)
+        await _drawGate.WaitAsync();
+        try
         {
-            return (false, new List<string>(), "Giveaway not found.");
-        }
+            var giveaway = await _dataService.GetGiveawayAsync(giveawayId);
+            if (giveaway == null)
+            {
+                return (false, new List<string>(), "Giveaway not found.");
+            }
 
-        if (giveaway.Status != GiveawayStatus.Active)
+            // Re-checked INSIDE the gate: a draw that completed while this
+            // call waited on the gate is rejected here, not double-drawn.
+            if (giveaway.Status != GiveawayStatus.Active)
+            {
+                return (false, new List<string>(), "This giveaway is not active.");
+            }
+
+            // Flush any pending timed entries so the draw sees every queued
+            // entry (ungated: this caller already holds the draw gate).
+            await DrainTimedQueueAsync(CancellationToken.None, gated: false);
+
+            var entries = (await _dataService.GetGiveawayEntriesAsync(giveaway.Id)).ToList();
+            if (entries.Count == 0)
+            {
+                // Clean no-draw: the giveaway stays Active (re-draw later is
+                // still possible) and the caller gets an explicit message.
+                return (false, new List<string>(), "No entries to draw from!");
+            }
+
+            var (winners, winnerEntries) = PickWeightedWinners(entries, giveaway.WinnerCount, excludeIds: null);
+
+            // Surface shortfalls: with the attempt cap exhausted the draw can
+            // still produce fewer winners than requested — never silent.
+            if (winners.Count < Math.Min(giveaway.WinnerCount, entries.Count))
+            {
+                _logger.LogWarning(
+                    "Giveaway {Name}: only {Filled} of {Requested} winner slot(s) filled — " +
+                    "the weighted pool ran out of unique candidates",
+                    giveaway.Name, winners.Count, giveaway.WinnerCount);
+            }
+
+            foreach (var winnerEntry in winnerEntries)
+            {
+                winnerEntry.IsWinner = true;
+                winnerEntry.WonAt = DateTime.UtcNow;
+                await _dataService.SaveGiveawayEntryAsync(winnerEntry);
+            }
+
+            // End giveaway
+            giveaway.Status = GiveawayStatus.Completed;
+            giveaway.EndedAt = DateTime.UtcNow;
+            giveaway.Winners = string.Join(", ", winners);
+            await _dataService.SaveGiveawayAsync(giveaway);
+
+            _logger.LogInformation("Giveaway completed: {Name} - Winners: {Winners}", giveaway.Name, giveaway.Winners);
+
+            await PublishSafeAsync(new GiveawayWinnersDrawnEvent
+            {
+                GiveawayId = giveaway.Id,
+                Title = giveaway.Name,
+                WinnersText = giveaway.Winners ?? string.Empty,
+                Source = "System"
+            });
+
+            string message = winners.Count == 1
+                ? $"🎉 Winner: {winners[0]} — prize: {giveaway.Name}!"
+                : $"🎉 Winners: {string.Join(", ", winners)} — prize: {giveaway.Name}!";
+
+            return (true, winners, message);
+        }
+        finally
         {
-            return (false, new List<string>(), "This giveaway is not active.");
+            _drawGate.Release();
         }
+    }
 
-        // Flush any pending timed entries so the draw sees every queued entry.
-        await DrainTimedQueueAsync(CancellationToken.None);
-
-        var entries = (await _dataService.GetGiveawayEntriesAsync(giveaway.Id)).ToList();
-        if (entries.Count == 0)
+    /// <summary>
+    /// Re-draws winners for a completed giveaway, excluding the entries that
+    /// won the previous draw (the "winner never responded — reroll" path).
+    /// The previous winners' flags are cleared, new winners are drawn from
+    /// the remaining entries (same EntryCount weighting) and the giveaway's
+    /// winner list is replaced. A no-eligible-entries redraw changes nothing.
+    /// </summary>
+    public async Task<(bool Success, List<string> Winners, string Message)> RedrawWinnersAsync(Guid giveawayId)
+    {
+        await _drawGate.WaitAsync();
+        try
         {
-            return (false, new List<string>(), "No entries to draw from!");
-        }
+            var giveaway = await _dataService.GetGiveawayAsync(giveawayId);
+            if (giveaway == null)
+            {
+                return (false, new List<string>(), "Giveaway not found.");
+            }
 
+            if (giveaway.Status != GiveawayStatus.Completed)
+            {
+                return (false, new List<string>(), "Only completed giveaways can be re-drawn.");
+            }
+
+            var entries = (await _dataService.GetGiveawayEntriesAsync(giveaway.Id)).ToList();
+            var previousWinners = entries.Where(e => e.IsWinner).ToList();
+            var eligible = entries.Where(e => !e.IsWinner).ToList();
+
+            if (eligible.Count == 0)
+            {
+                return (false, new List<string>(), "No non-winner entries to re-draw from!");
+            }
+
+            var (winners, winnerEntries) = PickWeightedWinners(eligible, giveaway.WinnerCount, excludeIds: null);
+
+            // Un-flag the previous draw's winners before recording the new
+            // ones, so IsWinner always reflects the LATEST draw only.
+            foreach (var old in previousWinners)
+            {
+                old.IsWinner = false;
+                old.WonAt = null;
+                await _dataService.SaveGiveawayEntryAsync(old);
+            }
+
+            foreach (var winnerEntry in winnerEntries)
+            {
+                winnerEntry.IsWinner = true;
+                winnerEntry.WonAt = DateTime.UtcNow;
+                await _dataService.SaveGiveawayEntryAsync(winnerEntry);
+            }
+
+            giveaway.Winners = string.Join(", ", winners);
+            await _dataService.SaveGiveawayAsync(giveaway);
+
+            _logger.LogInformation(
+                "Giveaway re-drawn: {Name} - previous winners excluded ({Previous}), new winners: {Winners}",
+                giveaway.Name, string.Join(", ", previousWinners.Select(e => $"{e.Username} ({e.Platform})")),
+                giveaway.Winners);
+
+            await PublishSafeAsync(new GiveawayWinnersDrawnEvent
+            {
+                GiveawayId = giveaway.Id,
+                Title = giveaway.Name,
+                WinnersText = giveaway.Winners ?? string.Empty,
+                Source = "System"
+            });
+
+            string message = winners.Count == 1
+                ? $"🎉 Re-drawn winner: {winners[0]} — prize: {giveaway.Name}!"
+                : $"🎉 Re-drawn winners: {string.Join(", ", winners)} — prize: {giveaway.Name}!";
+
+            return (true, winners, message);
+        }
+        finally
+        {
+            _drawGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Picks up to <paramref name="winnerCount"/> unique winners from
+    /// <paramref name="entries"/>, weighted by each entry's EntryCount
+    /// (bonus entries = extra tickets) and skipping any entry whose Id is in
+    /// <paramref name="excludeIds"/> (null = no exclusions).
+    /// </summary>
+    private (List<string> Winners, List<GiveawayEntry> WinnerEntries) PickWeightedWinners(
+        List<GiveawayEntry> entries, int winnerCount, HashSet<Guid>? excludeIds)
+    {
         // Create weighted pool (each entry gets EntryCount tickets)
         var entryPool = new List<GiveawayEntry>();
         foreach (var entry in entries)
         {
+            if (excludeIds != null && excludeIds.Contains(entry.Id))
+            {
+                continue;
+            }
+
             for (int i = 0; i < entry.EntryCount; i++)
             {
                 entryPool.Add(entry);
@@ -392,9 +566,10 @@ public class GiveawayService : IDisposable
         }
 
         var winners = new List<string>();
-        var winnerEntries = new HashSet<Guid>(); // Track to prevent duplicate winners
+        var winnerEntries = new List<GiveawayEntry>();
+        var drawnIds = new HashSet<Guid>(); // Track to prevent duplicate winners
 
-        int winnersToDraw = Math.Min(giveaway.WinnerCount, entries.Count);
+        int winnersToDraw = Math.Min(winnerCount, entryPool.Select(e => e.Id).Distinct().Count());
 
         for (int i = 0; i < winnersToDraw; i++)
         {
@@ -410,7 +585,7 @@ public class GiveawayService : IDisposable
                 int randomIndex = _random.Next(entryPool.Count);
                 var candidate = entryPool[randomIndex];
 
-                if (!winnerEntries.Contains(candidate.Id))
+                if (!drawnIds.Contains(candidate.Id))
                 {
                     winnerEntry = candidate;
                 }
@@ -420,47 +595,17 @@ public class GiveawayService : IDisposable
 
             if (winnerEntry != null)
             {
-                winnerEntries.Add(winnerEntry.Id);
+                drawnIds.Add(winnerEntry.Id);
+                winnerEntries.Add(winnerEntry);
                 winners.Add($"{winnerEntry.Username} ({winnerEntry.Platform})");
-
-                // Mark as winner
-                winnerEntry.IsWinner = true;
-                winnerEntry.WonAt = DateTime.UtcNow;
-                await _dataService.SaveGiveawayEntryAsync(winnerEntry);
+            }
+            else
+            {
+                break; // Pool exhausted of unique candidates — stop early.
             }
         }
 
-        // Surface shortfalls: with the attempt cap exhausted the draw can
-        // still produce fewer winners than requested — never silent.
-        if (winners.Count < winnersToDraw)
-        {
-            _logger.LogWarning(
-                "Giveaway {Name}: only {Filled} of {Requested} winner slot(s) filled — " +
-                "the weighted pool ran out of unique candidates",
-                giveaway.Name, winners.Count, winnersToDraw);
-        }
-
-        // End giveaway
-        giveaway.Status = GiveawayStatus.Completed;
-        giveaway.EndedAt = DateTime.UtcNow;
-        giveaway.Winners = string.Join(", ", winners);
-        await _dataService.SaveGiveawayAsync(giveaway);
-
-        _logger.LogInformation("Giveaway completed: {Name} - Winners: {Winners}", giveaway.Name, giveaway.Winners);
-
-        await PublishSafeAsync(new GiveawayWinnersDrawnEvent
-        {
-            GiveawayId = giveaway.Id,
-            Title = giveaway.Name,
-            WinnersText = giveaway.Winners ?? string.Empty,
-            Source = "System"
-        });
-
-        string message = winners.Count == 1
-            ? $"🎉 Winner: {winners[0]}!"
-            : $"🎉 Winners: {string.Join(", ", winners)}!";
-
-        return (true, winners, message);
+        return (winners, winnerEntries);
     }
 
     /// <summary>
@@ -576,6 +721,7 @@ public class GiveawayService : IDisposable
         }
 
         _settingsLock.Dispose();
+        _drawGate.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -701,7 +847,13 @@ public class GiveawayService : IDisposable
     /// keeping the latest request, persists each entry, recomputes giveaway
     /// totals once per giveaway and publishes one aggregated entry event.
     /// </summary>
-    private async Task DrainTimedQueueAsync(CancellationToken cancellationToken)
+    /// <param name="cancellationToken">Cancels the flush; the remainder is re-queued.</param>
+    /// <param name="gated">
+    /// True (default) to take the draw gate per persist — used by the flush
+    /// loop and the Timed→Live switch. The draw itself passes false because
+    /// it already holds the gate (the gate is not re-entrant).
+    /// </param>
+    private async Task DrainTimedQueueAsync(CancellationToken cancellationToken, bool gated = true)
     {
         if (_pendingEntries.IsEmpty)
         {
@@ -738,8 +890,12 @@ public class GiveawayService : IDisposable
 
                 try
                 {
-                    var (persistedThis, _, _) = await PersistEntryAsync(request);
-                    if (persistedThis)
+                    // Gated flushes re-validate status inside the draw gate;
+                    // the draw's own flush (gated: false) already holds it.
+                    var outcome = gated
+                        ? (await PersistEntryAsync(request)).Outcome
+                        : (await PersistEntryCoreAsync(request)).Outcome;
+                    if (outcome == EntryPersistOutcome.Persisted)
                     {
                         lastPersisted = request;
                         persisted++;
@@ -801,23 +957,59 @@ public class GiveawayService : IDisposable
             .Select(g => g.Last());
     }
 
+    /// <summary>Outcome of persisting a single giveaway entry.</summary>
+    private enum EntryPersistOutcome
+    {
+        Persisted,
+        Duplicate,
+        GiveawayClosed
+    }
+
     /// <summary>
-    /// Single-entry persist path: recomputes entry count (legacy sub bonus +
-    /// odds boost), saves the entry and returns the resulting entry count.
+    /// Gated single-entry persist path: takes the draw gate (so a concurrent
+    /// draw's snapshot/completion can never interleave with this persist) and
+    /// re-validates the giveaway status inside it. A giveaway that completed
+    /// while this entry waited on the gate is rejected as GiveawayClosed —
+    /// the viewer is told the giveaway is over instead of being "entered"
+    /// into a draw that already happened.
     /// </summary>
-    private async Task<(bool Persisted, int EntryCount, string Breakdown)> PersistEntryAsync(EntryRequest request)
+    private async Task<(EntryPersistOutcome Outcome, int EntryCount, string Breakdown)> PersistEntryAsync(EntryRequest request)
+    {
+        await _drawGate.WaitAsync();
+        try
+        {
+            var giveaway = await _dataService.GetGiveawayAsync(request.GiveawayId);
+            if (giveaway == null || giveaway.Status != GiveawayStatus.Active)
+            {
+                return (EntryPersistOutcome.GiveawayClosed, 0, string.Empty);
+            }
+
+            return await PersistEntryCoreAsync(request);
+        }
+        finally
+        {
+            _drawGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Single-entry persist path (caller must hold the draw gate or accept
+    /// the race): recomputes entry count (legacy sub bonus + odds boost),
+    /// saves the entry and returns the resulting entry count.
+    /// </summary>
+    private async Task<(EntryPersistOutcome Outcome, int EntryCount, string Breakdown)> PersistEntryCoreAsync(EntryRequest request)
     {
         // Re-check duplicates at persist time (the queue may hold stale requests).
         var existing = await _dataService.GetGiveawayEntryAsync(request.GiveawayId, request.Username, request.Platform);
         if (existing != null)
         {
-            return (false, 0, string.Empty);
+            return (EntryPersistOutcome.Duplicate, 0, string.Empty);
         }
 
         var giveaway = await _dataService.GetGiveawayAsync(request.GiveawayId);
-        if (giveaway == null)
+        if (giveaway == null || giveaway.Status != GiveawayStatus.Active)
         {
-            return (false, 0, string.Empty);
+            return (EntryPersistOutcome.GiveawayClosed, 0, string.Empty);
         }
 
         // Calculate entry count (base + subscriber bonus + odds boost).
@@ -878,7 +1070,7 @@ public class GiveawayService : IDisposable
             request.Username, request.Platform, entryCount,
             breakdown.Length > 0 ? $" [{breakdown}]" : string.Empty);
 
-        return (true, entryCount, breakdown);
+        return (EntryPersistOutcome.Persisted, entryCount, breakdown);
     }
 
     /// <summary>Prefixes the stored message with the odds breakdown ("breakdown; message").</summary>

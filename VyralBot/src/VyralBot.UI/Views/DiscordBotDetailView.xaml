@@ -225,6 +225,7 @@
                             <Button Command="{Binding RefreshCommand}"
                                     Style="{StaticResource MaterialDesignIconButton}"
                                     ToolTip="Refresh servers and connection status"
+                                    AutomationProperties.Name="Refresh servers"
                                     Width="28"
                                     Height="28"
                                     Padding="0"

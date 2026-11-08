@@ -215,6 +215,7 @@
 
                                         <TextBlock Grid.Column="2"
                                                    Text="{Binding AssignedBy, StringFormat=by {0}}"
+                                                   ToolTip="{Binding AssignedBy, StringFormat=by {0}}"
                                                    FontSize="11"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                    VerticalAlignment="Center"
@@ -226,7 +227,8 @@
                                                 CommandParameter="{Binding}"
                                                 Style="{StaticResource MaterialDesignFlatButton}"
                                                 Padding="4"
-                                                ToolTip="Remove this mod role assignment">
+                                                ToolTip="Remove this mod role assignment"
+                                                AutomationProperties.Name="Remove mod role assignment">
                                             <materialDesign:PackIcon Kind="Close" Width="16" Height="16"
                                                                      Foreground="{DynamicResource ErrorBrush}"/>
                                         </Button>
@@ -438,6 +440,7 @@
 
                                         <TextBlock Grid.Column="1"
                                                    Text="{Binding Action}"
+                                                   ToolTip="{Binding Action}"
                                                    FontSize="12" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource PrimaryBrush}"
                                                    VerticalAlignment="Center"
@@ -460,6 +463,7 @@
 
                                         <TextBlock Grid.Column="3"
                                                    Text="{Binding Details}"
+                                                   ToolTip="{Binding Details}"
                                                    FontSize="11"
                                                    Foreground="{DynamicResource TextSecondaryBrush}"
                                                    VerticalAlignment="Center"
@@ -664,9 +668,11 @@
                                  Width="130"/>
                     </StackPanel>
 
-                    <!-- Allowlists / banned words / exempt users -->
+                    <!-- Allowlists / banned words / word overrides / exempt users -->
                     <Grid Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="12"/>
                             <ColumnDefinition Width="*"/>
@@ -692,6 +698,16 @@
                                  Height="90"
                                  VerticalContentAlignment="Top"/>
                         <TextBox Grid.Column="4"
+                                 Text="{Binding WordAllowlistText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                 materialDesign:HintAssist.Hint="Word allowlist (one per line — never banned)"
+                                 ToolTip="Words that never count as violations, even if they appear in the banned list"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 Height="90"
+                                 VerticalContentAlignment="Top"/>
+                        <TextBox Grid.Column="6"
                                  Text="{Binding ExemptUsersText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                  Style="{StaticResource MaterialDesignOutlinedTextBox}"
                                  materialDesign:HintAssist.Hint="Exempt users (one per line)"
@@ -849,6 +865,7 @@
                                                        Foreground="{DynamicResource TextPrimaryBrush}"
                                                        VerticalAlignment="Center"/>
                                             <TextBlock Text="{Binding Name}"
+                                            ToolTip="{Binding Name}"
                                                        FontSize="11"
                                                        Foreground="{DynamicResource TextMutedBrush}"
                                                        VerticalAlignment="Center"

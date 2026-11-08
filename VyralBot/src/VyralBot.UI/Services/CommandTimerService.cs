@@ -274,12 +274,14 @@ public class CommandTimerService
         }
         else
         {
-            // Random replies win when configured (same pick as
-            // CommandService.PickResponse), falling back to the single Response.
+            // Same precedence as CommandService.PickResponse: the per-platform
+            // override for the timer's TARGET platform wins when authored,
+            // then random replies, then the single Response.
             var responses = CommandService.ParseResponses(command.ResponsesJson);
-            var response = responses.Count > 0
-                ? responses[Random.Shared.Next(responses.Count)]
-                : command.Response;
+            var response = command.ResolvePlatformResponse(timer.TargetPlatform)
+                ?? (responses.Count > 0
+                    ? responses[Random.Shared.Next(responses.Count)]
+                    : command.Response);
 
             response = await _variableReplacementService.ReplaceVariablesAsync(
                 response, contextVariables, timer.TargetPlatform);

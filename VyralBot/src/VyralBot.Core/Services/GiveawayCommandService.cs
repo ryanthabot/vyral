@@ -71,7 +71,7 @@ public class GiveawayCommandService
         var commandParts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (commandParts.Length < 2)
         {
-            return "Usage: !giveaway <start|enter|winner|cancel|status>";
+            return "Usage: !giveaway <start|enter|winner|redraw|cancel|status>";
         }
 
         var subCommand = commandParts[1].ToLower();
@@ -80,23 +80,27 @@ public class GiveawayCommandService
         {
             return subCommand switch
             {
-                "start" => isModerator 
-                    ? await HandleStartCommandAsync() 
+                "start" => isModerator
+                    ? await HandleStartCommandAsync()
                     : "⚠️ Only moderators can start giveaways.",
-                
+
                 "enter" => await HandleEnterCommandAsync(username, platform, isSubscriber, isFollower, watchtimeMinutes),
-                
-                "winner" or "draw" => isModerator 
-                    ? await HandleWinnerCommandAsync() 
+
+                "winner" or "draw" => isModerator
+                    ? await HandleWinnerCommandAsync()
                     : "⚠️ Only moderators can draw winners.",
-                
-                "cancel" => isModerator 
-                    ? await HandleCancelCommandAsync() 
+
+                "redraw" or "reroll" => isModerator
+                    ? await HandleRedrawCommandAsync()
+                    : "⚠️ Only moderators can re-draw winners.",
+
+                "cancel" => isModerator
+                    ? await HandleCancelCommandAsync()
                     : "⚠️ Only moderators can cancel giveaways.",
-                
+
                 "status" => await HandleStatusCommandAsync(),
-                
-                _ => "Usage: !giveaway <start|enter|winner|cancel|status>"
+
+                _ => "Usage: !giveaway <start|enter|winner|redraw|cancel|status>"
             };
         }
         catch (Exception ex)
@@ -232,6 +236,31 @@ public class GiveawayCommandService
         }
 
         return "❌ Failed to draw winners or no entries found.";
+    }
+
+    private async Task<string> HandleRedrawCommandAsync()
+    {
+        // Redraw applies to the most recent completed giveaway (a live
+        // giveaway must be drawn first; previous winners are excluded).
+        var allGiveaways = await _giveawayService.GetAllGiveawaysAsync();
+        var completedGiveaway = allGiveaways
+            .Where(g => g.Status == Data.Entities.GiveawayStatus.Completed)
+            .OrderByDescending(g => g.EndedAt ?? g.CreatedAt)
+            .FirstOrDefault();
+
+        if (completedGiveaway == null)
+        {
+            return "⚠️ No completed giveaway to re-draw. Draw winners first with !giveaway winner.";
+        }
+
+        var (success, winners, message) = await _giveawayService.RedrawWinnersAsync(completedGiveaway.Id);
+
+        if (success && winners.Count > 0)
+        {
+            return $"🎊 {message} (Previous winners were excluded.)";
+        }
+
+        return $"❌ {message}";
     }
 
     private async Task<string> HandleCancelCommandAsync()

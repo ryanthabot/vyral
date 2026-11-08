@@ -39,7 +39,7 @@ WorkflowTriggerService triggers, dashboards) runs for real.
 | `twitch.cheer` | `TwitchCheerEvent` | chat line, cheer sound, alert, stats, currency bonus | `cheer` (Twitch) |
 | `twitch.channelpointsredeem` | `TwitchChannelPointsRedeemEvent` | chat line, redemption sound, "Reward Redeemed!" alert, Twitch/RewardRedeemed stats | `rewardredeemed` (Twitch) |
 | `youtube.superchat` | `YouTubeSuperChatEvent` ($5.00) | cheer sound, "Super Chat!" alert, YouTube/Cheer stats, currency bonus (500 cents) | `superchat` (YouTube) |
-| `youtube.membership` | `YouTubeMembershipEvent` | "New Subscriber!" alert, viewer-status subscription, YouTube/Subscribe stats | none in V1 |
+| `youtube.membership` | `YouTubeMembershipEvent` | "New Subscriber!" alert, viewer-status subscription, YouTube/Subscribe stats | `membership` (YouTube) |
 | `discord.memberjoined` | `DiscordMemberJoinedEvent` | follow sound, "New Member!" alert, Discord/MemberJoined stats | `discordmemberjoined` |
 | `discord.boost` | `DiscordBoostEvent` | subscribe sound, "Server Boosted!" alert, Discord/Boost stats | `discordboost` |
 

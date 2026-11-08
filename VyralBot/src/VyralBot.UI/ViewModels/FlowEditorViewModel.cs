@@ -2033,14 +2033,16 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     public ObservableCollection<string> TierOptions { get; } = new(ModTiers.TierNames);
 
     /// <summary>
-    /// Event types WorkflowTriggerService actually dispatches (Twitch + Kick
-    /// subscriptions use exactly these keys) — offered by the editable event-type
-    /// ComboBox. Free text still binds so legacy/aliased values keep loading.
+    /// Event types WorkflowTriggerService actually dispatches (Twitch, Kick,
+    /// Discord and YouTube subscriptions use exactly these keys — "membership"
+    /// is YouTube memberships, kept separate from Twitch/Kick "subscribe") —
+    /// offered by the editable event-type ComboBox. Free text still binds so
+    /// legacy/aliased values keep loading.
     /// </summary>
     public ObservableCollection<string> TriggerEventTypeOptions { get; } = new()
     {
         "follow", "subscribe", "resub", "giftsub", "raid", "cheer", "host",
-        "discordmemberjoined", "discordboost", "superchat"
+        "discordmemberjoined", "discordboost", "superchat", "membership"
     };
 
     public bool IsTriggerCommand => SelectedTriggerType?.Key == WorkflowTriggerTypes.Command;
@@ -2069,6 +2071,31 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
                 : label;
         }
     }
+
+    // ======================================================================
+    // Per-platform responses (command-trigger reply overrides)
+    // ======================================================================
+    // One command, a different reply text per platform: a non-blank box wins
+    // on its platform wherever the linked Command row's reply is picked (Core
+    // CommandService chat pipeline + CommandTimerService timers), blank boxes
+    // fall back to the default response. Persisted on the row as
+    // Command.PlatformResponsesJson on save; loaded from it on edit.
+
+    /// <summary>Twitch reply override (blank = use the default response).</summary>
+    [ObservableProperty]
+    private string _platformResponseTwitch = string.Empty;
+
+    /// <summary>Kick reply override (blank = use the default response).</summary>
+    [ObservableProperty]
+    private string _platformResponseKick = string.Empty;
+
+    /// <summary>YouTube reply override (blank = use the default response).</summary>
+    [ObservableProperty]
+    private string _platformResponseYouTube = string.Empty;
+
+    /// <summary>Discord reply override (blank = use the default response).</summary>
+    [ObservableProperty]
+    private string _platformResponseDiscord = string.Empty;
 
     // ======================================================================
     // Toolbar popups (open-state is VM-owned; the view dismisses them)
@@ -2379,6 +2406,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
         _existingCreatedAt = existingWorkflow?.CreatedAt ?? DateTime.UtcNow;
         _sourceCommandId = null;
         _ownerBotId = string.IsNullOrWhiteSpace(ownerBotId) ? null : ownerBotId.Trim();
+        ResetPlatformResponses(); // per-platform boxes reload from their own row below
         _loadedFromImport = false;
         _cascadeCount = 0;
         _componentSubNodes.Clear();
@@ -2462,6 +2490,16 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             LoadNodesFromWorkflow(existingWorkflow);
             IsDirty = false;
             StatusText = $"Editing \"{existingWorkflow.Name}\" — SAVE keeps the same workflow id.";
+
+            // Editing an ADOPTED command (Commands page → EDIT reuses this
+            // flow): the per-platform reply overrides live on the linked
+            // Command row, not in the graph — load them so the expander
+            // shows what currently fires.
+            if (string.Equals(existingWorkflow.Trigger?.Type, WorkflowTriggerTypes.Command, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(existingWorkflow.SourceCommandId))
+            {
+                await LoadPlatformResponsesAsync(existingWorkflow.SourceCommandId);
+            }
         }
         else
         {
@@ -2534,9 +2572,102 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             _existingWorkflow.SourceCommandId = command.Id;
         }
 
+        // Per-platform reply overrides come from the row itself.
+        LoadPlatformResponses(command);
+
         StatusText = $"Editing {command.Name} in the Visual Builder — SAVE moves it into your flows.";
         _logger.LogInformation("Flow editor seeded from command {CommandName} ({CommandId})",
             command.Name, command.Id);
+    }
+
+    // ----------------------------------------------------------------------
+    // Per-platform responses (command-trigger reply overrides) — load/persist
+    // ----------------------------------------------------------------------
+
+    /// <summary>Maps the row's <see cref="Command.PlatformResponsesJson"/> onto the four boxes.</summary>
+    private void LoadPlatformResponses(Command command)
+    {
+        var map = Command.ParsePlatformResponses(command.PlatformResponsesJson);
+        PlatformResponseTwitch = map.GetValueOrDefault("Twitch", string.Empty);
+        PlatformResponseKick = map.GetValueOrDefault("Kick", string.Empty);
+        PlatformResponseYouTube = map.GetValueOrDefault("YouTube", string.Empty);
+        PlatformResponseDiscord = map.GetValueOrDefault("Discord", string.Empty);
+    }
+
+    /// <summary>Clears every per-platform box (a fresh/foreign flow starts blank).</summary>
+    private void ResetPlatformResponses()
+    {
+        PlatformResponseTwitch = string.Empty;
+        PlatformResponseKick = string.Empty;
+        PlatformResponseYouTube = string.Empty;
+        PlatformResponseDiscord = string.Empty;
+    }
+
+    /// <summary>Row-id variant of <see cref="LoadPlatformResponses"/> (best-effort; never throws).</summary>
+    private async Task LoadPlatformResponsesAsync(string commandId)
+    {
+        try
+        {
+            var row = await _dataService.GetCommandAsync(commandId);
+            if (row != null)
+            {
+                LoadPlatformResponses(row);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load per-platform responses for command row {CommandId}", commandId);
+        }
+    }
+
+    /// <summary>
+    /// Persists the four per-platform boxes onto the linked Command row
+    /// (Command.PlatformResponsesJson) after
+    /// <see cref="EnsureCommandRowAsync"/> guaranteed the linkage. Only
+    /// prefix-command triggers carry overrides; every failure is logged and
+    /// swallowed — never fails the save.
+    /// </summary>
+    private async Task PersistPlatformResponsesAsync(Workflow workflow)
+    {
+        try
+        {
+            if (!string.Equals(workflow.Trigger?.Type, WorkflowTriggerTypes.Command, StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(workflow.SourceCommandId))
+            {
+                return;
+            }
+
+            var row = await _dataService.GetCommandAsync(workflow.SourceCommandId);
+            if (row == null)
+            {
+                return;
+            }
+
+            var json = Command.BuildPlatformResponsesJson(new Dictionary<string, string?>
+            {
+                ["Twitch"] = PlatformResponseTwitch,
+                ["Kick"] = PlatformResponseKick,
+                ["YouTube"] = PlatformResponseYouTube,
+                ["Discord"] = PlatformResponseDiscord
+            });
+
+            if (string.Equals(row.PlatformResponsesJson, json, StringComparison.Ordinal))
+            {
+                return; // unchanged — skip the write
+            }
+
+            row.PlatformResponsesJson = json;
+            row.UpdatedAt = DateTime.UtcNow;
+            await _dataService.SaveCommandAsync(row);
+            _logger.LogInformation("Flow {WorkflowId} saved per-platform responses for command {CommandName} ({CommandId})",
+                workflow.Id, row.Name, row.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Could not persist per-platform responses for command row {CommandId} — save continues",
+                workflow.SourceCommandId);
+        }
     }
 
     /// <summary>Maps a persisted trigger into the toolbar form fields.</summary>
@@ -5278,6 +5409,10 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
             // A command-triggered flow IS a custom command: make sure it has a
             // row on the Commands page (first save) / stays linked (re-saves).
             await EnsureCommandRowAsync(workflow);
+
+            // Per-platform reply overrides persist onto the linked Command row
+            // (the linkage above is guaranteed before this runs).
+            await PersistPlatformResponsesAsync(workflow);
 
             // Component child workflows (button / select sub-flows) sync after
             // the parent row exists so the parent id in their component keys is

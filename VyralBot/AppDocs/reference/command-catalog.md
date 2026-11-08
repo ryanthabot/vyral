@@ -182,6 +182,24 @@ Routing note: messages starting with `!watchtime` reach this service directly; t
 
 ---
 
+## Quote commands
+
+Implemented in [QuoteService.cs](../../src/VyralBot.Core/Services/Quotes/QuoteService.cs) (`ProcessCommandAsync`). Only messages starting with `!quote` (which includes `!quotecount`) reach this service, and the reply is sent on the **originating** platform — Twitch, Kick, YouTube, or Discord. Feature page: [Quotes](../chat-features/quotes.md).
+
+| Command | Arguments | Permission | What it does | Source |
+|---|---|---|---|---|
+| `!quote` | none | Everyone | A random quote, with its number and author. | [QuoteService.cs](../../src/VyralBot.Core/Services/Quotes/QuoteService.cs) |
+| `!quote <n>` | quote number | Everyone | A specific quote by number. | [QuoteService.cs](../../src/VyralBot.Core/Services/Quotes/QuoteService.cs) |
+| `!quote search <text>` (alias `find`) | substring | Everyone | Up to 3 matches ("Found 2/40: #3 … \| #17 …"), 60-char excerpts. | [QuoteService.cs](../../src/VyralBot.Core/Services/Quotes/QuoteService.cs) |
+| `!quote add <text>` | the quote text | **Moderator+** | Adds the quote (records user + platform). | [QuoteService.cs](../../src/VyralBot.Core/Services/Quotes/QuoteService.cs) |
+| `!quote del <n>` (aliases `remove`, `delete`) | quote number | **Moderator+** | Deletes the quote permanently. | [QuoteService.cs](../../src/VyralBot.Core/Services/Quotes/QuoteService.cs) |
+| `!quote help` | none | Everyone | One-line usage summary. | [QuoteService.cs](../../src/VyralBot.Core/Services/Quotes/QuoteService.cs) |
+| `!quotecount` | none | Everyone | "There are N quotes in the database." | [QuoteService.cs](../../src/VyralBot.Core/Services/Quotes/QuoteService.cs) |
+
+Permission note: unlike the legacy command engine's silent denials, non-moderator `add`/`del` attempts get an explicit "You must be a moderator to add/delete quotes" reply.
+
+---
+
 ## See also
 
 - [Commands](../chat-features/commands.md) — the Commands page and visual flow editor (command → flow adoption), permission hierarchy, cooldowns, platform toggles, per-bot scope

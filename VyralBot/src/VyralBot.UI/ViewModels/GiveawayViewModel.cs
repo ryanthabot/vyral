@@ -41,6 +41,9 @@ public partial class GiveawayViewModel : ViewModelBase
     private volatile bool _reloadPending;
     private bool _isInitialized;
 
+    // 1s ticker driving the active-giveaway countdown display (banner).
+    private readonly DispatcherTimer _countdownTimer;
+
     private Guid _startedSubscriptionId = Guid.Empty;
     private Guid _entrySubscriptionId = Guid.Empty;
     private Guid _winnersSubscriptionId = Guid.Empty;
@@ -55,6 +58,24 @@ public partial class GiveawayViewModel : ViewModelBase
 
     [ObservableProperty]
     private ObservableCollection<GiveawayEntry> _entries = new();
+
+    // The currently ACTIVE giveaway (whatever is selected) — drives the
+    // always-visible banner so the streamer sees the live giveaway even while
+    // inspecting a completed one.
+    [ObservableProperty]
+    private Giveaway? _activeGiveaway;
+
+    // Ticking countdown for the active giveaway's scheduled end
+    // ("ends in 00:12:34"), empty when none applies.
+    [ObservableProperty]
+    private string _activeGiveawayCountdown = string.Empty;
+
+    // Empty-state flags for the list/entries panels.
+    [ObservableProperty]
+    private bool _hasGiveaways;
+
+    [ObservableProperty]
+    private bool _hasEntries;
 
     // Create giveaway form fields
     [ObservableProperty]
@@ -149,6 +170,14 @@ public partial class GiveawayViewModel : ViewModelBase
             Interval = TimeSpan.FromSeconds(1)
         };
         _reloadTimer.Tick += OnReloadTimerTick;
+
+        // Countdown ticker: runs only while the page is alive (started in
+        // InitializeAsync, stopped in Cleanup) and updates the banner clock.
+        _countdownTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _countdownTimer.Tick += (_, _) => UpdateCountdown();
     }
 
     public async Task InitializeAsync()
@@ -168,6 +197,10 @@ public partial class GiveawayViewModel : ViewModelBase
             await SubscribeToGiveawayEventsAsync();
             await UpdateIntakeModeAsync();
             await LoadGiveawaysAsync();
+            if (!_countdownTimer.IsEnabled)
+            {
+                _countdownTimer.Start();
+            }
             _logger.LogInformation("GiveawayViewModel initialized");
         }
         catch (Exception ex)
@@ -221,6 +254,7 @@ public partial class GiveawayViewModel : ViewModelBase
 
         _reloadPending = false;
         _reloadTimer.Stop();
+        _countdownTimer.Stop();
         _isInitialized = false;
         _logger.LogInformation("GiveawayViewModel cleaned up");
     }
@@ -333,7 +367,7 @@ public partial class GiveawayViewModel : ViewModelBase
         try
         {
             var giveaways = await _dataService.GetGiveawaysAsync();
-            
+
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 Giveaways.Clear();
@@ -341,6 +375,12 @@ public partial class GiveawayViewModel : ViewModelBase
                 {
                     Giveaways.Add(giveaway);
                 }
+
+                HasGiveaways = Giveaways.Count > 0;
+
+                // Banner source: the live giveaway, independent of selection.
+                ActiveGiveaway = Giveaways.FirstOrDefault(g => g.Status == GiveawayStatus.Active);
+                UpdateCountdown();
             });
 
             _logger.LogInformation("Loaded {Count} giveaways", giveaways.Count());
@@ -350,6 +390,27 @@ public partial class GiveawayViewModel : ViewModelBase
             _logger.LogError(ex, "Error loading giveaways");
             throw;
         }
+    }
+
+    /// <summary>
+    /// Refreshes the banner countdown for the active giveaway's scheduled
+    /// end (UTC, matching the scheduler's comparison). Empty when the active
+    /// giveaway has no scheduled end or none is active.
+    /// </summary>
+    private void UpdateCountdown()
+    {
+        var active = ActiveGiveaway;
+        var endUtc = active?.ScheduledEndTime;
+        if (active == null || endUtc == null)
+        {
+            ActiveGiveawayCountdown = string.Empty;
+            return;
+        }
+
+        var remaining = endUtc.Value - DateTime.UtcNow;
+        ActiveGiveawayCountdown = remaining > TimeSpan.Zero
+            ? $"ends in {(int)remaining.TotalHours:00}:{remaining.Minutes:00}:{remaining.Seconds:00}"
+            : "ending now…";
     }
 
     partial void OnSelectedGiveawayChanged(Giveaway? value)
@@ -378,6 +439,7 @@ public partial class GiveawayViewModel : ViewModelBase
                     Entries.Add(entry);
                 }
 
+                HasEntries = Entries.Count > 0;
                 TotalEntries = totalEntries;
                 UniqueParticipants = uniqueParticipants;
                 DrawnWinnersCount = entries.Count(e => e.IsWinner);
@@ -421,13 +483,18 @@ public partial class GiveawayViewModel : ViewModelBase
             // 0 (or negative) = unlimited entries; GiveawayService only caps when MaxEntries has a value.
             int? maxEntries = NewGiveawayMaxEntries > 0 ? NewGiveawayMaxEntries : null;
 
+            // DatePicker yields a local wall-clock time; normalize to UTC so
+            // the scheduler (which compares against DateTime.UtcNow) fires at
+            // the time the streamer actually picked.
+            var scheduledEndUtc = NewGiveawayScheduledEnd?.ToUniversalTime();
+
             var giveaway = await _giveawayService.CreateGiveawayAsync(
                 NewGiveawayName,
                 NewGiveawayDescription,
                 NewGiveawayKeyword,
                 NewGiveawayWinnerCount,
                 maxEntries,
-                NewGiveawayScheduledEnd,
+                scheduledEndUtc,
                 NewGiveawaySubscriberBonusEnabled,
                 NewGiveawaySubscriberBonusEntries,
                 NewGiveawayMinWatchtime,
@@ -530,10 +597,10 @@ public partial class GiveawayViewModel : ViewModelBase
                 SelectedGiveaway = Giveaways.FirstOrDefault(g => g.Id == selected.Id);
                 await LoadEntriesForSelectedGiveawayAsync();
 
-                // Announce the winners on the connected platforms — the
-                // chat-command draw path announces too, so a UI-drawn draw
-                // should be equally visible to viewers.
-                await AnnounceToChatAsync($"🎉 Giveaway winner(s): {winnerNames}");
+                // Announce the winners (with the prize) on the connected
+                // platforms — the chat-command draw path announces too, so a
+                // UI-drawn draw should be equally visible to viewers.
+                await AnnounceToChatAsync($"🎉 Giveaway '{selected.Name}' winner(s): {winnerNames}");
 
                 _logger.LogInformation("Drew {Count} winners for giveaway {Name}: {Winners}",
                     winners.Count, selected.Name, winnerNames);
@@ -547,6 +614,67 @@ public partial class GiveawayViewModel : ViewModelBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error drawing winners");
+            StatusMessage = $"❌ Error: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Re-draws winners for the selected COMPLETED giveaway, excluding the
+    /// previous winners (the "winner never responded — reroll" path). The
+    /// service un-flags the old winners and picks fresh ones from the
+    /// remaining entries.
+    /// </summary>
+    [RelayCommand]
+    private async Task RedrawWinnersAsync()
+    {
+        if (SelectedGiveaway == null)
+        {
+            StatusMessage = "❌ No giveaway selected";
+            return;
+        }
+
+        var selected = SelectedGiveaway;
+
+        if (selected.Status != GiveawayStatus.Completed)
+        {
+            StatusMessage = "❌ Only completed giveaways can be re-drawn";
+            return;
+        }
+
+        try
+        {
+            IsLoading = true;
+            StatusMessage = "Re-drawing winners...";
+
+            var (success, winners, message) = await _giveawayService.RedrawWinnersAsync(selected.Id);
+
+            if (success && winners != null)
+            {
+                var winnerNames = string.Join(", ", winners);
+                StatusMessage = $"🎉 Re-drawn winners: {winnerNames}";
+
+                await LoadGiveawaysAsync();
+                SelectedGiveaway = Giveaways.FirstOrDefault(g => g.Id == selected.Id);
+                await LoadEntriesForSelectedGiveawayAsync();
+
+                await AnnounceToChatAsync($"🎲 Giveaway '{selected.Name}' re-drawn — new winner(s): {winnerNames}");
+
+                _logger.LogInformation("Re-drew {Count} winners for giveaway {Name}: {Winners}",
+                    winners.Count, selected.Name, winnerNames);
+            }
+            else
+            {
+                StatusMessage = $"❌ {message}";
+                _logger.LogWarning("Failed to re-draw winners: {Message}", message);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error re-drawing winners");
             StatusMessage = $"❌ Error: {ex.Message}";
         }
         finally
@@ -647,6 +775,7 @@ public partial class GiveawayViewModel : ViewModelBase
                 {
                     SelectedGiveaway = null;
                     Entries.Clear();
+                    HasEntries = false;
                     DrawnWinnersCount = 0;
                 });
 

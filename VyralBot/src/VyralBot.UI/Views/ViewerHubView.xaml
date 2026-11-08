@@ -465,14 +465,16 @@
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                             <Button Command="{Binding SaveCommand}"
                                                     Style="{StaticResource MaterialDesignFlatButton}"
-                                                    ToolTip="Save this goal">
+                                                    ToolTip="Save this goal"
+                                                    AutomationProperties.Name="Save goal">
                                                 <materialDesign:PackIcon Kind="ContentSave"
                                                                          Width="16" Height="16"
                                                                          Foreground="{DynamicResource SuccessGreenBrush}"/>
                                             </Button>
                                             <Button Command="{Binding DeleteCommand}"
                                                     Style="{StaticResource MaterialDesignFlatButton}"
-                                                    ToolTip="Delete this goal">
+                                                    ToolTip="Delete this goal"
+                                                    AutomationProperties.Name="Delete goal">
                                                 <materialDesign:PackIcon Kind="DeleteOutline"
                                                                          Width="16" Height="16"
                                                                          Foreground="{DynamicResource ErrorRedBrush}"/>

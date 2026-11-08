@@ -210,12 +210,12 @@
                                Foreground="{DynamicResource TextPrimaryBrush}"
                                Margin="0,0,0,20"/>
 
-                    <TextBlock Text="Profile Name (internal):" 
+                    <TextBlock Text="Profile Name:" 
                                Foreground="{DynamicResource TextSecondaryBrush}" 
                                FontSize="13"/>
                     <TextBox Text="{Binding NewProfileName, UpdateSourceTrigger=PropertyChanged}"
                              FontSize="14"/>
-                    <TextBlock Text="Alphanumeric only, no spaces" 
+                    <TextBlock Text="Letters and numbers only, no spaces (used to save the profile's files)" 
                                Foreground="{DynamicResource TextMutedBrush}" 
                                FontSize="11"
                                Margin="0,2,0,10"/>

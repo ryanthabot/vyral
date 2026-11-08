@@ -24,10 +24,6 @@
     <ApplicationIcon>Resources\vyral.ico</ApplicationIcon>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <ApplicationIcon>Resources\vyral.ico</ApplicationIcon>
-  </PropertyGroup>
-
   <ItemGroup>
     <Resource Include="Resources\Images\*.png" />
     <Resource Include="Resources\vyral.ico" />
@@ -58,6 +54,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- Release versioning — keep in lockstep with docs/CHANGELOG.md.
+         AssemblyVersion/FileVersion stay numeric (x.y.z.0) for the /api/version
+         endpoint; <Version> carries the semver shown to users. -->
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
     <!-- Performance optimizations per updated_performance_upgrade.md -->
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>

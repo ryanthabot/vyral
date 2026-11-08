@@ -66,10 +66,11 @@ namespace VyralBot.UI.Services;
 ///    dispatch their OWN "superchat" key — NOT "cheer", which already carries
 ///    Twitch bits via the "bits" alias — so workflows can target Twitch bits
 ///    or YouTube Super Chats precisely (the Platform filter separates them
-///    too). Platform filtering: workflow Trigger.Platform null/empty/"Any"
-///    /"All" matches every platform, otherwise an exact case-insensitive
-///    match is required. YouTube membership records are not subscribed in
-///    V1 (chat-message-only path).
+///    too). YouTube memberships likewise dispatch their OWN "membership"
+///    key — NOT "subscribe" (Twitch/Kick subs) — so both are separately
+///    targetable. Platform filtering: workflow Trigger.Platform null/empty
+///    /"Any"/"All" matches every platform, otherwise an exact
+///    case-insensitive match is required.
 ///
 ///  • TIMER triggers — a 60s internal System.Threading.Timer evaluates each
 ///    enabled timer workflow's IntervalMinutes. LIMITATION (V1): last-run times
@@ -1673,6 +1674,25 @@ public class WorkflowTriggerService
             return Task.CompletedTask;
         });
 
+        // --- YouTube membership (new member join + member milestones; the
+        // YouTube equivalent of a Twitch subscribe) ---
+        // KEY CHOICE: dispatches its OWN canonical "membership" key,
+        // deliberately NOT "subscribe" — that key already carries Twitch/Kick
+        // subs (the "sub" alias folds onto it), so folding memberships in
+        // would make platform-Any subscribe workflows fire for YouTube
+        // members. Separate keys keep Twitch subs and YouTube memberships
+        // independently targetable (the Platform filter separates them too).
+        // Variables: username (context) + level/tier (mirrored so conditions
+        // authored against Twitch's "tier" still read naturally), userId and
+        // isMilestone (milestone renewals can be filtered with a Conditions
+        // guard like "{isMilestone} = false").
+        await Subscribe<YouTubeMembershipEvent>(e =>
+        {
+            DispatchEvent("membership", "YouTube", e.Username, null, e,
+                Vars(("level", e.Level), ("tier", e.Level), ("userId", e.UserId), ("isMilestone", e.IsMilestone)));
+            return Task.CompletedTask;
+        });
+
         _logger.LogInformation("WorkflowTriggerService subscribed to {Count} event types", _subscriptionIds.Count);
     }
 
@@ -2435,7 +2455,11 @@ public class WorkflowTriggerService
     /// </summary>
     private static string NormalizeEventType(string? eventType)
     {
-        var t = (eventType ?? string.Empty).Trim().ToLowerInvariant();
+        // Strip separators up-front so authored spellings ("YouTube
+        // Membership", "yt_membership", "super_chat") land on the alias
+        // table instead of falling through as unstripped keys.
+        var t = (eventType ?? string.Empty).Trim().ToLowerInvariant()
+            .Replace("-", string.Empty).Replace("_", string.Empty).Replace(" ", string.Empty);
         if (t.Length == 0)
         {
             return t;
@@ -2465,6 +2489,14 @@ public class WorkflowTriggerService
             // Boost" need no case — the default separator strip maps them).
             "join" or "joined" or "memberjoin" or "memberjoined" or "discordjoin" => "discordmemberjoined",
             "boost" or "boosted" or "serverboost" or "serverboosted" => "discordboost",
+            // YouTube memberships keep their OWN key — they intentionally do
+            // NOT fold into "subscribe" (Twitch/Kick subs). Authored
+            // "Membership" needs no case (the default separator strip maps
+            // it); "YouTube Membership" / "yt_membership", the YouTube-API
+            // "sponsor" spellings (newSponsorEvent) and the milestone-chat
+            // event name map explicitly.
+            "youtubemembership" or "ytmembership" or "sponsor" or "newsponsor" or "newsponsorevent"
+                or "membermilestone" or "membermilestonechatevent" => "membership",
             _ => t.Replace("-", string.Empty).Replace("_", string.Empty).Replace(" ", string.Empty)
         };
     }
