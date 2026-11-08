@@ -205,8 +205,13 @@ public class IntegrationWave8TimerGatingTests
             {
                 if (DateTime.UtcNow > deadline)
                 {
+                    var observed = counters.Count == 0
+                        ? "(no counters at all)"
+                        : string.Join(", ", counters.Select(kv => $"{kv.Key}={kv.Value}"));
                     throw new TimeoutException(
-                        $"CommandTimerService did not count the {platform} chat message within 5s");
+                        $"CommandTimerService did not count the {platform} chat message within 5s "
+                        + $"(expected {platform} >= {target}; observed counters: {observed}) — "
+                        + "the EventBus background dispatch never reached the subscription handler");
                 }
 
                 await Task.Delay(20);

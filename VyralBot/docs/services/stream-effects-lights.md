@@ -22,7 +22,9 @@ LIFX cloud style).
    `Lights.Hue.LightIds` (CSV), `Lights.Webhook.Url`, `Lights.Webhook.Token`,
    `Lights.Flash.Times`, `Lights.Flash.IntervalMs`, `Lights.Flash.Color`,
    `StreamDeck.Actions`. Load/save round-trip via
-   `StreamEffectsConfigService.GetSnapshotAsync` / `SaveSnapshotCoreSettingsAsync`.
+   `StreamEffectsConfigService.GetSnapshotAsync` / `SaveSnapshotCoreSettingsAsync`;
+   the Hue app key and webhook token are DPAPI-wrapped at rest by that facade
+   (see Security).
 2. **Hue discovery/pairing** (Settings page): Discover calls
    `https://discovery.meethue.com` (manual IP entry as fallback — no local
    SSDP/mDNS scan); Pair POSTs `{"devicetype":"vyralbot#streamfx"}` to
@@ -50,8 +52,17 @@ LIFX cloud style).
 
 ## Security
 - The Hue app key and webhook bearer token are stored per-profile in the
-  config KV (SQLite) in plaintext — not DPAPI/credentials-file — and are never
-  logged (verified: all log sites log only the bridge IP and counts).
+  config KV (SQLite) **DPAPI-wrapped** via `SecretProtector` (the `v1:`
+  CurrentUser-scope envelope used for platform/bot secrets). The wrap lives at
+  the `StreamEffectsConfigService` read/write seam: reads unwrap, writes wrap,
+  so every caller (Settings VM, `LightsManager`, `StreamActionsService`) only
+  ever sees plaintext in memory.
+- **Lazy re-encrypt:** rows saved by older builds (plaintext, no `v1:` prefix)
+  still read unchanged and are re-encrypted the next time their key is saved —
+  no schema change, no destructive migration. An unusable blob (different
+  Windows user, corrupted row) is passed through as-is, never destroyed.
+- Neither value is ever logged (verified: `Lights/**` has no log statements;
+  the config facade has no logger; Settings logs only bridge IP and counts).
 - Both secrets are masked in Settings → Stream FX via PasswordBoxes
   (code-behind feeds `SettingsViewModel.HueAppKey` / `WebhookToken`, same
   pattern as the PIN boxes and Discord bot tokens).

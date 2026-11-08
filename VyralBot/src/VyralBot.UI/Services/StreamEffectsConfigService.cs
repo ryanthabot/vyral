@@ -25,6 +25,14 @@ public sealed record StreamEffectsSnapshot(
 /// category is stored alongside each write so the Settings page can enumerate
 /// the feature's keys via GetConfigsByCategoryAsync.
 /// </summary>
+/// <remarks>
+/// Secrets at rest: <see cref="HueAppKeyKey"/> and <see cref="WebhookTokenKey"/>
+/// are stored DPAPI-wrapped (SecretProtector "v1:" envelope, CurrentUser scope)
+/// at this read/write seam — the same pattern as DapperDataService's platform /
+/// bot secrets. Callers always see plaintext in memory, never the blob. Rows
+/// written before this seam (plaintext) still read fine and are re-encrypted
+/// lazily on their next save. This facade never logs secret material.
+/// </remarks>
 public sealed class StreamEffectsConfigService
 {
     public const string Category = "StreamEffects";
@@ -52,16 +60,40 @@ public sealed class StreamEffectsConfigService
         _data = data ?? throw new ArgumentNullException(nameof(data));
     }
 
+    // Secrets at rest: exactly these two config keys round-trip through
+    // SecretProtector (v1: DPAPI envelope, CurrentUser scope). Reads unwrap,
+    // writes wrap — every caller above this seam (Settings VM, LightsManager
+    // via GetSnapshotAsync, StreamActionsService) keeps seeing plaintext.
+    // Legacy plaintext rows read unchanged and are re-encrypted lazily on
+    // their next save (no schema change, no destructive migration).
+    private static bool IsSecretKey(string key) =>
+        key == HueAppKeyKey || key == WebhookTokenKey;
+
     /// <summary>Raw config read; empty/missing values fall back to <paramref name="fallback"/>.</summary>
     public async Task<string> GetAsync(string key, string fallback = "")
     {
         var value = await _data.GetConfigValueAsync(key).ConfigureAwait(false);
+        if (IsSecretKey(key))
+        {
+            value = SecretProtector.Unprotect(value);
+        }
         return string.IsNullOrWhiteSpace(value) ? fallback : value;
     }
 
-    /// <summary>Writes one config value under the StreamEffects category.</summary>
-    public Task SetAsync(string key, string value) =>
-        _data.SetConfigValueAsync(key, value, Category);
+    /// <summary>
+    /// Writes one config value under the StreamEffects category. The Hue app
+    /// key and webhook token are DPAPI-wrapped before they hit SQLite;
+    /// Protect is idempotent so an already-wrapped value is never double-wrapped.
+    /// </summary>
+    public Task SetAsync(string key, string value)
+    {
+        if (IsSecretKey(key))
+        {
+            value = SecretProtector.Protect(value) ?? string.Empty;
+        }
+
+        return _data.SetConfigValueAsync(key, value, Category);
+    }
 
     /// <summary>
     /// Reads all Stream FX settings with defaults applied (unparseable ints

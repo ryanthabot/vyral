@@ -1,12 +1,12 @@
 # Conditional Rules
 
-> A complete CRUD page for conditional auto-reply rules backed by a fully-implemented condition evaluator (values, booleans, time-of-day, AND/OR trees, modulo milestones) — plus the fact that nothing at runtime ever evaluates the rules, so they never fire.
+> A complete CRUD page for conditional auto-reply rules backed by a fully-implemented condition evaluator (values, booleans, time-of-day, AND/OR trees, modulo milestones) — rules fire as conditional overrides of per-event auto-replies on Kick and Twitch, but only when the event has a default message configured, and Discord rules have no live pipeline.
 
 ## Overview
 
 Conditional Rules lets you write *smart* auto-replies: instead of one fixed message per event, you write rules with conditions — "reply only when the follower count is a multiple of 100", "only after 20:00", "only when the user is a subscriber" — and a priority-ordered reply template for each. The page (whose header literally reads "Auto-Reply Rules") gives you a condition builder, a raw-JSON editor, and rule management, all persisted to the `AutoReplyRules` table.
 
-The honest status: **the page is write-only in the current build.** The evaluator that would run these rules (`RuleEvaluator`) is complete and correct, but its only consumer (`AutoReplyService.GetAutoReplyAsync`) is never called by production code, so rules you create here are saved and never evaluated. This page also documents the related `TriggerEngine`/`ActionDispatcher` scaffolding — an aspirational trigger→action pipeline that is stubbed out.
+The honest status: **rules are live, but gated.** When a Kick or Twitch event auto-reply is about to be sent, the pipeline asks the rules engine for a matching rule first (priority order) — a match **replaces** the default message with the rule's reply template and bumps its trigger count. The gate: the lookup only runs when the event's auto-reply is enabled **and a default message exists**, so a rule alone (with the default message left empty) never fires — that un-gating is future work. **Discord rules never fire** — there is no Discord call site in the auto-reply pipeline (see below). Saves are validated (wave 10, 2026-11-07): a rule needs a name, an event type and a reply, and invalid condition JSON is rejected with the parse error instead of saving a rule that could never evaluate. The page also documents the related `TriggerEngine`/`ActionDispatcher` scaffolding — an aspirational trigger→action pipeline that is still stubbed out.
 
 The simple, working alternative is per-event auto-reply templates — see [Auto-Replies](auto-replies.md).
 
@@ -18,13 +18,13 @@ Open **Stream Tools → Conditional Rules** in the sidebar. (Despite living unde
 
 1. Click **New Rule**. Defaults: name "New Rule", platform "All", event "Follow", enabled, priority 0, empty condition, reply "Thank you, {username}!".
 2. **Name** — anything, for your own reference.
-3. **Platform** — `All`, `Twitch`, `Kick`, or `Discord`. (The whole rules engine has no production caller in the current build — see below — so no platform choice here has any effect yet. Discord itself is a real platform now; see [Discord](../platforms/discord.md).)
-4. **Event Type** — one of `Follow`, `Subscription`, `Raid`, `Host`, `Bits`, `Donation`, `SubscriptionGift`, `ChatMessage`, `ChannelPointRedemption`.
+3. **Platform** — `All`, `Twitch`, `Kick`, or `Discord`. `All` and the event's own platform match (`Platform = @Platform OR Platform = 'All'`); **`Discord` never matches anything live** — the auto-reply pipeline only consults rules for Kick and Twitch events (see [How rules fire](#how-rules-fire--and-the-default-message-gate)).
+4. **Event Type** — one of `Follow`, `Subscribe`, `Resub`, `GiftSub`, `Raid`, `Cheer`, `Host`, `RewardRedeemed`, `KicksGifted` — the exact vocabulary the live pipeline feeds the engine (reconciled 2026-11-07; dead types like `ChatMessage` and `Donation` were removed from the list). `Host`/`KicksGifted` are Kick-only and `Raid`/`Cheer`/`Resub` are Twitch-only in the current pipeline.
 5. **Enabled** — on/off switch.
 6. **Priority** — lower number = higher priority; when several rules match, the first by priority wins.
 7. **Condition** — see the builder below, or edit the JSON directly in the Condition JSON box.
 8. **Reply Template** — the message to send, with variables like `{username}`, `{platform}`, `{count}`, `{amount}` (whatever the event context would supply).
-9. **Save**. The rule appears in the list with its trigger count (always 0 in the current build — see below).
+9. **Save** — validated: name, event type and reply template are required, and invalid condition JSON is rejected with the parse error (a rule that could never evaluate cannot be saved). The rule appears in the list with its trigger count, which now increments every time the rule matches a live event.
 
 ### Building conditions
 
@@ -45,7 +45,7 @@ Examples shown on the page: a milestone `count % 100 == 0` (Value type, `Modulo`
 
 ### Test Rule
 
-**Test Rule** on a selected rule shows a summary MessageBox (name, platform, event, enabled, priority, trigger count, condition JSON, reply). It does **not** evaluate the rule against sample data — it is a viewer, not a tester.
+**Test Rule** on a selected rule **actually evaluates** it (since 2026-11-07): the condition is parsed and run by the real `RuleEvaluator` against a sample context (`username`, `count`, `amount`, `bits`, `viewers`, `is_subscriber`, …), and the MessageBox reports **MATCHED / NOT MATCHED** plus the reason — a missing sample field, an empty condition ("matches every event"), an empty complex group ("never matches"), or a genuine compare. Invalid condition JSON is called out as un-savable dead weight. Time conditions evaluate against the clock at the moment you click.
 
 ## How It Works (Developer)
 
@@ -63,9 +63,14 @@ A rule is an [AutoReplyRule.cs](../../src/VyralBot.Data/Entities/AutoReplyRule.c
 - **Time** — evaluates against the **local** clock: `time_of_day` ("HH:mm"; `Equals` means within 1 minute), `day_of_week` (day name), `hour` (int), `date` (date comparison).
 - **Complex** — recursive `All` (And) / `Any` (Or) over `SubConditions`.
 
-### Why rules never fire
+### How rules fire — and the default-message gate
 
-The only code that calls `IRuleEvaluator.EvaluateCondition` is `AutoReplyService.GetAutoReplyAsync` ([AutoReplyService.cs:61](../../src/VyralBot.Core/Services/Chat/AutoReplyService.cs)): rate-limit check → load rules by platform/event ordered by `Priority ASC` → evaluate → first match increments `TriggerCount` and returns the processed template. A solution-wide search finds **no production caller** of `GetAutoReplyAsync` — the live per-event auto-reply path (see [Auto-Replies](auto-replies.md)) uses only `ShouldSendReply` + `ProcessTemplate`. So the chain is: `ConditionalRulesView` writes rules → `AutoReplyRules` table → (nothing reads them at runtime). Wiring `GetAutoReplyAsync` into the `ChatViewModel` event handlers is the obvious revival path.
+The only code that calls `IRuleEvaluator.EvaluateCondition` in production is `AutoReplyService.GetAutoReplyAsync` ([AutoReplyService.cs:63](../../src/VyralBot.Core/Services/Chat/AutoReplyService.cs)): load rules by platform/event ordered by `Priority ASC, Id ASC` (`Platform = @Platform OR Platform = 'All'`) → evaluate → first match increments `TriggerCount`/`LastTriggeredAt` and returns the processed template. Its caller is `ChatViewModel.BuildAutoReplyTextAsync` (ChatViewModel.cs:4260): every Kick and Twitch event handler builds its auto-reply through this method, and a matching rule's template **replaces** the event's default message before variables are resolved (the rule reply then also passes through the full variable-replacement service).
+
+Two boundaries to know:
+
+- **The default-message gate** — `BuildAutoReplyTextAsync` only runs when the event's auto-reply is enabled **and** its default message box is non-empty (`if (... && !string.IsNullOrEmpty(settings.AutoReplyMessage))` at each call site). Rules cannot fire on their own: leave the default message empty and no rule for that event is ever consulted. (Un-gating rules from the default message is a known future change.)
+- **No Discord call site** — the pipeline invokes the rules engine only for Kick (`Follow`, `Subscribe`, `GiftSub`, `Host`, `KicksGifted`, `RewardRedeemed`) and Twitch (`Follow`, `Subscribe`, `Resub`, `GiftSub`, `Raid`, `Cheer`, `RewardRedeemed`) events. A rule with Platform `Discord` never matches, and `All` rules never see Discord events either.
 
 ### TriggerEngine & ActionDispatcher (scaffolding)
 
@@ -79,13 +84,13 @@ A second, more ambitious automation layer exists as entities and services, large
 
 | File | Role |
 |---|---|
-| [ConditionalRulesViewModel.cs](../../src/VyralBot.UI/ViewModels/ConditionalRulesViewModel.cs) | Page ViewModel: rule CRUD, condition builder (AND wrapping), raw JSON editing, Test Rule summary |
+| [ConditionalRulesViewModel.cs](../../src/VyralBot.UI/ViewModels/ConditionalRulesViewModel.cs) | Page ViewModel: rule CRUD with save validation, condition builder (AND wrapping), raw JSON editing, evaluating Test Rule |
 | [ConditionalRulesView.xaml](../../src/VyralBot.UI/Views/ConditionalRulesView.xaml) | Page layout (header "Auto-Reply Rules": list, editor, builder) |
 | [ConditionalRulesView.xaml.cs](../../src/VyralBot.UI/Views/ConditionalRulesView.xaml.cs) | Code-behind |
 | [AutoReplyRule.cs](../../src/VyralBot.Data/Entities/AutoReplyRule.cs) | Rule entity |
 | [RuleCondition.cs](../../src/VyralBot.Core/Models/Rules/RuleCondition.cs) | Condition model: types, operators, modulo divisor, recursive sub-conditions |
 | [RuleEvaluator.cs](../../src/VyralBot.Core/Services/Rules/RuleEvaluator.cs) | The complete condition evaluator (value/status/time/complex) |
-| [AutoReplyService.cs](../../src/VyralBot.Core/Services/Chat/AutoReplyService.cs) | `GetAutoReplyAsync` — the (uncalled) rules executor |
+| [AutoReplyService.cs](../../src/VyralBot.Core/Services/Chat/AutoReplyService.cs) | `GetAutoReplyAsync` — the rules executor, called from the Kick/Twitch auto-reply path |
 | [TriggerEngine.cs](../../src/VyralBot.Core/Services/TriggerEngine/TriggerEngine.cs) / [ITriggerEngine.cs](../../src/VyralBot.Core/Services/TriggerEngine/ITriggerEngine.cs) | Stubbed event→trigger engine (started at boot, does nothing) |
 | [ActionDispatcher.cs](../../src/VyralBot.Core/Services/ActionDispatcher/ActionDispatcher.cs) / [IActionDispatcher.cs](../../src/VyralBot.Core/Services/ActionDispatcher/IActionDispatcher.cs) | Stubbed action executor (simulated work) |
 | [ActionContext.cs](../../src/VyralBot.Core/Models/ActionContext.cs) | Execution context for actions |
@@ -125,15 +130,14 @@ if (rootCondition != null)
 ## Data & Settings
 
 - **AutoReplyRules** table (per-profile SQLite, see [Database Reference](../reference/database-reference.md)): `Name`, `Platform`, `EventType`, `IsEnabled`, `Priority`, `ConditionJson`, `ReplyTemplate`, `TriggerCount`, `LastTriggeredAt`. Indexed on `(Platform, EventType)`, `IsEnabled`, and `Priority`. Rows are only ever written by this page — no seeder, no runtime writer.
-- `TriggerCount`/`LastTriggeredAt` are updated only by the uncalled `IncrementRuleTriggerCountAsync` path, so they stay at 0/`null`.
+- `TriggerCount`/`LastTriggeredAt` increment via `IncrementRuleTriggerCountAsync` every time a rule matches a live Kick/Twitch event (and an edit/save no longer clobbers the counter — the settings UPDATE deliberately excludes `TriggerCount`).
 - `Triggers`/`BotActions` tables exist in the schema but nothing reads or writes them (no seeded rows).
 
 ## Status & Known Issues
 
-- **Rules never fire.** `GetAutoReplyAsync` (the only evaluator consumer) has zero production callers; the Conditional Rules page is a working editor for rows nothing reads. — [known issues ledger](../reference/known-issues.md)
-- **"Test Rule" does not evaluate** — it shows a MessageBox summary of the rule without running the condition against sample data.
+- **Rules fire, but only as overrides behind the default-message gate** — a matching rule replaces the event's default auto-reply text on Kick/Twitch; with no default message configured, rules for that event never fire. — [known issues ledger](../reference/known-issues.md)
+- **Discord rules never fire** — the auto-reply pipeline has no Discord call site, so Platform `Discord` (and `All` rules for Discord events) are inert. — [known issues ledger](../reference/known-issues.md)
 - The condition builder can only produce **AND** combinations; OR requires hand-editing the JSON to `"logicalOperator": "Or"`.
 - Time conditions use the **local** machine clock, not the channel's timezone.
-- The event-type list (`Donation`, `ChatMessage`, ...) does not exactly match the live event vocabulary used by the working per-event auto-replies (`Cheer`, `GiftSub`, ...) — even if the engine were wired, names would have to be reconciled.
 - **TriggerEngine/ActionDispatcher are stubs** despite starting at boot: the event handler is a TODO that only logs, `ActiveTriggerCount` is hard-set to 0, and the dispatcher simulates actions with `Task.Delay(100)`. `Trigger`/`BotAction` entities have no UI and no readers. — [known issues ledger](../reference/known-issues.md)
-- The working alternative for condition-less replies is [Auto-Replies](auto-replies.md); for firing test events see [Event Testing](event-testing.md).
+- The rule-less alternative is plain [Auto-Replies](auto-replies.md); for firing test events see [Event Testing](event-testing.md).

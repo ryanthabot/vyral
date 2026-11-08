@@ -262,6 +262,8 @@ public class ChatViewModel : ViewModelBase
 
 	private const int MAX_DM_THREAD_MESSAGES = 500;
 
+	private const int MAX_ROUTED_DM_IDS = 2000;
+
 	private const int MAX_DM_CONVERSATIONS = 50;
 
 	private const int MAX_CHAT_MESSAGES = 500;
@@ -453,6 +455,7 @@ public class ChatViewModel : ViewModelBase
 	private RelayCommand? decreaseChatFontSizeCommand;
 
 	private readonly HashSet<string> _routedDmMessageIds = new HashSet<string>();
+	private readonly Queue<string> _routedDmMessageIdOrder = new Queue<string>();
 	private readonly object _routedDmMessageIdsLock = new object();
 
 	private bool WasDmAlreadyRouted(string messageId)
@@ -465,9 +468,19 @@ public class ChatViewModel : ViewModelBase
 
 	private void RememberRoutedDm(string messageId)
 	{
+		// Bounded FIFO cache (same shape as the auto-moderation drop guard):
+		// without the cap this id set grows for the whole process lifetime.
 		lock (_routedDmMessageIdsLock)
 		{
+			if (!_routedDmMessageIds.Contains(messageId))
+			{
+				_routedDmMessageIdOrder.Enqueue(messageId);
+			}
 			_routedDmMessageIds.Add(messageId);
+			while (_routedDmMessageIdOrder.Count > MAX_ROUTED_DM_IDS)
+			{
+				_routedDmMessageIds.Remove(_routedDmMessageIdOrder.Dequeue());
+			}
 		}
 	}
 
@@ -1473,6 +1486,14 @@ public class ChatViewModel : ViewModelBase
 				conversation.LastPreview = "";
 				conversation.UnreadCount = 0;
 				conversation.HistoryLoaded = true;
+				// "Clear" on a thread is a CLOSE in practice: the row now has
+				// zero messages and no persisted history, so drop it from the
+				// inbox instead of leaving an empty shell until restart.
+				if (conversation.Messages.Count == 0)
+				{
+					DmConversations.Remove(conversation);
+					SelectedDmConversation = null;
+				}
 			});
 		}
 	}
@@ -1540,7 +1561,17 @@ public class ChatViewModel : ViewModelBase
 	private void RouteDiscordDmToConversation(DiscordChatMessageEvent evt, ChatMessage chatMessage)
 	{
 		string username = evt.Username ?? "Unknown";
-		DmConversation dmConversation = DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.Username, username, StringComparison.OrdinalIgnoreCase));
+		// Identity-first match: a renamed user would otherwise fork a NEW
+		// conversation row (old-name row keeps the history, new-name row
+		// starts empty). Prefer the Discord user id, fall back to username
+		// for rows that never captured an id (adopted below).
+		DmConversation dmConversation = string.IsNullOrEmpty(evt.SenderUserId)
+			? null
+			: DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.UserId, evt.SenderUserId, StringComparison.Ordinal));
+		if (dmConversation == null)
+		{
+			dmConversation = DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.Username, username, StringComparison.OrdinalIgnoreCase));
+		}
 		if (dmConversation == null)
 		{
 			dmConversation = new DmConversation
@@ -1573,11 +1604,11 @@ public class ChatViewModel : ViewModelBase
 		// Dedupe: the same DM can arrive through more than one event path.
 		if (!string.IsNullOrEmpty(evt.MessageId))
 		{
-			if (_routedDmMessageIds.Contains(evt.MessageId))
+			if (WasDmAlreadyRouted(evt.MessageId))
 			{
 				return;
 			}
-			_routedDmMessageIds.Add(evt.MessageId);
+			RememberRoutedDm(evt.MessageId);
 		}
 		AddCappedDmMessage(dmConversation, chatMessage);
 		_ = _dataService?.SaveDiscordDmMessageAsync(new DiscordDmMessage
@@ -1602,6 +1633,9 @@ public class ChatViewModel : ViewModelBase
 			ScrollDmThreadToBottom();
 		}
 		_logger.LogDebug("\ud83d\udce8 DM routed to inbox conversation {Username} ({MessageCount} messages, unread {Unread})", username, dmConversation.Messages.Count, dmConversation.UnreadCount);
+		// Inbox cap: drop the oldest stale conversation once we exceed
+		// MAX_DM_CONVERSATIONS rows (never the open thread).
+		PruneDmConversations();
 	}
 
 	/// <summary>
@@ -1966,6 +2000,7 @@ public class ChatViewModel : ViewModelBase
 			}
 			ShowDmPanel = true;
 			SelectedDmConversation = conversation;
+			PruneDmConversations();
 			NewDmUserId = "";
 			IsNewDmInputOpen = false;
 			NewDmStatus = "";
@@ -3820,9 +3855,15 @@ public class ChatViewModel : ViewModelBase
 		}
 		// Same fallback chain as the inbox reply: channel id, then the
 		// participant's remembered Discord user id, then username resolution.
-		DmConversation? existingConversation = string.IsNullOrEmpty(username)
-			? null
-			: DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.Username, username, StringComparison.OrdinalIgnoreCase));
+		// Conversation match prefers the stable DM channel id (renames don't
+		// fork), falling back to username for rows without a known channel.
+		DmConversation? existingConversation = (!string.IsNullOrEmpty(dmChannelId))
+			? DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.ChannelId, dmChannelId, StringComparison.Ordinal))
+			: null;
+		if (existingConversation == null && !string.IsNullOrEmpty(username))
+		{
+			existingConversation = DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.Username, username, StringComparison.OrdinalIgnoreCase));
+		}
 		string? userId = existingConversation?.UserId;
 		bool delivered = false;
 		try
@@ -3872,7 +3913,15 @@ public class ChatViewModel : ViewModelBase
 		});
 		await ((DispatcherObject)Application.Current).Dispatcher.InvokeAsync((Action)delegate
 		{
-			DmConversation dmConversation = DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.Username, username, StringComparison.OrdinalIgnoreCase));
+			// Echo into the same conversation the send targeted: channel id
+			// first (rename-safe), username as the legacy fallback.
+			DmConversation dmConversation = (!string.IsNullOrEmpty(dmChannelId))
+				? DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.ChannelId, dmChannelId, StringComparison.Ordinal))
+				: null;
+			if (dmConversation == null)
+			{
+				dmConversation = DmConversations.FirstOrDefault((DmConversation c) => string.Equals(c.Username, username, StringComparison.OrdinalIgnoreCase));
+			}
 			if (dmConversation != null)
 			{
 				ChatMessage chatMessage = new ChatMessage
@@ -4257,6 +4306,12 @@ public class ChatViewModel : ViewModelBase
 		}
 	}
 
+	// Builds an event auto-reply: the FIRST matching conditional rule wins;
+	// otherwise the caller's default template is used. Pass an empty template
+	// when no default message is configured (Discord events, or "rules only"):
+	// the result is then non-empty only when a rule matched — callers use that
+	// as the send gate so rules fire independently of the default-message
+	// settings.
 	private async Task<string> BuildAutoReplyTextAsync(string platform, string eventType, string username, string template, Dictionary<string, string> variables)
 	{
 		string effectiveTemplate = template;
@@ -5907,13 +5962,15 @@ public class ChatViewModel : ViewModelBase
 			{ "platform", "Kick" }
 		};
 		_logger.LogDebug("\ud83d\udd0d Checking auto-reply: Enabled={Enabled}, Message={Message}", settings.AutoReplyEnabled, settings.AutoReplyMessage);
-		if (_kickAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage))
+		if (_kickAutoRepliesEnabled)
 		{
-			bool shouldSend = _autoReplyService.ShouldSendReply(evt.Username, "Kick", "Follow");
+			// Rules fire independent of the default-message settings; an empty
+			// reply means no rule matched AND no default is configured.
+			string reply = await BuildAutoReplyTextAsync("Kick", "Follow", evt.Username, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
+			bool shouldSend = !string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.Username, "Kick", "Follow");
 			_logger.LogDebug("\ud83d\udd0d Rate limit check: ShouldSend={ShouldSend}", shouldSend);
 			if (shouldSend)
 			{
-				string reply = await BuildAutoReplyTextAsync("Kick", "Follow", evt.Username, settings.AutoReplyMessage, variables);
 				_logger.LogDebug("\ud83d\udce4 Attempting to send auto-reply: {Reply}", reply);
 				try
 				{
@@ -6022,9 +6079,9 @@ public class ChatViewModel : ViewModelBase
 			},
 			{ "platform", "Kick" }
 		};
-		if (_kickAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.Username, "Kick", "Subscribe"))
+		string reply = await BuildAutoReplyTextAsync("Kick", "Subscribe", evt.Username, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
+		if (_kickAutoRepliesEnabled && !string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.Username, "Kick", "Subscribe"))
 		{
-			string reply = await BuildAutoReplyTextAsync("Kick", "Subscribe", evt.Username, settings.AutoReplyMessage, variables);
 			try
 			{
 				await _kickService.SendMessageAsync(reply);
@@ -6104,9 +6161,9 @@ public class ChatViewModel : ViewModelBase
 			},
 			{ "platform", "Kick" }
 		};
-		if (_kickAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.GifterUsername, "Kick", "GiftSub"))
+		string reply = await BuildAutoReplyTextAsync("Kick", "GiftSub", evt.GifterUsername, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
+		if (_kickAutoRepliesEnabled && !string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.GifterUsername, "Kick", "GiftSub"))
 		{
-			string reply = await BuildAutoReplyTextAsync("Kick", "GiftSub", evt.GifterUsername, settings.AutoReplyMessage, variables);
 			try
 			{
 				await _kickService.SendMessageAsync(reply);
@@ -6183,9 +6240,9 @@ public class ChatViewModel : ViewModelBase
 			},
 			{ "platform", "Kick" }
 		};
-		if (_kickAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.HostUsername, "Kick", "Host"))
+		string reply = await BuildAutoReplyTextAsync("Kick", "Host", evt.HostUsername, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
+		if (_kickAutoRepliesEnabled && !string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.HostUsername, "Kick", "Host"))
 		{
-			string reply = await BuildAutoReplyTextAsync("Kick", "Host", evt.HostUsername, settings.AutoReplyMessage, variables);
 			try
 			{
 				await _kickService.SendMessageAsync(reply);
@@ -6253,9 +6310,9 @@ public class ChatViewModel : ViewModelBase
 			},
 			{ "platform", "Kick" }
 		};
-		if (_kickAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.SenderUsername, "Kick", "KicksGifted"))
+		string reply = await BuildAutoReplyTextAsync("Kick", "KicksGifted", evt.SenderUsername, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
+		if (_kickAutoRepliesEnabled && !string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.SenderUsername, "Kick", "KicksGifted"))
 		{
-			string reply = await BuildAutoReplyTextAsync("Kick", "KicksGifted", evt.SenderUsername, settings.AutoReplyMessage, variables);
 			try
 			{
 				await _kickService.SendMessageAsync(reply);
@@ -6323,9 +6380,9 @@ public class ChatViewModel : ViewModelBase
 			},
 			{ "platform", "Kick" }
 		};
-		if (_kickAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.Username, "Kick", "RewardRedeemed"))
+		string reply = await BuildAutoReplyTextAsync("Kick", "RewardRedeemed", evt.Username, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
+		if (_kickAutoRepliesEnabled && !string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.Username, "Kick", "RewardRedeemed"))
 		{
-			string reply = await BuildAutoReplyTextAsync("Kick", "RewardRedeemed", evt.Username, settings.AutoReplyMessage, variables);
 			try
 			{
 				await _kickService.SendMessageAsync(reply);
@@ -6451,9 +6508,9 @@ public class ChatViewModel : ViewModelBase
 			{ "displayname", evt.DisplayName },
 			{ "platform", "Twitch" }
 		};
-		if (_twitchAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.Username, "Twitch", "Follow"))
+		string reply = await BuildAutoReplyTextAsync("Twitch", "Follow", evt.Username, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
+		if (_twitchAutoRepliesEnabled && !string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.Username, "Twitch", "Follow"))
 		{
-			string reply = await BuildAutoReplyTextAsync("Twitch", "Follow", evt.Username, settings.AutoReplyMessage, variables);
 			try
 			{
 				await _twitchService.SendMessageAsync(reply);
@@ -6559,9 +6616,9 @@ public class ChatViewModel : ViewModelBase
 			{ "tier", evt.Tier },
 			{ "platform", "Twitch" }
 		};
-		if (_twitchAutoRepliesEnabled && !evt.IsGift && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.Username, "Twitch", "Subscribe"))
+		string reply = await BuildAutoReplyTextAsync("Twitch", "Subscribe", evt.Username, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
+		if (_twitchAutoRepliesEnabled && !evt.IsGift && !string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.Username, "Twitch", "Subscribe"))
 		{
-			string reply = await BuildAutoReplyTextAsync("Twitch", "Subscribe", evt.Username, settings.AutoReplyMessage, variables);
 			try
 			{
 				await _twitchService.SendMessageAsync(reply);
@@ -6663,9 +6720,9 @@ public class ChatViewModel : ViewModelBase
 			},
 			{ "platform", "Twitch" }
 		};
-		if (_twitchAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.Username, "Twitch", "Resub"))
+		string reply = await BuildAutoReplyTextAsync("Twitch", "Resub", evt.Username, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
+		if (_twitchAutoRepliesEnabled && !string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.Username, "Twitch", "Resub"))
 		{
-			string reply = await BuildAutoReplyTextAsync("Twitch", "Resub", evt.Username, settings.AutoReplyMessage, variables);
 			try
 			{
 				await _twitchService.SendMessageAsync(reply);
@@ -6760,9 +6817,9 @@ public class ChatViewModel : ViewModelBase
 			{ "tier", evt.Tier },
 			{ "platform", "Twitch" }
 		};
-		if (_twitchAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.GifterUsername, "Twitch", "GiftSub"))
+		string reply = await BuildAutoReplyTextAsync("Twitch", "GiftSub", evt.GifterUsername, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
+		if (_twitchAutoRepliesEnabled && !string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.GifterUsername, "Twitch", "GiftSub"))
 		{
-			string reply = await BuildAutoReplyTextAsync("Twitch", "GiftSub", evt.GifterUsername, settings.AutoReplyMessage, variables);
 			try
 			{
 				await _twitchService.SendMessageAsync(reply);
@@ -6839,9 +6896,9 @@ public class ChatViewModel : ViewModelBase
 			},
 			{ "platform", "Twitch" }
 		};
-		if (_twitchAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.FromBroadcasterUsername, "Twitch", "Raid"))
+		string reply = await BuildAutoReplyTextAsync("Twitch", "Raid", evt.FromBroadcasterUsername, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
+		if (_twitchAutoRepliesEnabled && !string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.FromBroadcasterUsername, "Twitch", "Raid"))
 		{
-			string reply = await BuildAutoReplyTextAsync("Twitch", "Raid", evt.FromBroadcasterUsername, settings.AutoReplyMessage, variables);
 			try
 			{
 				await _twitchService.SendMessageAsync(reply);
@@ -6921,9 +6978,9 @@ public class ChatViewModel : ViewModelBase
 			},
 			{ "platform", "Twitch" }
 		};
-		if (_twitchAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.Username, "Twitch", "Cheer"))
+		string reply = await BuildAutoReplyTextAsync("Twitch", "Cheer", evt.Username, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
+		if (_twitchAutoRepliesEnabled && !string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.Username, "Twitch", "Cheer"))
 		{
-			string reply = await BuildAutoReplyTextAsync("Twitch", "Cheer", evt.Username, settings.AutoReplyMessage, variables);
 			try
 			{
 				await _twitchService.SendMessageAsync(reply);
@@ -6991,9 +7048,9 @@ public class ChatViewModel : ViewModelBase
 			},
 			{ "platform", "Twitch" }
 		};
-		if (_twitchAutoRepliesEnabled && settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) && _autoReplyService.ShouldSendReply(evt.Username, "Twitch", "RewardRedeemed"))
+		string reply = await BuildAutoReplyTextAsync("Twitch", "RewardRedeemed", evt.Username, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
+		if (_twitchAutoRepliesEnabled && !string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.Username, "Twitch", "RewardRedeemed"))
 		{
-			string reply = await BuildAutoReplyTextAsync("Twitch", "RewardRedeemed", evt.Username, settings.AutoReplyMessage, variables);
 			try
 			{
 				await _twitchService.SendMessageAsync(reply);
@@ -7097,7 +7154,28 @@ public class ChatViewModel : ViewModelBase
 			{ "guild", evt.GuildName ?? (evt.GuildId ?? "") },
 			{ "platform", "Discord" }
 		};
-		await SaveEventStatisticAsync("Discord", "MemberJoined", evt.Username, variables, wasAutoReplied: false);
+		bool wasAutoReplied = false;
+		// Conditional rules DO apply to Discord (the rules UI offers Platform
+		// "Discord" and "All"; the store query ORs them in). A guild join is
+		// Discord's "Follow" moment, so rules are looked up with that shared
+		// event vocabulary. No ChatEventSetting default message exists for
+		// Discord, so the reply is non-empty only when a rule matched.
+		if (_discordService.IsConnected)
+		{
+			string rulesReply = await BuildAutoReplyTextAsync("Discord", "Follow", evt.Username, "", variables);
+			if (!string.IsNullOrEmpty(rulesReply) && _autoReplyService.ShouldSendReply(evt.Username, "Discord", "Follow"))
+			{
+				try
+				{
+					wasAutoReplied = await _discordService.SendMessageAsync(rulesReply);
+				}
+				catch (Exception rulesEx)
+				{
+					_logger.LogWarning(rulesEx, "Failed to send Discord member-joined auto-reply for {Username}", evt.Username);
+				}
+			}
+		}
+		await SaveEventStatisticAsync("Discord", "MemberJoined", evt.Username, variables, wasAutoReplied);
 	}
 
 	// Server boost = Discord's paid-support celebration. Sound uses the
@@ -7129,7 +7207,26 @@ public class ChatViewModel : ViewModelBase
 			{ "guild", evt.GuildName ?? (evt.GuildId ?? "") },
 			{ "platform", "Discord" }
 		};
-		await SaveEventStatisticAsync("Discord", "Boost", evt.Username, variables, wasAutoReplied: false);
+		bool wasAutoReplied = false;
+		// Same conditional-rules hookup as MemberJoined: a boost is Discord's
+		// counterpart of a subscribe, so rules fire on the shared "Subscribe"
+		// event type (Platform "Discord" and "All" both match in the store).
+		if (_discordService.IsConnected)
+		{
+			string rulesReply = await BuildAutoReplyTextAsync("Discord", "Subscribe", evt.Username, "", variables);
+			if (!string.IsNullOrEmpty(rulesReply) && _autoReplyService.ShouldSendReply(evt.Username, "Discord", "Subscribe"))
+			{
+				try
+				{
+					wasAutoReplied = await _discordService.SendMessageAsync(rulesReply);
+				}
+				catch (Exception rulesEx)
+				{
+					_logger.LogWarning(rulesEx, "Failed to send Discord boost auto-reply for {Username}", evt.Username);
+				}
+			}
+		}
+		await SaveEventStatisticAsync("Discord", "Boost", evt.Username, variables, wasAutoReplied);
 	}
 
 	private async Task OnYouTubeLiveChatStateAsync(YouTubeLiveChatStateEvent stateEvent)
@@ -7409,11 +7506,12 @@ public class ChatViewModel : ViewModelBase
 		{
 			value.UnreadCount = 0;
 		}
-		_ = LoadDmThreadHistoryAsync(value);
 		DmReplyInput = "";
 		if (value != null)
 		{
-			LoadDmThreadHistoryAsync(value);
+			// Single history load for the newly selected thread; fire-and-forget
+			// like the callers below (dedupe via HistoryLoaded).
+			_ = LoadDmThreadHistoryAsync(value);
 		}
 		ScrollDmThreadToBottom();
 		SendDmReplyCommand.NotifyCanExecuteChanged();

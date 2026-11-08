@@ -120,10 +120,10 @@ public class ObsWebSocketClientTests
         // The password must never leak into an exception message.
         Assert.DoesNotContain("the-wrong-password", ex.Message, StringComparison.Ordinal);
         Assert.False(client.IsConnected);
-        Assert.True(WaitUntil(() =>
+        Assert.True(await WaitUntilAsync(() =>
         {
             lock (statuses) return statuses.Any(s => !s.Connected && s.Error is not null && s.Error.Contains("4009", StringComparison.Ordinal));
-        }));
+        }), "client never raised a disconnected status carrying the 4009 error");
     }
 
     [Fact]
@@ -159,10 +159,10 @@ public class ObsWebSocketClientTests
         server.SendEvent("""{"op":5,"d":{"eventType":"CurrentProgramSceneChanged","eventData":{"sceneName":"Starting Soon"}}}""");
         server.SendEvent("""{"op":5,"d":{"eventType":"StreamStateChanged","eventData":{"outputActive":true,"outputState":"OBS_WEBSOCKET_OUTPUT_STARTED"}}}""");
 
-        Assert.True(WaitUntil(() =>
+        Assert.True(await WaitUntilAsync(() =>
         {
             lock (statuses) return statuses.Any(s => s.Connected && s.CurrentScene == "Starting Soon" && s.StreamActive);
-        }));
+        }), "client never applied both raised events (scene change + stream start)");
     }
 
     [Fact]
@@ -196,10 +196,10 @@ public class ObsWebSocketClientTests
 
         await client.StartStreamAsync();
 
-        Assert.True(WaitUntil(() =>
+        Assert.True(await WaitUntilAsync(() =>
         {
             lock (statuses) return statuses.Any(s => s.Error is not null && s.Error.Contains("already active", StringComparison.OrdinalIgnoreCase));
-        }));
+        }), "client never surfaced the StartStream comment");
     }
 
     // ---------- ObsWebSocketClient: auto-reconnect / frame cap ----------
@@ -222,8 +222,8 @@ public class ObsWebSocketClientTests
 
         storedPassword = "fresh-password"; // user fixed the password in OBS
 
-        Assert.True(WaitUntil(() => client.IsConnected, 15000),
-            $"client did not reconnect with the fresh password (connections seen: {server.ConnectionCount})");
+        Assert.True(await WaitUntilAsync(() => client.IsConnected, 15000),
+            $"client did not reconnect with the fresh password within 15s (connections seen: {server.ConnectionCount})");
         Assert.True(server.ConnectionCount >= 2);
     }
 
@@ -237,12 +237,25 @@ public class ObsWebSocketClientTests
         Assert.True(client.IsConnected);
 
         server.KillCurrentConnection(); // OBS "crashes" — schedules a retry
-        Assert.True(WaitUntil(() => !client.IsConnected));
+        Assert.True(await WaitUntilAsync(() => !client.IsConnected),
+            "client never noticed the killed connection");
 
         await client.DisconnectAsync(); // user-initiated — must cancel the retry
         var count = server.ConnectionCount;
 
-        await Task.Delay(2600); // an uncancelled loop would have retried by now
+        // Watch, don't sleep: an uncancelled retry loop would reconnect after
+        // its first backoff (production's is 1 s, this window is 2.6 s). Poll
+        // the connection count and fail IMMEDIATELY (with diagnostics) the
+        // moment a retry appears instead of blind-sleeping past it.
+        var watchDeadline = Environment.TickCount64 + 2600;
+        while (Environment.TickCount64 < watchDeadline)
+        {
+            var now = server.ConnectionCount;
+            Assert.True(now == count,
+                $"a reconnect retry survived the user disconnect: server saw {now} connection(s), expected {count} "
+                + $"(client connected: {client.IsConnected}) — the retry loop was not cancelled");
+            await Task.Delay(50);
+        }
 
         Assert.Equal(count, server.ConnectionCount);
         Assert.False(client.IsConnected);
@@ -264,22 +277,28 @@ public class ObsWebSocketClientTests
         await server.SendHugeMessageAsync(5 * 1024 * 1024);
         server.SendEvent("""{"op":5,"d":{"eventType":"CurrentProgramSceneChanged","eventData":{"sceneName":"Starting Soon"}}}""");
 
-        Assert.True(WaitUntil(() =>
+        Assert.True(await WaitUntilAsync(() =>
         {
             lock (statuses) return statuses.Any(s => s.Connected && s.CurrentScene == "Starting Soon");
-        }, 10000));
+        }, 10000), "client never raised a connected status with the post-flood scene within 10s");
         Assert.True(client.IsConnected);
     }
 
     // ---------- helpers ----------
 
-    private static bool WaitUntil(Func<bool> condition, int timeoutMs = 5000)
+    /// <summary>
+    /// Bounded async poll (20 ms cadence, generous deadline). Async on
+    /// purpose: a blocking Thread.Sleep spin steals threadpool threads under
+    /// xUnit's parallel collections and can starve the very background task
+    /// the poll is waiting for.
+    /// </summary>
+    private static async Task<bool> WaitUntilAsync(Func<bool> condition, int timeoutMs = 5000)
     {
         var deadline = Environment.TickCount64 + timeoutMs;
         while (Environment.TickCount64 < deadline)
         {
             if (condition()) return true;
-            Thread.Sleep(20);
+            await Task.Delay(20);
         }
         return condition();
     }

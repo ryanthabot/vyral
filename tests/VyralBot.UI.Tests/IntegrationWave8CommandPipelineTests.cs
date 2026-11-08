@@ -63,7 +63,8 @@ public class IntegrationWave8CommandPipelineTests
         // IDataService reachable from the execution context.
         var row = await WaitForAsync(
             () => h.Data.WorkflowExecutions.FirstOrDefault(e => e.Status == "Completed"),
-            TimeSpan.FromSeconds(10));
+            TimeSpan.FromSeconds(10),
+            "a Completed workflow execution-history row (send_message persisted no history)");
         Assert.Equal(h.Data.WorkflowRows[0].Id, row.WorkflowId);
         Assert.Equal("Wave8 " + TwitchOnlyCommand, row.WorkflowName);
         Assert.Contains("send_message", row.NodePath);
@@ -97,7 +98,10 @@ public class IntegrationWave8CommandPipelineTests
 
         // The filtered workflow never executed: exactly one completed history
         // row (the any-platform twin), no Twitch send ever happened.
-        await WaitUntilAsync(() => h.Data.WorkflowExecutions.Count == 1, TimeSpan.FromSeconds(10));
+        await WaitUntilAsync(
+            () => h.Data.WorkflowExecutions.Count == 1,
+            TimeSpan.FromSeconds(10),
+            "exactly one workflow execution row (the any-platform twin; the filtered one must not execute)");
         Assert.Single(h.Data.WorkflowExecutions);
         Assert.Empty(h.Twitch.SentMessages);
     }
@@ -204,7 +208,7 @@ public class IntegrationWave8CommandPipelineTests
     }
 
     /// <summary>Polls until the condition yields a non-null value (bounded async handoff — no test-logic sleeps).</summary>
-    private static async Task<T> WaitForAsync<T>(Func<T?> condition, TimeSpan deadline) where T : class
+    private static async Task<T> WaitForAsync<T>(Func<T?> condition, TimeSpan deadline, string what) where T : class
     {
         var deadlineAt = DateTime.UtcNow + deadline;
         while (true)
@@ -217,7 +221,8 @@ public class IntegrationWave8CommandPipelineTests
 
             if (DateTime.UtcNow > deadlineAt)
             {
-                throw new TimeoutException($"Wave-8 pipeline condition not met within {deadline.TotalSeconds}s");
+                throw new TimeoutException(
+                    $"Wave-8 pipeline condition not met within {deadline.TotalSeconds}s: {what}");
             }
 
             await Task.Delay(20);
@@ -225,14 +230,15 @@ public class IntegrationWave8CommandPipelineTests
     }
 
     /// <summary>Polls until the boolean condition holds (bounded async handoff).</summary>
-    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan deadline)
+    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan deadline, string what)
     {
         var deadlineAt = DateTime.UtcNow + deadline;
         while (!condition())
         {
             if (DateTime.UtcNow > deadlineAt)
             {
-                throw new TimeoutException($"Wave-8 pipeline condition not met within {deadline.TotalSeconds}s");
+                throw new TimeoutException(
+                    $"Wave-8 pipeline condition not met within {deadline.TotalSeconds}s: {what}");
             }
 
             await Task.Delay(20);

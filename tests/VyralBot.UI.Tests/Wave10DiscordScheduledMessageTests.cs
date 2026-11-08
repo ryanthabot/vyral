@@ -159,9 +159,17 @@ public class Wave10DiscordScheduledMessageTests : IDisposable
         var afterTime = DateTime.Now.ToString("HH:mm", CultureInfo.CurrentCulture);
         var afterDate = DateTime.Now.ToString("d", CultureInfo.CurrentCulture);
 
+        // Production reads DateTime.Now TWICE (once per token replace), so a
+        // clock boundary can fall between the two reads. Accept any
+        // before/after mix — fully rollover-proof for minute ticks AND for a
+        // local-midnight date flip landing inside the production call.
         Assert.True(
-            formatted == $"{beforeTime} on {beforeDate}" || formatted == $"{afterTime} on {afterDate}",
-            $"unexpected formatted text '{formatted}'");
+            (formatted == $"{beforeTime} on {beforeDate}")
+            || (formatted == $"{beforeTime} on {afterDate}")
+            || (formatted == $"{afterTime} on {beforeDate}")
+            || (formatted == $"{afterTime} on {afterDate}"),
+            $"unexpected formatted text '{formatted}' "
+            + $"(before: '{beforeTime} on {beforeDate}', after: '{afterTime} on {afterDate}')");
     }
 
     // ==================================================================

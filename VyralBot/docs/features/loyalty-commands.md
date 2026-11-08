@@ -58,19 +58,16 @@ path with no cooldown.
 - `!watchtime` on Discord replies with an explicit "does not accrue on
   Discord" message instead of the generic "keep watching" text.
 - `!watchtime top` uses `GetTopWatchtimeUsersAsync`: `ORDER BY TotalMinutes
-  DESC LIMIT @Limit`, **combined across platforms** (one row per
-  platform-account; a linked viewer can appear once per platform) and **no
-  tie-breaker** (ties can reshuffle between queries) — unlike the currency
-  leaderboard, which has deterministic tie-breakers.
+  DESC, Username COLLATE NOCASE ASC, Platform ASC LIMIT @Limit`, **combined
+  across platforms** (one row per platform-account; a linked viewer can appear
+  once per platform). Tie-breakers match the currency leaderboard
+  (`Username COLLATE NOCASE`, then `Platform`) so ties are deterministic; the
+  all-viewers and active-viewers queries use the same tie-breakers.
 - Leaderboard replies truncate display names at 20 chars so a max-size board
   fits platform message limits (YouTube clips ~200 chars).
 
 ## Known gaps (W10 audit, not fixed here — outside file ownership)
 
-- `GetTopWatchtimeUsersAsync` (DapperDataService) lacks the deterministic
-  tie-breakers the currency leaderboard already has.
 - `!top` currency leaderboard is combined per platform-account row, not a
   unified-wallet sum: a linked viewer with balances on two platforms shows as
   two entries rather than one combined total.
-- WatchtimeView empty states: the three DataGrids render blank when there is
-  no data (only the StatusMessage line says "Refreshed").

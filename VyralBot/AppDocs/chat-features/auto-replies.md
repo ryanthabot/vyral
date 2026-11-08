@@ -1,6 +1,6 @@
 # Auto-Replies
 
-> Automatic chat responses to stream events — one live, working mechanism (per-event templates behind a 30-second rate limiter) and one fully-built conditional-rules engine that nothing currently calls.
+> Automatic chat responses to stream events — one live, working mechanism (per-event templates behind a 30-second rate limiter) plus a conditional-rules engine that overrides those templates when its conditions match (Kick/Twitch, gated on a default message).
 
 ## Overview
 
@@ -9,7 +9,7 @@ When someone follows, subscribes, raids, cheers, or triggers other supported eve
 There are two code paths that share the "auto-reply" name, and only one of them is live:
 
 1. **Per-event auto-replies (live).** One row per (platform, event type) storing Show-in-chat, Auto-reply enabled, and the template. The real event handlers in the chat engine read it, run the rate limiter, substitute variables, and send.
-2. **Conditional auto-reply rules (dormant).** A full engine that would pick a reply by evaluating conditions — "only on the 100th follower", "only after 20:00" — stored as rules. The evaluation code is complete and tested, but **no production code ever invokes it**, so rules never fire. That system has its own page: [Conditional Rules](conditional-rules.md).
+2. **Conditional auto-reply rules (live, gated).** An engine that picks a reply by evaluating conditions — "only on the 100th follower", "only after 20:00" — stored as rules. When a Kick or Twitch auto-reply is about to send, a matching rule **replaces** the default template; the catch is the rules lookup only runs when the event has auto-reply enabled **and a default message configured**, and Discord events never consult rules. That system has its own page: [Conditional Rules](conditional-rules.md).
 
 ## User Guide
 
@@ -71,15 +71,15 @@ Auto-replies are limited to one per user + event + platform per 30 seconds. If t
 | Twitch | Raid | `username`, `raider`, `viewers`, `platform` — `{raider}` is now actually supplied (fixed 2026-08-15) |
 | Twitch | Cheer | `username`, `bits`, `platform` |
 
-### The dormant path
+### The conditional path
 
-`AutoReplyService.GetAutoReplyAsync` (`AutoReplyService.cs:61`) is the conditional engine: rate-limit check → load `AutoReplyRule` rows for the platform/event ordered by `Priority ASC` → deserialize each rule's `ConditionJson` → evaluate through `IRuleEvaluator` → on first match increment `TriggerCount` and return the processed `ReplyTemplate`. **No production code calls it** — the only references are the interface, the DI registration, and the service itself. The live path above uses only `ShouldSendReply` + `ProcessTemplate` from the same service. The rules themselves are managed on the [Conditional Rules](conditional-rules.md) page, which also documents why they never fire.
+`AutoReplyService.GetAutoReplyAsync` (`AutoReplyService.cs:63`) is the conditional engine: load `AutoReplyRule` rows for the platform/event ordered by `Priority ASC, Id ASC` (`Platform = @Platform OR Platform = 'All'`) → deserialize each rule's `ConditionJson` → evaluate through `IRuleEvaluator` → on first match increment `TriggerCount` and return the processed `ReplyTemplate`. Its production caller is `ChatViewModel.BuildAutoReplyTextAsync` (ChatViewModel.cs:4260): every Kick and Twitch event handler builds its reply through it, so a matching rule's template **replaces** the event's default message (the rule reply then passes through full variable replacement). Boundary: the handlers only call it when auto-reply is enabled **and the default message is non-empty**, and there is no Discord call site — the full story is on the [Conditional Rules](conditional-rules.md) page.
 
 ## Files & Code
 
 | File | Role |
 |---|---|
-| [AutoReplyService.cs](../../src/VyralBot.Core/Services/Chat/AutoReplyService.cs) | Template processing (`ProcessTemplate`), rate-limit check, and the dormant conditional engine (`GetAutoReplyAsync`) |
+| [AutoReplyService.cs](../../src/VyralBot.Core/Services/Chat/AutoReplyService.cs) | Template processing (`ProcessTemplate`), rate-limit check, and the conditional engine (`GetAutoReplyAsync`, called from the Kick/Twitch reply path) |
 | [IAutoReplyService.cs](../../src/VyralBot.Core/Services/Chat/IAutoReplyService.cs) | Service interface |
 | [AutoReplyRateLimiter.cs](../../src/VyralBot.Core/Services/Chat/AutoReplyRateLimiter.cs) | 30 s per-user/event/platform cooldown dictionary |
 | [ChatEventSettingsService.cs](../../src/VyralBot.Core/Services/Chat/ChatEventSettingsService.cs) | Cached read/write of per-event settings |
@@ -142,6 +142,6 @@ if (settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage
 - **`{raider}` is now supplied by the Twitch Raid handler** — templates using `{raider}` resolve correctly (fixed 2026-08-15); older documentation claiming otherwise is stale.
 - **User-written stray-`@` templates** — the processor replaces only `{key}`, so an `@` in front of a variable the event does not supply is still sent verbatim; the shipped defaults no longer do this. — [known issues ledger](../reference/known-issues.md)
 - **Rate-limiter cleanup is never scheduled** — `CleanupExpiredEntries` exists but no timer calls it; stale keys accumulate for the session (functionally harmless).
-- The conditional `GetAutoReplyAsync` engine has **zero callers** — see [Conditional Rules](conditional-rules.md) for the full story.
+- Conditional rules **are consulted** on the Kick/Twitch reply path — a matching rule replaces the default message — but only when a default message exists, and never on Discord (KI-57); see [Conditional Rules](conditional-rules.md) for the full story.
 - Auto-replies only send to **Twitch and Kick**; there are no YouTube/TikTok/Discord auto-replies.
 - Twitch events depend on EventSub connecting — `Platform.UserId` is now set on authorization (fixed 2026-08-15), so Twitch auto-replies fire once the broadcaster has (re)authorized. See [Twitch](../platforms/twitch.md).

@@ -2045,9 +2045,11 @@ public class DapperDataService : IDataService
                     ConditionJson = @ConditionJson,
                     ReplyTemplate = @ReplyTemplate,
                     UpdatedAt = @UpdatedAt,
-                    TriggerCount = @TriggerCount,
                     LastTriggeredAt = @LastTriggeredAt
                 WHERE Id = @Id", rule);
+                // TriggerCount is deliberately absent from the UPDATE SET: the
+                // in-memory row may hold a stale count. The live counter is
+                // owned by IncrementRuleTriggerCountAsync (TriggerCount + 1).
 
             return rule.Id;
         }
@@ -2391,14 +2393,14 @@ public class DapperDataService : IDataService
     {
         using var conn = CreateConnection();
         return await conn.QueryAsync<UserWatchtime>(
-            "SELECT * FROM UserWatchtime ORDER BY TotalMinutes DESC");
+            "SELECT * FROM UserWatchtime ORDER BY TotalMinutes DESC, Username COLLATE NOCASE ASC, Platform ASC");
     }
 
     public async Task<IEnumerable<UserWatchtime>> GetTopWatchtimeUsersAsync(int limit = 10)
     {
         using var conn = CreateConnection();
         return await conn.QueryAsync<UserWatchtime>(
-            "SELECT * FROM UserWatchtime ORDER BY TotalMinutes DESC LIMIT @Limit",
+            "SELECT * FROM UserWatchtime ORDER BY TotalMinutes DESC, Username COLLATE NOCASE ASC, Platform ASC LIMIT @Limit",
             new { Limit = limit });
     }
 
@@ -2406,7 +2408,7 @@ public class DapperDataService : IDataService
     {
         using var conn = CreateConnection();
         return await conn.QueryAsync<UserWatchtime>(
-            "SELECT * FROM UserWatchtime WHERE IsActive = 1 ORDER BY LastSeenAt DESC");
+            "SELECT * FROM UserWatchtime WHERE IsActive = 1 ORDER BY LastSeenAt DESC, Username COLLATE NOCASE ASC, Platform ASC");
     }
 
     public async Task SaveUserWatchtimeAsync(UserWatchtime watchtime)

@@ -2,6 +2,8 @@
 
 > Open-source multi-platform chat bot and stream assistant for Twitch, Kick, YouTube, and Discord — one app, one chat feed, every platform at once.
 
+> **🎉 New in 1.1.0** — auto-moderation that enforces on every platform, quotes, Twitch Channel Points, YouTube Super Chats, Discord welcome & auto-role, timers & scheduled messages, an Event Testing page, starter workflow templates, do-not-disturb, encrypted secrets and a lot of stability work. See **[What's new in Vyral 1.1.0](getting-started/release-notes.md)**.
+
 Welcome to the official Vyral documentation. These pages ship with the app and live in the repository (`AppDocs/`), so they work in two places:
 
 - **In the app** — Home → Documentation opens the built-in documentation browser with a navigation tree, search, back/forward history, and clickable cross-links. Links to source files open the actual code in a read-only code viewer.

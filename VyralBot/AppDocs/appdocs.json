@@ -15,6 +15,10 @@
       "title": "Getting Started",
       "pages": [
         {
+          "path": "getting-started/release-notes.md",
+          "title": "What's New in 1.1.0"
+        },
+        {
           "path": "getting-started/quick-start.md",
           "title": "Quick Start"
         },

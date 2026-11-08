@@ -82,8 +82,10 @@ rate limit), then call `BuildAutoReplyTextAsync`, which asks
   conditions; boolean checks for Status; time_of_day/day_of_week/hour/date
   for Time; nested AND/OR for Complex. No regex operator. No mod-exemption:
   the only gate is the per-user rate limiter.
-- `TriggerCount`/`LastTriggeredAt` increment on each match (note: saving a
-  rule from the UI also rewrites those columns from the loaded row).
+- `TriggerCount`/`LastTriggeredAt` increment on each match. Saving a rule from
+  the UI rewrites `LastTriggeredAt` from the loaded row, but `TriggerCount` is
+  excluded from the UPDATE so the live count survives edits (the INSERT for
+  new rules still seeds it).
 - Not wired: "ChatMessage" and "StreamStatus" event types and the "Discord"
   platform never reach the engine in the current pipeline; the Rules page
   event list omits the dead types but keeps legacy stored values editable.

@@ -94,11 +94,48 @@
                             <DataGridTextColumn Header="Last Seen" Binding="{Binding LastSeenAt, StringFormat='{}{0:g}'}" Width="150"/>
                         </DataGrid.Columns>
                     </DataGrid>
+
+                    <!-- Empty state: shown while no watchtime rows exist -->
+                    <StackPanel Grid.Row="1"
+                                IsHitTestVisible="False"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Margin="24">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding TopViewers.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <materialDesign:PackIcon Kind="ClockOutline"
+                                                 Width="48"
+                                                 Height="48"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center"
+                                                 Margin="0,0,0,12"/>
+                        <TextBlock Text="No viewer watchtime yet"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,8"/>
+                        <TextBlock Text="It accrues while you're live — viewers appear here automatically as watchtime is tracked."
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
                 </Grid>
             </TabItem>
 
             <!-- Active Viewers Tab -->
             <TabItem Header="👁️ Active Viewers">
+                <Grid>
                 <DataGrid ItemsSource="{Binding ActiveViewers}"
                          AutoGenerateColumns="False"
                          CanUserAddRows="False"
@@ -116,23 +153,60 @@
                                 </Binding>
                             </DataGridTextColumn.Binding>
                         </DataGridTextColumn>
-                        <DataGridTextColumn Header="Session Time" Width="130">
-                            <DataGridTextColumn.Binding>
-                                <Binding Path="StreamSessionMinutes">
-                                    <Binding.Converter>
-                                        <converters:WatchtimeFormatConverter/>
-                                    </Binding.Converter>
-                                </Binding>
-                            </DataGridTextColumn.Binding>
-                        </DataGridTextColumn>
-                        <DataGridTextColumn Header="Last Seen" Binding="{Binding LastSeenAt, StringFormat='{}{0:g}'}" Width="150"/>
-                        <DataGridTextColumn Header="First Seen" Binding="{Binding FirstSeenAt, StringFormat='{}{0:g}'}" Width="150"/>
-                    </DataGrid.Columns>
+                            <DataGridTextColumn Header="Session Time" Width="130">
+                                <DataGridTextColumn.Binding>
+                                    <Binding Path="StreamSessionMinutes">
+                                        <Binding.Converter>
+                                            <converters:WatchtimeFormatConverter/>
+                                        </Binding.Converter>
+                                    </Binding>
+                                </DataGridTextColumn.Binding>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Last Seen" Binding="{Binding LastSeenAt, StringFormat='{}{0:g}'}" Width="150"/>
+                            <DataGridTextColumn Header="First Seen" Binding="{Binding FirstSeenAt, StringFormat='{}{0:g}'}" Width="150"/>
+                        </DataGrid.Columns>
                 </DataGrid>
+
+                    <!-- Empty state: nobody currently watching -->
+                    <StackPanel IsHitTestVisible="False"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Margin="24">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ActiveViewers.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <materialDesign:PackIcon Kind="EyeOutline"
+                                                 Width="48"
+                                                 Height="48"
+                                                 Foreground="{DynamicResource TextMutedBrush}"
+                                                 HorizontalAlignment="Center"
+                                                 Margin="0,0,0,12"/>
+                        <TextBlock Text="No viewer watchtime yet"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,8"/>
+                        <TextBlock Text="It accrues while you're live — active viewers appear here during a stream."
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
             </TabItem>
 
             <!-- All Viewers Tab -->
             <TabItem Header="📋 All Viewers">
+                <Grid>
                 <DataGrid ItemsSource="{Binding AllViewers}"
                          AutoGenerateColumns="False"
                          CanUserAddRows="False"
@@ -164,6 +238,42 @@
                         <DataGridTextColumn Header="First Seen" Binding="{Binding FirstSeenAt, StringFormat='{}{0:g}'}" Width="150"/>
                     </DataGrid.Columns>
                 </DataGrid>
+
+                <!-- Empty state: no watchtime rows recorded yet -->
+                <StackPanel IsHitTestVisible="False"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Margin="24">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding AllViewers.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <materialDesign:PackIcon Kind="ClipboardOutline"
+                                             Width="48"
+                                             Height="48"
+                                             Foreground="{DynamicResource TextMutedBrush}"
+                                             HorizontalAlignment="Center"
+                                             Margin="0,0,0,12"/>
+                    <TextBlock Text="No viewer watchtime yet"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,8"/>
+                    <TextBlock Text="It accrues while you're live — viewers appear here automatically as watchtime is tracked."
+                               FontSize="12"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+                </Grid>
             </TabItem>
         </TabControl>
 

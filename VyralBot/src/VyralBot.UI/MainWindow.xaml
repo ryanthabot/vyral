@@ -613,6 +613,32 @@
                         <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
                             <DataTemplate.Resources>
                                 <converters:AnyTrueToCollapsedConverter x:Key="AnyTrueToCollapsedConverter"/>
+                                <!-- Quick-link keyboard access: focusable cards/borders with a visible focus ring -->
+                                <Style x:Key="HomeQuickLinkCard"
+                                       TargetType="materialDesign:Card"
+                                       BasedOn="{StaticResource {x:Type materialDesign:Card}}">
+                                    <Style.Triggers>
+                                        <Trigger Property="IsFocused" Value="True">
+                                            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+                                            <Setter Property="BorderThickness" Value="2"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                                <Style x:Key="HomeQuickLinkBorder" TargetType="Border">
+                                    <Style.Triggers>
+                                        <Trigger Property="IsFocused" Value="True">
+                                            <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+                                            <Setter Property="BorderThickness" Value="2"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                                <!-- Support-list variant: keeps the bottom separator when unfocused -->
+                                <Style x:Key="HomeSupportLinkBorder"
+                                       TargetType="Border"
+                                       BasedOn="{StaticResource HomeQuickLinkBorder}">
+                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
+                                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                </Style>
                             </DataTemplate.Resources>
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
@@ -782,11 +808,17 @@
 
                                     <!-- Connections Card -->
                                     <materialDesign:Card Grid.Column="0"
+                                                        Style="{StaticResource HomeQuickLinkCard}"
                                                         Padding="24"
                                                         Background="{DynamicResource CardBackgroundBrush}"
-                                                        Cursor="Hand">
+                                                        Cursor="Hand"
+                                                        Focusable="True"
+                                                        TabIndex="1"
+                                                        ToolTip="Open the Platforms hub (Connections)">
                                         <materialDesign:Card.InputBindings>
                                             <MouseBinding Command="{Binding DataContext.NavigateToPlatformsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                                            <KeyBinding Key="Enter" Command="{Binding DataContext.NavigateToPlatformsCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                            <KeyBinding Key="Space" Command="{Binding DataContext.NavigateToPlatformsCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                         </materialDesign:Card.InputBindings>
                                         <StackPanel HorizontalAlignment="Center">
                                             <materialDesign:PackIcon Kind="Connection"
@@ -812,11 +844,17 @@
 
                                     <!-- Chat Card -->
                                     <materialDesign:Card Grid.Column="2"
+                                                        Style="{StaticResource HomeQuickLinkCard}"
                                                         Padding="24"
                                                         Background="{DynamicResource CardBackgroundBrush}"
-                                                        Cursor="Hand">
+                                                        Cursor="Hand"
+                                                        Focusable="True"
+                                                        TabIndex="2"
+                                                        ToolTip="Open Chat">
                                         <materialDesign:Card.InputBindings>
                                             <MouseBinding Command="{Binding DataContext.NavigateToChatHubCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                                            <KeyBinding Key="Enter" Command="{Binding DataContext.NavigateToChatHubCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                            <KeyBinding Key="Space" Command="{Binding DataContext.NavigateToChatHubCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                         </materialDesign:Card.InputBindings>
                                         <StackPanel HorizontalAlignment="Center">
                                             <materialDesign:PackIcon Kind="Chat"
@@ -842,11 +880,17 @@
 
                                     <!-- Tools Card -->
                                     <materialDesign:Card Grid.Column="4"
+                                                        Style="{StaticResource HomeQuickLinkCard}"
                                                         Padding="24"
                                                         Background="{DynamicResource CardBackgroundBrush}"
-                                                        Cursor="Hand">
+                                                        Cursor="Hand"
+                                                        Focusable="True"
+                                                        TabIndex="3"
+                                                        ToolTip="Open Tools">
                                         <materialDesign:Card.InputBindings>
                                             <MouseBinding Command="{Binding DataContext.NavigateToToolsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                                            <KeyBinding Key="Enter" Command="{Binding DataContext.NavigateToToolsCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                            <KeyBinding Key="Space" Command="{Binding DataContext.NavigateToToolsCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                         </materialDesign:Card.InputBindings>
                                         <StackPanel HorizontalAlignment="Center">
                                             <materialDesign:PackIcon Kind="Toolbox"
@@ -872,11 +916,17 @@
 
                                     <!-- Integrations Card -->
                                     <materialDesign:Card Grid.Column="6"
+                                                        Style="{StaticResource HomeQuickLinkCard}"
                                                         Padding="24"
                                                         Background="{DynamicResource CardBackgroundBrush}"
-                                                        Cursor="Hand">
+                                                        Cursor="Hand"
+                                                        Focusable="True"
+                                                        TabIndex="4"
+                                                        ToolTip="Open Integrations">
                                         <materialDesign:Card.InputBindings>
                                             <MouseBinding Command="{Binding DataContext.NavigateToIntegrationsCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                                            <KeyBinding Key="Enter" Command="{Binding DataContext.NavigateToIntegrationsCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                            <KeyBinding Key="Space" Command="{Binding DataContext.NavigateToIntegrationsCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                         </materialDesign:Card.InputBindings>
                                         <StackPanel HorizontalAlignment="Center">
                                             <materialDesign:PackIcon Kind="Puzzle"
@@ -904,12 +954,18 @@
                                     <materialDesign:Card Grid.Row="1"
                                                         Grid.Column="0"
                                                         Grid.ColumnSpan="7"
+                                                        Style="{StaticResource HomeQuickLinkCard}"
                                                         Padding="20"
                                                         Background="{DynamicResource CardBackgroundBrush}"
                                                         Cursor="Hand"
-                                                        Margin="0,12,0,0">
+                                                        Focusable="True"
+                                                        TabIndex="5"
+                                                        Margin="0,12,0,0"
+                                                        ToolTip="Open Moderator">
                                         <materialDesign:Card.InputBindings>
                                             <MouseBinding Command="{Binding DataContext.NavigateToModeratorCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                                            <KeyBinding Key="Enter" Command="{Binding DataContext.NavigateToModeratorCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                            <KeyBinding Key="Space" Command="{Binding DataContext.NavigateToModeratorCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                         </materialDesign:Card.InputBindings>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
@@ -955,13 +1011,16 @@
                                              Margin="0,0,0,16"/>
 
                                     <!-- Documentation -->
-                                    <Border Background="{DynamicResource CardBackgroundBrush}"
-                                           BorderBrush="{DynamicResource BorderLightBrush}"
-                                           BorderThickness="0,0,0,1"
-                                           Padding="16"
-                                           Cursor="Hand">
+                                    <Border Style="{StaticResource HomeSupportLinkBorder}"
+                                            Background="{DynamicResource CardBackgroundBrush}"
+                                            Padding="16"
+                                            Cursor="Hand"
+                                            Focusable="True"
+                                            ToolTip="Open the built-in documentation">
                                         <Border.InputBindings>
                                             <MouseBinding Command="{Binding DataContext.NavigateToDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                                            <KeyBinding Key="Enter" Command="{Binding DataContext.NavigateToDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                            <KeyBinding Key="Space" Command="{Binding DataContext.NavigateToDocumentationCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                         </Border.InputBindings>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
@@ -997,13 +1056,16 @@
                                     </Border>
 
                                     <!-- Discord -->
-                                    <Border Background="{DynamicResource CardBackgroundBrush}"
-                                           BorderBrush="{DynamicResource BorderLightBrush}"
-                                           BorderThickness="0,0,0,1"
-                                           Padding="16"
-                                           Cursor="Hand">
+                                    <Border Style="{StaticResource HomeSupportLinkBorder}"
+                                            Background="{DynamicResource CardBackgroundBrush}"
+                                            Padding="16"
+                                            Cursor="Hand"
+                                            Focusable="True"
+                                            ToolTip="Join the Vyral community on Discord">
                                         <Border.InputBindings>
                                             <MouseBinding Command="{Binding DataContext.OpenDiscordLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                                            <KeyBinding Key="Enter" Command="{Binding DataContext.OpenDiscordLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                            <KeyBinding Key="Space" Command="{Binding DataContext.OpenDiscordLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                         </Border.InputBindings>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
@@ -1039,11 +1101,16 @@
                                     </Border>
 
                                     <!-- Ideas & Suggestions -->
-                                    <Border Background="{DynamicResource CardBackgroundBrush}"
-                                           Padding="16"
-                                           Cursor="Hand">
+                                    <Border Style="{StaticResource HomeQuickLinkBorder}"
+                                            Background="{DynamicResource CardBackgroundBrush}"
+                                            Padding="16"
+                                            Cursor="Hand"
+                                            Focusable="True"
+                                            ToolTip="Share ideas and suggestions for Vyral">
                                         <Border.InputBindings>
                                             <MouseBinding Command="{Binding DataContext.OpenIdeasLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}" MouseAction="LeftClick"/>
+                                            <KeyBinding Key="Enter" Command="{Binding DataContext.OpenIdeasLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                            <KeyBinding Key="Space" Command="{Binding DataContext.OpenIdeasLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                         </Border.InputBindings>
                                         <Grid>
                                             <Grid.ColumnDefinitions>

@@ -12,13 +12,13 @@ Open **Settings** from the bottom of the sidebar. The page is a two-pane layout:
 | **Theme** | The full theme picker — nine built-in themes (**Native Teal, Light, Dark, Crimson Forge, Azure Depths, Emerald Grove, Arctic Frost, Carbon Graphite, Sunset Ember**), the Light/Dark base, a Custom color builder with a live accent color picker, and brightness sliders (applied live; see below) |
 | **Platforms** | Grid of 6 platform cards (only Twitch and Kick navigate) plus the **Startup & Connection** section — see below |
 | **Data Management** | Storage locations with sizes, data inventory counts, cleanup tools (clear history, compact DB, export backup) |
-| **Notifications** | Master toggles for event messages in chat and event sounds |
+| **Notifications** | Master toggles for event messages in chat and event sounds, plus **Do-not-disturb** (one switch that instantly mutes every event sound and the overlay alert — no restart) and a **Preview notification** button that fires a real follower alert + sound through the same gated pipelines so you can verify your setup |
 | **Commands** | Command prefixes and per-platform command-processing toggles |
 | **Viewer Hub** | Account linking (including the linking-bot selector), Multi-Platform Bonus mode/settings, Vyral Goals management, and Linked Viewers with per-account unlink — see below |
 | **Variables** | Hosts the full Variables manager |
 | **Timers** | Command-timers master toggle |
 | **Automation** | Workflow master toggle, trigger gates, timer interval, execution-history retention |
-| **Stream FX** | Lights provider (**Philips Hue** bridge IP + per-light enabled rows driving the `!flashlights` command) and saved **Stream Deck action links** — see the Stream FX panel; changes apply on Save without a restart |
+| **Stream FX** | Lights provider (**Philips Hue** bridge IP + per-light enabled rows driving the `!flashlights` command) and saved **Stream Deck action links** — see the Stream FX panel; changes apply on Save without a restart. The Hue app key and webhook bearer token are entered in **masked password boxes** and stored **encrypted at rest** (see the Security category below); light calls time out after 5 s and restore each light's original state if a flash fails partway |
 | **Moderator** | Mod channel ID, mod role name, and the auto-create toggle for the [mod system](../architecture/moderator-guide.md) — see below |
 | **API & Webhooks** | Web server + ngrok configuration — see [API, Web Server & ngrok](web-server-ngrok.md) |
 | **Performance** | The live performance monitor: process CPU/memory/GC, per-platform and per-component activity, child processes, sparklines |
@@ -31,7 +31,7 @@ Note that Audio, Alert, and Sounds settings do **not** live here — they are se
 
 The Security panel's token-storage blurb summarizes where credentials live (its text predates the 2026-11-07 encryption work — the data layer is now stricter than the blurb implies):
 
-- **Client secrets** (every platform's `ClientSecret` column in the per-profile database) and **Discord bot tokens** (`DiscordBots.Token`) are **encrypted at rest with Windows DPAPI** — CurrentUser scope plus an app-specific entropy constant, stored as a versioned `v1:` envelope (`SecretProtector`). A profile database copied off this machine is inert: the blobs only unwrap for the same Windows user running VyralBot.
+- **Client secrets** (every platform's `ClientSecret` column in the per-profile database) and **Discord bot tokens** (`DiscordBots.Token`) are **encrypted at rest with Windows DPAPI** — CurrentUser scope plus an app-specific entropy constant, stored as a versioned `v1:` envelope (`SecretProtector`). A profile database copied off this machine is inert: the blobs only unwrap for the same Windows user running VyralBot. The **Stream FX secrets** — the Hue bridge app key (`Lights.Hue.AppKey`) and the webhook lights bearer token (`Lights.Webhook.Token`) — get the same `v1:` DPAPI envelope at the `StreamEffectsConfigService` read/write seam (added 2026-11-07); callers always see plaintext in memory, never the blob.
 - **Legacy rows keep working**: values saved before the envelope existed are still read (returned unchanged) and are **re-encrypted lazily** the next time the row is saved — no migration step, no schema change.
 - Still plaintext: Twitch's OAuth access/refresh tokens have their own older DPAPI layer; Kick/YouTube access and refresh tokens, the setup wizard's Discord row token, and the on-disk `twitch_credentials.json` / `kick_credentials.json` / ngrok token files are not wrapped — the same advice stands: **protect the PC, not just the app.**
 - Profile PINs remain salted PBKDF2-SHA256 hashes (see the Profile category below).
@@ -131,6 +131,7 @@ The codebase has three distinct things called "platform settings" — keep them 
 | Platform tokens, status, chat enabled / auto-start flags | DB `Platforms` row | Setup wizards, settings pages, auto-connect |
 | Launch-on-Windows-startup (Run key) | Windows registry Run key (HKCU, per-user) | Settings → Platforms → Startup & Connection |
 | Kick auto-replies toggle | DB `Configs` key `Kick.AutoRepliesEnabled` | Kick settings page |
+| Notification toggles + do-not-disturb | DB `Configs` keys `Notifications.ShowEventsInChat` / `Notifications.EventSoundsEnabled` / `Notifications.DoNotDisturb` | Settings → Notifications (SoundService/AlertService re-read on every event, so changes apply instantly) |
 | Mod channel ID, mod role name, auto-create, favorites | DB `Configs` keys `Mod.ChannelId` / `Mod.ModRoleName` / `Mod.AutoCreateChannel` / `Mod.FavoriteCommands` | Settings → Moderator + the Moderator page (see the [Moderator Guide](../architecture/moderator-guide.md)) |
 | Support links (Discord invite, Ideas URL) | DB `Configs` keys `Support.DiscordUrl` / `Support.IdeasUrl` | Settings → Profile → Support Links |
 | Per-event display/auto-reply settings | DB `ChatEventSettings` rows | Chat Hub VMs via `ChatEventSettingsService` |

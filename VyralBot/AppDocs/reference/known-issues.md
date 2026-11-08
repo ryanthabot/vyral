@@ -1,6 +1,6 @@
 # Known Issues Ledger
 
-The numbered, severity-tagged inventory of every known defect, wiring gap, dead surface, and doc-drift item in the current build — verified against code by the six-pass review that produced this documentation, re-verified after the 2026-08-15 fix pass, and reconciled again against the 2026-11-07 production-marathon waves (0–9, including the release-wave documentation pass).
+The numbered, severity-tagged inventory of every known defect, wiring gap, dead surface, and doc-drift item in the current build — verified against code by the six-pass review that produced this documentation, re-verified after the 2026-08-15 fix pass, and reconciled again against the 2026-11-07 production-marathon waves (0–11, including the release-wave documentation pass).
 
 **Every feature page in these docs references this ledger** rather than repeating caveats inline. If a page says "see the Known Issues Ledger", the relevant entry is here. Severity meanings:
 
@@ -11,7 +11,7 @@ The numbered, severity-tagged inventory of every known defect, wiring gap, dead 
 - **Limitation** — an honest current-state boundary (an API that does not exist, a deliberate degradation), documented rather than promised.
 - **Doc drift** — shipped root documents that disagree with the code.
 
-Counts (as of 2026-11-07, after the wave-9 release pass): 56 entries — **24 resolved**, **9 partially resolved** (KI-5, KI-12, KI-16, KI-18, KI-21, KI-24, KI-31, KI-36, KI-53), **2 intended behavior / documented behavior change** (KI-14, KI-30), and **21 open** (KI-26–KI-28, KI-32–KI-34, KI-37, KI-38, KI-40–KI-42, KI-44–KI-47, KI-50–KI-52, KI-54–KI-56). Original severity split of the 25 pre-fix entries: 7 Critical, 9 Wiring gaps, 2 Dead surface, 6 Security, 1 Doc drift. Wave-6 features (quotes, event-testing upgrade, control API, timer activity gate, OBS auto-reconnect) were re-checked against code and contributed no new entries; the wave-9 pass added KI-54–KI-56 (statistics charts, soundboard hotkeys, TikTok chat) and moved KI-31 (Kick recorded-status follower fallback) and KI-53 (Wave-9 Kick/YouTube moderation adapters) to partially resolved.
+Counts (as of 2026-11-07, after the wave-10/11 pass): 57 entries — **24 resolved**, **10 partially resolved** (KI-5, KI-12, KI-16, KI-18, KI-21, KI-24, KI-31, KI-36, KI-53, KI-55), **2 intended behavior / documented behavior change** (KI-14, KI-30), and **21 open** (KI-26–KI-28, KI-32–KI-34, KI-37, KI-38, KI-40–KI-42, KI-44–KI-47, KI-50–KI-52, KI-54, KI-56, KI-57). Original severity split of the 25 pre-fix entries: 7 Critical, 9 Wiring gaps, 2 Dead surface, 6 Security, 1 Doc drift. Wave-6 features (quotes, event-testing upgrade, control API, timer activity gate, OBS auto-reconnect) were re-checked against code and contributed no new entries; the wave-9 pass added KI-54–KI-56 (statistics charts, soundboard hotkeys, TikTok chat) and moved KI-31 (Kick recorded-status follower fallback) and KI-53 (Wave-9 Kick/YouTube moderation adapters) to partially resolved; the wave-10/11 pass moved KI-55 to partially resolved (the `play_sound` workflow block adds command/timer/event-triggered sound playback — global hotkeys and a soundboard UI remain) and added KI-57 (conditional rules: live as Kick/Twitch auto-reply overrides, but gated behind a configured default message and dead on Discord).
 
 Resolved entries are kept below (never deleted) with a ✅ marker and a one-line description of the fix; partially resolved entries carry ◐ with what remains.
 
@@ -54,8 +54,9 @@ Resolved entries are kept below (never deleted) with a ✅ marker and a one-line
 | [KI-52](#ki-52-limitation--discord-joinboost-events-need-the-server-members-intent-portal-toggle) | Limitation | Discord | Member-join and boost events are fully wired but dormant: they require the privileged **Server Members Intent** toggle in the Discord Developer Portal, which the gateway deliberately does not request — the per-bot Welcome & Auto-Role card rides the same gate | [Discord](../platforms/discord.md) |
 | [KI-53](#ki-53-partially-resolved--auto-mod-enforcement-per-platform-degradation) | Limitation ◐ | Moderation | Kick upgraded to full (Wave 9; delete needs one-time re-auth for pre-Wave-9 tokens), YouTube to delete-native (no public ban/timeout API exists); Discord's Delete verdict still degrades to a warn notice (ban/timeout are native) | [Moderator Guide](../architecture/moderator-guide.md), [Multi-Platform Parity](../platforms/multi-platform.md) |
 | [KI-54](#ki-54-limitation--statistics-has-no-charts-everything-renders-as-datagrids) | Limitation | Statistics | No chart visualizations — DataGrids only; the chart-ready per-day API (`GetEventCountsByDateAsync`) has no UI consumer | [Statistics](../stream-tools/statistics.md) |
-| [KI-55](#ki-55-limitation--no-global-hotkey-soundboard) | Limitation | Sounds | No soundboard: no global hotkeys, no command-triggered sounds — only the fourteen mapped events and Test buttons | [Sounds](../stream-tools/sounds.md) |
+| [KI-55](#ki-55-partially-resolved--no-global-hotkey-soundboard) | Limitation ◐ | Sounds | Workflow/command/timer-triggered sounds now exist via the `play_sound` block (Wave 10); no global hotkeys, no soundboard UI | [Sounds](../stream-tools/sounds.md) |
 | [KI-56](#ki-56-limitation--tiktok-has-no-chat-integration-identity-only) | Limitation | TikTok | TikTok is an identity only — the wizard is a stub, no chat service exists, nothing can be sent; linking/bonus/goals still count a TikTok identity | [TikTok](../platforms/tiktok.md), [TikTok & OBS](../platforms/tiktok-discord-obs.md) |
+| [KI-57](#ki-57-wiring-gap--conditional-rules-fire-only-behind-the-default-message-gate-discord-rules-have-no-pipeline) | Wiring gap | Conditional Rules | Rules are live as auto-reply overrides on Kick/Twitch, but only when the event has a default message; Discord rules never fire | [Conditional Rules](../chat-features/conditional-rules.md), [Auto-Replies](../chat-features/auto-replies.md) |
 
 ### Resolved (2026-08-15 fix pass; KI-35 on 2026-08-16, KI-39/KI-43 on 2026-08-29)
 
@@ -203,7 +204,7 @@ Resolved entries are kept below (never deleted) with a ✅ marker and a one-line
 
 ### KI-18 (Dead surface) — Dead and orphaned code
 
-**◐ PARTIALLY RESOLVED (2026-08-15)** — the seeded, enabled `!watchtime` built-in no longer shadows the real service (`CommandService` now defers it — returns null so `WatchtimeCommandService` handles the message; the dead placeholder text is gone); dead env-var methods were removed from the TikTok wizard and the pre-rewrite Discord wizard; the dead `SaveCredentialsToEnvironment` was removed from `TwitchWebSetupViewModel`. **Remains:** `ProfileSelectorWindow`, `DemoSetupView`, the `NgrokSetupView` variants, and the `TriggerEngine`/`ActionDispatcher` stubs are still in the tree (see [UI Reference](ui-reference.md)).
+**◐ PARTIALLY RESOLVED (2026-08-15)** — the seeded, enabled `!watchtime` built-in no longer shadows the real service (`CommandService` now defers it — returns null so `WatchtimeCommandService` handles the message; the dead placeholder text is gone); dead env-var methods were removed from the TikTok wizard and the pre-rewrite Discord wizard; the dead `SaveCredentialsToEnvironment` was removed from `TwitchWebSetupViewModel`; and the conditional-rules `GetAutoReplyAsync` path — listed here as a caller-less engine when this entry was written — gained a production caller on 2026-09-06 (the Kick/Twitch auto-reply pipeline consults it; its remaining boundary is tracked as KI-57). **Remains:** `ProfileSelectorWindow`, `DemoSetupView`, the `NgrokSetupView` variants, and the `TriggerEngine`/`ActionDispatcher` stubs are still in the tree (see [UI Reference](ui-reference.md)).
 
 *Original finding (pre-fix):* unreachable pages (`VariablesView` hosted nowhere reachable from the sidebar, `ProfileSelectorWindow`), caller-less engines (the conditional-rules `GetAutoReplyAsync` path, the `TriggerEngine`/`ActionDispatcher` TODO stubs, the `Triggers`/`Actions`/`EventLogs`/`ViewerPerks` tables with no writers), superseded/orphaned files (`NgrokSetupView` + variants, `DemoSetupView`, `App.AutoConnectTwitchAsync`, `InMemoryChatMessageStore`, the legacy port-8080 `AudioWebSocketServer`, `ImportProfileAsync` with no UI caller, `BadgesToImagesConverter`, the orphaned `ChatEventSetting` sound columns), and the `!watchtime` placeholder shadowing — plus `CommandContext.IsBroadcaster` hard-coded `false` and Kick/Twitch-only platform gating.
 
@@ -395,8 +396,8 @@ Which ledger entries affect which feature areas (✅ = resolved, ◐ = partially
 | [Commands](../chat-features/commands.md) | KI-1 ✅, KI-37, KI-38, KI-41, KI-42 |
 | [Marketplace & Sharecodes](../chat-features/marketplace.md) | KI-45 (imported flows use the same block set) |
 | [Variables](../chat-features/variables.md) | KI-12 ◐, KI-28 |
-| [Auto-Replies](../chat-features/auto-replies.md) | KI-1 ✅, KI-12 ◐, KI-28, KI-49 ✅ |
-| [Conditional Rules](../chat-features/conditional-rules.md) | KI-18 ◐ |
+| [Auto-Replies](../chat-features/auto-replies.md) | KI-1 ✅, KI-12 ◐, KI-28, KI-49 ✅, KI-57 |
+| [Conditional Rules](../chat-features/conditional-rules.md) | KI-18 ◐ (rules path live since 2026-09-06), KI-57 |
 | [Event History](../chat-features/event-history.md) | KI-3 ✅, KI-26 |
 | [Event Testing](../chat-features/event-testing.md) | none (fully functional) |
 | [Automation](../chat-features/automation.md) | KI-39 ✅, KI-40, KI-41, KI-43 ✅, KI-44, KI-45, KI-46 |
@@ -406,7 +407,7 @@ Which ledger entries affect which feature areas (✅ = resolved, ◐ = partially
 | [Currency & Rewards](../stream-tools/currency.md) | KI-1 ✅, KI-7 ✅, KI-29 ✅ (full-row save + Bank & Decay tab), KI-27, KI-30 |
 | [Statistics](../stream-tools/statistics.md) | KI-3 ✅, KI-26, KI-54 |
 | [Browser Sources](../stream-tools/browser-sources.md) | KI-4 ✅, KI-16 ◐ |
-| [Sounds](../stream-tools/sounds.md) | KI-4 ✅, KI-50, KI-55 |
+| [Sounds](../stream-tools/sounds.md) | KI-4 ✅, KI-50, KI-55 ◐ |
 | [Audio Settings](../stream-tools/audio.md) | KI-16 ◐, KI-32, KI-50 |
 | [Visual Alerts](../stream-tools/visual-alerts.md) | KI-6 ✅, KI-48 ✅ |
 | [Chat Window](../chat/chat-window.md) | KI-9 ✅, KI-24 ◐, KI-34, KI-38 |
@@ -477,10 +478,23 @@ Known-and-shipping boundaries confirmed against the code during the wave-9 docum
 
 The Statistics page presents its event counts, per-event top contributors, and all-time top users as **plain data grids** — there are no chart visualizations anywhere on the page. The data layer is already chart-ready: `GetEventCountsByDateAsync` produces per-day buckets and `GetUserStatisticsAsync` exists on `IDataService`, but no UI consumes either (StatisticsViewModel loads only the grid shapes plus the CSV export). Documented on [Statistics](../stream-tools/statistics.md).
 
-### KI-55 (Limitation) — No global-hotkey soundboard
+### KI-55 (◐ partially resolved) — No global-hotkey soundboard
 
-There is no soundboard: sounds fire only from the fourteen mapped chat events (Kick/Twitch follow/sub/giftsub/host/kicks_gifted/redemption/raid/cheer/resub families), the Sounds page's Test buttons, and [Event Testing](../chat-features/event-testing.md) — there is no global-hotkey system, no keyboard shortcut to fire a sound at will, and no command-triggered sound playback. A streamer wanting manual sound cues uses the Test buttons or event testing. Documented on [Sounds](../stream-tools/sounds.md).
+**◐ PARTIALLY RESOLVED (2026-11-07, marathon wave 10)** — the "no command-triggered sound playback" half is closed: the workflow engine gained a **Play Sound** block (`play_sound`, the 25th action — BlockCatalog.cs:203 / PlaySoundNode.cs) that plays any file in the Sounds library by name (variable-substituted) at a clamped 0-100 volume, so a command, timer, event or manual flow can fire a sound cue; the Sub Appreciation starter template uses it, and a missing file fails the node so an error branch can react. **Remains:** there is still no soundboard UI and no global-hotkey system — no keyboard shortcut fires a sound outside a workflow. Event sounds still fire only from the fourteen mapped chat events, this page's Test buttons, and [Event Testing](../chat-features/event-testing.md). A streamer wanting a one-key cue still builds a small command flow. Documented on [Sounds](../stream-tools/sounds.md).
 
 ### KI-56 (Limitation) — TikTok has no chat integration (identity only)
 
 TikTok is a first-class platform *identity* (account linking, the multi-platform bonus, Vyral Goals, giveaway platform lists) but has **no live chat integration**: the setup wizard is a cosmetic stub whose finish writes an honest `Status="Coming Soon"` row, no TikTok chat service exists to produce messages or events, and nothing can be sent to TikTok. Consequences: TikTok viewers cannot generate or redeem link codes, no commands/auto-replies/moderation run there, and auto-mod has no adapter (KI-53's "None" row). Documented on [TikTok](../platforms/tiktok.md) and [TikTok & OBS](../platforms/tiktok-discord-obs.md).
+
+---
+
+## Newly-documented limitations (2026-11-07 wave-10/11 pass)
+
+### KI-57 (Wiring gap) — Conditional rules fire only behind the default-message gate; Discord rules have no pipeline
+
+The conditional-rules engine is live (since 2026-09-06, verified again in the wave-10/11 pass): every Kick and Twitch event auto-reply runs `AutoReplyService.GetAutoReplyAsync`, and a matching rule **replaces** the default message. Two boundaries remain:
+
+- **The default-message gate** — the rules lookup only runs inside `ChatViewModel.BuildAutoReplyTextAsync`, which each event handler calls only when the event's auto-reply is enabled **and its default message is non-empty**. Rules cannot fire standalone: an event with no default message never consults its rules. (Un-gating rules from the default message — and giving Discord rules a pipeline — is known future work.)
+- **No Discord call site** — the pipeline feeds the engine only Kick (`Follow`, `Subscribe`, `GiftSub`, `Host`, `KicksGifted`, `RewardRedeemed`) and Twitch (`Follow`, `Subscribe`, `Resub`, `GiftSub`, `Raid`, `Cheer`, `RewardRedeemed`) events, so rules with Platform `Discord` never match and `All` rules never see Discord events.
+
+Wave 10 also hardened the page itself (2026-11-07): saves validate name/event-type/reply and reject unparseable condition JSON, Test Rule genuinely evaluates against a sample context, and the event-type list was reconciled with the live vocabulary (dead types like `ChatMessage`/`Donation` removed). Documented on [Conditional Rules](../chat-features/conditional-rules.md).
