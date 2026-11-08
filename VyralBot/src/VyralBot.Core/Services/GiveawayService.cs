@@ -917,7 +917,10 @@ public class GiveawayService : IDisposable
             try
             {
                 var giveaway = await _dataService.GetGiveawayAsync(group.Key);
-                if (giveaway != null)
+                // Only refresh totals while still Active: a draw that completed
+                // between the read and this save would otherwise be resurrected
+                // as Active (re-drawable, double winners).
+                if (giveaway is { Status: GiveawayStatus.Active })
                 {
                     giveaway.TotalEntries = await _dataService.GetGiveawayEntryCountAsync(giveaway.Id);
                     giveaway.UniqueParticipants = await _dataService.GetGiveawayUniqueParticipantsAsync(giveaway.Id);

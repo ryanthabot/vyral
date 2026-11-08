@@ -30,7 +30,13 @@ Uploaded sounds are stored in **`<profile data folder>\sounds`** — the profile
 2. Pick a file — the dialog accepts `.wav`, `.mp3`, `.ogg`, and `.m4a`.
 3. The file is copied into the profile's sounds folder and appears in the list. If a file with the same name already exists, the new copy is renamed with a suffix (`sound_1.wav`, `sound_2.wav`, ...) rather than overwriting it.
 
+You can also **drag and drop** audio files straight onto the Sound Library list (multiple at once) — each file goes through the same copy-and-rename path as the picker; files with unsupported extensions are skipped.
+
 To hear a file, select it in the list and click **Play Selected**. To remove one, select it and click **Delete Selected** — after a confirmation, the file is deleted **and any event assignments that used it are cleared automatically** (the affected events go back to "No sound assigned").
+
+### Master Volume (page header)
+
+The page header carries its own **Master Volume** slider (0–100%) — the *same* value the [Audio Settings](audio.md) page edits and `SoundService` applies: a global multiplier on top of every per-event volume, so moving it here retunes everything at once without a page switch. It persists debounced on drag-release (no save button), applies to the page's previews and **Test** buttons as well as real events, and reloads with the page.
 
 ### Assigning sounds to events
 
@@ -222,7 +228,7 @@ Every item below is verified against the current code. See the [known issues led
 2. **Viewer-side playback works** — the broadcast is camelCase `{"type":"play","sound":...,"volume":0..1}` and the page honors the volume field. [known issues ledger](../reference/known-issues.md) (KI-4 resolved)
 3. **Local playback honors volume for every format** — fixed 2026-11-07: all formats (wav included) play through WPF `MediaPlayer` per playback on its own STA thread; the old `System.Media.SoundPlayer` wav path (which ignored volume and left non-wav files silent locally) is gone.
 4. **Per-event volume applies to real events** — `GetEventVolumeAsync` parses the saved invariant string with `double.TryParse` (normalizing legacy whole-percent rows and clamping to 0..1), so the slider is honored everywhere, not just Test.
-5. **Only Kick and Twitch rows exist** — no YouTube/TikTok/Discord rows (YouTube Super Chats call the cheer key programmatically but it is not mappable from this page), and no soundboard, hotkeys, or command-triggered sounds anywhere. [known issues ledger](../reference/known-issues.md)
+5. **Only Kick and Twitch rows exist** — no YouTube/TikTok/Discord rows (YouTube Super Chats call the cheer key programmatically but it is not mappable from this page), and no soundboard, hotkeys, or command-triggered sounds anywhere (KI-55). [known issues ledger](../reference/known-issues.md)
 6. **Delete clears assignments but not volumes** — deleting a file nulls out `EventSound_` keys that referenced it (SoundsViewModel.cs:191-197), while the orphaned `EventVolume_` keys are left behind (harmless, but they persist). [known issues ledger](../reference/known-issues.md)
 7. **Sound triggers depend on the wider event pipeline** — Twitch events arrive once EventSub is connected (it is, after the 2026-08-15 auth fix — see [Twitch](../platforms/twitch.md)). [known issues ledger](../reference/known-issues.md)
 8. **No output-device selection** — local playback always uses the system default output device; there is no picker or per-device routing for the streamer-side feed (KI-50 in the [known issues ledger](../reference/known-issues.md)).

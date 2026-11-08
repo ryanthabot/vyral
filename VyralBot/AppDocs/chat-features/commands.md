@@ -112,6 +112,24 @@ Any of `!`, `?`, or `.` starts a command, and they all normalize to the same nam
 
 Command responses are sent back only to the **platform the command was typed on** (Twitch, Kick, or Discord). A Discord reply goes through the bot that received the message, to that bot's active channel (see [Discord](../platforms/discord.md)). There are no per-platform enable flags for YouTube or TikTok.
 
+### Per-platform responses (one command, four replies)
+
+The flow editor's command-trigger panel has a collapsible **Per-platform responses** expander (below the Platforms checkboxes, on every command trigger): four text boxes — **Twitch**, **Kick**, **YouTube**, **Discord** — each meaning "the reply sent when this command runs on *that* platform". Leave a box blank to use the default response; a filled box wins on its platform. The overrides are persisted on the command's row (`PlatformResponsesJson`) and reload into the boxes the next time you edit.
+
+At every place a command's reply is picked, the precedence is the same:
+
+1. **The per-platform entry** for the *originating* platform, when one is authored (blank or missing box = skip).
+2. **A random entry** from the command's alternate replies (`ResponsesJson`), when random replies are configured.
+3. **The single default response** (`Response`).
+
+Where that applies:
+
+- **Prefix commands in live chat** — the Core command engine picks custom-command replies this way (`CommandService.PickResponse`), and a built-in's stored response is the per-platform override when authored, else the row's `Response` (`StoredResponse`).
+- **Timers** — a timer fires on one target platform, so the override for *that* platform wins, then random replies, then the default (`CommandTimerService.cs:281` uses the timer's `TargetPlatform`).
+- A flow-adopted command is answered by its flow's Send Message nodes — but the row's per-platform overrides still govern the timer path and the pre-adoption stored-response paths, so the boxes are worth filling for any command that also runs on a timer.
+
+Note the asymmetry with the platform *enable* checkboxes just above the expander: those gate **whether** the command fires on a platform at all; the expander only changes **what it says** there.
+
 ## How It Works (Developer)
 
 Two engines answer commands, in order: a saved **flow** with a command trigger intercepts matching messages first (the workflow trigger service hooks the chat pipeline ahead of the command engine — see [Automation](automation.md)), and the legacy engine below answers everything else. Adoption (above) is what moves a command from the second engine to the first, which is why an adopted row is left disabled — the `IsEnabled` gate in step 3 makes sure it never double-fires.
@@ -121,10 +139,10 @@ The legacy engine is [CommandService.cs](../../src/VyralBot.Core/Services/Comman
 1. **Parse** — strip the prefix, split on spaces; the command name is normalized to `"!" + firstToken.ToLower()` (`CommandService.cs:136`), so `?socials`, `.socials`, `!socials` all resolve to `!socials`.
 2. **Look up** the row in the `Commands` table via `IDataService.GetCommandByNameAsync`.
 3. **Gate on flags** — skip if `IsEnabled` is off, or if the message's platform is Kick and `EnabledOnKick` is off (same for Twitch). Other platforms are not gated (no flags exist for them).
-4. **Bot-scope check** (`CommandService.cs:175-183`) — the effective bot id is the explicit `discordBotId` argument, falling back to `context.DiscordBotId`; when both the command's `BotId` and the effective id are set and differ, the command is skipped (silently). A null `BotId` always passes, and non-Discord platforms pass because no bot id is ever in play.
+4. **Bot-scope check** (`CommandService.cs:175-183`) — the effective bot id is the explicit `discordBotId` argument, falling back to `context.DiscordBotId`; when both the command's `BotId` and the effective id are set and differ, the command is skipped (silently). A null `BotId` always passes, and non-Discord platforms pass because no bot id is ever in play. Discord also applies the per-bot **command-channels filter** (`CommandService.cs:192-204`): when the origin bot has allowed channels picked on its [bot detail page](../platforms/discord.md#the-per-bot-dashboard), commands issued in any other channel are ignored — **moderators and the broadcaster are never restricted**.
 5. **Permission check** (`HasPermission`, `CommandService.cs:441`) — hierarchy `everyone < subscriber < vip < moderator < broadcaster`; each stored level passes when the user holds that flag or higher. Unknown permission strings deny.
 6. **Cooldown check** (`CheckCooldownAsync`) — global row first (username `null`), then per-user row, both keyed per platform. On cooldown the command is **silently ignored** — no feedback to the user.
-7. **Build the response** — for built-ins, only `!commands` and `!uptime` have code (`ExecuteBuiltInCommandAsync`, `CommandService.cs:253`): `!commands` lists up to 10 enabled commands the user has permission for on that platform; `!uptime` returns a "not yet implemented" placeholder; `!watchtime` deliberately defers (returns null) so the real `WatchtimeCommandService` in the fallback chain answers. Everything else (including `!socials`, `!discord`, and all currency commands) just returns the stored `Response` template — for the currency commands the real behavior lives in `CurrencyCommandService`, and the `Commands` rows mainly act as discoverability/enable flags.
+7. **Build the response** — with per-platform overrides first: a `PlatformResponsesJson` entry for the originating platform wins, then a random alternate reply (`ResponsesJson`), then the single `Response` (see [Per-platform responses](#per-platform-responses-one-command-four-replies)). For built-ins, only `!commands` and `!uptime` have code (`ExecuteBuiltInCommandAsync`, `CommandService.cs:253`): `!commands` lists up to 10 enabled commands the user has permission for on that platform; `!uptime` returns a "not yet implemented" placeholder; `!watchtime` deliberately defers (returns null) so the real `WatchtimeCommandService` in the fallback chain answers. Everything else (including `!socials`, `!discord`, and all currency commands) just returns the stored `Response` template — a per-platform override replaces it when authored (`StoredResponse`) — for the currency commands the real behavior lives in `CurrencyCommandService`, and the `Commands` rows mainly act as discoverability/enable flags.
 8. **Variable replacement** — `ParseVariables` (`CommandService.cs:525`) supplies `username`, `platform`, `channel`, `balance`, `role` plus any `CommandContext.CustomVariables` as context, then delegates to `IVariableReplacementService.ReplaceVariablesAsync` (called sync-over-async with `.GetAwaiter().GetResult()`).
 9. **Persist effects** — write `CommandCooldown` rows (`ApplyCooldownsAsync`) and increment `UsageCount` / `LastUsedAt`.
 
@@ -213,7 +231,7 @@ Seeded built-in commands (21, inserted only when the `Commands` table is empty; 
 
 ## Timers (scheduled commands)
 
-The **Timers** tab schedules any command to fire automatically: pick a command, set an interval in minutes (minimum 5), choose the target — Twitch, Kick, or a specific Discord bot (the bot's active channel) — and optionally set **Min messages between fires**. The scheduler ticks every 30 seconds, resolves the command's response with variables, sends it, and records Last Run. Timers bypass chat permissions and cooldowns (they are scheduled, not user invocations) and only run while the app is open with a profile loaded.
+The **Timers** tab schedules any command to fire automatically: pick a command, set an interval in minutes (minimum 5), choose the target — Twitch, Kick, or a specific Discord bot (the bot's active channel) — and optionally set **Min messages between fires**. The scheduler ticks every 30 seconds, resolves the command's response with variables, sends it, and records Last Run. Timers bypass chat permissions and cooldowns (they are scheduled, not user invocations) and only run while the app is open with a profile loaded. Reply resolution follows the [per-platform precedence](#per-platform-responses-one-command-four-replies): the override for the timer's *target* platform first, then random replies, then the default response.
 
 ### MinimumMessages — the chat-activity gate
 
@@ -230,7 +248,7 @@ How the gate behaves (all verified against `CommandTimerService`):
 
 Stored in the per-profile SQLite database (see [Data Layer](../architecture/data-layer.md) and [Database Reference](../reference/database-reference.md)):
 
-- **Commands** — one row per command. Key columns: `Name` (normalized `!name`), `Response`, `Permission` (default `Everyone`), `GlobalCooldown`, `UserCooldown`, `IsEnabled`, `IsBuiltIn`, `EnabledOnKick`, `EnabledOnTwitch`, `BotId` (null = all Discord bots; added by `ALTER TABLE` migration on first run), `UsageCount`, `LastUsedAt`, `CreatedAt`, `UpdatedAt`. Deletes are guarded server-side with `AND IsBuiltIn = 0`. A flow-adopted row keeps all of this — it is only disabled (`IsEnabled = 0`), and the owning flow carries `SourceCommandId` = the row's id.
+- **Commands** — one row per command. Key columns: `Name` (normalized `!name`), `Response`, `ResponsesJson` (alternate random replies), `PlatformResponsesJson` (per-platform reply overrides — see [Per-platform responses](#per-platform-responses-one-command-four-replies); null/blank keeps legacy behavior), `Permission` (default `Everyone`), `GlobalCooldown`, `UserCooldown`, `IsEnabled`, `IsBuiltIn`, `EnabledOnKick`, `EnabledOnTwitch`, `BotId` (null = all Discord bots; added by `ALTER TABLE` migration on first run), `UsageCount`, `LastUsedAt`, `CreatedAt`, `UpdatedAt`. Deletes are guarded server-side with `AND IsBuiltIn = 0`. A flow-adopted row keeps all of this — it is only disabled (`IsEnabled = 0`), and the owning flow carries `SourceCommandId` = the row's id.
 - **CommandCooldowns** — expiry rows per (CommandId, Username `null` for global, Platform), written on every successful execution.
 - **CommandTimers** — one row per timer (Timers tab): `Id`, `Name`, `CommandName`, `IntervalMinutes`, `MinimumMessages` (chat-activity gate, 0 = always), `TargetPlatform` ("Twitch"/"Kick"/"Discord"), `BotId` (Discord destination bot), `IsEnabled`, `LastRunAt`. See [Timers](#timers-scheduled-commands).
 - **Quotes** — the `!quote` database; see [Quotes → Data & Settings](quotes.md#data--settings) and the [Database Reference](../reference/database-reference.md).

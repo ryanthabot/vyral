@@ -13,9 +13,9 @@ PKCE-based OAuth authentication for Kick using KickLib's `KickOAuthGenerator`.
 - **Uses:** `KickOAuthGenerator` from KickLib NuGet package
 - **Private fields:** `string? _codeVerifier` (stored between auth URL generation and token exchange)
 - **Public methods:**
-  - `GenerateAuthorizationUrl(string clientId, string redirectUri)` — generates PKCE code verifier + challenge, returns authorization URL, stores verifier for later use
+  - `GenerateAuthorizationUrl(string clientId, string redirectUri)` — generates PKCE code verifier + challenge, returns authorization URL, stores verifier for later use. Requested scopes: `user:read`, `channel:read`, `chat:write`, `events:subscribe`, `moderation:ban` (ban/timeout), `moderation:chat_message:manage` (message delete — added Wave 9; tokens granted before it must re-auth once to delete messages), `kicks:read`
   - `ExchangeCodeForTokenAsync(string code, string clientId, string clientSecret, string redirectUri)` — exchanges authorization code for access/refresh tokens using stored PKCE verifier
-  - `RefreshTokenAsync(string refreshToken, string clientId, string clientSecret)` — refreshes expired access tokens
+  - `RefreshTokenAsync(string refreshToken, string clientId, string clientSecret)` — refreshes expired access tokens (Kick preserves the originally granted scopes)
 
 ## OAuth Flow
 ```

@@ -45,6 +45,6 @@ In practice this means a viewer **cannot yet generate or redeem a link code from
 
 ## Status & Known Issues
 
-- **No TikTok chat/events integration exists** — implementing it means a new OAuth + chat service under `VyralBot.Integrations`, DI registration in [App.xaml.cs](../../src/VyralBot.UI/App.xaml.cs), and pointing the wizard at them; see the [known issues ledger](../reference/known-issues.md).
+- **No TikTok chat/events integration exists** — implementing it means a new OAuth + chat service under `VyralBot.Integrations`, DI registration in [App.xaml.cs](../../src/VyralBot.UI/App.xaml.cs), and pointing the wizard at them (KI-56 in the [known issues ledger](../reference/known-issues.md)).
 - **The wizard writes honest "Coming Soon" state** (fixed 2026-08-15) — nothing treats the row as connected; see [TikTok & OBS](tiktok-discord-obs.md).
 - **Identity-level support is complete** — linking, bonuses, goals, and platform lists all accept `"TikTok"` today; only chat I/O is missing.

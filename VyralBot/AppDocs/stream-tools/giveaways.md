@@ -10,7 +10,7 @@ What works end to end (since the 2026-08-15 fix pass): chat entries via `!giveaw
 
 Two eligibility caveats remain:
 
-1. **Followers-only works on Twitch only.** The follower check is a real Helix `channels/followers` lookup for Twitch (5-minute cache; requires the stored token's `moderator:read:followers` scope — it degrades to `false` without it). KickLib 1.8.0 has no followers API and YouTube has no follower concept, so Followers-only still rejects everyone on those platforms (KI-31).
+1. **Followers-only is platform-asymmetric.** On **Twitch** the follower check is a real Helix `channels/followers` lookup (5-minute cache; requires the stored token's `moderator:read:followers` scope — it degrades to `false` without it, KI-33). On **every other platform** the check falls back to the **recorded viewer status**: Kick follow webhooks (`KickFollowEvent`) mark a viewer followed while the [webhook server](../settings/web-server-ngrok.md) is receiving events, so Followers-only *is* enforceable on Kick once a follow has been seen — but a Kick viewer who followed before the webhooks were live (or while the app was down) is still rejected until a follow event records them. YouTube has no follow concept at all, so eligibility there stays `false` (KI-31, partially resolved).
 2. **Min-watchtime works everywhere.** Real watchtime is resolved through the [Watchtime](watchtime.md) service at entry time — this restriction is fully live.
 
 ## User Guide
@@ -32,7 +32,7 @@ Fill in the create form and press **Create Giveaway**:
 | **Subscriber Bonus Entries** | Extra entries a subscriber gets (on top of their 1). | `5` |
 | **Enable follower/sub-tier odds boosts** (toggle) | Per-giveaway odds boost: extra entries from sub tier, follower-anywhere, and linked-platform count — see [Odds boosts](#odds-boosts). | Off |
 | **Min Watchtime (minutes)** | Viewers need at least this much tracked watchtime to enter. Works — real watchtime is checked at entry time. | `0` |
-| **Followers Only** (toggle) | Only followers may enter. Works on **Twitch** (real Helix check, needs the `moderator:read:followers` scope); always rejects on Kick/YouTube. | Off |
+| **Followers Only** (toggle) | Only followers may enter. Works on **Twitch** (real Helix check, needs the `moderator:read:followers` scope) and on **Kick** through the recorded viewer status (a follow webhook must have marked the viewer); always rejects on YouTube. | Off |
 | **Subscribers Only** (toggle) | Only subscribers may enter. This restriction works. | Off |
 | **Allowed Platforms** | Comma-separated platform list (`Twitch,Kick`) or `All`. Entries from other platforms are declined with a chat message. | `Twitch,Kick` |
 | **Scheduled End** (date picker) | Optional end time. It is stored and displayed, but nothing automatically ends the giveaway at that time — you must draw or cancel manually. | *(none)* |
@@ -84,6 +84,7 @@ These commands are implemented by the giveaway engine and available to chat (see
 | `!giveaway start` | Moderators | Starts the first Pending giveaway; announces the entry keyword. |
 | `!enter` (or the giveaway's custom keyword) | Everyone | Enters the active giveaway. Also `!giveaway enter`. |
 | `!giveaway winner` / `!giveaway draw` | Moderators | Draws winner(s) and completes the giveaway. |
+| `!giveaway redraw` (alias `!giveaway reroll`) | Moderators | Re-draws the **most recent completed** giveaway, excluding the previous winners — the "winner never responded, reroll it" path. Previous winners' flags are cleared first (so `IsWinner` always reflects the *latest* draw only), new winners are drawn from the remaining entries with the **same EntryCount weighting**, the giveaway's winner list is replaced, and a winners-drawn event fires (alert/reload plumbing reacts like any draw). Refuses anything but a Completed giveaway, and a "no non-winner entries to re-draw from" attempt changes nothing. |
 | `!giveaway cancel` | Moderators | Cancels the active giveaway. |
 | `!giveaway status` | Everyone | Reports entries, participants, and winner count for the active giveaway. |
 
@@ -100,6 +101,8 @@ Two Core services split the responsibility: `GiveawayService` is the engine, `Gi
 **Entry validation.** `EnterGiveawayAsync` (`GiveawayService.cs:100-202`) checks, in order: giveaway exists and is Active; platform is in the allow-list (comma-split, case-insensitive, `All` bypasses); follower requirement; subscriber requirement; minimum watchtime; no existing entry for the (username, platform) pair; and the optional max-entries cap. It then computes `EntryCount = 1 + SubscriberBonusEntries` when the bonus is enabled and the user is a subscriber, saves the entry, and refreshes denormalized `TotalEntries` / `UniqueParticipants` counters on the giveaway row.
 
 **Weighted drawing.** `DrawWinnersAsync` expands every entry into its `EntryCount` tickets in an in-memory pool, then draws up to `min(WinnerCount, entries.Count)` unique winners, re-rolling duplicates with a cap of 100 attempts per winner. Winning rows get `IsWinner = true` and `WonAt`; the giveaway stores winners as a comma-joined `"name (platform)"` string and is marked Completed.
+
+**Race safety.** Draws, redraws and the odds-recalculation path are serialized through a `SemaphoreSlim(1,1)` **draw gate** (`_drawGate`, `GiveawayService.cs:126`) — two mods typing `!giveaway draw` and `!giveaway redraw` at once, or a redraw racing the UI's Draw button, queue up instead of interleaving reads and writes of the winner flags. `RedrawWinnersAsync` (`:473`) additionally un-flags the previous winners *before* recording the new ones inside the same gate hold, so `IsWinner` never momentarily shows two generations. The chat-facing `!giveaway redraw` (alias `reroll`, moderator-only) targets the most recent **Completed** giveaway — a live giveaway cannot be redrawn; draw it first.
 
 **Odds boosts.** When the giveaway has `OddsBoostEnabled`, the persist path resolves the viewer identity via `ILinkedAccountService` and the cross-platform aggregates via `IViewerStatusService` (best linked sub tier, follower-anywhere, linked-platform count), then computes bonus entries with the static `GiveawayOdds.Calculate` — which returns both the total and the human-readable breakdown ("Tier 3 (+3), Follower (+1), 3 linked platforms (+2)"). The breakdown is prefixed onto the entry's `Message` column, so the audit trail and the ticket math live on the same row. Config values come through a 30-second cached `OddsSettings` read.
 
@@ -118,7 +121,8 @@ var response = await _giveawayCommandService.ProcessCommandAsync(
     evt.IsModerator,
     evt.IsSubscriber,
     isFollower,          // Twitch: real Helix channels/followers check (5-min cache);
-                         // Kick/YouTube: false (no followers API / no follower concept)
+                         // other platforms: the recorded viewer status (Kick follow
+                         // webhooks mark followers; YouTube stays false)
     watchtimeMinutes);   // real total minutes from WatchtimeService
 ```
 
@@ -208,7 +212,8 @@ Giveaway-specific config keys (read through the service's 30-second cache):
 ## Status & Known Issues
 
 - **The chat command pipeline is live** — `!giveaway ...` and the entry keyword reach the engine from real chat on all connected platforms, and entries are recorded (KI-1 resolved 2026-08-15). Tracked in the [known issues ledger](../reference/known-issues.md).
-- **Followers-only is Twitch-only** — real Helix follower check on Twitch (requires the stored token's `moderator:read:followers` scope — KI-33; degrades to `false` without it); hard `false` on Kick/YouTube because no followers API exists there (KI-31). Tracked in the [known issues ledger](../reference/known-issues.md).
+- **Followers-only is platform-asymmetric** — real Helix follower check on Twitch (requires the stored token's `moderator:read:followers` scope — KI-33; degrades to `false` without it); on non-Twitch platforms the gate consults the recorded viewer status, so Kick followers are honored once a `KickFollowEvent` webhook has recorded them, while YouTube (no follow concept) still passes `false` (KI-31, partially resolved). Tracked in the [known issues ledger](../reference/known-issues.md).
+- **`!giveaway redraw` (alias `reroll`) re-draws completed giveaways** — moderator-only, most recent Completed giveaway, previous winners excluded, same weighting, previous flags cleared inside the draw gate (see [Race safety](#how-it-works-developer)); a no-eligible-entries redraw changes nothing.
 - **Min-watchtime works** — real watchtime from [Watchtime](watchtime.md) is checked at entry time on every platform.
 - **Max Entries: 0 = unlimited** — the form defaults to `0`, which the engine treats as uncapped; a positive value caps total entries.
 - **Scheduled end time is inert** — `ScheduledEndTime` is stored and displayed but no background job ends the giveaway when it passes.

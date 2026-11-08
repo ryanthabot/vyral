@@ -4,7 +4,7 @@
 Modal window for profile selection on app startup. Uses manual INotifyPropertyChanged (not CommunityToolkit.Mvvm).
 
 ## Source Files
-- **ViewModel:** `src/VyralBot.UI/ViewModels/ProfileSelectorViewModel.cs` (~363 lines)
+- **ViewModel:** `src/VyralBot.UI/ViewModels/ProfileSelectorViewModel.cs` (~497 lines)
   - **Class:** `ProfileSelectorViewModel : INotifyPropertyChanged` (manual implementation, not ViewModelBase)
   - **Constructor:** `IProfileService`, `ILogger<ProfileSelectorViewModel>`
   - **Properties (manual):** `SelectedProfile`, `EnteredPin`, `NewProfileName`, profiles list, dialog state flags
@@ -16,10 +16,16 @@ Modal window for profile selection on app startup. Uses manual INotifyPropertyCh
 - PIN entry for protected profiles
 - Create new profile dialog
 - Auto-login support
+- Delete (VM `DeleteProfileCommand`, guarded: only when more than one profile
+  exists) — after the Yes/No confirm, PIN-protected profiles must unlock first:
+  a masked PIN prompt (`PromptForDeletePin`, PasswordBox max 6 digits, same
+  entry pattern as the unlock flow) validated via `IProfileService.ValidatePinAsync`
+  before `DeleteProfileAsync` runs. Wrong/cancelled PIN aborts the delete with an
+  error message; the PIN itself is never logged.
 
 ## All Files
 | File | Description |
 |------|-------------|
-| `src/VyralBot.UI/ViewModels/ProfileSelectorViewModel.cs` | Manual INPC ViewModel (363 lines) |
+| `src/VyralBot.UI/ViewModels/ProfileSelectorViewModel.cs` | Manual INPC ViewModel (497 lines) |
 | `src/VyralBot.UI/Views/ProfileSelectorWindow.xaml` | Window XAML |
 | `src/VyralBot.UI/Views/ProfileSelectorWindow.xaml.cs` | Code-behind |

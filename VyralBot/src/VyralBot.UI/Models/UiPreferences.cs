@@ -18,6 +18,9 @@ public sealed class UiPreferences
     /// </summary>
     public int LightShadeLevel { get; set; } = 0;
 
+    /// <summary>True once the user dismissed the Home "Get started" strip (stays hidden).</summary>
+    public bool HomeGettingStartedDismissed { get; set; } = false;
+
     public static UiPreferences Defaults { get; } = new();
 }
 

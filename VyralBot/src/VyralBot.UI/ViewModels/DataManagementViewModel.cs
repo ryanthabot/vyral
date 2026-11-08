@@ -385,6 +385,48 @@ public partial class DataManagementViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task ImportBackupAsync()
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Import profile backup",
+                Filter = "Profile backup (*.zip)|*.zip",
+                InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            IsBusy = true;
+            // ImportProfileAsync refuses to overwrite an existing profile: it
+            // reads the ZIP's profile.json and throws when a profile with that
+            // name already exists on disk. Surface that refusal as a status
+            // message instead of importing over it.
+            var imported = await _profileService.ImportProfileAsync(dialog.FileName);
+            StatusMessage = $"Profile '{imported.DisplayName}' imported. Switch to it from the profile selector (restart VyralBot if it is already running).";
+            _logger.LogInformation("Profile {Profile} imported from {Path}", imported.Name, dialog.FileName);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("already exists", StringComparison.Ordinal))
+        {
+            _logger.LogWarning("Profile import refused: {Message}", ex.Message);
+            StatusMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error importing profile backup");
+            StatusMessage = $"Error importing backup: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
     private async Task CompactDatabaseAsync()
     {
         try

@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
 using CommunityToolkit.Mvvm.Input;
@@ -335,14 +337,36 @@ public class ProfileSelectorViewModel : INotifyPropertyChanged
 
         if (result != MessageBoxResult.Yes) return;
 
+        // PIN-protected profiles must be unlocked before deletion — same masked
+        // entry + hash validation as the profile unlock flow.
+        if (!string.IsNullOrEmpty(profile.PinCode))
+        {
+            var pin = PromptForDeletePin(profile.DisplayName);
+            if (pin == null)
+            {
+                _logger.LogInformation("Profile deletion cancelled at PIN prompt for profile {Profile}", profile.Name);
+                return;
+            }
+
+            var pinValid = await _profileService.ValidatePinAsync(profile.Name, pin);
+            if (!pinValid)
+            {
+                _logger.LogWarning("Incorrect PIN entered when deleting profile {Profile}", profile.Name);
+                ErrorMessage = "Incorrect PIN. Please try again.";
+                return;
+            }
+
+            _logger.LogInformation("PIN validated for deletion of profile {Profile}", profile.Name);
+        }
+
         try
         {
             await _profileService.DeleteProfileAsync(profile.Name);
             Profiles.Remove(profile);
-            
+
             // Select another profile
             SelectedProfile = Profiles.FirstOrDefault();
-            
+
             _logger.LogInformation("Deleted profile: {Profile}", profile.Name);
         }
         catch (Exception ex)
@@ -350,6 +374,117 @@ public class ProfileSelectorViewModel : INotifyPropertyChanged
             _logger.LogError(ex, "Failed to delete profile");
             ErrorMessage = $"Failed to delete profile: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// Masked PIN prompt required before deleting a PIN-protected profile
+    /// (mirrors the unlock flow's PasswordBox entry; the returned PIN is
+    /// validated against the stored hash via
+    /// <see cref="IProfileService.ValidatePinAsync"/> and is never logged).
+    /// Returns the entered PIN, or null when the user cancelled.
+    /// </summary>
+    private static string? PromptForDeletePin(string displayName)
+    {
+        var title = new TextBlock
+        {
+            Text = "PIN Required",
+            FontSize = 16,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        title.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+
+        var message = new TextBlock
+        {
+            Text = $"'{displayName}' is PIN-protected. Enter its PIN to delete the profile.",
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+        message.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");
+
+        var passwordBox = new PasswordBox
+        {
+            MaxLength = 6,
+            FontSize = 14,
+            Padding = new Thickness(8),
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+        passwordBox.SetResourceReference(Control.BackgroundProperty, "CardBackgroundBrush");
+        passwordBox.SetResourceReference(Control.ForegroundProperty, "TextPrimaryBrush");
+        passwordBox.SetResourceReference(Control.BorderBrushProperty, "BorderLightBrush");
+
+        var deleteButton = new Button
+        {
+            Content = "Delete",
+            Width = 100,
+            IsDefault = true,
+            Padding = new Thickness(0, 8, 0, 8)
+        };
+        var cancelButton = new Button
+        {
+            Content = "Cancel",
+            Width = 100,
+            IsCancel = true,
+            Padding = new Thickness(0, 8, 0, 8),
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        foreach (var button in new[] { deleteButton, cancelButton })
+        {
+            button.SetResourceReference(Control.BackgroundProperty, "CardBackgroundBrush");
+            button.SetResourceReference(Control.ForegroundProperty, "TextPrimaryBrush");
+            button.SetResourceReference(Control.BorderBrushProperty, "BorderLightBrush");
+        }
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 16, 0, 0)
+        };
+        buttons.Children.Add(cancelButton);
+        buttons.Children.Add(deleteButton);
+
+        var panel = new StackPanel { Margin = new Thickness(24) };
+        panel.Children.Add(title);
+        panel.Children.Add(message);
+        panel.Children.Add(passwordBox);
+        panel.Children.Add(buttons);
+
+        var prompt = new Window
+        {
+            Title = "PIN Required",
+            Width = 360,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false,
+            Content = panel
+        };
+        prompt.SetResourceReference(Window.BackgroundProperty, "BackgroundDarkBrush");
+        prompt.Loaded += (_, _) => passwordBox.Focus();
+
+        var owner = Application.Current?.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
+                    ?? Application.Current?.MainWindow;
+        if (owner != null && owner.IsLoaded)
+        {
+            prompt.Owner = owner;
+        }
+
+        string? pin = null;
+        deleteButton.Click += (_, _) =>
+        {
+            if (string.IsNullOrWhiteSpace(passwordBox.Password))
+            {
+                return;
+            }
+
+            pin = passwordBox.Password;
+            prompt.DialogResult = true;
+        };
+        cancelButton.Click += (_, _) => prompt.DialogResult = false;
+
+        return prompt.ShowDialog() == true ? pin : null;
     }
 
     public event EventHandler? ProfileSelected;

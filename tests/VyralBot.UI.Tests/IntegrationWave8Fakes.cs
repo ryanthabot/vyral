@@ -592,6 +592,9 @@ public sealed class IntegrationWave8KickService : IKickService
     public Task ConnectAsync(string username, string accessToken, string channel, int broadcasterUserId) => throw new NotImplementedException(NotImplemented);
     public Task ConnectAsync(string username, string accessToken, string? refreshToken, string channel, int broadcasterUserId) => throw new NotImplementedException(NotImplemented);
     public Task DisconnectAsync() => throw new NotImplementedException(NotImplemented);
+    public Task<bool> TimeoutUserAsync(string userId, TimeSpan duration, string reason) => throw new NotImplementedException(NotImplemented);
+    public Task<bool> BanUserAsync(string userId, string reason) => throw new NotImplementedException(NotImplemented);
+    public Task<bool> DeleteMessageAsync(string messageId) => throw new NotImplementedException(NotImplemented);
 }
 
 /// <summary>Minimal IYouTubeService: disconnected, no channel; only satisfies the timer service's constructor.</summary>
@@ -611,6 +614,7 @@ public sealed class IntegrationWave8YouTubeService : IYouTubeService
     public Task ConnectAsync(string username, string accessToken, string? refreshToken, string channel) => throw new NotImplementedException(NotImplemented);
     public Task DisconnectAsync() => throw new NotImplementedException(NotImplemented);
     public Task<YouTubeActionResponse> UpdateStreamInfoAsync(string? title, string? description) => throw new NotImplementedException(NotImplemented);
+    public Task<bool> DeleteMessageAsync(string messageId) => throw new NotImplementedException(NotImplemented);
 }
 
 /// <summary>

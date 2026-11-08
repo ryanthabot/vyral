@@ -71,4 +71,16 @@ public interface IYouTubeService
     /// lacks the required scope (never throws to the caller).
     /// </summary>
     Task<YouTubeActionResponse> UpdateStreamInfoAsync(string? title, string? description);
+
+    /// <summary>
+    /// Deletes a single live chat message via <c>liveChatMessages.delete</c>
+    /// (covered by the <c>youtube.force-ssl</c> scope the setup wizard already
+    /// requests; the authorized channel must own the chat). This is the only
+    /// per-viewer moderation the public YouTube Data API offers — there is no
+    /// public ban/timeout endpoint for live chat, so the auto-moderator
+    /// degrades Ban/Timeout verdicts to a delete. Best-effort: returns false
+    /// and never throws.
+    /// </summary>
+    /// <param name="messageId">Live chat message id (from the polling pipeline).</param>
+    Task<bool> DeleteMessageAsync(string messageId);
 }

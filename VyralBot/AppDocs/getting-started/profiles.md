@@ -59,10 +59,11 @@ Two places:
 From **Settings → Profile → Profile Management**, each profile row offers **Switch Profile** (PIN prompt if protected). Switching is *hot* — no restart needed:
 
 1. All platform connections (Twitch, Kick, YouTube) are disconnected.
-2. The chat window is cleaned and rebuilt.
-3. The database layer re-points at the new profile's `vyralbot.db`.
-4. The new profile's settings are loaded and its saved platform connections auto-reconnect.
-5. If you were on any page other than Home, the app navigates back to Home so you never see the previous profile's stale data.
+2. Workflow triggers and — if running — the **restream engine** are stopped: an FFmpeg fan-out is streaming the *previous* profile's destinations and keys and must not keep streaming under the new one (the engine is a singleton that outlives its page, so the switch stops it explicitly).
+3. The chat window is cleaned and rebuilt.
+4. The database layer re-points at the new profile's `vyralbot.db`, and data-bearing caches **follow the switch**: currency invalidates its balances/leaderboards (`CurrencyService` subscribes to the switch event), sounds reload from the new profile's folder (`SoundService`), and event-reaction settings drop their cache (`ChatEventSettingsService`) — so pages opened next show the new profile's data, not the old profile's leftovers.
+5. The new profile's settings are loaded and its saved platform connections auto-reconnect.
+6. If you were on any page other than Home, the app navigates back to Home so you never see the previous profile's stale data.
 
 ### Auto-Login
 
@@ -78,7 +79,7 @@ Settings → Profile → General has an **Auto-Login** toggle with a **Save Sett
 All in Settings → Profile → Profile Management:
 
 - **Delete Profile** — asks for confirmation; the *current* profile cannot be deleted from here (switch away first). Deletion removes the profile's entire folder from disk.
-- **Export Profile** — zips the whole profile folder to your Documents folder as `<name>_<timestamp>.zip`. That zip is a complete backup (database + credentials + metadata).
+- **Export Profile** — zips the whole profile folder as a complete backup (database + credentials + metadata). From Profile Management this writes `<name>_backup.zip` straight to your Documents folder with no further questions; the **Settings → Data Management** export path picks the destination with a save dialog and — because the backup includes your saved platform logins, encrypted with Windows DPAPI **bound to this PC and this Windows user** — first shows a **machine-bound warning**: the credentials cannot be restored on another machine (or another Windows account), where you will need to reconnect Twitch, Kick, YouTube and Discord after importing. The Data Management completion message repeats the warning.
 - Importing a backup zip is implemented in the backend but currently has **no button anywhere** in the UI (see [known issues ledger](../reference/known-issues.md)).
 
 Manual backup works too: everything lives in `appdata/`, so copying the folder *while the app is closed* is a full backup.

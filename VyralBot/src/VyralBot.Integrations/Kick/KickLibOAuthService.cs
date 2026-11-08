@@ -45,6 +45,10 @@ public class KickLibOAuthService
             KickScopes.ChatWrite,
             KickScopes.EventsSubscribe,
             KickScopes.ModerationBan,
+            // Auto-mod message deletion (DELETE /v1/channels/chat/messages/{id}).
+            // Tokens granted before this scope was added get a 403 on delete
+            // until the owner re-runs the Kick setup once.
+            KickScopes.ModerationChatMessageManage,
             KickScopes.KicksRead
         };
 

@@ -53,7 +53,7 @@ YouTube's chat only exists while your stream is live, so Vyral tells you exactly
 - **Command timers can now target YouTube** (since 2026-11-07): the timer editor offers YouTube alongside Twitch/Kick/Discord, and the timer engine sends through the connected YouTube channel while it is live. A timer tick while you are offline is skipped with a log line and **not** stamped as run, so it fires on the next tick once the broadcast starts.
 - While **offline**: the app stays connected and quietly checks for a broadcast every 30 seconds. Your stream's chat picks up automatically when you go live.
 - Chat history now persists and reloads for YouTube like the other platforms (fixed 2026-08-15).
-- **Memberships and Super Chats trigger event reactions.** A member joining (or a member-milestone message) fires the subscriber alert family; a **Super Chat or Super Sticker** is published as a structured `YouTubeSuperChatEvent` — amount, currency, display string, and comment — in addition to the 💎 chat line. See [Super Chats](#super-chats--super-stickers).
+- **Memberships and Super Chats trigger event reactions.** A member joining (or a member-milestone message) fires the subscriber alert family; a **Super Chat or Super Sticker** is published as a structured `YouTubeSuperChatEvent` — amount, currency, display string, and comment — in addition to the 💎 chat line. See [Super Chats](#super-chats--super-stickers). Memberships are also a **workflow trigger** — see [Memberships (the `membership` trigger)](#memberships-the-membership-trigger).
 
 ### Reconnecting and disconnecting
 
@@ -113,6 +113,22 @@ Consumers — all wired in `ChatViewModel.OnYouTubeSuperChatAsync`:
 - **Statistics** — a `YouTube / Cheer` statistics row with `username`, `amount`, `currency`, `message`, `platform` variables.
 
 There is **no workflow trigger key** for Super Chats yet — the event is consumed by the reaction pipeline only.
+
+### Memberships (the `membership` trigger)
+
+YouTube memberships are the platform's subscribe equivalent, and they carry their **own workflow trigger key**: both a new member joining (`newSponsorEvent`) and an existing member reaching a milestone (`memberMilestoneChatEvent`) publish a `YouTubeMembershipEvent` (`Username`, `UserId`, `Level`, `IsMilestone`), which `WorkflowTriggerService` dispatches as the canonical **`membership`** event type. The key is deliberately **not** folded into `subscribe` — that key already carries Twitch/Kick subs (the `sub` alias folds onto it), so merging them would make a platform-Any subscribe workflow fire for YouTube members. With separate keys, a subscribe flow targets Twitch/Kick and a membership flow targets YouTube (the trigger's Platform filter separates them further still).
+
+Variables available to an event trigger authored as `membership`:
+
+| Variable | Value |
+|---|---|
+| `username` | The member's display name (also the context user) |
+| `level` | The membership level name (e.g. "Tier 1"), from `newSponsorDetails.memberLevelName` / `memberMilestoneChatDetails.memberLevelName` |
+| `tier` | A mirror of `level` — conditions authored against Twitch's `tier` read naturally |
+| `userId` | The YouTube channel id of the member |
+| `isMilestone` | `true` for milestone renewals, `false` for a brand-new member — filter with a Conditions guard like `{isMilestone} = false` for "new members only" |
+
+Alias spellings that normalize onto the key (so old or hand-typed trigger names still match): `youtubemembership`, `ytmembership`, `sponsor`, `newsponsor`, `newsponsorevent`, `membermilestone`, `membermilestonechatevent` (WorkflowTriggerService.cs:2492-2499). See [Workflows → Event trigger keys](../chat-features/workflows.md#triggers) for the full trigger table.
 
 ### Sending
 
@@ -184,7 +200,7 @@ if (string.IsNullOrEmpty(_liveChatId))
 
 How YouTube's capabilities compare across the other platforms: [Multi-Platform Parity](multi-platform.md).
 
-- **No follow/raid events** — memberships and Super Chats/Super Stickers are surfaced (alerts, sounds family, currency, statistics — see [Super Chats](#super-chats--super-stickers)), but YouTube has no follow/raid concept in this integration, so no such triggers exist; follower-based giveaway/poll eligibility passes `false` (KI-31). Super Chats do not dispatch a workflow trigger key yet.
+- **No follow/raid events** — memberships and Super Chats/Super Stickers are surfaced (alerts, sounds family, currency, statistics — see [Super Chats](#super-chats--super-stickers); memberships additionally drive the `membership` workflow trigger, see [Memberships](#memberships-the-membership-trigger)), but YouTube has no follow/raid concept in this integration, so no such triggers exist; follower-based giveaway/poll eligibility passes `false` (KI-31). Super Chats do not dispatch a workflow trigger key yet.
 - **Works only while a broadcast exists** — sending (and command timers) fail or skip with "You must be streaming live" when offline; the service otherwise idles in a 30-second discovery loop, which is by design. Timer ticks while offline are skipped and retried on the next tick.
 - **Tokens stored unencrypted in the DB** — same caveat as Kick; inconsistent with Twitch's DPAPI-encrypted tokens. See the [known issues ledger](../reference/known-issues.md).
 - **Chat history is persisted (fixed 2026-08-15)** — `DataChatMessageStore` maps YouTube events both directions and the Chat Window's Load History loads them (KI-9 resolved).

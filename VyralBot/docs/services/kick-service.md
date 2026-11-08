@@ -13,6 +13,9 @@ KickLib-based chat service implementing `IKickService`. Manages WebSocket chat c
   - `ConnectAsync(string username, string accessToken, string channelName, int broadcasterUserId)`
   - `DisconnectAsync()`
   - `SendMessageAsync(string message)`
+  - `TimeoutUserAsync(string userId, TimeSpan duration, string reason)` → `Task<bool>` — Kick API v1 `POST /v1/moderation/bans` (temporary), scope `moderation:ban`; durations round up to whole minutes (Kick is minute-granular, 1 min to 7 days)
+  - `BanUserAsync(string userId, string reason)` → `Task<bool>` — Kick API v1 `POST /v1/moderation/bans` (permanent), scope `moderation:ban`
+  - `DeleteMessageAsync(string messageId)` → `Task<bool>` — Kick API v1 `DELETE /v1/channels/chat/messages/{id}`, scope `moderation:chat_message:manage` (tokens granted before Wave 9 need one re-auth)
 
 ### KickLibChatService Implementation
 - **File:** `src/VyralBot.Integrations/Kick/KickLibChatService.cs` (~574 lines)
@@ -29,12 +32,13 @@ KickLib-based chat service implementing `IKickService`. Manages WebSocket chat c
   - `ConnectAsync(string username, string accessToken, string? refreshToken, string channelName, int broadcasterUserId)` — overload with refresh token
   - `DisconnectAsync()` — leaves chatroom, disconnects client
   - `SendMessageAsync(string message)` — sends via KickApi
+  - `TimeoutUserAsync/BanUserAsync/DeleteMessageAsync` (Wave 9) — best-effort moderation via `KickApi.Moderation` / `KickApi.Chat` (never throw, return false + log on failure); shared `EnsureFreshAccessTokenAsync` refreshes expiring tokens first, reasons truncate to 100 chars
   - `Dispose()` — unsubscribes events, disconnects
 
 ### Event Handler Mappings
 | KickLib Event | Handler | EventBus Event Published |
 |---|---|---|
-| `OnChatMessage` | Parses message | `KickChatMessageEvent` + IChatMessageStore |
+| `OnChatMessage` | Parses message (includes raw Pusher `MessageId` since Wave 9 — the auto-mod delete path needs it) | `KickChatMessageEvent` + IChatMessageStore |
 | `OnSubscription` | Sub notification | `KickSubscribeEvent` + chat message |
 | `OnGiftedSubscription` | Gift sub notif | `KickGiftSubEvent` + chat message |
 | `OnFollowersUpdated` | Follower count | `KickFollowEvent` + updates variable |

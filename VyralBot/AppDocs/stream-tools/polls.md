@@ -8,7 +8,7 @@ The Polls tool lets a streamer create a multiple-choice poll, start it, let view
 
 Just like [Giveaways](giveaways.md), the 2026-08-15 fix pass made chat voting live: `!poll` commands reach the engine from real chat on every connected platform. Two eligibility caveats remain:
 
-1. **Followers-only works on Twitch only.** The follower check is a real Helix lookup for Twitch (needs the stored token's `moderator:read:followers` scope — degrades to `false` without it). KickLib 1.8.0 has no followers API and YouTube has no follower concept, so Followers-only still rejects every vote on those platforms (KI-31).
+1. **Followers-only is platform-asymmetric.** On **Twitch** the follower check is a real Helix lookup (needs the stored token's `moderator:read:followers` scope — degrades to `false` without it, KI-33). On **every other platform** the check falls back to the recorded viewer status: a Kick viewer marked followed by a `KickFollowEvent` webhook passes the gate, one never seen by the webhooks is rejected; YouTube has no follow concept, so eligibility there stays `false` (KI-31, partially resolved).
 2. **Min-watchtime works everywhere.** Real watchtime is resolved through the [Watchtime](watchtime.md) service at vote time.
 
 There is also no overlay for live poll results — results exist only in chat replies and on the Polls page.
@@ -27,7 +27,7 @@ Fill in the create form and press **Create Poll**:
 | **Options** (required, one per line) | The choices. At least 2 non-empty lines are required; blank lines are ignored. Options are numbered 1..N for voting. | `Option 1` / `Option 2` / `Option 3` |
 | **Allow Multiple Votes** (toggle) | Really means *allow vote changing*: a viewer who votes again has their vote moved to the new option instead of being rejected. | Off |
 | **Min Watchtime (minutes)** | Viewers need at least this much tracked watchtime to vote. Works — real watchtime is checked at vote time. | `0` |
-| **Followers Only** (toggle) | Only followers may vote. Works on **Twitch** (real Helix check, needs the `moderator:read:followers` scope); always rejects on Kick/YouTube. | Off |
+| **Followers Only** (toggle) | Only followers may vote. Works on **Twitch** (real Helix check, needs the `moderator:read:followers` scope) and on **Kick** through the recorded viewer status (a follow webhook must have marked the viewer); always rejects on YouTube. | Off |
 | **Subscribers Only** (toggle) | Only subscribers may vote. This restriction works. | Off |
 | **Allowed Platforms** | Comma-separated platform list (`Twitch,Kick`) or `All`. Votes from other platforms are declined. | `All` |
 | **Scheduled End** (date picker) | Optional end time. Stored and displayed, but nothing automatically ends the poll at that time. | *(none)* |
@@ -38,7 +38,7 @@ The creator is recorded as the hard-coded name "Admin" — the form does not ask
 
 1. **Create** it (above); it starts as Pending.
 2. Select it and press **Start Poll**. Status becomes **Active**. Only one poll can be Active at a time.
-3. Viewers vote with `!poll vote <number>` (1-based). Each (username, platform) gets one vote; with Allow Multiple Votes on, a second vote *moves* their vote rather than being rejected.
+3. Viewers vote with `!poll vote <number>` (1-based). Each (username, platform) gets one vote — and a viewer with [linked accounts](../chat-features/account-linking.md) gets **one vote across all of them** (see below); with Allow Multiple Votes on, a second vote *moves* their vote rather than being rejected.
 4. Press **Refresh** to reload the list, the selected poll's votes, and the results summary (per-option counts, or "No votes yet").
 5. Press **End Poll** to close it. The results are aggregated per option, stored on the poll as JSON, the winning option is announced, and the status becomes **Completed**.
 6. **Cancel Poll** aborts an Active or Pending poll (status **Cancelled**). **Delete Poll** removes a poll and its votes from the database entirely — the only way to get rid of old polls.
@@ -64,9 +64,13 @@ Two Core services mirror the giveaway design: `PollService` is the engine, `Poll
 
 **Lifecycle.** A `Poll` moves `Pending → Active → Completed|Cancelled`, with the single-active invariant enforced in `StartPollAsync` (`PollService.cs:81-86`). The poll's options are stored as a JSON string array on the `Poll.Options` column; `CreatePollAsync` throws if fewer than 2 options are supplied (`PollService.cs:37-40`).
 
-**Voting.** `VoteAsync` (`PollService.cs:99-198`) validates, in order: poll exists and is Active; the option index is in range; platform allow-list; follower requirement; subscriber requirement; minimum watchtime; and an existing vote for the (username, platform) pair. The duplicate branch is where vote changing happens — when `AllowMultipleVotes` is set, the existing row's `OptionIndex` is updated in place; otherwise the vote is rejected with the previous choice quoted back. New votes insert a `PollVote` row and refresh the denormalized `TotalVotes` counter.
+**Voting.** `VoteAsync` (`PollService.cs:99-198`) validates, in order (eligibility re-checked *inside* the end gate — see below): poll exists and is Active; the option index is in range; platform allow-list; follower requirement; subscriber requirement; minimum watchtime; and an existing vote for the (username, platform) pair. The duplicate branch is where vote changing happens — when `AllowMultipleVotes` is set, the existing row's `OptionIndex` is updated in place; otherwise the vote is rejected with the previous choice quoted back. New votes insert a `PollVote` row and refresh the denormalized `TotalVotes` counter.
 
-**Results.** `EndPollAsync` (`PollService.cs:203-240`) reads the per-option counts via `GetPollVoteResultsAsync`, writes them into `Poll.VoteResults` as JSON, marks the poll Completed, and formats a winner message from the highest count. `GetCurrentResultsAsync` (`PollService.cs:245`) computes the same aggregation on demand for the `!poll results` command without ending the poll.
+**Linked viewers get one vote.** When no direct (username, platform) vote exists, `FindLinkedVoteAsync` (`PollService.cs:237-277`) resolves the voter through [account linking](../chat-features/account-linking.md) and looks for a vote from **any other account linked to the same viewer** — vote from Twitch, and your linked Discord account's `!poll vote` is treated as *your* existing vote (change it when vote-changing is on, "already voted" when off). The lookup is best-effort: a linking failure is logged and the poll falls back to direct-pair dedup only, never rejecting the vote outright.
+
+**Race safety.** A single `SemaphoreSlim(1,1)` **end gate** serializes votes against `EndPollAsync`: a vote that waited on the gate re-validates the poll is still Active inside it, and the gate is held across the results snapshot *and* the completion save — so a vote racing the end either lands in the counted results or is rejected ("This poll is not currently active."), never stored-but-uncounted. A double end is likewise rejected inside the gate rather than double-processed.
+
+**Results and the end announcement.** `EndPollAsync` (`PollService.cs:203-240`) reads the per-option counts via `GetPollVoteResultsAsync`, writes them into `Poll.VoteResults` as JSON, marks the poll Completed, and formats the announcement (`FormatResultsMessage`): a **zero-vote poll** completes with an explicit *"📊 Poll Results — {question}: no votes were cast."* (no winner is claimed); a **tie** is announced as *"it's a tie between X and Y ({n} votes each)!"* listing every tied option; otherwise the plain *"{winner} wins with {n} votes!"* line. `GetCurrentResultsAsync` (`PollService.cs:245`) computes the same aggregation on demand for the `!poll results` command without ending the poll.
 
 **Command routing (live).** `ChatViewModel.OnChatMessageReceivedAsync` gates on messages starting with `!poll` and calls `PollCommandService.ProcessCommandAsync`, which dispatches the six subcommands. The orchestrator consumes the platform-agnostic [ChatMessageReceivedEvent](../../src/VyralBot.Core/Models/ChatMessageReceivedEvent.cs) published by all three chat integrations (dedupe + bot-echo skip included), so votes arrive from Twitch, Kick, and YouTube alike. See [Event Bus](../architecture/event-bus.md).
 
@@ -79,7 +83,8 @@ var response = await _pollCommandService.ProcessCommandAsync(
     evt.IsModerator,
     evt.IsSubscriber,
     isFollower,          // Twitch: real Helix channels/followers check (5-min cache);
-                         // Kick/YouTube: false (no followers API / no follower concept)
+                         // other platforms: the recorded viewer status (Kick follow
+                         // webhooks mark followers; YouTube stays false)
     watchtimeMinutes);   // real total minutes from WatchtimeService
 ```
 
@@ -147,7 +152,10 @@ There are no poll-specific config keys; all settings are per-poll columns.
 ## Status & Known Issues
 
 - **The chat command pipeline is live** — `!poll ...` commands reach the engine from real chat on all connected platforms and votes are recorded (KI-1 resolved 2026-08-15). Tracked in the [known issues ledger](../reference/known-issues.md).
-- **Followers-only is Twitch-only** — real Helix follower check on Twitch (requires the stored token's `moderator:read:followers` scope — KI-33); hard `false` on Kick/YouTube (KI-31). Tracked in the [known issues ledger](../reference/known-issues.md).
+- **Followers-only is platform-asymmetric** — real Helix follower check on Twitch (requires the stored token's `moderator:read:followers` scope — KI-33); on non-Twitch platforms the gate consults the recorded viewer status (Kick followers honored once a webhook recorded them; YouTube stays `false`) — KI-31, partially resolved. Tracked in the [known issues ledger](../reference/known-issues.md).
+- **Linked viewers get one vote** — a vote from any linked (username, platform) pair counts as that viewer's vote (dedup best-effort through account linking; a linking failure falls back to direct-pair dedup).
+- **Ties and zero-vote polls are announced honestly** — a tie lists every tied option with the vote count; a poll with no votes completes with "no votes were cast" instead of naming a winner.
+- **Votes cannot race the end** — the end gate serializes votes against End Poll; a vote either lands in the results or is rejected, never stored-but-uncounted.
 - **Min-watchtime works** — real watchtime from [Watchtime](watchtime.md) is checked at vote time on every platform.
 - **Scheduled end time is inert** — `ScheduledEndTime` is stored and displayed but no background job ends the poll when it passes.
 - **Creator is hard-coded "Admin"** — the UI never asks who creates a poll (`PollViewModel.cs:210`).

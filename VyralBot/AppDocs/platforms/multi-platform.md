@@ -18,7 +18,7 @@ Vyral connects platforms with very different depths, and the differences matter 
 | Events (follow/sub/raid/…) | ✅ EventSub WebSocket incl. **Channel Points redemptions** | ✅ Pusher + webhooks via ngrok | ⚠️ memberships + **structured Super Chat/Super Sticker events** (alert/sound/currency/stats); no follow/raid events | ⚠️ member-join + boost events wired but **intent-gated off** | ❌ |
 | Command pipeline | ✅ | ✅ | ✅ (chat commands while live) | ✅ + native slash commands + `!mod` verbs | ❌ |
 | Command timers | ✅ | ✅ | ✅ while live (skipped + retried when offline) | ✅ incl. a pinned bot | ❌ |
-| Moderation enforcement | ✅ **full** (Helix timeout/ban/delete) | ⚠️ notice-only | ⚠️ notice-only | ✅ ban/timeout native (delete degrades to notice) | ❌ none |
+| Moderation enforcement | ✅ **full** (Helix timeout/ban/delete) | ✅ **full** (Kick API v1 ban/timeout/delete; delete needs a one-time re-auth for tokens granted before the message-delete scope) | ⚠️ delete native (`liveChatMessages.delete`); ban/timeout have no public API — they degrade to delete | ✅ ban/timeout native (delete degrades to notice) | ❌ none |
 | Announcement broadcast | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Dashboard w/ stream preview | ✅ | ✅ | ✅ (live-page preview) | fleet DASHBOARD tab + per-bot dashboards, no preview | ❌ |
 

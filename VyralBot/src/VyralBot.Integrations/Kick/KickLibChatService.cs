@@ -241,6 +241,187 @@ public class KickLibChatService : IKickService, IDisposable
         }
     }
 
+    #region Moderation (Kick public API v1 via KickLib)
+
+    // Enforcement path for the auto-moderator's KickModerationAdapter.
+    // KickLib wraps Kick's documented moderation endpoints:
+    //   POST   /v1/moderation/bans           (ban + timeout, scope moderation:ban)
+    //   DELETE /v1/channels/chat/messages/{id} (scope moderation:chat_message:manage)
+    // All three methods are best-effort: they return false and log instead of
+    // throwing, matching the IModerationPlatformAdapter contract.
+
+    /// <summary>Kick caps ban/timeout reasons at 100 characters.</summary>
+    private const int MaxModerationReasonLength = 100;
+
+    /// <summary>Kick timeouts are minute-granular: 1 minute to 7 days (10080 minutes).</summary>
+    private const int MaxTimeoutMinutes = 10080;
+
+    public async Task<bool> TimeoutUserAsync(string userId, TimeSpan duration, string reason)
+    {
+        try
+        {
+            if (!TryGetModerationContext(userId, out var broadcasterUserId, out var userIdToBan) ||
+                !await EnsureFreshAccessTokenAsync())
+            {
+                return false;
+            }
+
+            // Kick takes whole minutes (1-10080); round sub-minute durations
+            // up so a short auto-mod timeout still lands as one minute.
+            var minutes = Math.Clamp((int)Math.Ceiling(duration.TotalMinutes), 1, MaxTimeoutMinutes);
+
+            var result = await _kickApi.Moderation.TimeoutUserAsync(
+                broadcasterUserId, userIdToBan, minutes, TruncateReason(reason), _platform!.AccessToken!);
+
+            if (!result.IsSuccess)
+            {
+                var error = result.Errors.FirstOrDefault()?.Message ?? "Unknown error";
+                _logger.LogWarning("⚠️ Kick timeout of user {UserId} for {Minutes}m failed: {Error}", userIdToBan, minutes, error);
+                return false;
+            }
+
+            _logger.LogInformation("⏱️ Timed out Kick user {UserId} for {Minutes} minute(s): {Reason}",
+                userIdToBan, minutes, TruncateReason(reason));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "❌ Exception timing out Kick user {UserId}", userId);
+            return false;
+        }
+    }
+
+    public async Task<bool> BanUserAsync(string userId, string reason)
+    {
+        try
+        {
+            if (!TryGetModerationContext(userId, out var broadcasterUserId, out var userIdToBan) ||
+                !await EnsureFreshAccessTokenAsync())
+            {
+                return false;
+            }
+
+            var result = await _kickApi.Moderation.BanUserAsync(
+                broadcasterUserId, userIdToBan, TruncateReason(reason), _platform!.AccessToken!);
+
+            if (!result.IsSuccess)
+            {
+                var error = result.Errors.FirstOrDefault()?.Message ?? "Unknown error";
+                _logger.LogWarning("⚠️ Kick ban of user {UserId} failed: {Error}", userIdToBan, error);
+                return false;
+            }
+
+            _logger.LogInformation("🔨 Banned Kick user {UserId}: {Reason}", userIdToBan, TruncateReason(reason));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "❌ Exception banning Kick user {UserId}", userId);
+            return false;
+        }
+    }
+
+    public async Task<bool> DeleteMessageAsync(string messageId)
+    {
+        try
+        {
+            if (_platform?.AccessToken == null)
+            {
+                _logger.LogWarning("⚠️ No Kick access token available for message delete");
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(messageId))
+            {
+                _logger.LogDebug("Kick message delete requested without a message id — nothing to delete");
+                return false;
+            }
+
+            if (!await EnsureFreshAccessTokenAsync())
+            {
+                return false;
+            }
+
+            var result = await _kickApi.Chat.DeleteMessageAsync(messageId, _platform!.AccessToken!);
+
+            if (!result.IsSuccess)
+            {
+                var error = result.Errors.FirstOrDefault()?.Message ?? "Unknown error";
+                // A 403 here usually means the stored token predates the
+                // moderation:chat_message:manage scope — re-run Kick setup.
+                _logger.LogWarning("⚠️ Kick message delete failed (message {MessageId}): {Error} — if this is a permission error, re-run the Kick setup to grant message moderation",
+                    messageId, error);
+                return false;
+            }
+
+            _logger.LogInformation("🗑️ Deleted Kick chat message {MessageId}", messageId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "❌ Exception deleting Kick message {MessageId}", messageId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Validates the moderation call context: token + broadcaster user id must
+    /// exist and both the broadcaster's and the target's Kick user ids must
+    /// parse (Kick's moderation API is id-based).
+    /// </summary>
+    private bool TryGetModerationContext(string userId, out int broadcasterUserId, out int userIdToBan)
+    {
+        broadcasterUserId = 0;
+        userIdToBan = 0;
+
+        if (_platform?.AccessToken == null || _platform.UserId == null)
+        {
+            _logger.LogWarning("⚠️ Kick token or broadcaster user id missing — cannot moderate");
+            return false;
+        }
+
+        if (!int.TryParse(_platform.UserId, out broadcasterUserId) ||
+            !int.TryParse(userId, out userIdToBan))
+        {
+            _logger.LogWarning("⚠️ Kick moderation needs numeric user ids (broadcaster='{BroadcasterId}', target='{UserId}')",
+                _platform.UserId, userId);
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Shared token-freshness guard for moderation calls: refreshes the Kick
+    /// access token when it is expired or expiring within 5 minutes (the same
+    /// threshold SendMessageAsync uses). Moderation calls read the token AFTER
+    /// this check so a refresh is always honored.
+    /// </summary>
+    private async Task<bool> EnsureFreshAccessTokenAsync()
+    {
+        if (_platform?.AccessToken == null)
+        {
+            return false;
+        }
+
+        if (_platform.TokenExpiresAt.HasValue && _platform.TokenExpiresAt.Value <= DateTime.UtcNow.AddMinutes(5))
+        {
+            if (!await RefreshTokenAsync())
+            {
+                _logger.LogWarning("⚠️ Kick token refresh failed — cannot moderate");
+                return false;
+            }
+        }
+
+        return _platform.AccessToken != null;
+    }
+
+    private static string TruncateReason(string reason)
+        => string.IsNullOrEmpty(reason) ? "auto-mod" :
+           reason.Length <= MaxModerationReasonLength ? reason : reason[..MaxModerationReasonLength];
+
+    #endregion
+
     private async Task<bool> RefreshTokenAsync()
     {
         try
@@ -353,7 +534,10 @@ public class KickLibChatService : IKickService, IDisposable
             IsSubscriber = msg.Sender.Identity?.Badges?.Any(b => b.Type.ToString().ToLower() == "subscriber") ?? false,
             IsModerator = msg.Sender.Identity?.Badges?.Any(b => b.Type.ToString().ToLower() == "moderator") ?? false,
             IsOwner = msg.Sender.Identity?.Badges?.Any(b => b.Type.ToString().ToLower() == "broadcaster") ?? false,
-            CreatedAt = msg.CreatedAt
+            CreatedAt = msg.CreatedAt,
+            // Raw Pusher message id: the auto-mod delete path needs it to call
+            // DELETE /v1/channels/chat/messages/{id}.
+            MessageId = string.IsNullOrEmpty(msg.Id) ? null : msg.Id
         };
 
         // Publish to EventBus (triggers ChatViewModel, TriggerEngine, etc.)

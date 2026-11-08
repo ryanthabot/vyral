@@ -1354,6 +1354,18 @@ public class DiscordBotManager : IDiscordBotManager, IDisposable
 
         if (changed)
         {
+            // Compare-before-write: if the user re-saved the list while this
+            // tick was evaluating (SaveScheduledMessagesAsync), their save wins —
+            // persisting the pre-save list here would silently revert it.
+            var currentJson = await _dataService
+                .GetConfigValueAsync(DiscordBotScheduledMessage.ConfigKey(botId))
+                .ConfigureAwait(false);
+            if (!string.Equals(currentJson, json, StringComparison.Ordinal))
+            {
+                _logger.LogInformation("ℹ️ Scheduled messages for bot {BotId} changed during evaluation — keeping the newer save", botId);
+                return;
+            }
+
             await _dataService
                 .SetConfigValueAsync(DiscordBotScheduledMessage.ConfigKey(botId), DiscordBotScheduledMessage.ListToJson(schedules))
                 .ConfigureAwait(false);

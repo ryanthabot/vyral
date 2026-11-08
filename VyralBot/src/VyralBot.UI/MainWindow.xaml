@@ -611,8 +611,159 @@
                     <ContentControl.Resources>
                         <!-- Home View -->
                         <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
+                            <DataTemplate.Resources>
+                                <converters:AnyTrueToCollapsedConverter x:Key="AnyTrueToCollapsedConverter"/>
+                            </DataTemplate.Resources>
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
+                                <!-- Get started strip (first-run onboarding; hidden once dismissed or any platform connects) -->
+                                <materialDesign:Card Margin="32,24,32,0"
+                                                     Padding="0"
+                                                     Background="{DynamicResource CardBackgroundBrush}">
+                                    <materialDesign:Card.Visibility>
+                                        <MultiBinding Converter="{StaticResource AnyTrueToCollapsedConverter}">
+                                            <Binding Path="IsGettingStartedDismissed"/>
+                                            <Binding Path="DataContext.IsTwitchConnected" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                            <Binding Path="DataContext.IsKickConnected" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                            <Binding Path="DataContext.IsYouTubeConnected" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                            <Binding Path="DataContext.IsDiscordConnected" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                        </MultiBinding>
+                                    </materialDesign:Card.Visibility>
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Header -->
+                                        <Grid Grid.Row="0" Margin="20,14,8,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <materialDesign:PackIcon Kind="RocketLaunch"
+                                                                         Width="18"
+                                                                         Height="18"
+                                                                         VerticalAlignment="Center"
+                                                                         Foreground="{DynamicResource PrimaryBrush}"/>
+                                                <TextBlock Text="Get started"
+                                                           FontSize="15"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           Margin="8,0,0,0"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Text="New here? Three quick steps to your first stream"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           Margin="12,0,0,0"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <Button Grid.Column="1"
+                                                    Command="{Binding DismissGettingStartedCommand}"
+                                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                                    Width="32"
+                                                    Height="32"
+                                                    Padding="0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip="Dismiss this guide — every page stays available in the sidebar">
+                                                <materialDesign:PackIcon Kind="Close"
+                                                                         Width="16"
+                                                                         Height="16"
+                                                                         Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            </Button>
+                                        </Grid>
+
+                                        <!-- Steps -->
+                                        <UniformGrid Grid.Row="1" Columns="3" Margin="12,0,12,14">
+                                            <Button Style="{StaticResource MaterialDesignFlatButton}"
+                                                    HorizontalContentAlignment="Left"
+                                                    Command="{Binding DataContext.NavigateToPlatformsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    ToolTip="Open the Platforms hub (the Connections card below)">
+                                                <StackPanel Orientation="Horizontal" Margin="8,0">
+                                                    <Border Width="22"
+                                                            Height="22"
+                                                            CornerRadius="11"
+                                                            Background="{DynamicResource PrimaryBrush}"
+                                                            VerticalAlignment="Center">
+                                                        <TextBlock Text="1"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource BackgroundPrimaryBrush}"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="Connect a platform"
+                                                                   FontSize="13"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                        <TextBlock Text="Link Twitch, Kick, YouTube or Discord"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Style="{StaticResource MaterialDesignFlatButton}"
+                                                    HorizontalContentAlignment="Left"
+                                                    Command="{Binding DataContext.NavigateToAlertSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    ToolTip="Open Events &amp; Alerts (sidebar, under Chat features)">
+                                                <StackPanel Orientation="Horizontal" Margin="8,0">
+                                                    <Border Width="22"
+                                                            Height="22"
+                                                            CornerRadius="11"
+                                                            Background="{DynamicResource PrimaryBrush}"
+                                                            VerticalAlignment="Center">
+                                                        <TextBlock Text="2"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource BackgroundPrimaryBrush}"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="Set up alerts"
+                                                                   FontSize="13"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                        <TextBlock Text="Events &amp; Alerts — on-screen overlays"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Style="{StaticResource MaterialDesignFlatButton}"
+                                                    HorizontalContentAlignment="Left"
+                                                    Command="{Binding DataContext.NavigateToAutomationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    ToolTip="Open Automation and press TEMPLATES">
+                                                <StackPanel Orientation="Horizontal" Margin="8,0">
+                                                    <Border Width="22"
+                                                            Height="22"
+                                                            CornerRadius="11"
+                                                            Background="{DynamicResource PrimaryBrush}"
+                                                            VerticalAlignment="Center">
+                                                        <TextBlock Text="3"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource BackgroundPrimaryBrush}"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="Import a workflow template"
+                                                                   FontSize="13"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                        <TextBlock Text="TEMPLATES button on the Automation page"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Button>
+                                        </UniformGrid>
+                                    </Grid>
+                                </materialDesign:Card>
+
                                 <!-- Main Content Cards -->
                                 <Grid Margin="32,24,32,24">
                                     <Grid.ColumnDefinitions>

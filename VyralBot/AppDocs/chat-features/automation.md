@@ -235,6 +235,12 @@ The **Automation** page (sidebar, Chat Features group) is Vyral's workflow engin
 
 > The **Visual Flow Editor** below is the drag-and-drop canvas alternative to this ordered list — it edits the same workflows.
 
+### Starter templates (TEMPLATES panel)
+
+The workflow list's header carries a **TEMPLATES** button that expands a **STARTER TEMPLATES** panel of one-click starter workflows — embedded, schema-validated flows (`WorkflowTemplates.cs`, covered by tests that parse each template and confirm its node types exist in the block catalog) covering the community onboarding hits: New Follower Thanks, Sub Appreciation (two messages with a pause — no sound node exists yet), Raid Welcome, First-Time Chatter Greeting (`!hello` stand-in), Daily Schedule Announcement (hourly timer), Channel Points Reward Thanks, Super Chat Shoutout (YouTube), and a Mod-only `!warn` command.
+
+Each row shows the name, description, and a platform chip; **IMPORT** creates a real workflow named "Template: {name}" — deliberately **imported disabled**, so nothing goes live until you edit it and flip Enabled. The row then marks itself imported for the session (importing again creates another copy), and a parse failure (should never happen — the JSON is embedded, not downloaded) imports nothing and says so.
+
 ## How It Works (Developer)
 
 - New project `src/VyralBot.Workflows`: `WorkflowRuntime` (graph interpreter, 200-step cycle guard, cancellation-aware; native `loop` interpretation with `stop_loop`, multi-rule `comparison` routing (`case:{i}` first match / `else`), pass-through attachment-card nodes, workflow-level Error Handler chains, explicit `Workflow.EntryNodeId` pinning), `ExecutionContext` (execution-scoped variables + `{username}`/`{channel}`/`{platform}` fallbacks), `NodeRegistry` (extensible — plugins can register nodes), `ExpressionEvaluator` (comparisons + ` and `, numeric/string/contains semantics).
@@ -252,6 +258,7 @@ The **Automation** page (sidebar, Chat Features group) is Vyral's workflow engin
 | [FlowEditorView.xaml](../../src/VyralBot.UI/Views/FlowEditorView.xaml) | Visual Flow Editor: six-panel side rail, canvas, and settings panes |
 | [FlowEditorViewModel.cs](../../src/VyralBot.UI/ViewModels/FlowEditorViewModel.cs) | Editor state: nodes/wires, undo/redo, drafts autosave, import/export, command adoption on save |
 | [CommandFlowTemplates.cs](../../src/VyralBot.UI/Services/CommandFlowTemplates.cs) | Command row → editable flow conversion (seeds the editor from the Commands page — see [Commands](commands.md#from-command-to-flow)) |
+| [WorkflowTemplates.cs](../../src/VyralBot.UI/Services/WorkflowTemplates.cs) | The embedded starter-template catalog behind the TEMPLATES panel (import creates a disabled copy) |
 | [BlockCatalog.cs](../../src/VyralBot.Workflows/Abstractions/BlockCatalog.cs) | The block library: palette entries, parameter fields, output ports |
 | [AutomationView.xaml](../../src/VyralBot.UI/Views/AutomationView.xaml) | The builder page |
 

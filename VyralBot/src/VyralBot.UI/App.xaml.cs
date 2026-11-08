@@ -1453,11 +1453,13 @@ public partial class App : Application
     // Twitch enforces ban/timeout/delete per viewer through the Helix
     // moderation APIs (delete without a message id degrades to a 1s timeout);
     // Discord can ban and timeout by name (no delete-by-id API — "trigger"-
-    // scope deletes track workflow triggers, not viewer messages). Kick and
-    // YouTube remain notice-only — their services expose no per-viewer action
-    // APIs, so verdicts degrade delete→warn/timeout→warn per
-    // ModerationActionService's ladder. Every method is best-effort and NEVER
-    // throws.
+    // scope deletes track workflow triggers, not viewer messages); Kick
+    // enforces ban/timeout/delete through Kick's public API v1 (KickLib
+    // Moderation/Chat, scope moderation:ban + moderation:chat_message:manage);
+    // YouTube enforces delete only (liveChatMessages.delete — the public Data
+    // API has no chat ban/timeout), so its Ban/Timeout verdicts degrade to a
+    // delete per ModerationActionService's ladder. Every method is
+    // best-effort and NEVER throws.
     // ======================================================================
 
     /// <summary>
@@ -1548,7 +1550,16 @@ public partial class App : Application
         }
     }
 
-    /// <summary>Kick adapter: notice-only (IKickService is connect/send only — outbound moderation is webhook-inbound).</summary>
+    /// <summary>
+    /// Kick adapter: full enforcement via Kick's public API v1 wrapped by
+    /// KickLib — POST /v1/moderation/bans for ban + timeout (scope
+    /// moderation:ban, requested by the setup wizard), DELETE
+    /// /v1/channels/chat/messages/{id} for delete (scope
+    /// moderation:chat_message:manage, added to the wizard later — tokens
+    /// granted before that get a 403 and the delete degrades until the owner
+    /// re-runs Kick setup once). All actions are id-based; the Kick chat
+    /// pipeline delivers numeric user ids and Pusher message ids.
+    /// </summary>
     internal sealed class KickModerationAdapter : VyralBot.Core.Services.Moderation.IModerationPlatformAdapter
     {
         private readonly IKickService _kick;
@@ -1557,15 +1568,46 @@ public partial class App : Application
             => _kick = kick ?? throw new ArgumentNullException(nameof(kick));
 
         public string Platform => "Kick";
-        public bool CanDeleteMessage => false;
-        public bool CanTimeout => false;
-        public bool CanBan => false;
+        public bool CanDeleteMessage => true;
+        public bool CanTimeout => true;
+        public bool CanBan => true;
 
-        public Task<bool> DeleteMessageAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message) => Task.FromResult(false);
+        public async Task<bool> DeleteMessageAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message)
+        {
+            try
+            {
+                return await _kick.DeleteMessageAsync(message.MessageId).ConfigureAwait(false);
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
-        public Task<bool> TimeoutAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, int seconds, string reason) => Task.FromResult(false);
+        public async Task<bool> TimeoutAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, int seconds, string reason)
+        {
+            try
+            {
+                return await _kick.TimeoutUserAsync(message.UserId, TimeSpan.FromSeconds(seconds), reason)
+                    .ConfigureAwait(false);
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
-        public Task<bool> BanAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, string reason) => Task.FromResult(false);
+        public async Task<bool> BanAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, string reason)
+        {
+            try
+            {
+                return await _kick.BanUserAsync(message.UserId, reason).ConfigureAwait(false);
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         public async Task<bool> SendNoticeAsync(string message)
         {
@@ -1586,7 +1628,15 @@ public partial class App : Application
         }
     }
 
-    /// <summary>YouTube adapter: notice-only (IYouTubeService is connect/send + stream info only).</summary>
+    /// <summary>
+    /// YouTube adapter: delete-only enforcement via
+    /// <c>liveChatMessages.delete</c> (covered by the youtube.force-ssl scope
+    /// the wizard already requests). The public YouTube Data API offers NO
+    /// ban/timeout endpoint for live chat — liveChatModerators.insert
+    /// APPOINTS a moderator, it does not ban — so Ban and Timeout verdicts
+    /// degrade to a delete (which removes the offending message), then to a
+    /// warning notice.
+    /// </summary>
     internal sealed class YouTubeModerationAdapter : VyralBot.Core.Services.Moderation.IModerationPlatformAdapter
     {
         private readonly IYouTubeService _youtube;
@@ -1595,11 +1645,21 @@ public partial class App : Application
             => _youtube = youtube ?? throw new ArgumentNullException(nameof(youtube));
 
         public string Platform => "YouTube";
-        public bool CanDeleteMessage => false;
+        public bool CanDeleteMessage => true;
         public bool CanTimeout => false;
         public bool CanBan => false;
 
-        public Task<bool> DeleteMessageAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message) => Task.FromResult(false);
+        public async Task<bool> DeleteMessageAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message)
+        {
+            try
+            {
+                return await _youtube.DeleteMessageAsync(message.MessageId).ConfigureAwait(false);
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         public Task<bool> TimeoutAsync(VyralBot.Core.Services.Moderation.ModerationIncomingMessage message, int seconds, string reason) => Task.FromResult(false);
 

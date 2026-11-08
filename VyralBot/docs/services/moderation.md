@@ -47,24 +47,33 @@ card and the mod_command workflows (visual Flow editor).
 - `IModerationPlatformAdapter` — the per-platform seam (delete/timeout/ban/
   notice + capability flags). The composition root (`App.OnStartup`) registers
   four adapters: `TwitchModerationAdapter` (full), `DiscordModerationAdapter`
-  (full), `KickModerationAdapter` + `YouTubeModerationAdapter` (notice-only).
+  (full), `KickModerationAdapter` (full) + `YouTubeModerationAdapter`
+  (delete-only).
 - `ExecuteAsync(message, verdict)` — degrades Ban → Timeout → Delete → Warn,
   Timeout → Delete → Warn; a platform with no adapter is logged-only. Never
   throws (per-call try/catch). Every action — executed, degraded or logged-only
   — is written via `IDataService.SaveModActionAsync` (actor `AutoMod`), so the
   log survives restarts and renders in the dashboard Action Log.
 - `ModerationPlatformParity.Table` — the audit-truth for per-platform
-  enforcement (Wave 3): **Twitch full** (Helix ban/timeout/delete via
+  enforcement: **Twitch full** (Helix ban/timeout/delete via
   `ITwitchService.TimeoutUserAsync`/`BanUserAsync`/`DeleteMessageAsync`; the
   chat pipeline does not parse IRC message ids, so a Delete without one
   degrades to a 1s purge-timeout — timeouts purge the sender's messages);
   **Discord full** (ban/timeout by username, minute-granular; no delete-by-id
-  API, so Delete verdicts degrade to warn); **Kick/YouTube notice-only**
-  (adapters post warn notices; Kick webhooks are inbound-only); **TikTok none**
-  (no chat integration — verdicts logged only). The Moderator dashboard's
-  parity card renders `ModerationPlatformParity.Snapshot` rows (the Table
-  merged with live adapter registration), so it can never drift from the
-  Table.
+  API, so Delete verdicts degrade to warn); **Kick full** (Wave 9: Kick public
+  API v1 via KickLib — `POST /v1/moderation/bans` for ban/timeout with the
+  `moderation:ban` scope the wizard has always requested, and
+  `DELETE /v1/channels/chat/messages/{id}` with `moderation:chat_message:manage`
+  — that scope was added to the wizard in Wave 9, so tokens granted earlier
+  403 on delete until the owner re-runs Kick setup once; all actions are
+  id-based and the Pusher pipeline supplies numeric user ids + message ids);
+  **YouTube delete-only** (Wave 9: `liveChatMessages.delete`, covered by the
+  `youtube.force-ssl` scope the wizard already requests — the public Data API
+  has NO chat ban/timeout endpoint, so Ban/Timeout verdicts degrade to a
+  delete, then to a warning notice); **TikTok none** (no chat integration —
+  verdicts logged only). The Moderator dashboard's parity card renders
+  `ModerationPlatformParity.Snapshot` rows (the Table merged with live adapter
+  registration), so it can never drift from the Table.
 
 ### ModerationRulesRepository (`ModerationRulesRepository.cs`)
 Persists the `ModerationRuleSet` as JSON under config key
@@ -102,14 +111,20 @@ display always mirrors the audit Table.
 - `IModTierResolver` — explicit assignment vs highest Discord role→tier
   mapping, whichever ranks higher.
 
-## Wiring status (Wave 3, 2026-11-07)
+## Wiring status (Wave 9, 2026-11-07)
 - Done: engine, action router + degradation, rule persistence, dashboard card
   (Wave 1); auto-mod evaluated on every platform in the ChatViewModel message
   handlers — Twitch/Kick/YouTube/Discord dedicated paths plus the generic
   handler for platforms without one (Wave 2); all four platform adapters
   registered at startup with Twitch upgraded to full Helix enforcement
-  (timeout/ban/delete, delete-without-id → 1s purge-timeout) (Wave 3).
+  (timeout/ban/delete, delete-without-id → 1s purge-timeout) (Wave 3); Kick
+  upgraded to full native enforcement via Kick API v1 (ban/timeout scope
+  granted since launch, delete scope added to the wizard) and YouTube upgraded
+  to delete-only via `liveChatMessages.delete` (Wave 9 — no public YouTube
+  ban/timeout API exists, those verdicts degrade to delete).
 - Remaining seams: parse IRC message ids in the Twitch pipeline so Delete
-  verdicts call `DELETE /helix/moderation/chat` directly; Kick/YouTube
-  per-viewer action APIs when their services gain them; TikTok has no chat
-  integration to enforce through.
+  verdicts call `DELETE /helix/moderation/chat` directly; Kick delete needs a
+  one-time re-auth for tokens granted before the
+  `moderation:chat_message:manage` scope was requested; YouTube ban/timeout
+  has no public API to enforce through; TikTok has no chat integration to
+  enforce through.

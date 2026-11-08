@@ -7183,6 +7183,9 @@ public class ChatViewModel : ViewModelBase
 		if (_youtubeSubscriptionId != Guid.Empty)
 		{
 			_eventBus.Unsubscribe(_youtubeSubscriptionId);
+		}
+		if (_youTubeStateSubscriptionId != Guid.Empty)
+		{
 			_eventBus.Unsubscribe(_youTubeStateSubscriptionId);
 		}
 		if (_discordSubscriptionId != Guid.Empty)
@@ -7300,6 +7303,7 @@ public class ChatViewModel : ViewModelBase
 		_twitchSubscriptionId = Guid.Empty;
 		_kickSubscriptionId = Guid.Empty;
 		_youtubeSubscriptionId = Guid.Empty;
+		_youTubeStateSubscriptionId = Guid.Empty;
 		_discordSubscriptionId = Guid.Empty;
 		_discordMemberJoinedSubscriptionId = Guid.Empty;
 		_discordBoostSubscriptionId = Guid.Empty;

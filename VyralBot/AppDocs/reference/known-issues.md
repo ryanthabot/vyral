@@ -1,6 +1,6 @@
 # Known Issues Ledger
 
-The numbered, severity-tagged inventory of every known defect, wiring gap, dead surface, and doc-drift item in the current build — verified against code by the six-pass review that produced this documentation, re-verified after the 2026-08-15 fix pass, and reconciled again against the 2026-11-07 production-marathon waves (0–6).
+The numbered, severity-tagged inventory of every known defect, wiring gap, dead surface, and doc-drift item in the current build — verified against code by the six-pass review that produced this documentation, re-verified after the 2026-08-15 fix pass, and reconciled again against the 2026-11-07 production-marathon waves (0–9, including the release-wave documentation pass).
 
 **Every feature page in these docs references this ledger** rather than repeating caveats inline. If a page says "see the Known Issues Ledger", the relevant entry is here. Severity meanings:
 
@@ -11,7 +11,7 @@ The numbered, severity-tagged inventory of every known defect, wiring gap, dead 
 - **Limitation** — an honest current-state boundary (an API that does not exist, a deliberate degradation), documented rather than promised.
 - **Doc drift** — shipped root documents that disagree with the code.
 
-Counts (as of 2026-11-07, after marathon wave 6): 53 entries — **23 resolved**, **6 partially resolved**, **1 intended behavior (documented)**, and **23 open limitations** (KI-26–KI-28, KI-30–KI-33, KI-36–KI-38, KI-40–KI-42, KI-44–KI-47, KI-50–KI-53; KI-29, KI-35, KI-39 and KI-43 in that first range are counted as resolved). Original severity split of the 25 pre-fix entries: 7 Critical, 9 Wiring gaps, 2 Dead surface, 6 Security, 1 Doc drift. Wave-6 features (quotes, event-testing upgrade, control API, timer activity gate, OBS auto-reconnect) were re-checked against code and contributed no new entries.
+Counts (as of 2026-11-07, after the wave-9 release pass): 56 entries — **24 resolved**, **9 partially resolved** (KI-5, KI-12, KI-16, KI-18, KI-21, KI-24, KI-31, KI-36, KI-53), **2 intended behavior / documented behavior change** (KI-14, KI-30), and **21 open** (KI-26–KI-28, KI-32–KI-34, KI-37, KI-38, KI-40–KI-42, KI-44–KI-47, KI-50–KI-52, KI-54–KI-56). Original severity split of the 25 pre-fix entries: 7 Critical, 9 Wiring gaps, 2 Dead surface, 6 Security, 1 Doc drift. Wave-6 features (quotes, event-testing upgrade, control API, timer activity gate, OBS auto-reconnect) were re-checked against code and contributed no new entries; the wave-9 pass added KI-54–KI-56 (statistics charts, soundboard hotkeys, TikTok chat) and moved KI-31 (Kick recorded-status follower fallback) and KI-53 (Wave-9 Kick/YouTube moderation adapters) to partially resolved.
 
 Resolved entries are kept below (never deleted) with a ✅ marker and a one-line description of the fix; partially resolved entries carry ◐ with what remains.
 
@@ -21,7 +21,7 @@ Resolved entries are kept below (never deleted) with a ✅ marker and a one-line
 
 | ID | Severity | Area | Issue | Where documented |
 |---|---|---|---|---|
-| [KI-5](#ki-5-critical--giveawaypoll-follower-and-watchtime-eligibility-always-reject) | Critical ◐ | Giveaways / Polls | Watchtime eligibility now real; follower check real for Twitch only — Kick/YouTube still pass `false` | [Giveaways](../stream-tools/giveaways.md), [Polls](../stream-tools/polls.md) |
+| [KI-5](#ki-5-critical--giveawaypoll-follower-and-watchtime-eligibility-always-reject) | Critical ◐ | Giveaways / Polls | Watchtime eligibility now real; follower check real for Twitch, recorded-status fallback for Kick (webhook-seen followers), YouTube still `false` | [Giveaways](../stream-tools/giveaways.md), [Polls](../stream-tools/polls.md) |
 | [KI-12](#ki-12-wiring-gap--auto-reply-templates-use-simple-replace) | Wiring gap ◐ | Auto-replies | Templates and `{raider}` fixed in seeds/defaults; `ProcessTemplate` still simple-replace | [Auto-Replies](../chat-features/auto-replies.md), [Variables Catalog](variables-catalog.md) |
 | [KI-14](#ki-14-wiring-gap--auto-connect-silently-flips-chat-enabled-to-true) | Intended behavior (documented) | Chat settings | Auto-connect force-enabling `<Platform>ChatEnabled` stays as designed | [Chat Settings](../chat/chat-settings.md) |
 | [KI-16](#ki-16-wiring-gap--audio-port-pinned-to-5000-connected-clients-stub) | Wiring gap ◐ | Audio | Live client count works; port still pinned to 5000, vestigial Restart button | [Audio Settings](../stream-tools/audio.md) |
@@ -33,7 +33,7 @@ Resolved entries are kept below (never deleted) with a ✅ marker and a one-line
 | [KI-28](#ki-28-wiring-gap--auto-reply-templates-still-do-not-resolve-db-or-social-variables) | Wiring gap | Auto-replies | `ProcessTemplate` remains `string.Replace` — DB/social variables do not resolve in auto-replies | [Auto-Replies](../chat-features/auto-replies.md), [Variables Catalog](variables-catalog.md) |
 | [KI-29](#ki-29-wiring-gap--savecurrencysettingsasync-persists-only-a-field-subset) | Wiring gap ✅ | Currency | RESOLVED: the settings save now writes the full `CurrencySetting` row, and the Bank & Decay tab edits bank/decay in the UI (withdrawal cooldown enforced) | [Currency & Rewards](../stream-tools/currency.md) |
 | [KI-30](#ki-30-behavior-change-documented--watchtime-earning-rate-is-now-configurable-defaults-to-10minute) | Behavior change (documented) | Currency / Watchtime | Watchtime earning uses `WatchTime*` settings — default 10/interval vs old hard-coded 1/min | [Watchtime](../stream-tools/watchtime.md), [Currency & Rewards](../stream-tools/currency.md) |
-| [KI-31](#ki-31-wiring-gap--kick--youtube-follower-eligibility-is-still-false) | Wiring gap | Giveaways / Polls | Kick has no followers API (KickLib 1.8.0); YouTube has no follower concept — eligibility passes `false` | [Giveaways](../stream-tools/giveaways.md), [Polls](../stream-tools/polls.md) |
+| [KI-31](#ki-31-wiring-gap--kick--youtube-follower-eligibility) | Wiring gap ◐ | Giveaways / Polls | Kick follower eligibility now honors the recorded viewer status (follow webhooks); YouTube has no follower concept — eligibility stays `false` there | [Giveaways](../stream-tools/giveaways.md), [Polls](../stream-tools/polls.md) |
 | [KI-32](#ki-32-wiring-gap-minor--audio-settings-client-count-timer-only-stops-at-shutdown) | Wiring gap (minor) | Audio | `AudioSettingsViewModel` is a singleton — its 2s poll timer runs until shutdown | [Audio Settings](../stream-tools/audio.md) |
 | [KI-33](#ki-33-wiring-gap--twitch-follower-check-requires-the-moderatorreadfollowers-scope) | Wiring gap | Giveaways / Polls / Twitch | Twitch follower eligibility needs `moderator:read:followers` on the stored user token; degrades to `false` | [Twitch](../platforms/twitch.md), [Giveaways](../stream-tools/giveaways.md) |
 | [KI-34](#ki-34-wiring-gap--discord-integration-limitations) | Wiring gap | Discord | Message Content intent required; no slash commands; no non-chat Discord events; history rows not reloaded (single-channel bullet superseded per-bot by multi-bot, 2026-08-16) | [Discord](../platforms/discord.md), [Chat Window](../chat/chat-window.md) |
@@ -52,7 +52,10 @@ Resolved entries are kept below (never deleted) with a ✅ marker and a one-line
 | [KI-50](#ki-50-limitation--no-output-device-selection-for-sounds) | Limitation | Sounds / Audio | Local sound playback always uses the system default output device — there is no device picker or per-output routing | [Sounds](../stream-tools/sounds.md), [Audio Settings](../stream-tools/audio.md) |
 | [KI-51](#ki-51-limitation--twitch-delete-message-verdicts-degrade-to-a-purge-timeout) | Limitation | Moderation / Twitch | The auto-mod Delete verdict on Twitch degrades to a 1-second timeout (the IRC message id is not parsed) — it still removes the line via the purge side effect | [Twitch](../platforms/twitch.md), [Moderator Guide](../architecture/moderator-guide.md) |
 | [KI-52](#ki-52-limitation--discord-joinboost-events-need-the-server-members-intent-portal-toggle) | Limitation | Discord | Member-join and boost events are fully wired but dormant: they require the privileged **Server Members Intent** toggle in the Discord Developer Portal, which the gateway deliberately does not request — the per-bot Welcome & Auto-Role card rides the same gate | [Discord](../platforms/discord.md) |
-| [KI-53](#ki-53-limitation--auto-mod-enforcement-is-notice-only-on-kick-and-youtube) | Limitation | Moderation | Auto-mod verdicts on Kick and YouTube degrade to warn notices (no outbound action APIs); on Discord the Delete verdict degrades to a warn notice (ban/timeout are native) | [Moderator Guide](../architecture/moderator-guide.md), [Multi-Platform Parity](../platforms/multi-platform.md) |
+| [KI-53](#ki-53-partially-resolved--auto-mod-enforcement-per-platform-degradation) | Limitation ◐ | Moderation | Kick upgraded to full (Wave 9; delete needs one-time re-auth for pre-Wave-9 tokens), YouTube to delete-native (no public ban/timeout API exists); Discord's Delete verdict still degrades to a warn notice (ban/timeout are native) | [Moderator Guide](../architecture/moderator-guide.md), [Multi-Platform Parity](../platforms/multi-platform.md) |
+| [KI-54](#ki-54-limitation--statistics-has-no-charts-everything-renders-as-datagrids) | Limitation | Statistics | No chart visualizations — DataGrids only; the chart-ready per-day API (`GetEventCountsByDateAsync`) has no UI consumer | [Statistics](../stream-tools/statistics.md) |
+| [KI-55](#ki-55-limitation--no-global-hotkey-soundboard) | Limitation | Sounds | No soundboard: no global hotkeys, no command-triggered sounds — only the fourteen mapped events and Test buttons | [Sounds](../stream-tools/sounds.md) |
+| [KI-56](#ki-56-limitation--tiktok-has-no-chat-integration-identity-only) | Limitation | TikTok | TikTok is an identity only — the wizard is a stub, no chat service exists, nothing can be sent; linking/bonus/goals still count a TikTok identity | [TikTok](../platforms/tiktok.md), [TikTok & OBS](../platforms/tiktok-discord-obs.md) |
 
 ### Resolved (2026-08-15 fix pass; KI-35 on 2026-08-16, KI-39/KI-43 on 2026-08-29)
 
@@ -110,7 +113,7 @@ Resolved entries are kept below (never deleted) with a ✅ marker and a one-line
 
 ### KI-5 (Critical) — Giveaway/poll follower and watchtime eligibility always reject
 
-**◐ PARTIALLY RESOLVED (2026-08-15)** — eligibility now passes **real watchtime** (resolved through `WatchtimeService`, all platforms) and a real follower check for **Twitch** (Helix `channels/followers`, 5-minute cache; requires the stored user token to have the `moderator:read:followers` scope — KI-33 — and degrades to `false` otherwise). **Remains:** Kick passes `isFollower: false` (KickLib 1.8.0 has no followers API — KI-31); YouTube has no follower concept (also KI-31). SubscribersOnly works everywhere.
+**◐ PARTIALLY RESOLVED (2026-08-15; follower fallback widened 2026-11-07)** — eligibility now passes **real watchtime** (resolved through `WatchtimeService`, all platforms) and a real follower check for **Twitch** (Helix `channels/followers`, 5-minute cache; requires the stored user token to have the `moderator:read:followers` scope — KI-33 — and degrades to `false` otherwise). **Non-Twitch platforms** no longer hard-code `false`: the eligibility lookup falls back to the **recorded viewer status**, and Kick follow webhooks (`KickFollowEvent`) mark a viewer followed — so Followers-only giveaways/polls are enforceable on **Kick** once a follow event has been recorded for that viewer (a viewer who followed before the webhooks were live, or while the app was down, is still rejected until seen). **Remains:** YouTube has no follow concept, so eligibility there stays `false` (KI-31). SubscribersOnly works everywhere.
 
 *Original finding (pre-fix):* the chat-side entry paths passed `false` for `isFollower` and `0` for `watchtimeMinutes`, so any giveaway or poll with **FollowersOnly** or **MinWatchtime > 0** rejected every entry.
 
@@ -278,9 +281,9 @@ The remaining half of KI-12: `AutoReplyService.ProcessTemplate` is a plain case-
 
 Watchtime currency earning previously hard-coded 1 point per tracked minute. It now goes through the configured `WatchTimeEnabled` / `WatchTimeAmount` / `WatchTimeInterval` settings and the full multiplier stack. **BEHAVIOR CHANGE:** the seeded defaults (`WatchTimeAmount = 10`, interval 60 s) mean new and existing databases award **10 per minute** where they used to award 1. Streamers who want the old rate should set Points Per Interval to 1 on the Currency Settings tab. Documented on [Watchtime](../stream-tools/watchtime.md) and [Currency & Rewards](../stream-tools/currency.md).
 
-### KI-31 (Wiring gap) — Kick / YouTube follower eligibility is still false
+### KI-31 (Wiring gap ◐) — Kick / YouTube follower eligibility
 
-The follower half of KI-5 that API limitations block: KickLib 1.8.0 exposes no followers API, so `isFollower` is hard-coded `false` for Kick entries; YouTube's integration (live-chat polling only) has no follower concept at all. Followers-only giveaways/polls therefore still reject everyone on those platforms (Twitch is real — see KI-33 for its scope requirement). Documented on [Giveaways](../stream-tools/giveaways.md) and [Polls](../stream-tools/polls.md).
+**◐ PARTIALLY RESOLVED (2026-11-07)** — the eligibility lookup for non-Twitch platforms now falls back to the **recorded viewer status** (`IsFollowerForEligibilityAsync`, ChatViewModel.cs:4127-4151) instead of hard-coding `false`. Kick follow webhooks (`KickFollowEvent`) record `IsFollower = true` on a viewer's status row, so a **Kick** follower who has been seen by the webhooks passes the Followers-only gate on giveaways and polls. **Remains:** the recorded status only exists after a follow event was processed — a viewer who followed before the webhooks were configured (or while the app was down) is still rejected until one arrives — and **YouTube** has no follow concept at all, so eligibility there stays `false` (Twitch is a real-time Helix check — see KI-33 for its scope requirement). Documented on [Giveaways](../stream-tools/giveaways.md) and [Polls](../stream-tools/polls.md).
 
 ### KI-32 (Wiring gap, minor) — Audio settings client-count timer only stops at shutdown
 
@@ -401,22 +404,22 @@ Which ledger entries affect which feature areas (✅ = resolved, ◐ = partially
 | [Polls](../stream-tools/polls.md) | KI-1 ✅, KI-5 ◐, KI-31, KI-33 |
 | [Watchtime](../stream-tools/watchtime.md) | KI-1 ✅, KI-30 |
 | [Currency & Rewards](../stream-tools/currency.md) | KI-1 ✅, KI-7 ✅, KI-29 ✅ (full-row save + Bank & Decay tab), KI-27, KI-30 |
-| [Statistics](../stream-tools/statistics.md) | KI-3 ✅, KI-26 |
+| [Statistics](../stream-tools/statistics.md) | KI-3 ✅, KI-26, KI-54 |
 | [Browser Sources](../stream-tools/browser-sources.md) | KI-4 ✅, KI-16 ◐ |
-| [Sounds](../stream-tools/sounds.md) | KI-4 ✅, KI-50 |
+| [Sounds](../stream-tools/sounds.md) | KI-4 ✅, KI-50, KI-55 |
 | [Audio Settings](../stream-tools/audio.md) | KI-16 ◐, KI-32, KI-50 |
 | [Visual Alerts](../stream-tools/visual-alerts.md) | KI-6 ✅, KI-48 ✅ |
 | [Chat Window](../chat/chat-window.md) | KI-9 ✅, KI-24 ◐, KI-34, KI-38 |
 | [Chat Settings](../chat/chat-settings.md) | KI-8 ✅, KI-11 ✅, KI-14 (intended), KI-49 ✅ |
 | [Event Reactions](../chat/event-reactions.md) | KI-2 ✅, KI-26 |
 | [Twitch](../platforms/twitch.md) | KI-2 ✅, KI-21 ◐, KI-33, KI-51 |
-| [Kick](../platforms/kick.md) | KI-13 ✅, KI-19 ✅, KI-21 ◐, KI-31, KI-53 |
-| [YouTube](../platforms/youtube.md) | KI-9 ✅, KI-21 ◐, KI-31, KI-47, KI-53 |
+| [Kick](../platforms/kick.md) | KI-13 ✅, KI-19 ✅, KI-21 ◐, KI-31, KI-53 ◐ |
+| [YouTube](../platforms/youtube.md) | KI-9 ✅, KI-21 ◐, KI-31, KI-47, KI-53 ◐ |
 | [Discord](../platforms/discord.md) | KI-24 ◐ (Discord half superseded), KI-34 ◐, KI-35 ✅, KI-36, KI-38, KI-39 ✅, KI-40, KI-41, KI-43 ✅, KI-44, KI-45, KI-46, KI-52, KI-53 |
 | [Platform Dashboards](../platforms/dashboards.md) | KI-36 (per-bot RECONNECT token; dashboard-tab half resolved) |
 | [Multi-Platform Parity](../platforms/multi-platform.md) | KI-31, KI-52, KI-53 |
-| [TikTok & OBS](../platforms/tiktok-discord-obs.md) | KI-17 ✅, KI-24 ◐ |
-| [TikTok](../platforms/tiktok.md) | KI-24 ◐ (all surfaces honest coming-soon) |
+| [TikTok & OBS](../platforms/tiktok-discord-obs.md) | KI-17 ✅, KI-24 ◐, KI-56 |
+| [TikTok](../platforms/tiktok.md) | KI-24 ◐ (all surfaces honest coming-soon), KI-56 |
 | [Profiles](../getting-started/profiles.md) | KI-11 ✅, KI-15 ✅, KI-20 ✅ |
 | [API, Web Server & ngrok](../settings/web-server-ngrok.md) | KI-10 ✅, KI-13 ✅, KI-22 ✅ |
 | [App Shell](../home/app-shell.md) | KI-17 ✅ |
@@ -460,6 +463,24 @@ The auto-moderator's **Delete** verdict on Twitch needs the offending message's 
 
 `DiscordMemberJoinedEvent` / `DiscordBoostEvent` and their reactions + `discordmemberjoined` / `discordboost` workflow triggers are wired end to end, but the gateway deliberately does **not** request the privileged **GuildMembers** intent: `GUILD_MEMBER_ADD` / `GUILD_MEMBER_UPDATE` only arrive with it, and IDENTIFYing an intent that is not toggled in the Discord Developer Portal ("Server Members Intent") is rejected with close code **4014 — which would drop all Discord connectivity for every bot**. Turning the events on therefore requires the portal toggle **and** the code-side intent flag; until then the feature is dormant by design, not broken. The per-bot **Welcome & Auto-Role** card (added 2026-11-07, wave 6 — message + role grant on join, settings persisted per bot under `DiscordBot.{botId}.WelcomeSettings`) is the first user-facing consumer of the join event, so it rides this gate too: the card configures and saves fine, but joins never arrive until the intent is enabled. Documented on [Discord](../platforms/discord.md#member-joins--boosts-intent-gated) and [Discord → Welcome & Auto-Role](../platforms/discord.md#welcome--auto-role).
 
-### KI-53 (Limitation) — Auto-mod enforcement is notice-only on Kick and YouTube
+### KI-53 (◐ partially resolved) — Auto-mod enforcement per-platform degradation
 
-The cross-platform moderation engine runs everywhere, but enforcement degrades per platform (the Moderator dashboard renders this parity live): **Twitch** — full native enforcement (Helix timeout/ban; delete degrades per KI-51); **Discord** — ban and timeout native, but no delete-by-id/by-author API is exposed, so a Delete verdict degrades to a warning notice; **Kick** — notice-only (the moderation webhooks are inbound notifications, not outbound actions — ban/timeout/delete all degrade to a warn notice); **YouTube** — notice-only (`IYouTubeService` has no per-viewer action API); **TikTok** — no adapter at all (verdicts are logged only). All verdicts are logged and audited regardless of level. Documented in the [Moderator Guide](../architecture/moderator-guide.md#auto-mod-platform-parity) and [Multi-Platform Parity](../platforms/multi-platform.md).
+The cross-platform moderation engine runs everywhere, but enforcement degrades per platform (the Moderator dashboard renders this parity live): **Twitch** — full native enforcement (Helix timeout/ban; delete degrades per KI-51); **Discord** — ban and timeout native, but no delete-by-id/by-author API is exposed, so a Delete verdict degrades to a warning notice; **Kick** — ◐ upgraded to full native enforcement (Wave 9, 2026-11-07: Kick API v1 ban/timeout with the `moderation:ban` scope + message delete with `moderation:chat_message:manage`; Kick tokens granted before Wave 9 must re-run the Kick setup once or deletes 403 and degrade); **YouTube** — ◐ upgraded to delete-native (Wave 9: `liveChatMessages.delete`; the public Data API has no chat ban/timeout endpoint — `liveChatModerators.insert` appoints moderators, it does not ban — so Ban/Timeout verdicts degrade to a delete, then a warn notice); **TikTok** — no adapter at all (verdicts are logged only). All verdicts are logged and audited regardless of level. Documented in the [Moderator Guide](../architecture/moderator-guide.md#auto-mod-platform-parity) and [Multi-Platform Parity](../platforms/multi-platform.md).
+
+---
+
+## Newly-documented limitations (2026-11-07 release-wave pass)
+
+Known-and-shipping boundaries confirmed against the code during the wave-9 documentation release pass — each was already documented on its feature page and now has a ledger entry so the cross-reference index is complete.
+
+### KI-54 (Limitation) — Statistics has no charts; everything renders as DataGrids
+
+The Statistics page presents its event counts, per-event top contributors, and all-time top users as **plain data grids** — there are no chart visualizations anywhere on the page. The data layer is already chart-ready: `GetEventCountsByDateAsync` produces per-day buckets and `GetUserStatisticsAsync` exists on `IDataService`, but no UI consumes either (StatisticsViewModel loads only the grid shapes plus the CSV export). Documented on [Statistics](../stream-tools/statistics.md).
+
+### KI-55 (Limitation) — No global-hotkey soundboard
+
+There is no soundboard: sounds fire only from the fourteen mapped chat events (Kick/Twitch follow/sub/giftsub/host/kicks_gifted/redemption/raid/cheer/resub families), the Sounds page's Test buttons, and [Event Testing](../chat-features/event-testing.md) — there is no global-hotkey system, no keyboard shortcut to fire a sound at will, and no command-triggered sound playback. A streamer wanting manual sound cues uses the Test buttons or event testing. Documented on [Sounds](../stream-tools/sounds.md).
+
+### KI-56 (Limitation) — TikTok has no chat integration (identity only)
+
+TikTok is a first-class platform *identity* (account linking, the multi-platform bonus, Vyral Goals, giveaway platform lists) but has **no live chat integration**: the setup wizard is a cosmetic stub whose finish writes an honest `Status="Coming Soon"` row, no TikTok chat service exists to produce messages or events, and nothing can be sent to TikTok. Consequences: TikTok viewers cannot generate or redeem link codes, no commands/auto-replies/moderation run there, and auto-mod has no adapter (KI-53's "None" row). Documented on [TikTok](../platforms/tiktok.md) and [TikTok & OBS](../platforms/tiktok-discord-obs.md).

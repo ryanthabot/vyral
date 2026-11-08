@@ -108,6 +108,21 @@ The builder needs a connected bot and a configured mod channel — it tells you 
 - **Viewer profiles** — open a viewer's [profile window](../chat-features/viewer-profiles.md) (click their username in chat) and its moderation section lists the actions recorded against them, so "why was this person muted?" is answerable without leaving the app.
 - **Discord itself** — the mod channel keeps the full scroll-back of commands and replies, private to your mod role.
 
+### The auto-mod rules (Moderator page)
+
+Below the mod-system cards, the Moderator page also configures the **cross-platform auto-moderator** — the rule engine that watches every chat message (`ChatModerationEngine`). The **Auto-Mod Rules** card is a grid of rule rows (Banned Words, Links, Caps, Emojis, Repeated Message, ASCII Art — each with threshold, action, timeout, and an Enabled switch), uniform exemptions (**Moderators / VIPs / Subscribers** checkboxes; the broadcaster is always exempt), a **Platforms** filter (comma-separated, empty = all), an escalation ladder (strikes → timeout → ban), a **Save auto-mod rules** button, and a **Test** box that runs a message against the live rules without saving anything.
+
+Four side-by-side text areas configure the word-level lists (one entry per line):
+
+| Text area | What it does |
+|---|---|
+| **Link allowlist** (one domain per line) | Domains that never count as links for the Links rule. |
+| **Banned words / phrases** (one per line) | Single words match as **whole words** (case-insensitive, separator-aware boundaries); multi-word entries match as **substrings** anywhere in the message. |
+| **Word allowlist** (one per line — never banned) | **Word-level exceptions to the banned-words rule**: a word on this list is never a violation, even when the identical word also appears in the banned list. The engine checks it at the match site — a banned-word hit is dropped when the word is allowlisted (`ChatModerationEngine.cs:263`). It applies to **single whole-word matches only**: it does not rescue a message containing a banned multi-word *phrase*, and it has no effect on the Links rule (domains use the Link allowlist above). |
+| **Exempt users** (one per line) | Users the entire rule engine skips. |
+
+The lists persist with the rule set (per profile) and normalize on save (case-insensitive, blanks dropped). Enforcement of a verdict (delete/timeout/ban/warn) then depends on the platform — see the parity table below.
+
 ## How It Works (Developer)
 
 - **`ModTiers`** (`VyralBot.Core/Services/Moderation/ModTiers.cs`) is the static, single source of truth for the ladder: four cumulative arrays (TrialMod → Mod → SeniorMod → Admin) compiled into a command→minimum-rank map. `CanRun(tier, command)`, `MinimumTier(command)`, `Rank`, and `NormalizeTier` are the only gate logic; tier strings are compared case-insensitively.
@@ -118,17 +133,17 @@ The builder needs a connected bot and a configured mod channel — it tells you 
 
 ### Auto-mod platform parity
 
-The **auto-moderator** (`ModerationActionService`, `VyralBot.Core/Services/Moderation/`) executes rule-engine verdicts against per-platform adapters with graceful degradation: a platform without a needed API falls back through timeout → delete → warn, and a platform with no adapter at all is still logged. Since the Twitch Helix work (2026-11-07), enforcement is no longer notice-only on the big two. The Moderator dashboard renders this parity card live from `ModerationPlatformParity.Snapshot` (audit table merged with actual adapter registration), so what you see is what the build can do:
+The **auto-moderator** (`ModerationActionService`, `VyralBot.Core/Services/Moderation/`) executes rule-engine verdicts (from the rules card above) against per-platform adapters with graceful degradation: a platform without a needed API falls back through timeout → delete → warn, and a platform with no adapter at all is still logged. Since the Twitch Helix work (2026-11-07) and the Kick/YouTube work (Wave 9, same day), enforcement is native on four of the five platforms. The Moderator dashboard renders this parity card live from `ModerationPlatformParity.Snapshot` (audit table merged with actual adapter registration), so what you see is what the build can do:
 
 | Platform | Enforcement level | What actually happens |
 |---|---|---|
 | **Twitch** | **Full** | `TwitchModerationAdapter` enforces ban / timeout / delete natively via Helix (`POST /moderation/bans`, `DELETE /moderation/chat`). The chat pipeline does not parse IRC message ids yet, so a Delete without a message id degrades to a **1-second timeout** — a timeout purges the sender's messages, which still removes the offending line. |
 | **Discord** | **Full** | `DiscordModerationAdapter` enforces **ban + timeout** by username (timeouts are minute-granular, rounded up, minimum 1). No delete-by-id/by-author API is exposed, so Delete verdicts degrade to a warning notice in the selected channel. |
-| **Kick** | **Notice-only** | `KickModerationAdapter` posts warn notices; the moderation webhooks ([Web Server & ngrok](../settings/web-server-ngrok.md)) are inbound notifications, not outbound actions — ban/timeout/delete degrade to warn. |
-| **YouTube** | **Notice-only** | `YouTubeModerationAdapter` posts warn notices; the YouTube service is connect/send + stream info only — ban/timeout/delete degrade to warn. |
+| **Kick** | **Full** | `KickModerationAdapter` enforces **ban / timeout / delete** natively via Kick's public API v1 (`POST /v1/moderation/bans`, `DELETE /v1/channels/chat/messages/{id}`), id-based through the broadcaster's token. Ban/timeout need the `moderation:ban` scope (requested since launch); message delete needs `moderation:chat_message:manage` — if your Kick connection predates that scope, re-run the Kick setup once and deletes work. The moderation webhooks ([Web Server & ngrok](../settings/web-server-ngrok.md)) remain inbound notifications. |
+| **YouTube** | **Full (delete)** | `YouTubeModerationAdapter` **deletes offending messages** natively via `liveChatMessages.delete` (covered by the `youtube.force-ssl` scope the setup already requests). The public YouTube Data API has **no chat ban/timeout endpoint** — `liveChatModerators.insert` appoints moderators, it does not ban — so Ban/Timeout verdicts degrade to a delete, then to a warning notice. |
 | **TikTok** | **None** | No chat service integration exists (web setup only) — auto-mod verdicts are logged only. |
 
-This table is the code's own audit-truth (`ModerationPlatformParity.Table` in ModerationActionService.cs); the dashboard card colors the level badge green (Full) / amber (Notice-only) / red (None). The degradation edges are tracked in the [known issues ledger](../reference/known-issues.md) — Twitch's delete-to-purge-timeout fallback is KI-51, the notice-only levels and Discord's delete-to-notice fallback are KI-53.
+This table is the code's own audit-truth (`ModerationPlatformParity.Table` in ModerationActionService.cs); the dashboard card colors the level badge green (Full) / amber (Notice-only) / red (None). The degradation edges are tracked in the [known issues ledger](../reference/known-issues.md) — Twitch's delete-to-purge-timeout fallback is KI-51, Discord's delete-to-notice fallback is KI-53; Kick/YouTube were upgraded from KI-53's notice-only set in Wave 9 (Kick delete's one-time re-auth for pre-Wave-9 tokens remains a live edge).
 
 ## Data & Settings
 

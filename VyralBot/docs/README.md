@@ -186,6 +186,7 @@ Where the major subsystems live and which doc covers them:
 | [ui/settings-viewmodels.md](ui/settings-viewmodels.md) | Sub-setting ViewModels |
 | [ui/settings-views-xaml.md](ui/settings-views-xaml.md) | Settings XAML views |
 | [ui/profile-selector.md](ui/profile-selector.md) | Profile selector |
+| [ui/data-management.md](ui/data-management.md) | Settings → Data Management (storage, inventory, backup/import) |
 | [ui/converters.md](ui/converters.md) | Value converters |
 | [ui/converters-reference.md](ui/converters-reference.md) | Converter reference |
 | [ui/dialogs-and-modals.md](ui/dialogs-and-modals.md) | Dialogs |

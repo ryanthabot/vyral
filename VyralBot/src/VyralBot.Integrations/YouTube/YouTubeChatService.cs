@@ -456,6 +456,53 @@ public class YouTubeChatService : IYouTubeService, IDisposable
 
     #endregion
 
+    #region Message Moderation
+
+    /// <inheritdoc />
+    public async Task<bool> DeleteMessageAsync(string messageId)
+    {
+        if (!_isConnected)
+        {
+            _logger.LogDebug("YouTube message delete skipped — not connected");
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(messageId))
+        {
+            _logger.LogDebug("YouTube message delete requested without a message id — nothing to delete");
+            return false;
+        }
+
+        try
+        {
+            await EnsureTokenFreshAsync();
+
+            // DELETE /liveChat/messages only needs the (globally unique)
+            // message id — no liveChatId required, so deletes work even while
+            // waiting for the next broadcast. youtube.force-ssl (the wizard's
+            // scope) covers it; the token's channel must own the chat.
+            var url = $"{YouTubeApiBase}/liveChat/messages?id={Uri.EscapeDataString(messageId)}";
+            var (statusCode, body, success) = await SendYouTubeApiAsync(HttpMethod.Delete, url, jsonBody: null);
+
+            if (!success)
+            {
+                _logger.LogWarning("⚠️ YouTube message delete failed (status={Status}, message={MessageId}): {Body}",
+                    (int)statusCode, messageId, body);
+                return false;
+            }
+
+            _logger.LogInformation("🗑️ Deleted YouTube live chat message {MessageId}", messageId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "❌ Exception deleting YouTube live chat message {MessageId}", messageId);
+            return false;
+        }
+    }
+
+    #endregion
+
     #region Polling
 
     private async Task PollLoopAsync(CancellationToken ct)

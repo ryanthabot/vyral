@@ -27,6 +27,24 @@ Connect Twitch or Kick on the [Platforms](overview.md) page; a matching button a
 
 Panels are separated by `GridSplitter`s you can drag to resize. The preview panel can be hidden with the × in its header.
 
+### The quick actions (what each button actually calls)
+
+Every button routes through one service — `StreamActionsService` (`VyralBot.UI/Services/StreamActionsService.cs`) — which guards on the platform connection, runs the call, and maps the outcome (or exception) to a result surfaced in the status line and the Activity Feed. Nothing ever throws to the UI. The Twitch buttons are real **Helix API** calls on the connected bot/broadcaster account:
+
+| Button (panel) | Twitch Helix action | Notes |
+|---|---|---|
+| **APPLY** — Edit Stream Info (Stream Management) | `EditChannelInfoAsync` (PATCH `channels`) | Needs a new title or category first; blank fields are left unchanged |
+| **Add Marker** (Stream Management) | `CreateStreamMarkerAsync` (`POST /streams/markers`) | Optional description not exposed — sends none |
+| **Clip That** (Stream Management) | `CreateClipAsync` (`POST /clips`) | Creates the clip at the current moment |
+| **Raid… → GO** (Stream Management) | `RaidChannelAsync` (`POST /raids`) | Requires a target channel name |
+| **Unraid** (Stream Management) | `StopRaidAsync` (`DELETE /raids`) | Cancels an in-flight raid |
+| **Clear Chat** (Chat Moderation) | `ClearChatAsync` (`DELETE /moderation/chat`) | Purges the whole chat window |
+| **Emote Only** (Chat Moderation, toggle) | `SetChatModeAsync(emoteOnly: …)` (`PATCH /chat/settings`) | Toggle reverts on failure so the switch shows the real state |
+| **Follower Only** (Chat Moderation, toggle) | `SetChatModeAsync(followerOnly: …)` (`PATCH /chat/settings`) | Same failure-revert behavior |
+| **Shield Mode** (Chat Moderation, toggle) | `SetShieldModeAsync` (`PATCH /shield_mode`) | Same failure-revert behavior |
+
+The three moderation toggles are **read back** after a successful flip (`GetChatModeStateAsync` → `RefreshChatSettingsAsync`), so the switches settle on what Twitch actually reports. The Kick panel's buttons (Clear Chat, Emote Only, Follower Only, Slow Mode) go through the same service as documented mod chat commands sent by the bot account, and the YouTube dashboard's stream-info/chat actions go through the `liveBroadcasts` API — per-platform details in [Kick](kick.md) and [YouTube](youtube.md). The auto-moderator's per-platform *enforcement* capability (a different system) is the parity table in the [Moderator Guide](../architecture/moderator-guide.md#auto-mod-platform-parity).
+
 ### The stream preview
 
 Click **SHOW PREVIEW** and the app creates a WebView2 on the spot and loads the public player for your own channel — `https://player.twitch.tv/?channel={name}&parent=localhost` or `https://player.kick.com/{name}?parent=localhost`. Audio plays (the URL is loaded with `muted=false`). Click the floating × over the preview to close it; the WebView2 is disposed immediately and its memory reclaimed. The preview is deliberately **not** created until you ask — an idle dashboard spawns zero browser processes.
@@ -80,6 +98,7 @@ The status card that isn't: `Status` is an `[ObservableProperty]` diligently mai
 | [DiscordDashboardViewModel.cs](../../src/VyralBot.UI/ViewModels/DiscordDashboardViewModel.cs) | Single-bot (setup bot) Discord dashboard: status, guild list with member counts, per-guild text-channel drop-downs, active-channel picker, test message — hosted as the **DASHBOARD** tab on the Discord Bots page |
 | [DiscordBotDetailViewModel.cs](../../src/VyralBot.UI/ViewModels/DiscordBotDetailViewModel.cs) | Per-bot dashboard: start/stop/reconnect, guild snapshot, per-bot active-channel picker, owner-ping test — no WebView2 |
 | [DiscordBotDetailView.xaml](../../src/VyralBot.UI/Views/DiscordBotDetailView.xaml) | Two-card layout per bot: connection status (bound, visible) + servers/channel list |
+| [StreamActionsService.cs](../../src/VyralBot.UI/Services/StreamActionsService.cs) | The quick-action backend: Twitch via Helix, Kick via mod chat commands, YouTube via liveBroadcasts — every failure returns a result, never throws |
 | [MainViewModel.cs](../../src/VyralBot.UI/ViewModels/MainViewModel.cs) | `NavigateToTwitchSettingsAsync` / `NavigateToKickSettingsAsync` (`2150`, `:2216`) — misleadingly named; `NavigateToDiscordBotsAsync` (`2286`) + `NavigateToDiscordBotDetailAsync` (`2330`) — honestly named |
 | [MainWindow.xaml](../../src/VyralBot.UI/MainWindow.xaml) | Connected-only Twitch/Kick sidebar entries (`264-281`, bound to `IsTwitchConnected`/`IsKickConnected`); always-visible Discord entry (`301-311`); dashboard/bots DataTemplates |
 

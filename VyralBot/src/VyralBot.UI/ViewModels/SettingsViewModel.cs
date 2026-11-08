@@ -849,7 +849,28 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
         if (_profileToDelete == null) return;
 
         _logger.LogInformation("User clicked: Confirm Delete Profile '{ProfileName}'", _profileToDelete.Name);
-        
+
+        // PIN-protected profiles require their PIN before deletion (the
+        // profile's data can hold tokens and currency balances).
+        if (!string.IsNullOrEmpty(_profileToDelete.PinCode))
+        {
+            var pin = PromptForDeletePin(_profileToDelete.DisplayName);
+            if (pin == null)
+            {
+                _logger.LogInformation("Profile deletion cancelled at PIN prompt for profile {Profile}", _profileToDelete.Name);
+                ShowDeleteConfirmation = false;
+                return;
+            }
+
+            if (!await _profileService.ValidatePinAsync(_profileToDelete.Name, pin))
+            {
+                _logger.LogWarning("Incorrect PIN entered when deleting profile {Profile}", _profileToDelete.Name);
+                StatusMessage = "Incorrect PIN. Profile not deleted.";
+                ShowDeleteConfirmation = false;
+                return;
+            }
+        }
+
         try
         {
             _logger.LogInformation("Deleting profile: {ProfileName}", _profileToDelete.Name);
@@ -2040,4 +2061,92 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
     {
         _viewerHubViewModel.Cleanup();
     }
+    /// <summary>
+    /// Themed PIN prompt for deleting a PIN-protected profile (mirrors
+    /// ProfileSelectorViewModel.PromptForDeletePin). Returns the entered PIN
+    /// or null when cancelled.
+    /// </summary>
+    private static string? PromptForDeletePin(string displayName)
+    {
+        var title = new System.Windows.Controls.TextBlock
+        {
+            Text = "PIN Required",
+            FontSize = 16,
+            FontWeight = System.Windows.FontWeights.SemiBold,
+            Margin = new System.Windows.Thickness(0, 0, 0, 8)
+        };
+        title.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextPrimaryBrush");
+
+        var message = new System.Windows.Controls.TextBlock
+        {
+            Text = $"'{displayName}' is PIN-protected. Enter its PIN to delete the profile.",
+            FontSize = 12,
+            TextWrapping = System.Windows.TextWrapping.Wrap,
+            Margin = new System.Windows.Thickness(0, 0, 0, 4)
+        };
+        message.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextSecondaryBrush");
+
+        var passwordBox = new System.Windows.Controls.PasswordBox
+        {
+            MaxLength = 6,
+            FontSize = 14,
+            Padding = new System.Windows.Thickness(8),
+            Margin = new System.Windows.Thickness(0, 8, 0, 0)
+        };
+        passwordBox.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "CardBackgroundBrush");
+        passwordBox.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextPrimaryBrush");
+        passwordBox.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "BorderLightBrush");
+
+        var deleteButton = new System.Windows.Controls.Button
+        {
+            Content = "Delete",
+            Width = 100,
+            IsDefault = true,
+            Padding = new System.Windows.Thickness(0, 8, 0, 8)
+        };
+        var cancelButton = new System.Windows.Controls.Button
+        {
+            Content = "Cancel",
+            Width = 100,
+            IsCancel = true,
+            Padding = new System.Windows.Thickness(0, 8, 0, 8),
+            Margin = new System.Windows.Thickness(0, 0, 8, 0)
+        };
+        foreach (var button in new[] { deleteButton, cancelButton })
+        {
+            button.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "CardBackgroundBrush");
+            button.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextPrimaryBrush");
+            button.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "BorderLightBrush");
+        }
+
+        var buttons = new System.Windows.Controls.StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+            Margin = new System.Windows.Thickness(0, 16, 0, 0)
+        };
+        buttons.Children.Add(cancelButton);
+        buttons.Children.Add(deleteButton);
+
+        var panel = new System.Windows.Controls.StackPanel { Margin = new System.Windows.Thickness(16) };
+        panel.Children.Add(title);
+        panel.Children.Add(message);
+        panel.Children.Add(passwordBox);
+        panel.Children.Add(buttons);
+
+        var window = new System.Windows.Window
+        {
+            Title = "PIN Required",
+            Width = 360,
+            SizeToContent = System.Windows.SizeToContent.Height,
+            WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
+            Owner = System.Windows.Application.Current?.MainWindow,
+            ResizeMode = System.Windows.ResizeMode.NoResize,
+            Content = panel
+        };
+        window.SetResourceReference(System.Windows.Window.BackgroundProperty, "BackgroundPrimaryBrush");
+
+        return window.ShowDialog() == true ? passwordBox.Password : null;
+    }
+
 }

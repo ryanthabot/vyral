@@ -105,4 +105,4 @@ There are no statistics-specific settings. The same table backs the [Event Histo
 - **The Platform filter applies to every section** — event-count grid, Top Contributors, and Top Users (fixed 2026-08-15).
 - **Event-type filter offers a fixed list** — All, follow, subscribe, giftsub, raid, cheer, host (`StatisticsViewModel.cs:48`); other event types (resub, reward redeems, stream status) are recorded but not selectable in the filter.
 - **Aggregation is client-side** — up to 10,000 rows (100,000 for export) are pulled and grouped in memory rather than aggregated in SQL; fine for realistic volumes, worth knowing for very large datasets.
-- **Per-day chart data is implemented but unreachable** — `GetEventCountsByDateAsync` has no UI consumer.
+- **Per-day chart data is implemented but unreachable** — `GetEventCountsByDateAsync` has no UI consumer; the page renders DataGrids only, with no chart visualizations (KI-54). [known issues ledger](../reference/known-issues.md)
