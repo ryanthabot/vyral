@@ -9,7 +9,8 @@ All notable changes to VyralBot are documented here. The format follows
 A major stability, security and feature release: every page was audited,
 the theme is now consistent across the whole app, moderation and currency got
 real enforcement, platform events (Channel Points, Super Chat) went live, and
-secrets are now encrypted on your disk. 676 automated tests.
+secrets are now encrypted on your disk. New users get a guided "Get started"
+strip on Home and eight starter workflow templates. 771 automated tests.
 
 ### Added
 
@@ -19,6 +20,10 @@ secrets are now encrypted on your disk. 676 automated tests.
 - **Auto-moderation** — a built-in moderation engine with six rule types,
   escalation and exemptions, working across all live platforms. Twitch now
   enforces timeouts, bans and message deletions; Discord enforces natively.
+- **Auto-mod on Kick and YouTube** — Kick now enforces timeouts, bans and
+  message deletions too (one re-auth to grant the new moderation permission);
+  YouTube deletes messages (its API offers no public ban, so bans degrade to
+  a warning).
 - **Twitch Channel Points** — custom reward redemptions now trigger alerts,
   stats, auto-replies, chat lines and workflows.
 - **YouTube Super Chats** — amounts and currency show in chat (cheer-style),
@@ -32,14 +37,36 @@ secrets are now encrypted on your disk. 676 automated tests.
   to the user who invoked them.
 - **Command timers** — schedule recurring commands, optionally gated to only
   fire when chat is active (minimum messages between runs).
+- **Discord scheduled messages** — recurring announcements each bot posts on
+  a timer while connected, with `{time}`/`{date}` variables and a 5-minute
+  minimum interval (up to 25 per bot).
+- **Discord command channels** — limit a bot's commands to the channels you
+  pick; messages anywhere else are ignored (moderators are never restricted).
 - **Event Testing page** — fire any of 17 test events (follow, sub, raid,
   Super Chat, redemption and more) to try out alerts, sounds and workflows.
+- **Get started strip** — a dismissible three-step guide on Home (connect a
+  platform → set up alerts → import a workflow template) that hides itself
+  once any platform connects.
+- **Workflow templates** — eight ready-made starter workflows (follow, sub,
+  raid, reward redemption, Super Chat, hello command, timer, warn) on the
+  Automation page's TEMPLATES panel; each imports disabled so you can edit
+  it before it goes live.
 - **Control API** — read live status, today's stats and the app version, and
   fire test events over HTTP. Protected by a Bearer token.
 - **Commands page upgrades** — duplicate a command, search, per-platform
   columns and sortable usage / last-used.
 - **Chat appearance** — text size controls, timestamp toggle, membership
   sound, and a friendly empty state.
+- **Sounds upgrades** — a master-volume slider (applies to every event sound,
+  including the browser source), per-sound preview play, durations in the
+  list, and drag-and-drop import for `.wav` / `.mp3` / `.ogg` / `.m4a`.
+- **CSV export** — Statistics and Event History can export the current
+  filtered view to an Excel-friendly CSV file.
+- **Restream bandwidth guardrail** — a warning when your destinations'
+  combined bitrate exceeds 80% of your configured uplink budget, plus a
+  dropped-frames column per destination.
+- **Profile backup import** — an Import Profile Backup button next to export
+  (it never overwrites an existing profile).
 - **Workflow canvas tools** — rubber-band selection, multi-select delete and
   drag, copy/paste (Ctrl+C/V) and middle-drag panning.
 - **Command platform filter** — a command or workflow can be limited to only
@@ -50,6 +77,9 @@ secrets are now encrypted on your disk. 676 automated tests.
 ### Fixed
 
 - Alerts now fire every time — a stuck queue could silently skip them.
+- **Profile switching** no longer carries the old profile with you: currency
+  caches are invalidated, the sounds folder is swapped, and a running restream
+  is stopped (previously the old profile's data could leak into the new one).
 - A failed page navigation restores the previous page instead of a blank
   screen.
 - **Restream**: hang on exit, duplicated stream-key URLs, per-destination
@@ -59,18 +89,24 @@ secrets are now encrypted on your disk. 676 automated tests.
   automatic reconnection for remote OBS connections (with re-authentication).
 - **Currency**: double-spending, auction double refunds, watchtime over-awards
   after a restart, bank withdrawal cooldowns and account race conditions.
+- **Giveaways**: a timed flush could briefly resurrect an already-closed
+  giveaway.
 - **Discord**: connection cards now show the real status after a network
   loss; deleting a bot cleans up its commands, timers, roles and channels;
-  stale connections are cleaned up.
+  stale connections are cleaned up; the scheduled-message scheduler can no
+  longer post a stale message that was being edited.
 - **Workflows**: Wait steps no longer fail when a run is cancelled; runs now
   cancel cleanly when a workflow is deleted or disabled, or when you switch
   profile; invalid canvas connections are rejected.
 - **Memory** — eight leaks and log floods fixed, including capped chat
-  history, so long streams no longer grow memory without bound.
+  history, so long streams no longer grow memory without bound; final
+  review caught one more (a YouTube live-state subscription that survived
+  disconnects).
 - The Auto-Replies toggle is now respected on Kick, YouTube, TikTok and
   Discord (it previously only worked on Twitch).
 - Sounds: volume is now honored for `.wav` files; each profile gets its own
-  sounds folder.
+  sounds folder; the browser-source audio page reconnects reliably after a
+  disconnect.
 - Marketplace imports can no longer corrupt command routing with dangling
   entries; imported settings round-trip without losing fields.
 - Startup is 1–3 seconds faster.
@@ -87,6 +123,8 @@ secrets are now encrypted on your disk. 676 automated tests.
   posting a notice in chat.
 - Stream keys, bot tokens, API keys and the ingest stream key are masked in
   the UI.
+- Exporting a profile now warns that its encrypted secrets only restore on
+  the machine that created them.
 - Log volume during chat traffic was reduced to keep logs readable.
 
 ### Security
@@ -95,6 +133,11 @@ secrets are now encrypted on your disk. 676 automated tests.
   Windows DPAPI (existing files are re-encrypted automatically).
 - Crash reports automatically scrub tokens, keys and other secrets.
 - Kick webhooks now have replay protection and a payload size cap.
+- **Restream's bundled FFmpeg download** is pinned to a versioned artifact
+  and verified with SHA256 before use, with a disk-space preflight and
+  automatic retries.
+- Deleting a PIN-protected profile now asks for the PIN first (masked
+  prompt, both deletion paths).
 - The Control API requires a Bearer token, rejects oversized bodies, and
   denies cross-origin requests by default.
 - The audio-websocket endpoint checks origins and caps connections.

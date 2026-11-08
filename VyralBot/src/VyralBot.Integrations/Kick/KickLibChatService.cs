@@ -572,6 +572,17 @@ public class KickLibChatService : IKickService, IDisposable
     {
         var sub = e.Data;
 
+        // Cross-transport dedup (see KickEventRouting): when a channel.subscription.*
+        // webhook subscription also exists in the Kick dev portal, the webhook processor
+        // publishes the same sub (KickSubscribeEvent + chat line). The second transport
+        // to see the event skips it to avoid duplicate alerts and double currency.
+        var subDedupKey = $"sub:{sub.Username?.Trim().ToLowerInvariant()}";
+        if (!KickEventRouting.TryBeginEvent(subDedupKey))
+        {
+            _logger.LogInformation("🔔 Subscription event for {Username} already delivered via webhook - skipping duplicate", sub.Username);
+            return;
+        }
+
         // Publish dedicated Subscribe event
         var subscribeEvent = new KickSubscribeEvent
         {
@@ -606,6 +617,15 @@ public class KickLibChatService : IKickService, IDisposable
     private void OnGiftedSubscription(object? sender, GiftedSubscriptionsEventArgs e)
     {
         var gift = e.Data;
+
+        // Cross-transport dedup: WebhooksController.ProcessSubscriptionGiftAsync publishes
+        // the same KickGiftSubEvent when a channel.subscription.gifts sub also exists.
+        var giftDedupKey = $"giftsub:{gift.GifterUsername?.Trim().ToLowerInvariant()}";
+        if (!KickEventRouting.TryBeginEvent(giftDedupKey))
+        {
+            _logger.LogInformation("🎁 Gift sub event from {Gifter} already delivered via webhook - skipping duplicate", gift.GifterUsername);
+            return;
+        }
 
         // Publish dedicated GiftSub event
         var giftSubEvent = new KickGiftSubEvent

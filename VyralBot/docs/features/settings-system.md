@@ -82,7 +82,18 @@ The `SettingsViewModel` uses `SelectedCategory` to switch between settings views
 
 - **"Profile"** — Profile management (create, switch, delete, PIN)
 - **"Platforms"** — Platform connection grid (Twitch, Kick, YouTube)
+- **"Notifications"** — master notification toggles (config-table backed, auto-saved on change)
 - Other categories handled by `OnSelectedCategoryChanged` partial method
+
+### Notifications category (config keys)
+
+| Key | Default | Effect (checked live at each render site) |
+|-----|---------|-------------------------------------------|
+| `Notifications.ShowEventsInChat` | `true` | Event messages (follows/subs/raids…) rendered in the chat feed; `ChatViewModel.ReloadEventDisplayToggleAsync()` re-reads it, and Settings calls that on save |
+| `Notifications.EventSoundsEnabled` | `true` | `SoundService.PlayEventSoundAsync` reads it on every playback |
+| `Notifications.DoNotDisturb` | `false` | Focus mode: mutes event sounds (`SoundService.PlayEventSoundAsync`) and overlay alerts (`AlertService.ShowAlertAsync` when `applySettings` is true); chat-feed messages unaffected. Alert Settings "Test Alert" (`applySettings: false`) still shows while on |
+
+The Notifications panel also has a **Preview Notification** button (`PreviewNotificationCommand`) that fires `ShowAlertAsync("New Follower!", …)` plus `PlayEventSoundAsync("follow", "Twitch")` through the real pipelines, so current toggles gate the preview; it reports in `StatusMessage` when do-not-disturb blocks it. There is no Windows toast/desktop-notification integration — all notification surfaces are in-app (chat feed, sounds, alert overlay).
 
 ---
 

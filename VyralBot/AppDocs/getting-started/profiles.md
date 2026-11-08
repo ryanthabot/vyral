@@ -78,9 +78,9 @@ Settings → Profile → General has an **Auto-Login** toggle with a **Save Sett
 
 All in Settings → Profile → Profile Management:
 
-- **Delete Profile** — asks for confirmation; the *current* profile cannot be deleted from here (switch away first). Deletion removes the profile's entire folder from disk.
+- **Delete Profile** — asks for confirmation; if the profile is PIN-protected, the PIN is requested first (masked prompt — enforced on both deletion paths, the Settings page and the selector window). The *current* profile cannot be deleted from here (switch away first). Deletion removes the profile's entire folder from disk.
 - **Export Profile** — zips the whole profile folder as a complete backup (database + credentials + metadata). From Profile Management this writes `<name>_backup.zip` straight to your Documents folder with no further questions; the **Settings → Data Management** export path picks the destination with a save dialog and — because the backup includes your saved platform logins, encrypted with Windows DPAPI **bound to this PC and this Windows user** — first shows a **machine-bound warning**: the credentials cannot be restored on another machine (or another Windows account), where you will need to reconnect Twitch, Kick, YouTube and Discord after importing. The Data Management completion message repeats the warning.
-- Importing a backup zip is implemented in the backend but currently has **no button anywhere** in the UI (see [known issues ledger](../reference/known-issues.md)).
+- **Import Profile Backup** — the **Settings → Data Management** card has an Import Profile Backup button that restores one of those zips. It refuses to overwrite an existing profile (pick a different name first); secrets only restore on the machine that created them, per the DPAPI warning above.
 
 Manual backup works too: everything lives in `appdata/`, so copying the folder *while the app is closed* is a full backup.
 
@@ -256,13 +256,13 @@ appdata/
 
 ## Status & Known Issues
 
-**Works**: creating, listing, selecting (with PIN), hot switching with full teardown/reload, Auto-Login, per-profile DB isolation, export to ZIP, delete + change PIN via the Settings page, fully portable storage, PBKDF2-hashed PINs with transparent legacy upgrade, and the padlock icon on the startup selector.
+**Works**: creating, listing, selecting (with PIN), hot switching with full teardown/reload (currency caches, sounds folder and a running restream are torn down too — no data leaks from the old profile), Auto-Login, per-profile DB isolation, export to ZIP, import from ZIP (Data Management), PIN-gated delete + change PIN, fully portable storage, PBKDF2-hashed PINs with transparent legacy upgrade, and the padlock icon on the startup selector.
 
 Honest caveats — details in the [known issues ledger](../reference/known-issues.md):
 
 - **PIN hashes are salted PBKDF2 now** (fixed 2026-08-15) — 100k iterations of PBKDF2-SHA256 with a per-profile salt and constant-time comparisons. The PIN remains a convenience lock rather than full-disk security (the profile data itself is unencrypted on disk), but it is no longer trivially brute-forceable from `profile.json`.
 - **No PIN format validation in the live UI** — the create/entry boxes only enforce `MaxLength=6`; nothing enforces digits or a 4-char minimum. The Settings change-PIN dialog does validate 4-6 digits.
-- **`ImportProfileAsync` has no UI caller** — exported backups cannot be restored through the app; unzip manually into `appdata/profiles/`.
-- **Dead code**: `ProfileSelectorWindow`/`ProfileSelectorViewModel` are a complete standalone selector (including delete-profile, which the live overlay lacks) that is never instantiated — only a DI registration remains (`App.xaml.cs:223`).
+- **Import is single-machine** — the Data Management import restores data fine, but DPAPI-encrypted secrets (platform logins) only survive on the machine that exported them; reconnect platforms after importing elsewhere.
+- **Dead code**: `ProfileSelectorWindow`/`ProfileSelectorViewModel` are a complete standalone selector (including delete-profile, which the live overlay lacks) that is never instantiated — only a DI registration remains (`App.xaml.cs:491`).
 - **Single instance enforced** (`VyralBot_SingleInstance_Mutex`, `App.xaml.cs:59`) — two profiles cannot run side by side.
 - Profile deletion is blocked for the current profile in Settings; deletion works by GC-pause + recursive folder delete and can fail if any file is still locked.

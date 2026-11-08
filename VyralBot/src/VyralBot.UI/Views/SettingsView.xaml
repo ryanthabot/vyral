@@ -1584,7 +1584,33 @@
                                                       Style="{StaticResource MaterialDesignSwitchToggleButton}"
                                                       VerticalAlignment="Center"
                                                       Margin="16,0,0,0"/>
-                                    </Grid>                                </StackPanel>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Do not disturb (focus mode)"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="Mutes event sounds and overlay alerts while on - chat-feed event messages are unaffected"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      IsChecked="{Binding DoNotDisturb}"
+                                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="16,0,0,0"/>
+                                    </Grid>
+                                    <Button Content="Preview Notification"
+                                            Command="{Binding PreviewNotificationCommand}"
+                                            Style="{StaticResource MaterialDesignOutlinedButton}"
+                                            HorizontalAlignment="Left"
+                                            Margin="0,4,0,0"/>
+                                </StackPanel>
                             </materialDesign:Card>
 
                             <TextBlock Text="Per-event toggles live on the Chat Hub (per platform), alert behavior on the Alert Settings page, and per-event sound files on the Sounds page."
@@ -2024,10 +2050,12 @@
                                                    Foreground="{DynamicResource TextMutedBrush}"
                                                    TextWrapping="Wrap"
                                                    Margin="0,0,0,8"/>
-                                        <TextBox Text="{Binding HueAppKey, UpdateSourceTrigger=PropertyChanged}"
-                                                 materialDesign:HintAssist.Hint="App key (username)"
-                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
-                                                 Margin="0,0,0,8"/>
+                                        <!-- App key masked like the other platform secrets
+                                             (PasswordBox is not bindable — see SettingsView.xaml.cs). -->
+                                        <PasswordBox x:Name="HueAppKeyBox"
+                                                     PasswordChanged="HueAppKeyBox_PasswordChanged"
+                                                     materialDesign:HintAssist.Hint="App key (username)"
+                                                     Margin="0,0,0,8"/>
                                         <Button Content="Load lights"
                                                 Command="{Binding LoadHueLightsCommand}"
                                                 Style="{StaticResource MaterialDesignRaisedButton}"
@@ -2069,10 +2097,11 @@
                                                  materialDesign:HintAssist.Hint="https://example.com/hook"
                                                  Style="{StaticResource MaterialDesignOutlinedTextBox}"
                                                  Margin="0,0,0,8"/>
-                                        <TextBox Text="{Binding WebhookToken, UpdateSourceTrigger=PropertyChanged}"
-                                                 materialDesign:HintAssist.Hint="Bearer token (optional)"
-                                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
-                                                 Margin="0,0,0,8"/>
+                                        <!-- Bearer token masked (PasswordBox — see SettingsView.xaml.cs). -->
+                                        <PasswordBox x:Name="WebhookTokenBox"
+                                                     PasswordChanged="WebhookTokenBox_PasswordChanged"
+                                                     materialDesign:HintAssist.Hint="Bearer token (optional)"
+                                                     Margin="0,0,0,8"/>
                                         <TextBlock Text="POSTs {action, color, times, intervalMs} JSON with an optional Bearer token — point it at Home Assistant, SmartThings, LIFX cloud, etc."
                                                    FontSize="11"
                                                    Foreground="{DynamicResource TextMutedBrush}"

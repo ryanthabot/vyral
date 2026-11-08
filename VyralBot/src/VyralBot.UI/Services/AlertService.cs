@@ -133,6 +133,18 @@ public class AlertService : IAlertService
 
             if (applySettings)
             {
+                // Focus mode / do-not-disturb (Settings → Notifications): one switch
+                // that mutes every intrusive notification surface (overlay alerts +
+                // event sounds). Checked per show so the toggle is live; the Alert
+                // Settings page's Test Alert passes applySettings=false and stays
+                // visible even while do-not-disturb is on.
+                var doNotDisturb = await _dataService.GetConfigValueAsync("Notifications.DoNotDisturb");
+                if (bool.TryParse(doNotDisturb, out var dnd) && dnd)
+                {
+                    _logger.LogDebug("Do-not-disturb active (Settings → Notifications) - skipping alert '{Title}'", title);
+                    return;
+                }
+
                 var settings = await GetAlertSettingsAsync();
 
                 if (!settings.AlertsEnabled)

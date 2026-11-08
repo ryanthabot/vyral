@@ -27,6 +27,7 @@ public static class BuiltInNodes
         registry.Register(new LockChannelNode());
         registry.Register(new WaitResponseNode());
         registry.Register(new HttpRequestNode());
+        registry.Register(new PlaySoundNode());
 
         // Command editor (legacy built-ins + moderation inside flows).
         registry.Register(new BuiltinCommandNode());

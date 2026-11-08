@@ -145,13 +145,15 @@ public sealed class DeckActionExecutor
             {
                 var times = int.TryParse(button.Param2, out var parsed) && parsed is > 0 and <= 10 ? parsed : 3;
                 var result = await Lights().FlashAsync(NullIfEmpty(button.Param1), times, 400).ConfigureAwait(false);
-                return new DeckActionResult(true, $"💡 {result}");
+                // Msg() keys off the provider's ✅/💡 prefix so "not
+                // configured" / bridge-offline come back as failures.
+                return Msg(result);
             }
             case DeckActionType.LightsPower:
             {
                 var on = !button.Param2.Trim().Equals("off", StringComparison.OrdinalIgnoreCase);
                 var result = await Lights().SetPowerAsync(on).ConfigureAwait(false);
-                return new DeckActionResult(true, $"💡 {result}");
+                return Msg(result);
             }
 
             // ── Advanced ─────────────────────────────────────────────────

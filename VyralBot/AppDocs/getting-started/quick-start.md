@@ -4,7 +4,15 @@
 
 ## What the first launch actually looks like
 
-There is no onboarding wizard, welcome carousel, or theme prompt on first run. Vyral opens the main window and immediately covers it with the **Select Your Profile** overlay — creating your first profile is the only way forward. The whole first-run experience is: **profile → connect a platform → chat**. Nothing else is forced on you.
+There is no onboarding wizard, welcome carousel, or theme prompt on first run. Vyral opens the main window and immediately covers it with the **Select Your Profile** overlay — creating your first profile is the only way forward.
+
+Once the profile loads, the Home dashboard shows a dismissible **Get started** strip with three steps — the same story this page walks through:
+
+1. **Connect a platform** — link Twitch, Kick, YouTube or Discord.
+2. **Set up alerts** — on-screen overlays in Events & Alerts.
+3. **Import a workflow template** — one click on the Automation page's TEMPLATES button.
+
+The strip is a guide, not a gate: it hides itself as soon as any platform connects, and the close button dismisses it for good (every page stays available in the sidebar). Nothing else is forced on you.
 
 ## Step 1 — Create your profile
 
@@ -19,7 +27,7 @@ Everything the bot will ever know (connections, commands, currency, chat history
 
 > **Optional now or later:** the app ships with a dark theme, but Settings → **Theme** is a full picker — nine built-in themes, a custom accent color builder, and brightness sliders, all applied live with no restart. There is deliberately no first-run theme prompt; nothing needs it.
 
-## Step 2 — Connect your first platform
+## Step 2 — Connect your first platform (strip step 1)
 
 Open **Platforms** in the sidebar (the Home dashboard's connection cards navigate to the same place). Each card opens that platform's wizard:
 
@@ -42,7 +50,17 @@ When the wizard finishes, two things tell you it worked without guessing:
 
 For Discord, pick the channel the bot should talk in first: **Discord → OPEN** on the bot's card → **SET ACTIVE CHANNEL** — until then the bot listens but has nowhere to speak.
 
-## Step 4 — Run your first command
+## Step 4 — Set up alerts (strip step 2)
+
+Make follows, subs and raids visible and loud before your first real stream:
+
+1. Open **Chat Features → Events & Alerts**. Under **Alert Events**, enable the events you want (**New Followers**, **New Subscribers**, **Gifted Subscriptions**, **Hosts**, **Raids**), then pick the animation style and screen position. **Test Alert** plays the overlay on the spot; **Save Settings** keeps it.
+2. Add sound on the **Sounds** page — drop an audio file onto the page (or use **Upload Sound**) and assign it to the chat events on the right.
+3. Want to try everything end-to-end? The [Event Testing](../chat-features/event-testing.md) page can fire 17 different test events at any time.
+
+Full details: [Visual Alerts](../stream-tools/visual-alerts.md) and [Sounds](../stream-tools/sounds.md).
+
+## Step 5 — Run your first command
 
 The bot ships with 21 built-in commands ([Command Catalog](../reference/command-catalog.md)) — no setup needed. From your own chat (or any moderator/viewer) type:
 
@@ -54,16 +72,26 @@ You should get a reply with your currency balance within a second — the same p
 
 You can also drive it from inside the app: type in the Chat window's send box and pick the platform under the input.
 
-## Step 5 — Make a command of your own
+## Step 6 — Make your first automation (strip step 3)
+
+Two paths — take the fast one first:
+
+**Path A — import a starter template (recommended):**
+
+1. Open **Chat Features → Automation** and press **TEMPLATES**.
+2. The **STARTER TEMPLATES** panel lists eight ready-made flows — *New Follower Thanks*, *Sub Appreciation*, *Raid Welcome*, *First-Time Chatter Greeting* and more, each with its trigger and platforms shown.
+3. Press **IMPORT** on one. It lands in your workflows **disabled**, so you can open it in the editor, tweak the message, and enable it when you're happy — nothing fires by surprise.
+
+**Path B — build a command from scratch:**
 
 1. Open **Chat Features → Commands** and click **NEW COMMAND**.
 2. The **visual flow editor** opens in a page overlay with a command trigger seeded. Give it a name (say `!discord`), drag in what it should do (a **📨 Send Message** block is enough for plain text — templates like `{username}` work), and press **SAVE**.
 
-That is the whole editing model now: *every* command — built-in or custom — opens in the same editor, and SAVE adopts it. See [Commands](../chat-features/commands.md) and the editor itself in [Automation](../chat-features/automation.md#visual-flow-editor).
+That is the whole editing model now: *every* command — built-in, custom, or imported from a template — opens in the same editor, and SAVE adopts it. See [Commands](../chat-features/commands.md), [Automation](../chat-features/automation.md) and the editor itself in [Automation → Visual Flow Editor](../chat-features/automation.md#visual-flow-editor).
 
 ## Where to go next
 
-- **Make follows/subs loud** — assign [sounds](../stream-tools/sounds.md) and [visual alerts](../stream-tools/visual-alerts.md) to events; try them safely from [Event Testing](../chat-features/event-testing.md).
+- **Put the bot to work while you sleep** — command timers on a schedule, and Discord bots can post scheduled recurring announcements: [Commands](../chat-features/commands.md), [Discord](../platforms/discord.md).
 - **Start a quote book** — mods add the best lines with `!quote add <text>` on any platform, viewers recall them with `!quote`, `!quote 42`, or `!quote search <text>`; manage the list on the Commands page's QUOTES tab: [Quotes](../chat-features/quotes.md).
 - **Borrow commands** — browse the community [Marketplace](../chat-features/marketplace.md) from the Commands page and import a ready-made flow.
 - **Link your viewers across platforms** — one `!link` code merges a viewer's Twitch/Kick/YouTube/Discord wallets for bonuses and goals: [Account Linking](../chat-features/account-linking.md).
@@ -72,5 +100,5 @@ That is the whole editing model now: *every* command — built-in or custom — 
 
 ## Status & Known Issues
 
-- This page describes onboarding as the app ships it — deliberately minimal (profile selector → Platforms hub). There is no first-run theme picker, demo wizard prompt, or guided tour; the [Demo Wizard](../home/demo-wizard.md) exists as a separate opt-in tool, not a first-run gate.
+- This page tracks the app's onboarding as it ships: profile selector → Home's dismissible three-step **Get started** strip → Platforms hub. There is no first-run theme picker or demo-wizard prompt; the [Demo Wizard](../home/demo-wizard.md) exists as a separate opt-in tool, not a first-run gate, and the Get started strip is a guide you can close — never a gate.
 - Twitch disconnect deletes its saved credentials (full wizard to reconnect), and YouTube needs a Google Cloud project — both are covered on their platform pages.

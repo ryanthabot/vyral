@@ -3114,22 +3114,46 @@ public class DiscordService : IDiscordService, IDisposable
             return false;
         }
 
+        // Validate the payload BEFORE touching any channel so an empty
+        // content+embed combination can never evict a healthy cached channel
+        // via the failure path below.
+        var earlyEmbed = TryBuildEmbedFromJson(embedJson);
+        if (string.IsNullOrWhiteSpace(content) && earlyEmbed == null)
+        {
+            _logger.LogWarning("❌ Cannot send a DM by channel id: content and embed are both empty");
+            return false;
+        }
+
         // Discord.Net's DM cache is unreliable for lookup by id, so prefer the
         // live channel object remembered when this bot last RECEIVED a DM on
         // this channel, then the gateway cache, then create a fresh DM channel
         // from the remembered recipient user id.
-        if (_knownDmChannels.TryGetValue(channelSnowflake.Value, out var known)
-            && await SendViaChannelAsync(known.Channel, channelId, content, embedJson).ConfigureAwait(false))
+        ulong cachedRecipientId = 0;
+        if (_knownDmChannels.TryGetValue(channelSnowflake.Value, out var known))
         {
-            return true;
+            if (await SendViaChannelAsync(known.Channel, channelId, content, embedJson).ConfigureAwait(false))
+            {
+                return true;
+            }
+
+            // The remembered channel object failed (recipient closed the DM,
+            // stale session object): keep its recipient id for the recreate
+            // path below, then evict the dead entry so future sends stop
+            // retrying a channel that will keep failing.
+            cachedRecipientId = known.RecipientUserId;
+            _knownDmChannels.TryRemove(channelSnowflake.Value, out _);
+            _logger.LogInformation("ℹ️ Evicted the failed DM channel {ChannelId} from the known-channels cache (bot {BotId}) — recreating from the recipient id",
+                channelId, BotId);
         }
 
         IMessageChannel? channel = client.GetChannel(channelSnowflake.Value) as IMessageChannel;
         if (channel == null)
         {
-            var recipientId = _knownDmChannels.TryGetValue(channelSnowflake.Value, out var remembered)
-                ? remembered.RecipientUserId
-                : 0;
+            var recipientId = cachedRecipientId > 0
+                ? cachedRecipientId
+                : (_knownDmChannels.TryGetValue(channelSnowflake.Value, out var remembered)
+                    ? remembered.RecipientUserId
+                    : 0);
             if (recipientId > 0)
             {
                 try

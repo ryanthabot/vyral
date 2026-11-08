@@ -18,13 +18,22 @@ public class VariableReplacementService : IVariableReplacementService
     
     private const int MaxNestedDepth = 5;
     private const int CacheExpiryMinutes = 5;
-    
+
+    // Auto-updating variables (follower/sub/view counts) are refreshed by the
+    // platform integrations via IDataService.UpdateVariableValueAsync, which
+    // cannot invalidate this cache. A short TTL keeps substituted counts
+    // close to live without a database hit per message.
+    private const int AutoUpdatingCacheExpirySeconds = 15;
+
     private readonly ConcurrentDictionary<string, CachedVariables> _cache = new();
-    
+
     private class CachedVariables
     {
         public Dictionary<string, string> Variables { get; set; } = new();
         public DateTime ExpiresAt { get; set; }
+
+        public Dictionary<string, string> AutoUpdatingVariables { get; set; } = new();
+        public DateTime AutoUpdatingExpiresAt { get; set; }
     }
 
     public VariableReplacementService(
@@ -84,20 +93,16 @@ public class VariableReplacementService : IVariableReplacementService
         var result = template;
         var matches = VariablePlaceholderRegex.Matches(template);
         var replacedAny = false;
-        var circularRefCheck = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (Match match in matches)
         {
             var variableName = match.Groups[1].Value.ToLowerInvariant();
-            
-            // Circular reference detection
-            if (circularRefCheck.Contains(variableName))
-            {
-                _logger.LogWarning("Circular reference detected for variable: {VariableName}", variableName);
-                continue;
-            }
-            circularRefCheck.Add(variableName);
 
+            // A placeholder repeated in the same template (e.g. "Hi {user}, bye
+            // {user}") is legitimate: string.Replace below replaces ALL
+            // occurrences at once, so skipping duplicates here would only eat
+            // the replacement and log a false "circular reference" warning.
+            // True cycles (a = "{b}", b = "{a}") are bounded by MaxNestedDepth.
             if (variables.TryGetValue(variableName, out var value) && !string.IsNullOrEmpty(value))
             {
                 result = result.Replace(match.Value, value);
@@ -122,38 +127,70 @@ public class VariableReplacementService : IVariableReplacementService
     private async Task<Dictionary<string, string>> GetCachedVariablesAsync(string? platform = null)
     {
         var cacheKey = platform ?? "all";
-        
-        // Check cache
-        if (_cache.TryGetValue(cacheKey, out var cached) && cached.ExpiresAt > DateTime.UtcNow)
+        var now = DateTime.UtcNow;
+
+        if (!_cache.TryGetValue(cacheKey, out var cached))
+        {
+            cached = new CachedVariables
+            {
+                Variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                AutoUpdatingVariables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                ExpiresAt = DateTime.MinValue,
+                AutoUpdatingExpiresAt = DateTime.MinValue
+            };
+            _cache[cacheKey] = cached;
+        }
+
+        // Each lane expires independently: static variables live for minutes,
+        // auto-updating counts for seconds (see AutoUpdatingCacheExpirySeconds).
+        if (cached.ExpiresAt <= now || cached.AutoUpdatingExpiresAt <= now)
+        {
+            var (staticVariables, autoUpdatingVariables) = await LoadVariablesFromDatabaseAsync(platform);
+
+            if (cached.ExpiresAt <= now)
+            {
+                cached.Variables = staticVariables;
+                cached.ExpiresAt = now.AddMinutes(CacheExpiryMinutes);
+            }
+
+            if (cached.AutoUpdatingExpiresAt <= now)
+            {
+                cached.AutoUpdatingVariables = autoUpdatingVariables;
+                cached.AutoUpdatingExpiresAt = now.AddSeconds(AutoUpdatingCacheExpirySeconds);
+            }
+        }
+
+        if (cached.AutoUpdatingVariables.Count == 0)
         {
             return cached.Variables;
         }
 
-        // Load from database
-        var variables = await LoadVariablesFromDatabaseAsync(platform);
-        
-        // Cache the result
-        _cache[cacheKey] = new CachedVariables
+        // Merge: auto-updating values win over any same-named static entry.
+        var merged = new Dictionary<string, string>(cached.Variables, StringComparer.OrdinalIgnoreCase);
+        foreach (var kvp in cached.AutoUpdatingVariables)
         {
-            Variables = variables,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(CacheExpiryMinutes)
-        };
-        
-        return variables;
+            merged[kvp.Key] = kvp.Value;
+        }
+
+        return merged;
     }
 
-    private async Task<Dictionary<string, string>> LoadVariablesFromDatabaseAsync(string? platform = null)
+    private async Task<(Dictionary<string, string> StaticVariables, Dictionary<string, string> AutoUpdatingVariables)> LoadVariablesFromDatabaseAsync(string? platform = null)
     {
+        var empty = (new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                     new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+
         try
         {
             var allVariables = await _dataService.GetVariablesAsync();
-            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var staticVariables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var autoUpdatingVariables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var variable in allVariables)
             {
                 // Skip if platform filter doesn't match
-                if (!string.IsNullOrEmpty(platform) && 
-                    !string.IsNullOrEmpty(variable.Platforms) && 
+                if (!string.IsNullOrEmpty(platform) &&
+                    !string.IsNullOrEmpty(variable.Platforms) &&
                     !variable.Platforms.Contains(platform, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
@@ -162,19 +199,26 @@ public class VariableReplacementService : IVariableReplacementService
                 // Only include variables that have values (editable or auto-updating)
                 if (!string.IsNullOrEmpty(variable.Value))
                 {
-                    result[variable.Name] = variable.Value;
+                    if (variable.IsAutoUpdating)
+                    {
+                        autoUpdatingVariables[variable.Name] = variable.Value;
+                    }
+                    else
+                    {
+                        staticVariables[variable.Name] = variable.Value;
+                    }
                 }
             }
 
-            _logger.LogDebug("Loaded {Count} variables from database (platform: {Platform})", 
-                result.Count, platform ?? "all");
-            
-            return result;
+            _logger.LogDebug("Loaded {StaticCount} static and {AutoCount} auto-updating variables from database (platform: {Platform})",
+                staticVariables.Count, autoUpdatingVariables.Count, platform ?? "all");
+
+            return (staticVariables, autoUpdatingVariables);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error loading variables from database");
-            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            return empty;
         }
     }
 

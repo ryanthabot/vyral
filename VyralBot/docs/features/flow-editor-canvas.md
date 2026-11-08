@@ -7,7 +7,7 @@ FlowCanvasPalette) plus the canvas plumbing of
 
 ## Block palette coverage
 
-`BlockCatalog.Blocks` (24 actions + 11 conditions) is the single source of
+`BlockCatalog.Blocks` (25 actions + 11 conditions) is the single source of
 truth. The editor builds every palette entry from it
 (`FlowEditorViewModel` ctor), the canvas renders icon/color/title from the
 same definition (`FlowNodeVisual`, `FlowCanvasControl.CreateNode`), and every

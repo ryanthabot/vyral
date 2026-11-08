@@ -1075,8 +1075,13 @@ public class DapperDataService : IDataService
             return Enumerable.Empty<DiscordDmMessage>();
         }
         using var conn = CreateConnection();
+        // Bounded fetch: the DM thread UI keeps at most 500 lines in memory
+        // (MAX_DM_THREAD_MESSAGES in ChatViewModel), so materializing more
+        // than the 500 newest rows when a thread opens is wasted work for
+        // long-lived conversations. Newest-first subselect, then re-sorted
+        // ascending so the output order matches the previous unbounded query.
         return await conn.QueryAsync<DiscordDmMessage>(
-            "SELECT * FROM DiscordDmMessages WHERE Username = @Username COLLATE NOCASE ORDER BY Timestamp",
+            "SELECT * FROM (SELECT * FROM DiscordDmMessages WHERE Username = @Username COLLATE NOCASE ORDER BY Timestamp DESC LIMIT 500) ORDER BY Timestamp",
             new { Username = username });
     }
 

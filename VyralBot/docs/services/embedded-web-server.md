@@ -66,6 +66,9 @@ For `POST /webhooks/kick`, `KickWebhookValidationMiddleware` enforces, in order:
 3. **Body size cap** — 256 KB via `Content-Length` check (413) and `IHttpMaxRequestBodySizeFeature` (covers chunked bodies). JSON depth is bounded by `JsonDocument`'s default max depth (64).
 4. RSA-SHA256 signature over `{messageId}.{timestamp}.{body}` using the Kick public key (cached 1 h from `api.kick.com/public/v1/public-key`, 10 s HTTP timeout). Failure → 401.
 5. **Replay protection** — seen message IDs are deduped in a bounded in-memory cache (5000 entries, 10-min window); duplicates get 200 without reprocessing.
+6. **Cross-transport idempotency** (`WebhooksController` + `KickLibChatService`, via `KickEventRouting.TryBeginEvent`) — the same follow/sub/gift can arrive over BOTH a webhook and the Pusher websocket when a matching subscription exists in the Kick dev portal (leftover/manual `channel.subscription.*` subs). Both transports claim the event under a normalized key (`follow:`/`sub:`/`giftsub:` + lowercase username, 60 s window, bounded 2000-entry cache); the loser skips publishing so alerts and currency awards never double-fire. Follows are additionally routed transport-exclusive via `KickEventRouting.WebhookFollowsActive`.
+
+Unknown-but-well-formed event types are acknowledged **200** with an info log (never a warning/500) so Kick does not retry-storm.
 
 The `Kick.AllowTestWebhooks` config flag (default **off**) may waive the
 signature check for test-shaped payloads only; every waiver is logged as a
@@ -89,6 +92,21 @@ controllers → `/audio-ws` map.
 - No per-profile scoping: the host serves the active profile's sounds; profiles
   are isolated at process level (one profile per running app instance).
 
+## ngrok lifecycle (`NgrokService`, owned by `WebhookCoordinatorService`)
+
+- The ngrok agent is started through the shared **`IProcessManager`** (tracked,
+  entire-tree kill, covered by the shutdown kill-all backstop). No direct
+  `Process.Start` for the tunnel itself.
+- URL change detection: the local 4040 API is polled every 30 s. A disconnect is
+  declared only after **3 consecutive failed checks** (a transient 4040 hiccup
+  must not cascade into a Kick unsubscribe/resubscribe cycle), the poll is
+  reentrancy-guarded, and a dead ngrok process stops the monitor.
+- On a real URL rotation the coordinator persists the new URL and **automatically
+  resubscribes** the active Kick webhooks (refreshing an expired Kick OAuth token
+  first); when the URL bounces back unchanged, resubscription is skipped. If the
+  stored token is missing/refresh fails, the UI is told to re-toggle Kick
+  webhooks manually.
+
 ## CORS
 
 No `UseCors` anywhere — no CORS headers are emitted, so browsers cannot read
@@ -96,8 +114,10 @@ responses cross-origin. Browser sources are served same-origin from this host.
 
 ## Secrets
 
-- ngrok auth token: per-profile credentials JSON, never logged (only its path).
-  Doubles as the control API Bearer token (fixed-time digest compare).
+- ngrok auth token: per-profile credentials JSON, never logged (not even its
+  path — logs say only "saved"/"not found"). Doubles as the control API Bearer
+  token (fixed-time digest compare). The ngrok command line carries it, so
+  process-start logs deliberately omit arguments (ProcessManager rule).
 - Deck tokens: 128-bit hex from `RandomNumberGenerator`, compared with
   `CryptographicOperations.FixedTimeEquals`, never logged.
 - Webhook logs contain message IDs/headers/lengths only — never full payloads.

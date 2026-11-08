@@ -13,9 +13,12 @@ public sealed class WebhookLightsClient(
     HttpMessageHandler? handler = null) : ILightsClient
 {
     private const string UnconfiguredMessage = "⚠️ Lights webhook is not configured (set it in Settings → Stream FX).";
-    private static readonly HttpClient SharedHttp = new();
+    // Fail fast against an unreachable endpoint (default HttpClient timeout is 100s).
+    private static readonly HttpClient SharedHttp = new() { Timeout = TimeSpan.FromSeconds(5) };
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
-    private readonly HttpClient _http = handler is null ? SharedHttp : new HttpClient(handler);
+    private readonly HttpClient _http = handler is null
+        ? SharedHttp
+        : new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
 
     public async Task<string> FlashAsync(string? hexColor, int times, int intervalMs, CancellationToken ct = default)
     {

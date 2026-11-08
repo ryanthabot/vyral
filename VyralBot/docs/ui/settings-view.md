@@ -15,6 +15,8 @@ XAML view for application settings with profile management, platform configurati
 - Platform connection grid
 - Web server settings (via WebServerSettingsViewModel)
 - Variables management (via VariablesViewModel)
+- Notifications panel: master toggles for event messages in chat (`Notifications.ShowEventsInChat`), event sounds (`Notifications.EventSoundsEnabled`), do-not-disturb/focus mode (`Notifications.DoNotDisturb`, mutes event sounds + overlay alerts), and a Preview Notification button — see `docs/features/settings-system.md`
+- Stream FX panel: lights provider (Hue/Webhook) with bridge Discover/Pair, flash defaults, Stream Deck action links, and the `!flashlights`/`!lightson`/`!lightsoff`/`!streamdeck` command reference — see `docs/services/stream-effects-lights.md`. The Hue app key and webhook bearer token are masked PasswordBoxes driven from code-behind (`HueAppKeyBox_PasswordChanged`, `WebhookTokenBox_PasswordChanged`), like the PIN boxes.
 
 ## All Files
 | File | Description |

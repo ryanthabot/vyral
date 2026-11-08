@@ -257,11 +257,15 @@
                                      materialDesign:HintAssist.Hint="Variable Name (e.g., my-variable)"
                                      Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,0,16"/>
                             
-                            <TextBox Text="{Binding EditDisplayName, UpdateSourceTrigger=PropertyChanged}" 
+                            <TextBox Text="{Binding EditDisplayName, UpdateSourceTrigger=PropertyChanged}"
                                      materialDesign:HintAssist.Hint="Display Name (e.g., My Variable)"
                                      Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,0,16"/>
-                            
-                            <TextBox Text="{Binding EditValue, UpdateSourceTrigger=PropertyChanged}" 
+
+                            <TextBox Text="{Binding EditCategory, UpdateSourceTrigger=PropertyChanged}"
+                                     materialDesign:HintAssist.Hint="Category (e.g., Custom, Twitch, Kick)"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,0,16"/>
+
+                            <TextBox Text="{Binding EditValue, UpdateSourceTrigger=PropertyChanged}"
                                      materialDesign:HintAssist.Hint="Value"
                                      AcceptsReturn="True" TextWrapping="Wrap" MinLines="3" MaxLines="6"
                                      Style="{StaticResource MaterialDesignOutlinedTextBox}" Margin="0,0,0,16"/>

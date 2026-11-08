@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 using VyralBot.Core.Services.Linking;
@@ -23,6 +24,27 @@ public class CurrencyCommandService : ICurrencyCommandService
     private readonly ISocialGoalService _socialGoalService;
     private readonly IMultiPlatformBonusService _multiPlatformBonusService;
     private readonly IDataService _dataService;
+
+    // Per-user anti-spam cooldown for the read-only informational commands.
+    // This service is invoked directly from the chat pipeline for every "!"
+    // message, bypassing the DB CommandService cooldown path, so without this
+    // a viewer typing "!points" 10x/second gets 10 replies. State-changing
+    // commands (games, bank, redeem, link, mod tools) are NOT listed — they
+    // have their own protections (game cooldowns, escrow, DB stamps) and
+    // silently swallowing them could hide a real action. Silent-skip matches
+    // CommandService's cooldown behavior.
+    private static readonly TimeSpan InfoCooldown = TimeSpan.FromSeconds(10);
+    private static readonly int CooldownCapacity = 10_000; // bounded: reset when full
+    private static readonly HashSet<string> InformationalCommands = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "!points", "!balance", "!currency",   // balance lookup
+        "!leaderboard", "!top",               // leaderboard
+        "!rewards", "!store", "!shop",        // catalog listing
+        "!rank", "!tier",                     // loyalty tier
+        "!bank",                              // bank balance
+        "!linked", "!goals", "!mystatus",     // linking/status overview
+    };
+    private readonly ConcurrentDictionary<string, DateTime> _infoLastAnswered = new();
 
     public CurrencyCommandService(
         ILogger<CurrencyCommandService> logger,
@@ -61,6 +83,13 @@ public class CurrencyCommandService : ICurrencyCommandService
 
         var parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var cmd = parts[0].ToLower();
+
+        // Per-user cooldown on informational commands (see InformationalCommands).
+        if (InformationalCommands.Contains(cmd) && IsThrottled(cmd, username, platform))
+        {
+            _logger.LogDebug("Currency command {Command} throttled for {Username} ({Platform})", cmd, username, platform);
+            return null;
+        }
 
         try
         {
@@ -104,6 +133,31 @@ public class CurrencyCommandService : ICurrencyCommandService
             return "An error occurred while processing your command.";
         }
     }
+
+    private bool IsThrottled(string cmd, string username, string platform)
+    {
+        if (_infoLastAnswered.Count > CooldownCapacity)
+        {
+            // Bounded eviction: a full reset at worst drops pending cooldowns.
+            _infoLastAnswered.Clear();
+        }
+
+        var key = $"{cmd}|{platform}|{username}".ToLowerInvariant();
+        var now = DateTime.UtcNow;
+        while (true)
+        {
+            var last = _infoLastAnswered.GetOrAdd(key, _ => DateTime.MinValue);
+            if (now - last < InfoCooldown)
+                return true;
+            if (_infoLastAnswered.TryUpdate(key, now, last))
+                return false;
+            // Another thread raced us — re-read and re-check.
+        }
+    }
+
+    /// <summary>Clamps display names so a max-size leaderboard reply stays within platform message limits.</summary>
+    private static string TruncateName(string name, int max = 20) =>
+        name.Length <= max ? name : name[..(max - 1)] + "…";
 
     private async Task<string> HandlePointsCommandAsync(string username, string platform, string[] parts)
     {
@@ -152,7 +206,7 @@ public class CurrencyCommandService : ICurrencyCommandService
                 3 => "🥉",
                 _ => $"#{rank}"
             };
-            lines.Add($"{medal} {user.Username} - {user.Balance:N0}");
+            lines.Add($"{medal} {TruncateName(user.Username)} - {user.Balance:N0}");
             rank++;
         }
 
@@ -398,8 +452,6 @@ public class CurrencyCommandService : ICurrencyCommandService
 
         if (nextTier != null)
         {
-            var userCurrency = await _currencyService.GetBalanceAsync(username, platform);
-            // We need total earned, not current balance - approximate from tier context
             response += $" | Next: {nextTier.Name} at {nextTier.MinPoints:N0} total earned";
         }
 

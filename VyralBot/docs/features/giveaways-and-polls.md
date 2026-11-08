@@ -28,8 +28,9 @@ Discord** (reply is sent on the platform the message came from).
   enters while a giveaway is active.
 - `!poll start|vote <n>|results|end|cancel|status` — `start`, `end`, `cancel`
   are moderator-gated; voting is open.
-- **TikTok**: commands are *processed* (entries/votes are recorded) but there
-  is no reply channel — TikTok chat is read-only in this app.
+- **TikTok**: not a chat source — no TikTok chat pipeline exists (web setup
+  only, `TiktokChatSettingsViewModel.ChatPipelineAvailable == false`), so no
+  entries, votes or commands can arrive from TikTok.
 - Discord mod-tier actions (`ModCommandEngine`) can also start/cancel
   giveaways and start/end polls.
 

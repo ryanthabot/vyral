@@ -65,12 +65,17 @@ public partial class ConditionalRulesViewModel : ViewModelBase
 
     public ObservableCollection<string> Platforms { get; } = new() { "All", "Twitch", "Kick", "Discord" };
 
-    // Must match the event-type strings the live pipeline stores/looks up
-    // (see ChatViewModel event handlers: GetSettingAsync("Kick"/"Twitch", ...)).
+    // Must match the event-type strings the live pipeline actually feeds the
+    // rules engine (ChatViewModel.BuildAutoReplyTextAsync call sites). Rules
+    // are matched via GetAutoReplyRulesByPlatformAndEventAsync, so an event
+    // type the pipeline never passes (e.g. "ChatMessage", "StreamStatus")
+    // would create a rule that can never fire — those are deliberately NOT
+    // listed here. "Host"/"KicksGifted" are Kick-only, "Raid"/"Cheer"/"Resub"
+    // are Twitch-only in the current pipeline.
     public ObservableCollection<string> EventTypes { get; } = new()
     {
-        "ChatMessage", "Follow", "Subscribe", "Resub", "GiftSub", "Raid",
-        "Cheer", "Host", "RewardRedeemed", "KicksGifted", "StreamStatus"
+        "Follow", "Subscribe", "Resub", "GiftSub", "Raid",
+        "Cheer", "Host", "RewardRedeemed", "KicksGifted"
     };
 
     public ObservableCollection<string> ConditionTypes { get; } = new()
@@ -135,6 +140,17 @@ public partial class ConditionalRulesViewModel : ViewModelBase
         EditName = SelectedRule.Name;
         EditPlatform = SelectedRule.Platform;
         EditEventType = SelectedRule.EventType;
+        // Older profiles may store event types the pipeline no longer routes
+        // (e.g. "ChatMessage"). Keep them editable verbatim rather than
+        // silently blanking the combo box on save.
+        if (!string.IsNullOrEmpty(EditEventType) && !EventTypes.Contains(EditEventType))
+        {
+            EventTypes.Add(EditEventType);
+        }
+        if (!string.IsNullOrEmpty(EditPlatform) && !Platforms.Contains(EditPlatform))
+        {
+            Platforms.Add(EditPlatform);
+        }
         EditIsEnabled = SelectedRule.IsEnabled;
         EditPriority = SelectedRule.Priority;
         EditConditionJson = SelectedRule.ConditionJson;
@@ -144,6 +160,39 @@ public partial class ConditionalRulesViewModel : ViewModelBase
     [RelayCommand]
     private async Task SaveRuleAsync()
     {
+        // Validate before persisting: the SQLite insert does not enforce the
+        // entity's [Required] attributes, so blank fields would otherwise
+        // create rules that can never match or reply.
+        if (string.IsNullOrWhiteSpace(EditName))
+        {
+            MessageBox.Show("Rule name is required.", "Save Rule", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(EditEventType))
+        {
+            MessageBox.Show("Event type is required.", "Save Rule", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(EditReplyTemplate))
+        {
+            MessageBox.Show("Reply template is required.", "Save Rule", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(EditConditionJson) && EditConditionJson.Trim() != "{}")
+        {
+            try
+            {
+                JsonSerializer.Deserialize<RuleCondition>(EditConditionJson);
+            }
+            catch (JsonException ex)
+            {
+                MessageBox.Show(
+                    $"Condition JSON is invalid and the rule could never be evaluated:\n\n{ex.Message}",
+                    "Save Rule", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+        }
+
         try
         {
             var rule = SelectedRule ?? new AutoReplyRule();
@@ -344,8 +393,12 @@ public partial class ConditionalRulesViewModel : ViewModelBase
             var matched = _ruleEvaluator.EvaluateCondition(condition, testContext);
 
             string reason;
-            if (condition == null || string.IsNullOrWhiteSpace(condition.Field))
+            if (condition == null || string.IsNullOrWhiteSpace(condition.Field) && condition.Type != Core.Models.Rules.ConditionType.Complex)
                 reason = "The rule has no condition, so it matches every event.";
+            else if (condition.Type == Core.Models.Rules.ConditionType.Complex)
+                reason = condition.SubConditions == null || condition.SubConditions.Count == 0
+                    ? "The complex condition has no sub-conditions, so it never matches."
+                    : $"The complex condition ({condition.LogicalOperator}) evaluated against the sample values.";
             else if (condition.Type == Core.Models.Rules.ConditionType.Time)
                 reason = matched
                     ? "The time condition matched the current time."

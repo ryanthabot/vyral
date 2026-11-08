@@ -39,9 +39,9 @@ KickLib-based chat service implementing `IKickService`. Manages WebSocket chat c
 | KickLib Event | Handler | EventBus Event Published |
 |---|---|---|
 | `OnChatMessage` | Parses message (includes raw Pusher `MessageId` since Wave 9 — the auto-mod delete path needs it) | `KickChatMessageEvent` + IChatMessageStore |
-| `OnSubscription` | Sub notification | `KickSubscribeEvent` + chat message |
-| `OnGiftedSubscription` | Gift sub notif | `KickGiftSubEvent` + chat message |
-| `OnFollowersUpdated` | Follower count | `KickFollowEvent` + updates variable |
+| `OnSubscription` | Sub notification (cross-transport dedup via `KickEventRouting.TryBeginEvent("sub:{user}")` since Wave 10 — skips if the webhook processor already published it) | `KickSubscribeEvent` + chat message |
+| `OnGiftedSubscription` | Gift sub notif (dedup key `giftsub:{gifter}` since Wave 10) | `KickGiftSubEvent` + chat message |
+| `OnFollowersUpdated` | Follower count | `KickFollowEvent` + updates variable (suppressed while `KickEventRouting.WebhookFollowsActive` — webhooks carry the real username) |
 | `OnRewardRedeemed` | Reward redemption | `KickRewardRedeemedEvent` |
 | `OnKicksGifted` | Kicks gifted | `KickKicksGiftedEvent` |
 | `OnStreamStatusChanged` | Stream go-live | Chat message only |

@@ -181,6 +181,8 @@ public partial class VariablesViewModel : ViewModelBase
         EditCategory = "Custom";
         EditValue = "";
         EditDescription = "";
+        // Never stack the Add dialog on top of an open Edit dialog.
+        IsEditDialogOpen = false;
         IsAddDialogOpen = true;
         StatusMessage = "";
     }
@@ -207,6 +209,8 @@ public partial class VariablesViewModel : ViewModelBase
         EditCategory = variable.Category;
         EditValue = variable.Value ?? "";
         EditDescription = variable.Description ?? "";
+        // Never stack the Edit dialog on top of an open Add dialog.
+        IsAddDialogOpen = false;
         IsEditDialogOpen = true;
         StatusMessage = "";
     }
@@ -229,15 +233,15 @@ public partial class VariablesViewModel : ViewModelBase
                 return;
             }
 
-            // Check for duplicate names when adding new
-            if (!EditIsCurrentlyEditing)
+            // Check for duplicate names: on add any collision is fatal, on edit
+            // only a rename onto ANOTHER variable's name is (GetVariableByName
+            // is case-insensitive; SaveVariableAsync upserts by Id, so without
+            // this check a rename would silently create two same-named rows).
+            var existingByName = await _dataService.GetVariableByNameAsync(EditName);
+            if (existingByName != null && existingByName.Id != (SelectedVariable?.Id ?? string.Empty))
             {
-                var existing = await _dataService.GetVariableByNameAsync(EditName);
-                if (existing != null)
-                {
-                    StatusMessage = $"A variable with name '{EditName}' already exists";
-                    return;
-                }
+                StatusMessage = $"A variable with name '{EditName}' already exists";
+                return;
             }
 
             var variable = new Variable
@@ -277,6 +281,7 @@ public partial class VariablesViewModel : ViewModelBase
             }
 
             await LoadVariablesAsync();
+            await LoadCategoriesAsync(); // a new/renamed category must appear in the sidebar
             CancelEdit();
         }
         catch (Exception ex)
@@ -311,6 +316,7 @@ public partial class VariablesViewModel : ViewModelBase
             StatusMessage = $"Variable '{variable.Name}' deleted successfully";
             _logger.LogInformation("Deleted variable: {VariableName}", variable.Name);
             await LoadVariablesAsync();
+            await LoadCategoriesAsync(); // the category may now be empty
         }
         catch (Exception ex)
         {

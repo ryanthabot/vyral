@@ -227,6 +227,16 @@ public class SoundService : ISoundService
                 return;
             }
 
+            // Focus mode / do-not-disturb (Settings → Notifications): one switch that
+            // mutes every intrusive notification surface (event sounds + overlay alerts).
+            // Read on every playback so the toggle takes effect without a restart.
+            var doNotDisturb = await _dataService.GetConfigValueAsync("Notifications.DoNotDisturb");
+            if (bool.TryParse(doNotDisturb, out var dnd) && dnd)
+            {
+                _logger.LogDebug("Do-not-disturb active (Settings → Notifications) - skipping playback");
+                return;
+            }
+
             // Get audio settings
             var settings = await GetAudioSettingsAsync();
             if (!settings.StreamerSoundsEnabled && !settings.StreamSoundsEnabled)

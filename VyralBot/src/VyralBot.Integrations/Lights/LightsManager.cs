@@ -19,12 +19,29 @@ public sealed class LightsManager(Func<Task<LightsConfig>> config, HttpMessageHa
     public const string NotConfiguredMessage =
         "⚠️ Lights are not configured (pick a provider in Settings → Stream FX).";
 
+    /// <summary>Flash debounce: one flash loop at a time. Rapid deck/chat
+    /// triggers that arrive while a flash runs are dropped (not queued) so
+    /// concurrent loops can never fight over light state or flood the bridge.</summary>
+    private readonly SemaphoreSlim _flashLock = new(1, 1);
+
     public async Task<string> FlashAsync(string? hexColor, int times, int intervalMs, CancellationToken ct = default)
     {
-        var client = await CreateClientAsync().ConfigureAwait(false);
-        return client is null
-            ? NotConfiguredMessage
-            : await client.FlashAsync(hexColor, times, intervalMs, ct).ConfigureAwait(false);
+        if (!await _flashLock.WaitAsync(0).ConfigureAwait(false))
+        {
+            return "⚠️ A light effect is already running — skipped.";
+        }
+
+        try
+        {
+            var client = await CreateClientAsync().ConfigureAwait(false);
+            return client is null
+                ? NotConfiguredMessage
+                : await client.FlashAsync(hexColor, times, intervalMs, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _flashLock.Release();
+        }
     }
 
     public async Task<string> SetPowerAsync(bool on, CancellationToken ct = default)

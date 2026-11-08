@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
+using VyralBot.Core.Services.ProcessManagement;
 using VyralBot.Core.Services.Profiles;
 
 namespace VyralBot.Api.Services;
@@ -10,11 +11,14 @@ public class NgrokService : IDisposable
 {
     private readonly ILogger<NgrokService> _logger;
     private readonly IProfileService _profileService;
+    private readonly IProcessManager _processManager;
     private readonly HttpClient _httpClient;
     private Process? _ngrokProcess;
     private string? _currentPublicUrl;
     private Timer? _monitorTimer;
     private bool _isConnected;
+    private int _consecutiveHealthFailures;
+    private int _healthCheckRunning;
     private readonly string _ngrokApiUrl = "http://127.0.0.1:4040/api/tunnels";
 
     public bool IsConnected => _isConnected;
@@ -23,10 +27,11 @@ public class NgrokService : IDisposable
 
     public event EventHandler<string>? PublicUrlChanged;
 
-    public NgrokService(ILogger<NgrokService> logger, IProfileService profileService)
+    public NgrokService(ILogger<NgrokService> logger, IProfileService profileService, IProcessManager processManager)
     {
         _logger = logger;
         _profileService = profileService;
+        _processManager = processManager;
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
     }
 
@@ -59,7 +64,11 @@ public class NgrokService : IDisposable
             // Build ngrok command arguments with auth token
             var args = $"http {localPort} --region {region} --authtoken {authToken}";
 
-            // Start ngrok process
+            // Start ngrok through the tracked ProcessManager (zero-orphans rule): the
+            // shutdown kill-all backstop then covers ngrok even if this service is
+            // never disposed cleanly. StartProcessAsync throws on failure, which the
+            // catch below logs. Its "Process started" log deliberately omits args —
+            // the ngrok command line carries the auth token.
             var startInfo = new ProcessStartInfo
             {
                 FileName = "ngrok",
@@ -70,12 +79,7 @@ public class NgrokService : IDisposable
                 RedirectStandardError = true
             };
 
-            _ngrokProcess = Process.Start(startInfo);
-            if (_ngrokProcess == null)
-            {
-                _logger.LogError("Failed to start ngrok process");
-                return false;
-            }
+            _ngrokProcess = await _processManager.StartProcessAsync(startInfo);
 
             // Wait for ngrok to start and get the public URL (retry a few times)
             string? publicUrl = null;
@@ -113,7 +117,11 @@ public class NgrokService : IDisposable
 
     public async Task StopTunnelAsync()
     {
-        if (!_isConnected || _ngrokProcess == null)
+        // Gate on the PROCESS, not on _isConnected: the failed-start path calls this
+        // while _isConnected is still false, and returning early there would leak the
+        // ngrok process (zero-orphans rule). An orphaned ngrok keeps port 4040 warm,
+        // and the next StartTunnelAsync would silently adopt its stale tunnel URL.
+        if (_ngrokProcess == null)
         {
             _logger.LogWarning("Ngrok tunnel is not running");
             return;
@@ -127,27 +135,18 @@ public class NgrokService : IDisposable
             _monitorTimer?.Dispose();
             _monitorTimer = null;
 
-            // Kill ngrok process
-            if (!_ngrokProcess.HasExited)
+            // Kill via the tracked ProcessManager (entireProcessTree) so the ngrok
+            // agent and helpers die together and the tracking entry is removed. It
+            // disposes the Process object, so no local Dispose is needed.
+            if (!HasNgrokProcessExited(_ngrokProcess))
             {
-                _ngrokProcess.Kill(true);
-
-                // Wait with timeout
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                try
-                {
-                    await _ngrokProcess.WaitForExitAsync(cts.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                    _logger.LogWarning("Ngrok process did not exit within timeout, forcing termination");
-                }
+                await _processManager.KillProcessAsync(_ngrokProcess.Id);
             }
 
-            _ngrokProcess.Dispose();
             _ngrokProcess = null;
             _currentPublicUrl = null;
             _isConnected = false;
+            _consecutiveHealthFailures = 0;
 
             _logger.LogInformation("Ngrok tunnel stopped successfully");
         }
@@ -192,6 +191,10 @@ public class NgrokService : IDisposable
 
     private void StartMonitoring()
     {
+        // Replace any previous timer so a restart can never run two monitors
+        _monitorTimer?.Dispose();
+        _consecutiveHealthFailures = 0;
+
         // Check for URL changes every 30 seconds
         _monitorTimer = new Timer(async _ => await CheckForUrlChangeAsync(), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
         _logger.LogInformation("Started monitoring ngrok tunnel for URL changes");
@@ -199,22 +202,50 @@ public class NgrokService : IDisposable
 
     private async Task CheckForUrlChangeAsync()
     {
+        // Reentrancy guard: skip if the previous poll is still in flight
+        if (Interlocked.CompareExchange(ref _healthCheckRunning, 1, 0) != 0)
+        {
+            return;
+        }
+
         try
         {
-            var publicUrl = await GetPublicUrlAsync();
-
-            if (string.IsNullOrEmpty(publicUrl))
+            // If the ngrok process itself died there is nothing left to poll: stop
+            // the monitor and report the tunnel as disconnected.
+            if (HasNgrokProcessExited(_ngrokProcess))
             {
-                // Tunnel might be down
+                _logger.LogError("Ngrok process has exited - tunnel is down");
+                _monitorTimer?.Dispose();
+                _monitorTimer = null;
                 if (_isConnected)
                 {
-                    _logger.LogWarning("Ngrok tunnel appears to be disconnected");
                     _isConnected = false;
                     _currentPublicUrl = null;
                     PublicUrlChanged?.Invoke(this, string.Empty);
                 }
                 return;
             }
+
+            var publicUrl = await GetPublicUrlAsync();
+
+            if (string.IsNullOrEmpty(publicUrl))
+        {
+                // Tunnel might be down - require consecutive failures before declaring
+                // a disconnect: the local 4040 API can transiently hiccup while the
+                // tunnel is fine, and a false disconnect cascades into an unnecessary
+                // Kick unsubscribe/resubscribe cycle in the webhook coordinator.
+                var failures = Interlocked.Increment(ref _consecutiveHealthFailures);
+                if (_isConnected && failures >= 3)
+                {
+                    _logger.LogWarning("Ngrok tunnel appears to be disconnected ({Failures} consecutive failed checks)", failures);
+                    _isConnected = false;
+                    _currentPublicUrl = null;
+                    PublicUrlChanged?.Invoke(this, string.Empty);
+                }
+                return;
+            }
+
+            Interlocked.Exchange(ref _consecutiveHealthFailures, 0);
 
             // Check if URL changed
             if (_currentPublicUrl != publicUrl)
@@ -230,6 +261,32 @@ public class NgrokService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error checking for ngrok URL changes");
+        }
+        finally
+        {
+            Volatile.Write(ref _healthCheckRunning, 0);
+        }
+    }
+
+    /// <summary>
+    /// True when the tracked ngrok process is gone. Reading Process state after the
+    /// ProcessManager disposed it (it auto-disposes exited processes) throws, so any
+    /// failure reading state counts as exited.
+    /// </summary>
+    private static bool HasNgrokProcessExited(Process? process)
+    {
+        if (process == null)
+        {
+            return true;
+        }
+
+        try
+        {
+            return process.HasExited;
+        }
+        catch
+        {
+            return true;
         }
     }
 
@@ -272,7 +329,8 @@ public class NgrokService : IDisposable
             var json = JsonSerializer.Serialize(credentials, new JsonSerializerOptions { WriteIndented = true });
 
             await File.WriteAllTextAsync(credentialsPath, json);
-            _logger.LogInformation("Ngrok auth token saved to file: {Path}", credentialsPath);
+            // Credentials file locations are never logged (secrets rule); log the outcome only.
+            _logger.LogInformation("Ngrok auth token saved");
 
             // Update current instance
             AuthToken = authToken;
@@ -295,11 +353,12 @@ public class NgrokService : IDisposable
             var credentialsFolder = _profileService.GetProfileCredentialsPath(profile.Name);
             var credentialsPath = Path.Combine(credentialsFolder, "ngrok_credentials.json");
 
-            _logger.LogInformation("Looking for ngrok credentials at: {Path}", credentialsPath);
+            // Credentials file locations are never logged (secrets rule).
+            _logger.LogInformation("Looking for ngrok credentials file");
 
             if (!File.Exists(credentialsPath))
             {
-                _logger.LogWarning("Ngrok credentials file not found at: {Path}", credentialsPath);
+                _logger.LogWarning("Ngrok credentials file not found");
                 return;
             }
 

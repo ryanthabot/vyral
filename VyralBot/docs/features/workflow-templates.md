@@ -17,7 +17,7 @@ new user's automation page is not empty. Community-onboarding feature
 | Key | Trigger | Nodes | Platforms |
 |---|---|---|---|
 | `follower-thanks` | event `follow` | send_message `{username}` | Twitch, Kick |
-| `sub-appreciation` | event `subscribe` | send_message → wait(3s) → send_message (no sound node in the catalog — spec fallback) | Twitch, Kick |
+| `sub-appreciation` | event `subscribe` | play_sound `subscribe.wav` (vol 80) → send_message `{username}` (wave 10: sound block replaced the wait+second-message fallback) | Twitch, Kick |
 | `raid-welcome` | event `raid` | send_message `{username}` `{viewers}` | Twitch |
 | `first-hello` | command `!hello` | send_message `{username}` `{channel}` (no first-message variable exists — spec fallback) | Any chat |
 | `schedule-announcement` | timer 60m | send_message (static text) | Any |
@@ -28,8 +28,8 @@ new user's automation page is not empty. Community-onboarding feature
 Event keys/variables match what `WorkflowTriggerService` actually dispatches
 (`follow`/`subscribe`/`raid`/`rewardredeemed`/`superchat` canonical keys; the
 permission option is enforced by `TryAllowPermission`). Node types used are
-`send_message` and `wait` only — both in `BlockCatalog`, so imported templates
-also open cleanly in the structured builder and the canvas editor.
+`send_message`, `play_sound` and `wait` — all in `BlockCatalog`, so imported
+templates also open cleanly in the structured builder and the canvas editor.
 
 ## Import path (disabled by default)
 

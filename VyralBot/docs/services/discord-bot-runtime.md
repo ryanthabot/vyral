@@ -63,6 +63,57 @@ Files: `VyralBot.Integrations/Discord/DiscordService.cs` (one gateway session),
 channel: the selected channel is the SEND target only (`SendMessageAsync`,
 used by announcements); `AssignedChannelIds` gates currency earning only.
 
+## Direct messages (DM subsystem)
+
+DM plumbing spans `DiscordService` (send APIs + channel cache),
+`ChatViewModel` (inbox/thread UI state), `DmConversation` (UI model) and the
+per-profile SQLite table `DiscordDmMessages` (`DapperDataService`).
+
+- **REAL DISCORD CONSTRAINT (why a DM send can 403):** bots have no friend
+  relationships. A bot can only DM a user who shares a MUTUAL GUILD with it,
+  AND whose per-guild privacy toggle "Allow direct messages from server
+  members" is enabled. Either failing produces HTTP 403 / Discord code 50007
+  "Cannot send messages to this user" — surfaced in Vyral as a red in-thread
+  "Couldn't deliver" system note, never a silent drop. Users DM-ing the bot
+  first is the reliable path: the reply reuses the channel the message
+  arrived on.
+- **Receive:** `MessageReceived` detects `IDMChannel` (channel name forced to
+  `DirectMessage`), registers the LIVE channel object in
+  `_knownDmChannels[channelId] = (channel, authorUserId)` (Discord.Net's
+  `GetChannel` lookup misses DM channels — they are not guild-cached), then
+  publishes `DiscordChatMessageEvent` with `Channel="DirectMessage"` and no
+  `GuildName`. `ChatViewModel.RouteDiscordDmToConversation` dedupes by
+  `MessageId`, moves the conversation to the top of the inbox, persists an
+  `Incoming` row, bumps `UnreadCount` (unless the thread is open) and caps
+  the in-memory thread at 500 lines.
+- **Send (UI reply):** `SendDmReplyCoreAsync` walks a fallback chain —
+  (1) `SendDmToChannelAsync(conversation.ChannelId)`, (2)
+  `SendDmToUserAsync(conversation.UserId)`, (3) `SendDmAsync(username)` —
+  so a cleared cache, closed DM channel or restart cannot strand a reply.
+  On success an outgoing echo is appended (same 500 cap) and an `Outgoing`
+  row is persisted; on failure `InsertDmDeliveryFailureAsync` shows the
+  Discord error in the thread.
+- **`_knownDmChannels` lifecycle:** entries are created on receive,
+  `OpenDmByUserIdAsync` and `SendDmToUserAsync`; cleared on manual
+  `DisconnectAsync` (channel objects are session-scoped — stale ones would
+  throw on a stopped client). Discord.Net auto-reconnects keep the same
+  client, so entries survive resumes. `SendDmToChannelAsync` validates the
+  payload BEFORE using the cache and EVICTS a cached channel whose send
+  failed (capturing its recipient id first) so the next attempt recreates
+  the DM channel from the recipient instead of retrying a dead object.
+- **Persistence:** `DiscordDmMessages` (Id, BotId, BotUsername, ChannelId,
+  Username, UserId, Direction, Content, Timestamp; indexed Username+Time).
+  Inbox rows come from `GetDiscordDmConversationsAsync` (`GROUP BY Username
+  COLLATE NOCASE ORDER BY MAX(Timestamp) DESC` — latest-first); thread loads
+  (`GetDiscordDmHistoryAsync`) are capped at the 500 newest rows to match the
+  UI cap; `SearchDiscordDmMessagesAsync` caps at 100; `ClearDiscordDmHistoryAsync`
+  clears one conversation (null = all).
+- **Hygiene / spam safety:** there is no local block list — Discord-side
+  blocks or closed DMs surface as the in-thread delivery failure above.
+  Automated DM hint replies are throttled to one per user per 5 minutes
+  (`DmHintThrottle`); the DM-origin map is capped at 200 entries; routing
+  dedupe is keyed by Discord message id.
+
 ## Workflow interactions (slash commands & vyralwf components)
 
 `SlashCommandExecuted` / component handlers (`HandleWorkflowSlashInvocationAsync`,

@@ -29,7 +29,7 @@ Flutter is for the mobile companion only.
 publish-exe.ps1            Desktop release script (self-contained Vyral.exe)
 releases/                  Release artifacts (Vyral.exe + VyralDeck APK) — NEVER commit
 VyralBot/src/              The .NET solution (VyralBot.sln)
-  VyralBot.UI/             WPF app: Views/, ViewModels/ (74+), Services/, App.xaml.cs (DI root)
+  VyralBot.UI/             WPF app: Views/, ViewModels/ (72), Services/, App.xaml.cs (DI root)
   VyralBot.Core/           Domain services (chat, currency, events, audio, moderation…)
   VyralBot.Api/            Embedded Kestrel web server (webhooks, audio-ws)
   VyralBot.Data/           Dapper data access (IDataService), SQLite per profile
@@ -143,6 +143,9 @@ Mobile (from `VyralBot/mobile/vyral_deck/`, export `JAVA_HOME` + `ANDROID_HOME`)
 | Moderation | `Core/Services/Moderation/`, `ModeratorViewModel`, mod tiers |
 | Currency / points | `Core/Services/Currency/`, per-platform `PlatformEarnings` ledger |
 | Marketplace / sharecodes | `UI/Services/MarketplaceService`, GitHub `ryanthabot/vyral` store |
+| Quotes | `Core/Services/Quotes/` (`QuoteService`, `IQuoteService`), `!quote` family, Commands page QUOTES tab |
+| Control API (LAN/remote) | `Api/Controllers/ApiController` + `ControlApiAuthMiddleware` (Bearer `/api` on the embedded server) |
+| Alerts / notifications overlay | `UI/Services/AlertService` (`IAlertService`), per-event alert settings |
 | Chat events / webhooks | `Api/Controllers/WebhooksController`, `Core/Services/Chat/` |
 
 ## Git conventions

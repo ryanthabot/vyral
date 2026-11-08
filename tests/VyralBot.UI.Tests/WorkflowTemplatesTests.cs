@@ -98,7 +98,7 @@ public class WorkflowTemplatesTests
         {
             Assert.True(node.Next == null || ids.Contains(node.Next), $"{key}: dangling Next on {node.Id}");
 
-            // The two node types the templates use must carry their load-bearing config.
+            // The node types the templates use must carry their load-bearing config.
             if (node.Type == "send_message")
             {
                 Assert.True(node.Config.TryGetValue("text", out var text) && !string.IsNullOrWhiteSpace(text),
@@ -108,6 +108,11 @@ public class WorkflowTemplatesTests
             {
                 Assert.True(node.Config.TryGetValue("seconds", out var seconds) && int.TryParse(seconds, out _),
                     $"{key}: wait {node.Id} has non-numeric seconds");
+            }
+            else if (node.Type == "play_sound")
+            {
+                Assert.True(node.Config.TryGetValue("SoundName", out var sound) && !string.IsNullOrWhiteSpace(sound),
+                    $"{key}: play_sound {node.Id} has no SoundName");
             }
         }
     }
@@ -207,16 +212,22 @@ public class WorkflowTemplatesTests
     }
 
     [Fact]
-    public void SubAppreciation_UsesTwoMessagesAndADelay_NoSoundNodeInCatalog()
+    public void Wave10_SubAppreciation_PlaysSound_InsteadOfDelayedSecondMessage()
     {
-        // The spec's fallback: BlockCatalog has no sound action node, so the
-        // sub template is two send_messages with a wait between them.
-        Assert.Null(BlockCatalog.Find("play_sound"));
+        // Wave 10 shipped the play_sound block, so the sub template now plays
+        // the Sounds library's subscribe.wav followed by one thank-you message —
+        // no more wait+second-message workaround.
+        Assert.NotNull(BlockCatalog.Find("play_sound"));
 
         var graph = WorkflowJson.FromGraphData(Get("sub-appreciation").GraphJson);
 
-        Assert.Equal(2, graph.Nodes.Count(n => n.Type == "send_message"));
-        Assert.Single(graph.Nodes, n => n.Type == "wait");
-        Assert.Equal(3, graph.Nodes.Count);
+        Assert.Single(graph.Nodes, n => n.Type == "play_sound");
+        Assert.Single(graph.Nodes, n => n.Type == "send_message");
+        Assert.Equal(2, graph.Nodes.Count);
+
+        var sound = graph.Nodes.Single(n => n.Type == "play_sound");
+        Assert.Equal("subscribe.wav", sound.Config["SoundName"]);
+        Assert.True(sound.Next != null && graph.Nodes.Any(n => n.Id == sound.Next),
+            "sub-appreciation: play_sound must wire into the thank-you message");
     }
 }

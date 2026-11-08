@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using VyralBot.Core.Services.EventBus;
+using VyralBot.Core.Services.EventBus.Events;
 using VyralBot.Integrations.Kick.Events;
 
 namespace VyralBot.Api.Controllers;
@@ -119,7 +120,9 @@ public class WebhooksController : ControllerBase
                     break;
 
                 default:
-                    _logger.LogWarning("Unknown event type: {EventType}", eventType);
+                    // Well-formed but unknown deliveries are acknowledged (200) so
+                    // Kick does not retry-storm; logged at info, not warning.
+                    _logger.LogInformation("Acknowledged unknown Kick webhook event type: {EventType}", eventType);
                     break;
             }
 
@@ -132,6 +135,25 @@ public class WebhooksController : ControllerBase
             _logger.LogError(ex, "Error processing Kick webhook");
             return StatusCode(500, "Internal server error");
         }
+    }
+
+    /// <summary>
+    /// Cross-transport idempotency gate (see <see cref="KickEventRouting"/>): Kick can
+    /// deliver the same follow/sub/gift through both the Pusher websocket and a webhook
+    /// when a matching subscription exists in the dev portal. Both transports claim the
+    /// event under the same key; the loser skips publishing to prevent duplicate alerts
+    /// and double currency awards. Returns true (allow) when no reliable key can be
+    /// built so unnamed events are never wrongly suppressed.
+    /// </summary>
+    private static bool TryBeginUserEvent(string keyPrefix, string? username)
+    {
+        var normalized = username?.Trim().ToLowerInvariant();
+        if (string.IsNullOrEmpty(normalized) || normalized == "unknown")
+        {
+            return true;
+        }
+
+        return KickEventRouting.TryBeginEvent($"{keyPrefix}:{normalized}");
     }
 
     private async Task ProcessFollowAsync(JsonElement root, string? webhookMessageId, string? timestamp)
@@ -169,6 +191,14 @@ public class WebhooksController : ControllerBase
 
             DateTime? createdAt = null;
             if (!string.IsNullOrEmpty(timestamp) && DateTime.TryParse(timestamp, out var parsed)) createdAt = parsed;
+
+            // Cross-transport dedup: skip if this follow was already delivered
+            // (webhook retry duplicates are handled by the validation middleware).
+            if (!TryBeginUserEvent("follow", followerUsername))
+            {
+                _logger.LogInformation("Follow event for {Username} already delivered - skipping duplicate publish", followerUsername);
+                return;
+            }
 
             // Publish dedicated KickFollowEvent (not chat message) to maintain proper event typing
             // This prevents duplicate auto-responses and ensures consistent username display
@@ -292,6 +322,15 @@ public class WebhooksController : ControllerBase
             DateTime? createdAt = null;
             if (!string.IsNullOrEmpty(timestamp) && DateTime.TryParse(timestamp, out var parsed)) createdAt = parsed;
 
+            // Cross-transport dedup: KickLibChatService publishes KickSubscribeEvent from the
+            // Pusher websocket too; if a channel.subscription.* webhook subscription exists in
+            // the dev portal, both transports would fire double alerts/currency.
+            if (!TryBeginUserEvent("sub", subscriberUsername))
+            {
+                _logger.LogInformation("Subscription event for {Username} already delivered - skipping duplicate publish", subscriberUsername);
+                return;
+            }
+
             // Publish dedicated KickSubscribeEvent to maintain proper event typing
             var subscribeEvent = new KickSubscribeEvent
             {
@@ -331,6 +370,14 @@ public class WebhooksController : ControllerBase
 
             DateTime? createdAt = null;
             if (!string.IsNullOrEmpty(timestamp) && DateTime.TryParse(timestamp, out var parsed)) createdAt = parsed;
+
+            // Cross-transport dedup: Pusher's OnGiftedSubscription publishes the same
+            // KickGiftSubEvent when a channel.subscription.gifts sub also exists.
+            if (!TryBeginUserEvent("giftsub", gifter))
+            {
+                _logger.LogInformation("Gift sub event from {Gifter} already delivered - skipping duplicate publish", gifter);
+                return;
+            }
 
             // Publish dedicated KickGiftSubEvent to maintain proper event typing
             var giftSubEvent = new KickGiftSubEvent

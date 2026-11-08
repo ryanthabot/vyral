@@ -135,6 +135,7 @@ Where the major subsystems live and which doc covers them:
 | [features/workflow-templates.md](features/workflow-templates.md) | Starter workflow templates (Automation page one-click import) |
 | [features/marketplace-sharecodes.md](features/marketplace-sharecodes.md) | Command marketplace + sharecode import |
 | [features/quotes.md](features/quotes.md) | Quote database + `!quote` command family |
+| [features/giveaways-and-polls.md](features/giveaways-and-polls.md) | Weighted-raffle giveaways + chat polls (race-hardened draws/votes) |
 | [features/restream.md](features/restream.md) | Multi-platform FFmpeg restream (ingest, fan-out, verified FFmpeg acquisition, uplink hint) |
 | [features/vyraldeck.md](features/vyraldeck.md) | VyralDeck mobile companion (LAN server, PIN pairing, 22 deck actions) |
 
@@ -185,6 +186,8 @@ Where the major subsystems live and which doc covers them:
 | [ui/settings-view.md](ui/settings-view.md) | Settings view |
 | [ui/settings-viewmodels.md](ui/settings-viewmodels.md) | Sub-setting ViewModels |
 | [ui/settings-views-xaml.md](ui/settings-views-xaml.md) | Settings XAML views |
+| [ui/sounds-view.md](ui/sounds-view.md) | Sounds page (sound library, test playback) |
+| [ui/statistics-viewmodel.md](ui/statistics-viewmodel.md) | Statistics page (dashboards, aggregated CSV export) |
 | [ui/profile-selector.md](ui/profile-selector.md) | Profile selector |
 | [ui/data-management.md](ui/data-management.md) | Settings → Data Management (storage, inventory, backup/import) |
 | [ui/converters.md](ui/converters.md) | Value converters |
@@ -192,6 +195,7 @@ Where the major subsystems live and which doc covers them:
 | [ui/dialogs-and-modals.md](ui/dialogs-and-modals.md) | Dialogs |
 | [ui/discord-bot-detail.md](ui/discord-bot-detail.md) | Per-bot Discord dashboard |
 | [ui/discord-dashboard.md](ui/discord-dashboard.md) | Discord DASHBOARD tab (fleet KPIs, mod actions, workflow runs) |
+| [ui/event-history-viewmodel.md](ui/event-history-viewmodel.md) | Event History page (event log viewer, CSV export) |
 | [ui/event-testing-viewmodel.md](ui/event-testing-viewmodel.md) | Event Testing page (TestEventPublisher UI) |
 | [ui/performance-view.md](ui/performance-view.md) | Performance tab (live metrics, health, child processes) |
 | [ui/viewer-hub.md](ui/viewer-hub.md) | Viewer Hub (linking, bonuses, odds, goals) |
@@ -212,3 +216,4 @@ Where the major subsystems live and which doc covers them:
 | [KICK_API_COMPLETE_DOCUMENTATION.md](KICK_API_COMPLETE_DOCUMENTATION.md) | Kick public API reference |
 | [copilot-instructions.md](copilot-instructions.md) | Coding guidelines |
 | [CHANGELOG.md](CHANGELOG.md) | Release changelog |
+| [release-qa-checklist.md](release-qa-checklist.md) | Manual pre-release QA checklist (build, tests, smoke pass) |

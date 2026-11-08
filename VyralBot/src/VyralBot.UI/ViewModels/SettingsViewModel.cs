@@ -989,6 +989,9 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _eventSoundsEnabled = true;
 
+    [ObservableProperty]
+    private bool _doNotDisturb;
+
     partial void OnShowEventsInChatChanged(bool value)
     {
         if (_categorySettingsLoaded)
@@ -1002,6 +1005,16 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
         if (_categorySettingsLoaded)
         {
             _ = SaveNotificationSettingAsync("Notifications.EventSoundsEnabled", value, reloadChat: false);
+        }
+    }
+
+    partial void OnDoNotDisturbChanged(bool value)
+    {
+        if (_categorySettingsLoaded)
+        {
+            // Focus mode: SoundService and AlertService read this key on every
+            // playback/show, so the mute takes effect immediately (no restart).
+            _ = SaveNotificationSettingAsync("Notifications.DoNotDisturb", value, reloadChat: false);
         }
     }
 
@@ -1030,6 +1043,46 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
         {
             _logger.LogError(ex, "Error saving {Key}", key);
             StatusMessage = $"Error saving setting: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task PreviewNotificationAsync()
+    {
+        try
+        {
+            if (DoNotDisturb)
+            {
+                StatusMessage = "Do-not-disturb is on - notifications are muted right now";
+                _logger.LogInformation("Notification preview skipped: do-not-disturb active");
+                await ClearStatusAfterDelayAsync();
+                return;
+            }
+
+            // Preview through the real pipelines so it is gated exactly like a live
+            // event: the overlay goes through ShowAlertAsync(applySettings: true)
+            // (Alert Settings master + per-event toggles) and the sound through
+            // PlayEventSoundAsync, which re-reads the config on every playback.
+            var alertService = _serviceProvider.GetService<IAlertService>();
+            if (alertService != null)
+            {
+                await alertService.ShowAlertAsync("New Follower!", "PreviewFan");
+            }
+
+            var soundService = _serviceProvider.GetService<Core.Services.Audio.ISoundService>();
+            if (soundService != null)
+            {
+                await soundService.PlayEventSoundAsync("follow", "Twitch");
+            }
+
+            StatusMessage = "Preview sent - if you saw/heard nothing, alerts or sounds are disabled";
+            _logger.LogInformation("Notification preview sent (alert overlay + event sound)");
+            await ClearStatusAfterDelayAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending notification preview");
+            StatusMessage = $"Error sending preview: {ex.Message}";
         }
     }
 
@@ -1205,6 +1258,7 @@ public partial class SettingsViewModel : ViewModelBase, IDisposable
         {
             ShowEventsInChat = await GetBoolAsync("Notifications.ShowEventsInChat", true);
             EventSoundsEnabled = await GetBoolAsync("Notifications.EventSoundsEnabled", true);
+            DoNotDisturb = await GetBoolAsync("Notifications.DoNotDisturb", false);
 
             CommandPrefixes = await _dataService.GetConfigValueAsync("Commands.Prefixes") ?? "!?.";
             CommandsEnabledOnTwitch = await GetBoolAsync("Commands.Enabled.Twitch", true);

@@ -15,8 +15,14 @@ public sealed class HueLightsClient(
     Func<int>? defaultFlashTimes = null) : ILightsClient
 {
     private const string UnconfiguredMessage = "⚠️ Hue bridge is not configured (set it in Settings → Stream FX).";
-    private static readonly HttpClient SharedHttp = new();
-    private readonly HttpClient _http = handler is null ? SharedHttp : new HttpClient(handler);
+
+    // A missing bridge / wrong IP must fail fast — the default HttpClient
+    // timeout is 100s, and stacked triggers against a dead bridge would pile
+    // up hung requests for minutes.
+    private static readonly HttpClient SharedHttp = new() { Timeout = TimeSpan.FromSeconds(5) };
+    private readonly HttpClient _http = handler is null
+        ? SharedHttp
+        : new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
 
     public async Task<string> FlashAsync(string? hexColor, int times, int intervalMs, CancellationToken ct = default)
     {
@@ -38,27 +44,36 @@ public sealed class HueLightsClient(
             foreach (var id in targets)
                 originals.Add((id, await GetStateAsync(bridgeIp!, appKey!, id, ct).ConfigureAwait(false)));
 
-            for (var cycle = 0; cycle < times; cycle++)
-            {
-                var body = FlashBody(xy);
-                foreach (var id in targets)
-                    await PutStateAsync(bridgeIp!, appKey!, id, body, ct).ConfigureAwait(false);
-                if (cycle < times - 1)
-                    await Task.Delay(intervalMs, ct).ConfigureAwait(false);
-            }
-
-            // Best-effort per light: one failed restore must not leave the
-            // remaining lights stuck flashing.
             var restoreFailures = new List<string>();
-            foreach (var (id, state) in originals)
+            try
             {
-                try
+                for (var cycle = 0; cycle < times; cycle++)
                 {
-                    await PutStateAsync(bridgeIp!, appKey!, id, RestoreBody(state), ct).ConfigureAwait(false);
+                    var body = FlashBody(xy);
+                    foreach (var id in targets)
+                        await PutStateAsync(bridgeIp!, appKey!, id, body, ct).ConfigureAwait(false);
+                    if (cycle < times - 1)
+                        await Task.Delay(intervalMs, ct).ConfigureAwait(false);
                 }
-                catch (Exception ex)
+            }
+            finally
+            {
+                // Best-effort restore even when a mid-loop PUT fails (or the
+                // flash was cancelled) — otherwise the lights stay stuck in
+                // the flash color/on state. One failed restore must not leave
+                // the remaining lights stuck either. No ct: restore is two
+                // bounded PUTs and should run even while unwinding.
+                foreach (var (id, state) in originals)
                 {
-                    restoreFailures.Add($"{id}: {ex.Message}");
+                    try
+                    {
+                        await PutStateAsync(bridgeIp!, appKey!, id, RestoreBody(state), CancellationToken.None)
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        restoreFailures.Add($"{id}: {ex.Message}");
+                    }
                 }
             }
 

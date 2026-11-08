@@ -385,6 +385,15 @@ public class WebhookCoordinatorService : IDisposable
             _settings.CurrentTunnelUrl = newUrl;
             await _dataService.SaveWebServerSettingsAsync(_settings);
 
+            // If the URL bounced back to the same value (e.g. after a transient
+            // tunnel-health hiccup), the existing Kick subscriptions still point at
+            // the right URL — skip the unsubscribe/resubscribe churn.
+            if (string.Equals(oldUrl, newUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("Ngrok URL is unchanged ({Url}) - no webhook resubscription needed", newUrl);
+                return;
+            }
+
             // Check if Kick webhooks need resubscription
             var kickSubscriptions = await _dataService.GetWebhookSubscriptionsAsync("Kick");
             var activeKickSubs = kickSubscriptions.Where(s => s.IsActive).ToList();

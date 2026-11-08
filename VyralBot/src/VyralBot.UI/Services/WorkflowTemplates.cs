@@ -48,8 +48,9 @@ public sealed class WorkflowTemplate
 /// <see cref="WorkflowJson"/> schema and validated by
 /// <c>VyralBot.UI.Tests.WorkflowTemplatesTests</c> (parses, node types exist in
 /// <see cref="VyralBot.Workflows.Abstractions.BlockCatalog"/>, wiring resolves).
-/// Node types used: <c>send_message</c> and <c>wait</c> only — the catalog has
-/// no sound node, so the sub template uses two messages with a delay instead.
+/// Node types used: <c>send_message</c> and <c>play_sound</c> (the sub template
+/// plays the Sounds library's subscribe.wav instead of the old wait+second-message
+/// workaround).
 /// </summary>
 public static class WorkflowTemplates
 {
@@ -93,7 +94,7 @@ public static class WorkflowTemplates
         new(
             "sub-appreciation",
             "Sub Appreciation",
-            "Two-message thank-you for new subs with a short pause between (no sound node in the block catalog yet).",
+            "Plays the sub alert sound and thanks new subs by name in chat.",
             "Twitch, Kick",
             """
             {
@@ -107,25 +108,17 @@ public static class WorkflowTemplates
               "nodes": [
                 {
                   "id": "tpl-sub-1",
-                  "type": "send_message",
-                  "config": { "text": "Thank you for subscribing {username}! You just made the stream better." },
+                  "type": "play_sound",
+                  "config": { "SoundName": "subscribe.wav", "Volume": "80" },
                   "next": "tpl-sub-2",
                   "x": 80,
                   "y": 120
                 },
                 {
                   "id": "tpl-sub-2",
-                  "type": "wait",
-                  "config": { "seconds": "3" },
-                  "next": "tpl-sub-3",
-                  "x": 340,
-                  "y": 120
-                },
-                {
-                  "id": "tpl-sub-3",
                   "type": "send_message",
-                  "config": { "text": "Welcome to the sub club {username} — your support keeps the lights on." },
-                  "x": 600,
+                  "config": { "text": "Thank you for subscribing {username}! You just made the stream better." },
+                  "x": 340,
                   "y": 120
                 }
               ],
