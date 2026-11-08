@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using VyralBot.Core.Services.Currency;
 using VyralBot.Core.Services.Profiles;
+using VyralBot.Data;
 using VyralBot.Data.Entities;
 
 namespace VyralBot.UI.ViewModels;
@@ -17,6 +18,11 @@ public partial class CurrencyViewModel : ViewModelBase
     private readonly ICurrencyService _currencyService;
     private readonly ICurrencyRewardsService _rewardsService;
     private readonly IProfileService _profileService;
+    private readonly IDataService _dataService;
+
+    // Port of the embedded web server (source of the leaderboard overlay URL);
+    // 5000 fallback, same convention as AudioSettingsViewModel.
+    private int _serverPort = 5000;
 
     [ObservableProperty]
     private CurrencySetting? _settings;
@@ -63,16 +69,32 @@ public partial class CurrencyViewModel : ViewModelBase
     [ObservableProperty]
     private string _statusMessage = "";
 
+    // --- Leaderboard overlay (OBS browser source) ----------------------------
+
+    /// <summary>Row count baked into the overlay URL (widget caps at 25).</summary>
+    [ObservableProperty]
+    private int _overlayCount = 10;
+
+    /// <summary>Heading text baked into the overlay URL (?title=...).</summary>
+    [ObservableProperty]
+    private string _overlayTitle = "Top Points";
+
+    /// <summary>Full overlay URL to paste into an OBS browser source.</summary>
+    [ObservableProperty]
+    private string _leaderboardOverlayUrl = "http://localhost:5000/leaderboard.html?count=10&title=Top%20Points";
+
     public CurrencyViewModel(
         ILogger<CurrencyViewModel> logger,
         ICurrencyService currencyService,
         ICurrencyRewardsService rewardsService,
-        IProfileService profileService)
+        IProfileService profileService,
+        IDataService dataService)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _currencyService = currencyService ?? throw new ArgumentNullException(nameof(currencyService));
         _rewardsService = rewardsService ?? throw new ArgumentNullException(nameof(rewardsService));
         _profileService = profileService ?? throw new ArgumentNullException(nameof(profileService));
+        _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
     }
 
     public async Task InitializeAsync()
@@ -83,11 +105,74 @@ public partial class CurrencyViewModel : ViewModelBase
             await LoadLeaderboardAsync();
             await LoadRewardsAsync();
             await LoadRedemptionsAsync();
+            await LoadOverlayPortAsync();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to initialize CurrencyViewModel");
             StatusMessage = "Failed to load currency data.";
+        }
+    }
+
+    /// <summary>
+    /// The overlay URL must point at the embedded web server, whose port is
+    /// owned by the Web Server settings — read it once per navigation (5000
+    /// fallback) and rebuild the URL.
+    /// </summary>
+    private async Task LoadOverlayPortAsync()
+    {
+        try
+        {
+            var webSettings = await _dataService.GetWebServerSettingsAsync();
+            if (webSettings is not null && webSettings.Port > 0)
+            {
+                _serverPort = webSettings.Port;
+            }
+        }
+        catch (Exception portEx)
+        {
+            _logger.LogWarning(portEx, "Could not load web-server settings - using default port 5000 for the leaderboard overlay URL");
+        }
+
+        UpdateLeaderboardOverlayUrl();
+    }
+
+    partial void OnOverlayCountChanged(int value)
+    {
+        // Clamp to the endpoint's 1..25 range (re-enters once with the clamped value).
+        var clamped = Math.Clamp(value, 1, 25);
+        if (clamped != value)
+        {
+            OverlayCount = clamped;
+            return;
+        }
+
+        UpdateLeaderboardOverlayUrl();
+    }
+
+    partial void OnOverlayTitleChanged(string value) => UpdateLeaderboardOverlayUrl();
+
+    private void UpdateLeaderboardOverlayUrl()
+    {
+        LeaderboardOverlayUrl =
+            $"http://localhost:{_serverPort}/leaderboard.html?count={OverlayCount}" +
+            $"&title={Uri.EscapeDataString(OverlayTitle)}";
+    }
+
+    [RelayCommand]
+    private void CopyLeaderboardOverlayUrl()
+    {
+        try
+        {
+            System.Windows.Clipboard.SetText(LeaderboardOverlayUrl);
+            StatusMessage = "Leaderboard overlay URL copied - add it as a Browser Source in OBS.";
+            _logger.LogInformation("Leaderboard overlay URL copied to clipboard");
+        }
+        catch (Exception ex)
+        {
+            // Clipboard can be locked by another process - non-fatal.
+            _logger.LogWarning(ex, "Could not copy leaderboard overlay URL to clipboard");
+            StatusMessage = "Could not copy - the clipboard is busy.";
         }
     }
 

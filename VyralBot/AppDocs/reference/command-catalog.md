@@ -19,11 +19,15 @@ When the pipeline is alive, every incoming chat message flows through `OnChatMes
 5. **Poll commands**: messages starting with `!poll` go to `PollCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3462`).
 6. **Watchtime commands**: messages starting with `!watchtime` go to `WatchtimeCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3496`).
 7. **Quote commands**: messages starting with `!quote` go to `QuoteService.ProcessCommandAsync` (`ChatViewModel.cs:3530`).
-8. Finally, watchtime activity is recorded and chat-activity currency is awarded (for non-command messages).
+8. **Song requests**: messages starting with `!sr`/`!songrequest` go to `SongRequestService.ProcessCommandAsync` (`ChatViewModel.cs:3619`).
+9. **Mod & stream tools**: any `!` message falls through to `StreamToolsCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3653`) — `!so`, `!clip`, `!raid`, `!title`, `!game`, `!commercial`, `!uptime`, `!followage`.
+10. **Death counter**: messages starting with `!death` go to `DeathCounterService.ProcessCommandAsync` (`ChatViewModel.cs:3683`).
+11. **TTS**: messages starting with `!tts` go to `TtsService.ProcessCommandAsync` (`ChatViewModel.cs:3717`).
+12. Finally, watchtime activity is recorded and chat-activity currency is awarded (for non-command messages).
 
 Notes that apply across the whole catalog:
 
-- **Prefixes**: the unified command engine treats `!`, `?`, and `.` identically — `.socials` and `?socials` both resolve to `!socials`. The feature command services (currency/giveaway/poll/watchtime) only recognize `!`.
+- **Prefixes**: the unified command engine treats `!`, `?`, and `.` identically — `.socials` and `?socials` both resolve to `!socials`. The feature command services (currency/giveaway/poll/watchtime/stream tools/death counter/TTS) only recognize `!`.
 - **Response delivery**: command responses are sent back to **Twitch, Kick, YouTube, and Discord** — each fallback branch switches on the event's platform and sends through that platform's service (Discord via `SendDiscordReplyAsync` through the **bot that received the message**, to that bot's active channel, picked on the [Discord bots page](../platforms/discord.md#multiple-bots), not necessarily the channel the command was typed in). Entries, votes, and balances are recorded for any platform; a platform with no send path (e.g. TikTok) has its reply silently dropped.
 - **Per-bot scope (Discord only)**: a custom command's `Commands.BotId` pins it to one Discord bot; `null` (the default) means every bot answers it. Execution compares the stored `BotId` against the origin bot of the triggering message and silently skips mismatches (`CommandService.cs:175-183`). The tables below do not carry a scope column because scope is per-row state you set in the builder — see [Commands](../chat-features/commands.md#bot-scope). Twitch and Kick are never affected by bot scope, and neither are the built-ins' platform toggles.
 - **Two permission behaviors**: `CommandService` silently ignores unauthorized and on-cooldown users (no feedback). The currency/giveaway/poll services reply with an explicit "You must be a moderator to use !x" / "Only moderators can..." message.
@@ -45,7 +49,7 @@ The 5 meta commands have real handler code; the 16 currency rows are discoverabi
 | Command | Arguments | Permission | What it does | Source |
 |---|---|---|---|---|
 | `!commands` | none | Everyone | Lists up to 10 enabled commands the caller has permission for on that platform. Does not filter by bot scope — it can list a command pinned to another bot (KI-37). | [CommandService.cs](../../src/VyralBot.Core/Services/Commands/CommandService.cs) (`ExecuteCommandsListAsync`) |
-| `!uptime` | none | Everyone | Placeholder: replies "Stream uptime tracking not yet implemented. Coming soon!" — no uptime tracking exists. | [CommandService.cs](../../src/VyralBot.Core/Services/Commands/CommandService.cs) (`ExecuteUptimeAsync`) |
+| `!uptime` | none | Everyone | Replies "Stream uptime: Xh Ym (since HH:mm UTC)" computed from the `Stream.StartedAtUtc` config value (written by ChatViewModel whenever the Twitch stream status changes; cleared when offline). Works from any connected platform's chat — the data source is the Twitch live status, so without a Twitch connection it replies "Stream is offline or uptime not tracked yet." **This seeded row answers first** — the newer Helix-based `!uptime` in [Mod & stream tools](#mod--stream-tools-commands) below only answers when this built-in is disabled or deleted on the Commands page (KI-59). | [CommandService.cs](../../src/VyralBot.Core/Services/Commands/CommandService.cs) (`ExecuteUptimeAsync` :447) |
 | `!socials` | none | Everyone | Returns the stored response template, which resolves `{twitter}`, `{discord}`, `{youtube}` from the Variables table. | [CommandService.cs](../../src/VyralBot.Core/Services/Commands/CommandService.cs) |
 | `!discord` | none | Everyone | Returns the stored template resolving `{discord}`. | [CommandService.cs](../../src/VyralBot.Core/Services/Commands/CommandService.cs) |
 | `!watchtime` | none | Everyone | Seed row for discoverability; the built-in handler deliberately defers (`CommandService.cs:355` returns null) so the real `WatchtimeCommandService` below answers instead. | [DapperDataService.cs](../../src/VyralBot.Data/DapperDataService.cs) (seed) |
@@ -198,6 +202,81 @@ Implemented in [QuoteService.cs](../../src/VyralBot.Core/Services/Quotes/QuoteSe
 | `!quotecount` | none | Everyone | "There are N quotes in the database." | [QuoteService.cs](../../src/VyralBot.Core/Services/Quotes/QuoteService.cs) |
 
 Permission note: unlike the legacy command engine's silent denials, non-moderator `add`/`del` attempts get an explicit "You must be a moderator to add/delete quotes" reply.
+
+---
+
+## Mod & stream tools commands
+
+Implemented in [StreamToolsCommandService.cs](../../src/VyralBot.Integrations/StreamTools/StreamToolsCommandService.cs) (`ProcessCommandAsync` — the interface lives in Core at [IStreamToolsCommandService.cs](../../src/VyralBot.Core/Services/Commands/IStreamToolsCommandService.cs); the implementation sits in Integrations because it depends on `ITwitchService`). Any `!` message reaches this service (fallback after song requests); the reply is sent on the **originating** platform. Added in 1.1.0.
+
+The classic mod/stream commands — shoutouts, clipping, raiding, and title/category/commercial control — driven from chat. `@` and `#` decorations on user arguments are stripped automatically.
+
+| Command | Arguments | Permission | Platform | What it does | Source |
+|---|---|---|---|---|---|
+| `!so <user>` | user handle | **Moderator+** | All | Shoutout: replies "Check out {user} at {url} — go show them some love!" with the platform's channel URL (twitch.tv/, kick.com/, youtube.com/@, tiktok.com/@). | `HandleShoutout` |
+| `!clip` | none | **Moderator+** | Twitch only | Creates a clip of the live stream via Helix and replies with the clip URL. Fails with "Clip failed (Twitch only, and the stream must be live)" on other platforms or when offline. | `HandleClipAsync` |
+| `!raid <channel>` / `!raid cancel` | target channel, or `cancel` | **Moderator+** | Twitch only | Starts a raid on the target channel, or cancels the raid in progress. | `HandleRaidAsync` |
+| `!title [text]` | none, or the new title | **Moderator+** | Twitch only | Without arguments, reads the current title (and game). With text, updates the stream title — everything after the command is the title. | `HandleTitleAsync` |
+| `!game [name]` | none, or the game name | **Moderator+** | Twitch only | Without arguments, reads the current category. With a name, resolves it against Twitch's top-games list and updates the category. | `HandleGameAsync` |
+| `!commercial <length>` | `30\|60\|90\|120\|150\|180` | **Moderator+** | Twitch only | Starts a commercial of the given length (seconds). Any other value replies with the usage line. | `HandleCommercialAsync` |
+| `!uptime` | none | Everyone | All | Twitch: the **real** uptime from Helix `started_at` ("Stream uptime: 2h 14m"; offline when null). Other platforms: live/offline from the live registry — when live it says "duration unknown (no start time available)" because only a bool is tracked. | `HandleUptimeAsync` |
+| `!followage [user]` | optional user (defaults to the caller) | Everyone | Twitch only | "X has been following for 2 months, 3 days" (largest two non-zero units). | `HandleFollowAgeAsync` |
+
+### Gating, scopes, and the re-auth note
+
+- **Moderator gate**: everything except `!uptime` and `!followage` replies "That's a moderator-only command." for non-mods.
+- **Twitch-only gate**: `!clip`, `!raid`, `!title`, `!game`, `!commercial` and `!followage` reply "… is Twitch-only." on other platforms; `Twitch`-connected checks short-circuit with "Twitch is not connected." when the Twitch service is absent/disconnected.
+- **Scopes**: the Twitch-only writes need scopes on the stored broadcaster token — `clips:edit` (`!clip`), `channel:manage:raids` (`!raid`), `channel:manage:broadcast` (`!title`, `!game`), `channel:edit:commercial` (`!commercial`). **The scopes themselves pre-exist** — `TwitchOAuthService` has requested all four since before this feature landed — but **tokens issued before those scope lines were added to the authorization URL do not carry them**: if `!commercial` or `!raid` keeps failing, re-run the Twitch connection once (**Home → Connections → Twitch**) so the token is re-issued with the full scope set (same pattern as KI-33's `moderator:read:followers`).
+- **Honest degradations**:
+  - `!so` cannot fetch the **target's** channel info — `ITwitchService`'s channel-info read only covers your own channel, so the shoutout is a platform URL + generic hype text rather than "{user} was last playing …" (see [Known Issues](known-issues.md) KI-58). Discord (no channel URL concept) gets plain hype text.
+  - `!game <name>` resolves the name through the **top-games search** and takes the **first** match — an exact-name lookup only, not fuzzy search; an unusual spelling replies "Game "X" not found on Twitch." (KI-58).
+  - `!followage` cannot distinguish "doesn't follow" from "lookup failed" (the API wrapper returns null for both) — the reply says "isn't following the channel." either way.
+  - `!uptime` on non-Twitch platforms reports only live/offline ("duration unknown" when live) — the live registry tracks a bool, not start times; Discord is never tracked and reports offline.
+  - Any handler exception degrades to "That command failed — check the logs." — a chat command never throws into the chat pipeline.
+
+### Examples
+
+```
+!so @vyralbot                  → Check out vyralbot at twitch.tv/vyralbot — go show them some love!
+!raid shroud                   → Raiding shroud!
+!raid cancel                   → Raid cancelled.
+!title Late night horror — !discord   → Title updated.
+!game Balatro                  → Game updated to Balatro.
+!commercial 60                 → Commercial started (60s).
+!uptime                        → Stream uptime: 2h 14m
+!followage @someviewer         → someviewer has been following for 1 year, 2 months.
+```
+
+Routing precedence: the unified Commands table runs **first** — the seeded built-in `!uptime` row answers `!uptime` on default installs (KI-59); disable or delete that row on the Commands page to get the Helix-based version above.
+
+---
+
+## Death counter commands
+
+Implemented in [DeathCounterService.cs](../../src/VyralBot.Core/Services/Counters/DeathCounterService.cs) (`ProcessCommandAsync`). Messages starting with `!death` reach this service; the reply is sent on the **originating** platform. State lives in two per-profile config rows (`DeathCounter.Count`, `DeathCounter.History` — newest-first, capped at 50 events), shared with the **Death Counter card on the Tools page** and the [/counters/death overlay widget](../stream-tools/browser-sources.md). Added in 1.1.0.
+
+| Command | Arguments | Permission | What it does | Source |
+|---|---|---|---|---|
+| `!death` | none | Everyone | Current count ("💀 Deaths: 12"). | `DeathCounterService.cs` |
+| `!death+` (alias `!death add`, `!death add <n>`) | optional count | **Moderator+** | +1 (or +n, capped at 10,000 per command). | `DeathCounterService.cs` |
+| `!death-` (alias `!death sub/remove <n>`) | optional count | **Moderator+** | −1 (or −n), floored at 0. | `DeathCounterService.cs` |
+| `!death set <n>` | the new count | **Moderator+** | Sets the counter (0–999,999). | `DeathCounterService.cs` |
+| `!death reset` | none | **Moderator+** | Back to 0 — no confirmation, but every change is logged and recorded in the history. | `DeathCounterService.cs` |
+| `!death help` | none | Everyone | Usage summary. | `DeathCounterService.cs` |
+
+Non-moderator change attempts get an explicit "Only moderators can change the death counter" reply. Every mutation is serialized through a semaphore (two simultaneous `!death+` messages cannot lose an update) and lands in the history the Tools card shows.
+
+---
+
+## TTS command
+
+Implemented in [TextToSpeechService.cs](../../src/VyralBot.Core/Services/Audio/TextToSpeechService.cs) (`ProcessCommandAsync`). Messages starting with `!tts` (exactly — `!ttsxyz` is not ours) reach this service; the reply is sent on the **originating** platform. Settings live on the [Alert Settings page's Text-to-Speech card](../stream-tools/visual-alerts.md#text-to-speech-card). Added in 1.1.0.
+
+| Command | Arguments | Permission | What it does | Source |
+|---|---|---|---|---|
+| `!tts <message>` | the text to speak | Everyone (or mods only — see `Tts.AllowViewers`) | Speaks the message through the configured SAPI voice and replies "🔊 {user} says: {text}". Bare `!tts` replies "Usage: !tts <message>". | `TextToSpeechService.cs` |
+
+Rules, in order: the master toggle (`Tts.Enabled`) must be on (disabled = silently ignored, like other disabled commands); if `Tts.AllowViewers` is off, only moderators pass (silently for viewers); **Do Not Disturb** (`Notifications.DoNotDisturb` — the same key Sounds and Alerts respect) mutes TTS entirely; non-mods are rate-limited to one use per 30 seconds ("⏳ {user}, you can use !tts again in {n}s."); text longer than `Tts.MaxLength` is truncated to that length. Speech is queued on a single-consumer bounded queue (10 max, drop-oldest) — see [Visual Alerts → Text-to-Speech](../stream-tools/visual-alerts.md#text-to-speech-card) for the full settings reference.
 
 ---
 

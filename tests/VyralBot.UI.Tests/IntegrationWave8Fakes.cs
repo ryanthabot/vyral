@@ -570,6 +570,19 @@ public sealed class IntegrationWave8TwitchService : ITwitchService
     public Task<TwitchActionResponse> SetChatModeAsync(bool? emoteOnly, bool? followerOnly) => throw new NotImplementedException(NotImplemented);
     public Task<TwitchActionResponse> SetShieldModeAsync(bool enabled) => throw new NotImplementedException(NotImplemented);
     public Task<TwitchChatModeState?> GetChatModeStateAsync() => throw new NotImplementedException(NotImplemented);
+
+    // Engine-facing Helix lookups/actions (interface wave 14): no wave-8 flow
+    // touches them, and their contract is "never throw", so they return
+    // failure defaults instead of NotImplementedException.
+    public Task<string?> CreateClipUrlAsync() => Task.FromResult<string?>(null);
+    public Task<bool> StartRaidAsync(string targetLogin) => Task.FromResult(false);
+    public Task<bool> CancelRaidAsync() => Task.FromResult(false);
+    public Task<bool> UpdateChannelInfoAsync(string? title, string? gameId) => Task.FromResult(false);
+    public Task<(string Title, string GameName)?> GetChannelInfoAsync() => Task.FromResult<(string Title, string GameName)?>(null);
+    public Task<string?> GetTopGamesAsync(string? query = null, int limit = 20) => Task.FromResult<string?>(null);
+    public Task<bool> StartCommercialAsync(int seconds) => Task.FromResult(false);
+    public Task<TimeSpan?> GetStreamUptimeAsync() => Task.FromResult<TimeSpan?>(null);
+    public Task<TimeSpan?> GetFollowAgeAsync(string login) => Task.FromResult<TimeSpan?>(null);
 }
 
 /// <summary>

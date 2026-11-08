@@ -143,6 +143,17 @@ Every placeable block, from the catalog in [BlockCatalog.cs](../../src/VyralBot.
 | 🪙 `add_currency` — Add Currency | Awards currency to a user via the existing economy system. | `username`, `amount` (10) |
 | 🪙 `remove_currency` — Remove Currency | Deducts currency from a user via the existing economy system. | `username`, `amount` (10) |
 
+**Actions — Streaming** (added 1.1.0)
+
+| Block (`type`) | What it does | Key settings |
+|---|---|---|
+| 🎬 `obs_scene` — Switch OBS Scene | Switches the OBS program scene through the OBS remote-control seam (obs-websocket — the same bridge the VyralDeck OBS buttons use). Failures (OBS offline, unknown scene) take the **Error** port. | `SceneName` (OBS scene name, supports `{variables}`) |
+| 📡 `obs_stream` — OBS Stream Start/Stop | Starts or stops the OBS stream output. Failures (OBS offline, remote control disabled) take the **Error** port. | `Action` = Start/Stop |
+| ⏺️ `obs_replay` — Save OBS Replay Buffer | Saves the current OBS replay-buffer highlight. No parameters — when the replay buffer isn't enabled and running in OBS, the node fails with a hint on the **Error** port. | — |
+| ✂️ `twitch_clip` — Create Twitch Clip | Clips the live Twitch stream (Helix, same call as the deck's Clip button and `!clip`). No parameters — Twitch disconnected or offline fails with a message on the **Error** port. | — |
+
+These four need the OBS side actually reachable: OBS running with **Tools → WebSocket Server Settings** enabled (and, for `obs_replay`, the replay buffer active) — see [Known Issues](../reference/known-issues.md) KI-60.
+
 **Actions — Moderation**
 
 | Block (`type`) | What it does | Key settings |
@@ -156,7 +167,7 @@ Every placeable block, from the catalog in [BlockCatalog.cs](../../src/VyralBot.
 |---|---|---|
 | 🌐 `http_request` — HTTP Request | Calls an external API; the response body is stored as `{http_response}` and the status as `{http_status}`. | `Method` (GET/POST/PUT/DELETE), `Url`, `Headers` (`Key: Value` per line), `Body`, `SaveAs` (variable name, default `http_response`) |
 | ⏱️ `wait` — Delay | Pauses the flow for a fixed duration. | `seconds` (default 5) |
-| 🔊 `play_sound` — Play Sound | Plays a file from your [Sounds](../stream-tools/sounds.md) library — from a command, timer or event flow, at an optional volume. Respects the Streamer/Stream output toggles (added in 1.1.0; the 25th action block). | `SoundName` (file name as listed on the Sounds page, supports `{variables}`), `Volume` (0–100, default 100) |
+| 🔊 `play_sound` — Play Sound | Plays a file from your [Sounds](../stream-tools/sounds.md) library — from a command, timer or event flow, at an optional volume. Respects the Streamer/Stream output toggles (added in 1.1.0; the 25th action block at its addition — the four Streaming blocks above brought the total to 29). | `SoundName` (file name as listed on the Sounds page, supports `{variables}`), `Volume` (0–100, default 100) |
 | 📝 `log` — Log | Writes a message to the engine log (debugging). | `text` |
 | 🗒️ `note` — Note | Writes a note in the tree: a canvas annotation that does nothing when the flow runs — it executes instantly, succeeds, and continues via **Next**. Its text is kept literally (no `{variables}` — it's documentation, not data). | `Text` |
 

@@ -29,6 +29,13 @@ public static class BuiltInNodes
         registry.Register(new HttpRequestNode());
         registry.Register(new PlaySoundNode());
 
+        // Stream control (OBS scene/stream/replay + Twitch clip) through the
+        // UI-registered IStreamControlWorkflowBridge (see Abstractions).
+        registry.Register(new ObsSceneNode());
+        registry.Register(new ObsStreamNode());
+        registry.Register(new ObsReplayNode());
+        registry.Register(new TwitchClipNode());
+
         // Command editor (legacy built-ins + moderation inside flows).
         registry.Register(new BuiltinCommandNode());
         registry.Register(new ModerateMemberNode());

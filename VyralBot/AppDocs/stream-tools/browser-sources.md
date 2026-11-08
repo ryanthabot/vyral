@@ -1,15 +1,19 @@
 # Browser Sources
 
-> The single OBS browser-source page (`audio.html`) that Vyral serves on `http://localhost:5000` (the web-server port, 5000 by default) so stream sounds can play on the stream — working end to end, with volume honored, since the 2026-08-15 JSON-contract fix.
+> The OBS browser-source pages Vyral serves on `http://localhost:5000` (the web-server port, 5000 by default): **`audio.html`** (stream sounds — working end to end, volume honored, since the 2026-08-15 JSON-contract fix), plus the two 1.1.0 overlay widgets — **`deathcounter.html`** (the live death counter) and **`leaderboard.html`** (the points leaderboard).
 
 ## Overview
 
-Vyral ships exactly **one** browser-source page: `audio.html`. It is served by the app's embedded web server (Kestrel, localhost — the configured web-server port, 5000 by default) and is meant to be added to OBS as a **Browser Source**. When a stream event fires (follow, sub, raid, and so on), Vyral pushes a WebSocket message to every open copy of the page, and the page plays the matching sound file at the sent volume — which OBS captures as part of your stream audio, so **viewers** hear it.
+Vyral serves **three** browser-source pages from the app's embedded web server (Kestrel, localhost — the configured web-server port, 5000 by default), each meant to be added to OBS as a **Browser Source**:
+
+- **`audio.html`** — invisible; when a stream event fires (follow, sub, raid, and so on), Vyral pushes a WebSocket message to every open copy of the page and it plays the matching sound file at the sent volume — OBS captures it as stream audio, so **viewers** hear it.
+- **`deathcounter.html`** (1.1.0) — the big number overlay for the shared death counter (Tools page card + `!death` chat commands). Polls `GET /counters/death` every 3 s; styling via URL params.
+- **`leaderboard.html`** (1.1.0) — the top-points overlay. Polls `GET /leaderboard/data` every 10 s; rows, title, style and platform filter via URL params. The Currency page builds the URL for you.
 
 Things worth knowing up front:
 
-- The sidebar button labeled **Browser Sources** (under Stream Tools) navigates to the [Audio Settings](audio.md) page — that is where browser-source setup lives (the tooltip says so). Wired on 2026-08-15.
-- There are **no other browser-source pages** in the app. Alerts, giveaways, and polls have no overlay HTML — visual alerts are an in-app WPF window ([Visual Alerts](visual-alerts.md)), and giveaway/poll winners are only posted to chat.
+- The sidebar button labeled **Browser Sources** (under Stream Tools) navigates to the [Audio Settings](audio.md) page — that is where the audio browser-source setup lives (the tooltip says so). Wired on 2026-08-15.
+- **Alerts, giveaways, and polls have no overlay HTML** — visual alerts are an in-app WPF window ([Visual Alerts](visual-alerts.md)), and giveaway/poll winners are only posted to chat.
 - **Viewer-side sound playback works** since the 2026-08-15 fix: the server broadcasts the camelCase `{"type":"play","sound":...,"volume":0..1}` shape the page understands, the page honors `volume`, and it derives its WebSocket/sounds URLs from `window.location` (port-agnostic). See [Status & Known Issues](#status--known-issues).
 
 ## User Guide
@@ -54,6 +58,49 @@ You can force the pill to reappear at any time by right-clicking the source in O
 - **Sounds play for you but not viewers** — check that the OBS browser source is not muted in the OBS audio mixer.
 - **You run OBS on a different machine than Vyral** — the page connects back to the host it was loaded from (`window.location`), which is `localhost:5000` as configured — so OBS must run on the same computer as Vyral unless you rewrite the URL.
 
+## The overlay widgets (1.1.0)
+
+Two visible overlays join the invisible audio page. Same trust model as `/songs`: the embedded server binds **loopback only**, the pages are served from the same origin, and their endpoints are bare read-only GETs, so they sit outside the token-gated Control API and need no Origin gate.
+
+### Death counter (`deathcounter.html`) {#death-counter-deathcounterhtml}
+
+Shows the shared death counter as a huge number with a label under it. It polls `GET /counters/death` (returns `{ "count": 12 }`, `no-store`) **every 3 seconds** — no WebSocket, no restart needed when the app-side count changes via the [Tools card](../home/tools-hub.md) or a chat `!death+`.
+
+Add it to OBS as a Browser Source with:
+
+```
+http://localhost:5000/deathcounter.html?label=Deaths&size=120&color=%23ffffff
+```
+
+| Param | Default | Notes |
+|---|---|---|
+| `label` | `Deaths` | Text under the number. Plain text only (never HTML), capped at 40 chars. The Tools page card builds the URL with your saved label. |
+| `size` | `120` | Number font size in px, clamped 20–480. |
+| `color` | white | Any CSS hex color — URL-encoded (`%23` = `#`); strict `#rgb`/`#rrggbb`/`#rrggbbaa` pattern, anything else falls back to white. |
+
+A status pill (same look as the audio page's) appears while connecting and hides after 5 s; the page auto-reconnects if the app restarts. The Tools page's **death counter card** shows and copies this URL with the label pre-baked.
+
+### Points leaderboard (`leaderboard.html`) {#points-leaderboard-leaderboardhtml}
+
+Shows the top balances with rank, username, platform chip and amount, headed by a title. It polls `GET /leaderboard/data?count=&platform=` (top N by balance via the shared `ICurrencyService.GetLeaderboardAsync` — the same query the Currency page and `!leaderboard` use) **every 10 seconds**.
+
+```
+http://localhost:5000/leaderboard.html?count=10&title=Top%20Points&style=dark
+```
+
+| Param | Default | Notes |
+|---|---|---|
+| `count` | `10` | Rows to show, clamped 1–25 (a hand-edited URL is clamped server-side, not rejected). |
+| `title` | `Top Points` | Heading text, capped at 60 chars. |
+| `style` | `dark` | `dark` or `light` — light flips the card for bright stream scenes. |
+| `platform` | — (all) | Optional single-platform filter: `twitch`, `kick`, `youtube`, `tiktok`, `discord`, `facebook`, `vyral` (case-insensitive; unknown values are a 400). |
+
+The response carries `currencyName`/`currencySymbol` from your Currency settings, so the overlay labels points with your currency's name. Platform chips use the app's platform palette. The **Currency page's LEADERBOARD tab** has the URL card that builds this for you — see [Currency & Rewards](currency.md#leaderboard-overlay).
+
+### Widget prerequisites
+
+Both widgets need the embedded web server running (same prerequisite as the audio page) — they are served and polled from the same origin and port. Both render nothing useful while their backing service is not registered (the endpoints return a 503 JSON error instead of data); the currency service returns 503 only if currency itself is disabled.
+
 ## How It Works (Developer)
 
 ### The embedded web server
@@ -62,9 +109,14 @@ One in-process ASP.NET Core (Kestrel) app, [WebServerService.cs](../../src/Vyral
 
 - `StartAsync(port = 5000)` builds a `WebApplication` bound to **localhost only** via `ListenLocalhost` (WebServerService.cs:55) — the server is never directly reachable from the network.
 - It pulls shared services (`IEventBus`, `ILoggerFactory`) from the parent WPF DI container (WebServerService.cs:62-63) so web and UI see the same event stream.
-- `UseStaticFiles()` serves everything under `wwwroot` — that is `audio.html` and the `/sounds/*` directory (WebServerService.cs:84).
+- `UseStaticFiles()` serves everything under `wwwroot` — that is `audio.html`, `deathcounter.html`, `leaderboard.html` and the `/sounds/*` directory (WebServerService.cs:84).
 - A minimal-API endpoint maps `/audio-ws` (WebServerService.cs:91-122): it accepts WebSocket upgrades, tracks connected pages in a `ConcurrentDictionary`, and parks each socket in a receive loop until it closes. Nothing is ever read from the client.
 - The server is started by `WebhookCoordinatorService` (and the ngrok setup wizards) using the port from `WebServerSettings` (default 5000). See [Web Server architecture](../architecture/web-server.md).
+
+The two overlay widgets' read endpoints are MVC controllers on the same host, both loopback-only and read-only (hence outside the Bearer-gated Control API):
+
+- [CountersController.cs](../../src/VyralBot.Api/Controllers/CountersController.cs) — `GET /counters/death` returns the current `{ count }` from `IDeathCounterService` (the shared Tools-card/`!death` config rows), `no-store`, 503 when the counter service is not registered.
+- [LeaderboardController.cs](../../src/VyralBot.Api/Controllers/LeaderboardController.cs) — `GET /leaderboard/data?count=&platform=` returns `currencyName`/`currencySymbol` plus ranked `entries` from `ICurrencyService.GetLeaderboardAsync` (deterministic tiebreakers); `count` is clamped 1–25, `platform` normalized against the known platform set (400 on an unknown name), `no-store`, 503 when currency is disabled.
 
 ### The broadcast bridge
 
@@ -114,7 +166,11 @@ The same Kestrel server is also tunneled publicly by ngrok ([NgrokService.cs](..
 
 | File | Role |
 |---|---|
-| [audio.html](../../src/VyralBot.Api/wwwroot/audio.html) | The browser-source page: WebSocket client, status pill, volume-honoring sound playback (current copy) |
+| [audio.html](../../src/VyralBot.Api/wwwroot/audio.html) | The audio browser-source page: WebSocket client, status pill, volume-honoring sound playback (current copy) |
+| [deathcounter.html](../../src/VyralBot.Api/wwwroot/deathcounter.html) | Death-counter overlay: 3 s polling of `/counters/death`, `label`/`size`/`color` URL params (1.1.0) |
+| [leaderboard.html](../../src/VyralBot.Api/wwwroot/leaderboard.html) | Points-leaderboard overlay: 10 s polling of `/leaderboard/data`, `count`/`title`/`style`/`platform` URL params, platform chips (1.1.0) |
+| [CountersController.cs](../../src/VyralBot.Api/Controllers/CountersController.cs) | `GET /counters/death` — the death-counter read endpoint behind the widget |
+| [LeaderboardController.cs](../../src/VyralBot.Api/Controllers/LeaderboardController.cs) | `GET /leaderboard/data` — clamped, platform-normalized leaderboard reads for the widget |
 | [BrowserSource/audio.html](../../BrowserSource/audio.html) | Legacy copy of the same page, hard-coded to port 8080 (unreferenced by the running app) |
 | [WebServerService.cs](../../src/VyralBot.Api/Services/WebServerService.cs) | Embedded Kestrel server: static files (`audio.html`, `/sounds/*`), `/audio-ws` WebSocket endpoint, broadcast bridge wiring |
 | [AudioWebSocketBroadcaster.cs](../../src/VyralBot.Core/Services/Audio/AudioWebSocketBroadcaster.cs) | Static delegate that lets Core's SoundService push JSON to connected browser pages without referencing the API project |
@@ -227,4 +283,4 @@ Every item below is verified against the current code. See the [known issues led
 4. **"Connected Clients" on the Audio Settings page is live** — it polls `AudioWebSocketBroadcaster.ConnectedClientCount` every 2 seconds, so you can see whether OBS is attached (see [Audio](audio.md)). [known issues ledger](../reference/known-issues.md)
 5. **The page is effectively localhost-only by configuration** — it derives URLs from `window.location` (port-agnostic), but the URL you configure in OBS is `http://localhost:5000/audio.html` and the server binds localhost, so OBS must run on the same machine; the ngrok public URL serves [Kick webhooks](../settings/web-server-ngrok.md), not the browser source. [known issues ledger](../reference/known-issues.md)
 6. **Legacy leftovers are unreferenced only** — `BrowserSource/audio.html` (port 8080) remains in the repo but nothing serves it; the old `AudioWebSocketServer` HttpListener server was deleted outright, and only the Kestrel server on 5000 runs (App.xaml.cs:306). [known issues ledger](../reference/known-issues.md)
-7. **No overlay pages exist for anything except audio** — visual alerts are an in-app WPF window ([Visual Alerts](visual-alerts.md)); giveaways and polls have no overlay output at all. [known issues ledger](../reference/known-issues.md)
+7. **Only audio, the death counter, and the leaderboard have overlay pages** — visual alerts are an in-app WPF window ([Visual Alerts](visual-alerts.md)); giveaways and polls have no overlay output at all. The two 1.1.0 widgets are poll-based (3 s / 10 s), not WebSocket-push like the audio page — fine for a count and a top-10 list, and they self-heal after an app restart. [known issues ledger](../reference/known-issues.md)

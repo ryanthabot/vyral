@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vyral Leaderboard - Browser Source</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #wrap {
+            display: inline-block;
+            min-width: 320px;
+            max-width: 480px;
+            padding: 14px 16px;
+            border-radius: 10px;
+        }
+        /* dark (default): translucent night card like the app's dark theme */
+        #wrap.dark {
+            background: rgba(16, 18, 27, 0.78);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        /* light: translucent white card for bright stream layouts */
+        #wrap.light {
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(0, 0, 0, 0.10);
+        }
+        #title {
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+            padding-left: 10px;
+            border-left: 4px solid #26A69A; /* Vyral teal accent */
+        }
+        .dark #title { color: #FFFFFF; }
+        .light #title { color: #1F2430; }
+        #rows { display: flex; flex-direction: column; }
+        .row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 5px 4px;
+            transition: transform 0.5s ease; /* FLIP reorder animation */
+        }
+        .dark .row { color: #E8EAF0; }
+        .light .row { color: #1F2430; }
+        /* entries animate in when they first appear */
+        .row.enter { animation: slidein 0.5s ease both; }
+        @keyframes slidein {
+            from { opacity: 0; transform: translateY(-10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .rank {
+            flex: none;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 800;
+            border: 1.5px solid transparent;
+        }
+        /* 1-3 gold/silver/bronze tints; the rest neutral */
+        .rank.r1 { background: rgba(255, 215, 0, 0.18); color: #FFD700; border-color: #FFD700; }
+        .rank.r2 { background: rgba(192, 192, 192, 0.18); color: #C0C0C0; border-color: #C0C0C0; }
+        .rank.r3 { background: rgba(205, 127, 50, 0.18); color: #CD7F32; border-color: #CD7F32; }
+        .dark .rank.rx { background: rgba(255, 255, 255, 0.07); color: #9AA0B0; }
+        .light .rank.rx { background: rgba(0, 0, 0, 0.06); color: #6B7280; }
+        /* platform letter chip - app brand colors (PlatformToBrushConverter) */
+        .chip {
+            flex: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: #FFFFFF;
+        }
+        .name {
+            flex: 1;
+            font-size: 16px;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .pts {
+            flex: none;
+            font-size: 16px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+        .dark .pts { color: #26A69A; }
+        .light .pts { color: #00897B; }
+        /* Status badge - identical conventions to audio.html (connected
+           auto-hides after 5s; disconnected/connecting stay visible). */
+        #status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: opacity 0.3s;
+            z-index: 9999;
+        }
+        .connected {
+            background: rgba(0, 255, 0, 0.2);
+            color: lime;
+            border: 2px solid lime;
+        }
+        .disconnected {
+            background: rgba(255, 0, 0, 0.2);
+            color: red;
+            border: 2px solid red;
+        }
+        .connecting {
+            background: rgba(255, 255, 0, 0.2);
+            color: yellow;
+            border: 2px solid yellow;
+        }
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="wrap" class="dark">
+        <div id="title">Top Points</div>
+        <div id="rows"></div>
+    </div>
+    <div id="status" class="connecting">Connecting to Vyral...</div>
+    <script>
+        // Configuration - host/port derived from the URL the page is served
+        // from (same convention as audio.html/songplayer.html), so the file
+        // works on any port the embedded loopback web server listens on.
+        const BASE_URL = window.location.protocol.indexOf('http') === 0
+            ? window.location.origin
+            : 'http://' + (window.location.host || 'localhost:5000');
+        const POLL_MS = 10000;         // leaderboard auto-refresh
+        const STATUS_HIDE_DELAY = 5000;
+
+        // Query params: ?count=10 (1..25 rows), ?title=Top%20Points,
+        // ?style=dark|light, ?platform= (optional single-platform filter).
+        const params = new URLSearchParams(window.location.search);
+        let count = parseInt(params.get('count'), 10);
+        count = (isFinite(count) && count >= 1 && count <= 25) ? count : 10;
+        const title = (params.get('title') || 'Top Points').slice(0, 60);
+        const platform = (params.get('platform') || '').trim();
+        if (params.get('style') === 'light') {
+            document.getElementById('wrap').className = 'light';
+        }
+        document.getElementById('title').textContent = title;
+
+        const DATA_URL = BASE_URL + '/leaderboard/data?count=' + count
+            + (platform ? '&platform=' + encodeURIComponent(platform) : '');
+
+        // Platform letter + brand colors (PlatformToBrushConverter's palette).
+        // TikTok's brand color is black, Facebook's is white, so those two
+        // chips get an explicit readable letter color.
+        const PLATFORM_STYLES = {
+            Twitch:  { letter: 'T',  bg: '#9146FF', fg: '#FFFFFF' },
+            Kick:    { letter: 'K',  bg: '#53FF1A', fg: '#0A0D14' },
+            YouTube: { letter: 'Y',  bg: '#FF0000', fg: '#FFFFFF' },
+            Discord: { letter: 'D',  bg: '#5865F2', fg: '#FFFFFF' },
+            TikTok:  { letter: 'Ti', bg: '#000000', fg: '#FFFFFF' },
+            Facebook:{ letter: 'F',  bg: '#FFFFFF', fg: '#1877F2' },
+            Vyral:   { letter: 'V',  bg: '#14B8A6', fg: '#FFFFFF' }
+        };
+
+        // State
+        let pollTimer = null;
+        let refreshing = false;
+        let statusHideTimeout = null;
+        const rowByKey = new Map(); // 'username|platform' -> row element (FLIP)
+
+        // DOM elements
+        const rowsEl = document.getElementById('rows');
+        const statusDiv = document.getElementById('status');
+
+        // ------------------------------------------------------------------
+        // Polling (reconnects forever, 10s cadence, never overlaps requests)
+        // ------------------------------------------------------------------
+        refresh();
+        function refresh() {
+            if (refreshing) return;
+            refreshing = true;
+            fetch(DATA_URL, { cache: 'no-store' })
+                .then((res) => {
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.json();
+                })
+                .then((data) => {
+                    updateStatus('Connected to Vyral', 'connected');
+                    hideStatusAfterDelay();
+                    render(data && data.entries ? data.entries : []);
+                })
+                .catch((err) => {
+                    console.warn('Leaderboard fetch failed:', err);
+                    updateStatus('Disconnected from VyralBot', 'disconnected');
+                })
+                .finally(() => {
+                    refreshing = false;
+                    pollTimer = setTimeout(refresh, POLL_MS);
+                });
+        }
+
+        // ------------------------------------------------------------------
+        // Rendering with FLIP reorder: capture old row tops, rebuild in the
+        // new order, then play the delta as a transform transition. Rows are
+        // keyed by username|platform so a viewer moving up/down animates
+        // smoothly; brand-new entries fade/slide in instead.
+        // ------------------------------------------------------------------
+        function formatPoints(value) {
+            const n = (typeof value === 'number' && isFinite(value)) ? Math.trunc(value) : 0;
+            return n.toLocaleString();
+        }
+
+        function buildRow() {
+            const el = document.createElement('div');
+            el.className = 'row';
+            el.innerHTML =
+                '<span class="rank"></span>' +
+                '<span class="chip"></span>' +
+                '<span class="name"></span>' +
+                '<span class="pts"></span>';
+            return el;
+        }
+
+        function render(entries) {
+            // 1. Capture current positions (pre-render tops for FLIP).
+            const before = new Map();
+            for (const el of Array.from(rowsEl.children)) {
+                before.set(el.dataset.key, el.getBoundingClientRect().top);
+            }
+
+            // 2. Drop rows that fell off the board.
+            const keys = new Set(entries.map(rowKey));
+            for (const [key, el] of Array.from(rowByKey)) {
+                if (!keys.has(key)) {
+                    el.remove();
+                    rowByKey.delete(key);
+                }
+            }
+
+            // 3. Create/update rows in rank order; appendChild reorders
+            //    existing nodes into place (moving keeps their transition).
+            for (const entry of entries) {
+                const key = rowKey(entry);
+                let el = rowByKey.get(key);
+                const isNew = !el;
+                if (isNew) {
+                    el = buildRow();
+                    el.dataset.key = key;
+                    rowByKey.set(key, el);
+                }
+
+                const rankEl = el.firstChild;
+                const rank = entry.rank;
+                rankEl.textContent = rank;
+                rankEl.className = 'rank ' + (rank === 1 ? 'r1' : rank === 2 ? 'r2' : rank === 3 ? 'r3' : 'rx');
+
+                const style = PLATFORM_STYLES[entry.platform]
+                    || { letter: (entry.platform || '?').charAt(0).toUpperCase(), bg: '#9AA0B0', fg: '#FFFFFF' };
+                const chipEl = rankEl.nextSibling;
+                chipEl.textContent = style.letter;
+                chipEl.style.background = style.bg;
+                chipEl.style.color = style.fg;
+
+                el.children[2].textContent = entry.username || '';
+                el.children[3].textContent = formatPoints(entry.balance);
+
+                rowsEl.appendChild(el);
+            }
+
+            // 4. FLIP: entries that existed before animate from their old
+            //    position to the new one; new entries play the CSS keyframe.
+            //    (Removing a finished .enter is invisible: the keyframe's end
+            //    state equals the row's natural styles.)
+            for (const el of Array.from(rowsEl.children)) {
+                const oldTop = before.get(el.dataset.key);
+                if (oldTop === undefined) {
+                    el.classList.add('enter');
+                    continue;
+                }
+                el.classList.remove('enter');
+                const dy = oldTop - el.getBoundingClientRect().top;
+                if (dy) {
+                    el.style.transition = 'none';
+                    el.style.transform = 'translateY(' + dy + 'px)';
+                    requestAnimationFrame(() => requestAnimationFrame(() => {
+                        el.style.transition = '';
+                        el.style.transform = '';
+                    }));
+                }
+            }
+        }
+
+        function rowKey(entry) {
+            return (entry.username || '') + '|' + (entry.platform || '');
+        }
+
+        // ------------------------------------------------------------------
+        // Status badge (audio.html conventions)
+        // ------------------------------------------------------------------
+        function updateStatus(text, statusClass) {
+            statusDiv.textContent = text;
+            statusDiv.className = statusClass;
+            if (statusClass !== 'connected' && statusHideTimeout) {
+                clearTimeout(statusHideTimeout);
+                statusHideTimeout = null;
+            }
+        }
+
+        function hideStatusAfterDelay() {
+            if (statusHideTimeout) clearTimeout(statusHideTimeout);
+            statusHideTimeout = setTimeout(() => {
+                statusDiv.classList.add('hidden');
+            }, STATUS_HIDE_DELAY);
+        }
+    </script>
+</body>
+</html>

@@ -6,6 +6,7 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using VyralBot.Core.Services.Audio;
 using VyralBot.UI.Services;
 using VyralBot.UI.Views;
 
@@ -17,8 +18,17 @@ public partial class AlertSettingsViewModel : ViewModelBase
     private const int MinDurationSeconds = 1;
     private const int MaxDurationSeconds = 15;
 
+    // Matches the clamps enforced by TextToSpeechService for the Tts.* keys.
+    private const int MinTtsRatePercent = -50;
+    private const int MaxTtsRatePercent = 50;
+    private const int MinTtsVolumePercent = 0;
+    private const int MaxTtsVolumePercent = 100;
+    private const int MinTtsMaxLength = 10;
+    private const int MaxTtsMaxLength = 1000;
+
     private readonly ILogger<AlertSettingsViewModel> _logger;
     private readonly IAlertService _alertService;
+    private readonly ITtsService? _ttsService;
 
     [ObservableProperty]
     private bool _alertsEnabled = true;
@@ -49,6 +59,34 @@ public partial class AlertSettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _showCheerAlerts = true;
+
+    /// <summary>AlertSettings.TtsAlertsEnabled — speak alerts via TTS after the popup shows.</summary>
+    [ObservableProperty]
+    private bool _speakAlertTts = true;
+
+    // --- Text-to-Speech (TTS) card: persisted as individual Tts.* keys ---
+
+    [ObservableProperty]
+    private bool _ttsEnabled;
+
+    [ObservableProperty]
+    private string _selectedTtsVoice = string.Empty;
+
+    [ObservableProperty]
+    private int _ttsRatePercent;
+
+    [ObservableProperty]
+    private int _ttsVolumePercent = 100;
+
+    [ObservableProperty]
+    private bool _ttsAllowViewers = true;
+
+    [ObservableProperty]
+    private int _ttsMaxLength = 300;
+
+    /// <summary>Feedback line under the Text-to-Speech card (test outcome / suppression).</summary>
+    [ObservableProperty]
+    private string _ttsStatusMessage = string.Empty;
 
     /// <summary>
     /// Feedback line under the Alert Events card: set when a per-event test
@@ -96,12 +134,17 @@ public partial class AlertSettingsViewModel : ViewModelBase
         "BottomRight"
     };
 
+    /// <summary>Installed SAPI voice names (from ITtsService.GetVoices, cached there).</summary>
+    public ObservableCollection<string> TtsVoices { get; } = new();
+
     public AlertSettingsViewModel(
         ILogger<AlertSettingsViewModel> logger,
-        IAlertService alertService)
+        IAlertService alertService,
+        ITtsService? ttsService = null)
     {
         _logger = logger;
         _alertService = alertService;
+        _ttsService = ttsService;
     }
 
     public async Task InitializeAsync()
@@ -121,6 +164,29 @@ public partial class AlertSettingsViewModel : ViewModelBase
         {
             _logger.LogError(ex, "Error loading alert settings - using defaults");
             ApplySettingsToProperties(new AlertSettings());
+        }
+
+        try
+        {
+            // Voice enumeration touches SAPI once (cached inside the service);
+            // kept off the UI thread for the first call.
+            var voices = await Task.Run(() => _ttsService.GetVoices());
+            TtsVoices.Clear();
+            foreach (var voice in voices)
+            {
+                TtsVoices.Add(voice);
+            }
+
+            ApplyTtsSettingsToProperties(await _ttsService.GetSettingsAsync());
+
+            _logger.LogInformation(
+                "TTS settings loaded - Enabled: {Enabled}, Voice: {Voice}, Rate: {Rate}%, Volume: {Volume}%, Voices: {VoiceCount}",
+                TtsEnabled, SelectedTtsVoice, TtsRatePercent, TtsVolumePercent, TtsVoices.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading TTS settings - using defaults");
+            ApplyTtsSettingsToProperties(new TtsSettings());
         }
     }
 
@@ -234,6 +300,39 @@ public partial class AlertSettingsViewModel : ViewModelBase
         _ => true
     };
 
+    /// <summary>
+    /// Persists the current page state as Tts.* keys first (SpeakAsync gates on
+    /// the stored enabled flag, so the test must run against what the page
+    /// shows), then speaks a sample sentence with the configured voice.
+    /// </summary>
+    [RelayCommand]
+    private async Task TestTtsAsync()
+    {
+        try
+        {
+            var ttsSettings = BuildTtsSettingsFromProperties();
+            await _ttsService.SaveSettingsAsync(ttsSettings);
+
+            if (!ttsSettings.Enabled)
+            {
+                TtsStatusMessage = "Preview suppressed — text-to-speech is disabled (toggle above).";
+                return;
+            }
+
+            // Default arguments = "use the persisted settings" (voice/rate/volume).
+            await _ttsService.SpeakAsync("Text to speech is working. This is how I sound on your stream.");
+
+            TtsStatusMessage = TtsVoices.Count == 0
+                ? "No SAPI voices are installed — add a Windows voice pack (Settings → Time & language → Speech)."
+                : string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error testing TTS");
+            TtsStatusMessage = "TTS test failed — check the log for details.";
+        }
+    }
+
     [RelayCommand]
     private async Task SaveSettingsAsync()
     {
@@ -243,6 +342,7 @@ public partial class AlertSettingsViewModel : ViewModelBase
 
             var settings = BuildSettingsFromProperties();
             await _alertService.SaveAlertSettingsAsync(settings);
+            await _ttsService.SaveSettingsAsync(BuildTtsSettingsFromProperties());
 
             _logger.LogInformation(
                 "✅ Alert settings saved - Enabled: {Enabled}, Duration: {Duration}s, Animation: {Animation}, Position: {Position}",
@@ -271,11 +371,15 @@ public partial class AlertSettingsViewModel : ViewModelBase
         var defaults = new AlertSettings();
         ApplySettingsToProperties(defaults);
 
+        var ttsDefaults = new TtsSettings();
+        ApplyTtsSettingsToProperties(ttsDefaults);
+
         _logger.LogInformation("Alert settings reset to defaults");
 
         try
         {
             await _alertService.SaveAlertSettingsAsync(defaults);
+            await _ttsService.SaveSettingsAsync(ttsDefaults);
         }
         catch (Exception ex)
         {
@@ -305,7 +409,8 @@ public partial class AlertSettingsViewModel : ViewModelBase
             GiftSubAlertsEnabled = ShowGiftSubAlerts,
             RaidAlertsEnabled = ShowRaidAlerts,
             HostAlertsEnabled = ShowHostAlerts,
-            CheerAlertsEnabled = ShowCheerAlerts
+            CheerAlertsEnabled = ShowCheerAlerts,
+            TtsAlertsEnabled = SpeakAlertTts
         };
     }
 
@@ -325,5 +430,32 @@ public partial class AlertSettingsViewModel : ViewModelBase
         ShowRaidAlerts = settings.RaidAlertsEnabled;
         ShowHostAlerts = settings.HostAlertsEnabled;
         ShowCheerAlerts = settings.CheerAlertsEnabled;
+        SpeakAlertTts = settings.TtsAlertsEnabled;
+    }
+
+    /// <summary>Builds the Tts.* settings blob from the page state (clamps match the service).</summary>
+    private TtsSettings BuildTtsSettingsFromProperties() => new()
+    {
+        Enabled = TtsEnabled,
+        Voice = string.IsNullOrWhiteSpace(SelectedTtsVoice) ? null : SelectedTtsVoice,
+        RatePercent = Math.Clamp(TtsRatePercent, MinTtsRatePercent, MaxTtsRatePercent),
+        VolumePercent = Math.Clamp(TtsVolumePercent, MinTtsVolumePercent, MaxTtsVolumePercent),
+        AllowViewers = TtsAllowViewers,
+        MaxLength = Math.Clamp(TtsMaxLength, MinTtsMaxLength, MaxTtsMaxLength)
+    };
+
+    private void ApplyTtsSettingsToProperties(TtsSettings settings)
+    {
+        TtsEnabled = settings.Enabled;
+        TtsRatePercent = Math.Clamp(settings.RatePercent, MinTtsRatePercent, MaxTtsRatePercent);
+        TtsVolumePercent = Math.Clamp(settings.VolumePercent, MinTtsVolumePercent, MaxTtsVolumePercent);
+        TtsAllowViewers = settings.AllowViewers;
+        TtsMaxLength = Math.Clamp(settings.MaxLength, MinTtsMaxLength, MaxTtsMaxLength);
+
+        // Voice default is the first installed voice; an unknown stored name
+        // falls back to it too (the service also falls back at speak time).
+        SelectedTtsVoice = !string.IsNullOrWhiteSpace(settings.Voice) && TtsVoices.Contains(settings.Voice)
+            ? settings.Voice
+            : TtsVoices.FirstOrDefault() ?? string.Empty;
     }
 }

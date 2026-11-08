@@ -8,7 +8,7 @@ A workflow is **data, not code**: a trigger plus a node graph, persisted as JSON
 
 The numbers, straight from the code:
 
-- **36 placeable blocks** — 25 **Actions** (blue) across Messaging / Threads & Channels / Roles / Moderation / Variables & Math / Economy / Loops / Utility sections, and 11 **Conditions** (green, flat list) (BlockCatalog.cs:101-301).
+- **40 placeable blocks** — 29 **Actions** (blue) across Messaging / Threads & Channels / Roles / Moderation / Variables & Math / Economy / Streaming / Loops / Utility sections, and 11 **Conditions** (green, flat list) (BlockCatalog.cs:101-301).
 - **8 trigger types** — `command`, `slash_command`, `button_click`, `select_menu`, `mod_command`, `event`, `timer`, `manual` (WorkflowTriggerTypes, Workflow.cs:4-18).
 - **6 command options** — Cooldown, Require Moderator, Channel Restriction, DM Only, Guild Only, NSFW (BlockCatalog.cs:361-369).
 - **Runtime caps** — a run executes at most **200 steps** (cycle guard) and a loop block iterates at most **25 times**; loop body nodes count toward the step budget too (WorkflowRuntime.cs:55-58, 263-268, 405-411).
@@ -43,7 +43,7 @@ Cooldown (per-user seconds, enforced via an in-memory `workflowId|username` map)
 
 ### Blocks
 
-**Actions** (25): Send Message (Discord slash/button runs can reply **ephemerally** — the interaction is deferred at trigger entry so slow flows still beat Discord's 3-second window, and the reply lands as a followup visible only to the invoker), Send Embed (live Discord preview), Send DM, Edit Bot Message, Delete Message, React, Add/Remove Role, Create Channel/Thread, Lock/Unlock Channel, Wait for Response (stores `{response}`, timeout → error port), HTTP Request (stores `{http_response}`/`{http_status}`), Set Variable, Random Number, Add/Remove Currency, Delay, **Play Sound** (added 1.1.0 — plays a named file from your [Sounds](../stream-tools/sounds.md) library, e.g. `subscribe.wav`, `{variables}` allowed, optional Volume 0-100 clamped to range; honors the streamer/stream sound settings, and a missing file **fails the node** so an error branch can route around it), Run Built-in Command (cooldowns/permissions/variables of the legacy engine all apply), Moderate Member (kick/ban/unban/timeout/purge/slowmode), Log, Note, Run a Loop (1-25 iterations), Stop a Loop.
+**Actions** (29): Send Message (Discord slash/button runs can reply **ephemerally** — the interaction is deferred at trigger entry so slow flows still beat Discord's 3-second window, and the reply lands as a followup visible only to the invoker), Send Embed (live Discord preview), Send DM, Edit Bot Message, Delete Message, React, Add/Remove Role, Create Channel/Thread, Lock/Unlock Channel, Wait for Response (stores `{response}`, timeout → error port), HTTP Request (stores `{http_response}`/`{http_status}`), Set Variable, Random Number, Add/Remove Currency, Delay, **Play Sound** (added 1.1.0 — plays a named file from your [Sounds](../stream-tools/sounds.md) library, e.g. `subscribe.wav`, `{variables}` allowed, optional Volume 0-100 clamped to range; honors the streamer/stream sound settings, and a missing file **fails the node** so an error branch can route around it), the four **Streaming** blocks (added 1.1.0) — **Switch OBS Scene** (`obs_scene`, scene name supports `{variables}`), **OBS Stream Start/Stop** (`obs_stream`, Start/Stop select), **Save OBS Replay Buffer** (`obs_replay`, parameterless — errors with a hint when the replay buffer isn't running in OBS), and **Create Twitch Clip** (`twitch_clip`, parameterless — errors when Twitch is disconnected or the stream is offline); they run through the OBS remote-control seam the VyralDeck OBS buttons use (obs-websocket), so OBS must be running with its websocket enabled (KI-60), and every failure takes the node's **error branch** instead of throwing — Run Built-in Command (cooldowns/permissions/variables of the legacy engine all apply), Moderate Member (kick/ban/unban/timeout/purge/slowmode), Log, Note, Run a Loop (1-25 iterations), Stop a Loop.
 
 **Conditions** (11): If (Expression) — rule builder with and/or chains; If User Has Role; If Message Contains; If Variable Equals; If Time Between; If User Is Bot; Chance (%); Comparison (multi-rule with 14 canonical operators, `collection_contains` included); Permissions Condition; Channel Condition; User Condition.
 
@@ -70,7 +70,7 @@ Branching: conditions expose True/False ports (False routes through the auto-att
 
 | File | Role |
 |---|---|
-| [BlockCatalog.cs](../../src/VyralBot.Workflows/Abstractions/BlockCatalog.cs) | The 36 blocks, param-field kinds, option definitions, port colors/keys |
+| [BlockCatalog.cs](../../src/VyralBot.Workflows/Abstractions/BlockCatalog.cs) | The 40 blocks, param-field kinds, option definitions, port colors/keys |
 | [Workflow.cs](../../src/VyralBot.Workflows/Models/Workflow.cs) | Trigger/node/option/parameter models + the 8 trigger and 6 option type keys |
 | [WorkflowRuntime.cs](../../src/VyralBot.Workflows/Runtime/WorkflowRuntime.cs) | Graph execution, 200-step / 25-iteration caps, error chains, history persistence |
 | [ExecutionContext.cs](../../src/VyralBot.Workflows/Runtime/ExecutionContext.cs) | Per-run state incl. Platform, BotId, variable resolution |
@@ -92,7 +92,7 @@ Branching: conditions expose True/False ports (False routes through the auto-att
 
 ## Status & Known Issues
 
-1. **Block count is 36** — 25 actions + 11 conditions in the catalog today (`play_sound` joined as the 25th action in the 1.1.0 marathon); the "switch" block is runtime-supported but no longer placeable (BlockCatalog.cs:101-301, 278-280).
+1. **Block count is 40** — 29 actions + 11 conditions in the catalog today (`play_sound` joined as the 25th action and the four Streaming blocks — `obs_scene`/`obs_stream`/`obs_replay`/`twitch_clip` — as the 26th–29th in the 1.1.0 marathon); the "switch" block is runtime-supported but no longer placeable (BlockCatalog.cs:101-301, 278-280).
 2. **Command-trigger platform filtering is runtime-only for now** — `Trigger.Platform` (and the `Trigger.Platforms` allow-list) are honored when matching commands, but the editor saves them only for event triggers (FlowEditorViewModel.cs:4999).
 3. **Timer state is volatile** — restarts forget last-run times; an elapsed interval fires on the first tick (WorkflowTriggerService.cs:66-71).
 4. **Permission option allows when roles are unavailable** — documented V1 behavior where a platform can't supply roles (WorkflowTriggerService.cs:435-445).

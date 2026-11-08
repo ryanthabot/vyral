@@ -273,6 +273,25 @@
                                      IsChecked="{Binding ShowCheerAlerts}"/>
                     </Grid>
 
+                    <!-- Spoken alerts (TTS) — gated additionally by the TTS master
+                         switch on the Text-to-Speech card below -->
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Speak Alerts (TTS)" VerticalAlignment="Center"/>
+                            <TextBlock Text="Say &quot;{event}, {username}&quot; aloud after the popup shows"
+                                      FontSize="12"
+                                      Foreground="{StaticResource MaterialDesignBodyLight}"/>
+                        </StackPanel>
+                        <ToggleButton Grid.Column="1"
+                                     Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                     IsChecked="{Binding SpeakAlertTts}"/>
+                    </Grid>
+
                     <!-- Per-event test feedback (suppression explanations) -->
                     <TextBlock Text="{Binding StatusMessage}"
                               FontSize="12"
@@ -315,6 +334,199 @@
                               FontSize="12"
                               Foreground="{StaticResource MaterialDesignBodyLight}"
                               Margin="0,0,0,0"
+                              TextWrapping="Wrap"/>
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- Text-to-Speech (TTS) Settings -->
+            <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}" Padding="20" Margin="0,0,0,20">
+                <StackPanel>
+                    <TextBlock Text="Text-to-Speech (TTS)"
+                              Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                              Margin="0,0,0,15"/>
+
+                    <TextBlock Text="Speaks text aloud through the Windows voices (SAPI): the !tts chat command and spoken event alerts. Do-not-disturb (Settings → Notifications) mutes TTS too."
+                              FontSize="12"
+                              Foreground="{StaticResource MaterialDesignBodyLight}"
+                              Margin="0,0,0,15"
+                              TextWrapping="Wrap"/>
+
+                    <!-- Enable TTS -->
+                    <Grid Margin="0,0,0,15">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Enable Text-to-Speech"
+                                      FontWeight="SemiBold"
+                                      Margin="0,0,0,5"/>
+                            <TextBlock Text="Off by default — when enabled, !tts works in chat and alerts can speak"
+                                      FontSize="12"
+                                      Foreground="{StaticResource MaterialDesignBodyLight}"/>
+                        </StackPanel>
+
+                        <ToggleButton Grid.Column="1"
+                                     Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                     IsChecked="{Binding TtsEnabled}"
+                                     VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <Separator Margin="0,10,0,15"/>
+
+                    <!-- Voice -->
+                    <StackPanel Margin="0,0,0,15">
+                        <TextBlock Text="Voice"
+                                  FontWeight="SemiBold"
+                                  Margin="0,0,0,10"/>
+                        <ComboBox ItemsSource="{Binding TtsVoices}"
+                                 SelectedItem="{Binding SelectedTtsVoice}"
+                                 materialDesign:HintAssist.Hint="Installed Windows voice"/>
+                    </StackPanel>
+
+                    <Separator Margin="0,10,0,15"/>
+
+                    <!-- Rate -->
+                    <StackPanel Margin="0,0,0,15">
+                        <TextBlock Text="Speaking Rate"
+                                  FontWeight="SemiBold"
+                                  Margin="0,0,0,10"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Slider Grid.Column="0"
+                                   Value="{Binding TtsRatePercent}"
+                                   Minimum="-50"
+                                   Maximum="50"
+                                   TickFrequency="5"
+                                   IsSnapToTickEnabled="True"
+                                   Margin="0,0,20,0"/>
+
+                            <TextBlock Grid.Column="1"
+                                      Text="{Binding TtsRatePercent, StringFormat='{}{0}%'}"
+                                      FontSize="14"
+                                      FontWeight="SemiBold"
+                                      VerticalAlignment="Center"
+                                      MinWidth="40"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <Separator Margin="0,10,0,15"/>
+
+                    <!-- Volume -->
+                    <StackPanel Margin="0,0,0,15">
+                        <TextBlock Text="Volume"
+                                  FontWeight="SemiBold"
+                                  Margin="0,0,0,10"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Slider Grid.Column="0"
+                                   Value="{Binding TtsVolumePercent}"
+                                   Minimum="0"
+                                   Maximum="100"
+                                   TickFrequency="5"
+                                   IsSnapToTickEnabled="True"
+                                   Margin="0,0,20,0"/>
+
+                            <TextBlock Grid.Column="1"
+                                      Text="{Binding TtsVolumePercent, StringFormat='{}{0}%'}"
+                                      FontSize="14"
+                                      FontWeight="SemiBold"
+                                      VerticalAlignment="Center"
+                                      MinWidth="40"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <Separator Margin="0,10,0,15"/>
+
+                    <!-- Allow Viewers -->
+                    <Grid Margin="0,0,0,15">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Allow Viewers (!tts)"
+                                      FontWeight="SemiBold"
+                                      Margin="0,0,0,5"/>
+                            <TextBlock Text="When off, only moderators can use !tts (mods always skip the 30s per-user cooldown)"
+                                      FontSize="12"
+                                      Foreground="{StaticResource MaterialDesignBodyLight}"/>
+                        </StackPanel>
+
+                        <ToggleButton Grid.Column="1"
+                                     Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                     IsChecked="{Binding TtsAllowViewers}"
+                                     VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <Separator Margin="0,10,0,15"/>
+
+                    <!-- Max message length -->
+                    <StackPanel Margin="0,0,0,15">
+                        <TextBlock Text="Max Message Length (characters)"
+                                  FontWeight="SemiBold"
+                                  Margin="0,0,0,10"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Slider Grid.Column="0"
+                                   Value="{Binding TtsMaxLength}"
+                                   Minimum="50"
+                                   Maximum="500"
+                                   TickFrequency="10"
+                                   IsSnapToTickEnabled="True"
+                                   Margin="0,0,20,0"/>
+
+                            <TextBlock Grid.Column="1"
+                                      Text="{Binding TtsMaxLength, StringFormat='{}{0}'}"
+                                      FontSize="14"
+                                      FontWeight="SemiBold"
+                                      VerticalAlignment="Center"
+                                      MinWidth="40"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <Button Content="Save &amp; Speak Test"
+                           Command="{Binding TestTtsCommand}"
+                           Style="{StaticResource MaterialDesignRaisedButton}"
+                           Background="{DynamicResource PrimaryBrush}"
+                           HorizontalAlignment="Left"
+                           Padding="30,10"/>
+
+                    <!-- TTS test feedback -->
+                    <TextBlock Text="{Binding TtsStatusMessage}"
+                              FontSize="12"
+                              Foreground="{DynamicResource PrimaryBrush}"
+                              Margin="0,8,0,0"
+                              TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding TtsStatusMessage}" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Text="The test saves the TTS settings on this page first, then speaks a sample sentence with the selected voice, rate and volume."
+                              FontSize="12"
+                              Foreground="{StaticResource MaterialDesignBodyLight}"
+                              Margin="0,8,0,0"
                               TextWrapping="Wrap"/>
                 </StackPanel>
             </materialDesign:Card>

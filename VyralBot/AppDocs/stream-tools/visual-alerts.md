@@ -1,6 +1,6 @@
 # Visual Alerts
 
-> The pop-up overlay Vyral draws over your screen when someone follows, subscribes, raids, and more — a WPF window, not a browser source — plus the Alert Settings page, which persists and drives real alerts.
+> The pop-up overlay Vyral draws over your screen when someone follows, subscribes, raids, and more — a WPF window, not a browser source — plus the Alert Settings page, which persists and drives real alerts, and (since 1.1.0) the app's Text-to-Speech settings: spoken alerts, the `!tts` chat command, and SAPI voice/rate/volume configuration all live on this page.
 
 ## Overview
 
@@ -33,10 +33,25 @@ Two ways to preview (1.1.0):
 
 Six toggles — **New Followers, New Subscribers, Gifted Subscriptions, Raids, Hosts, Bits/Cheers** — choose which event categories produce real alerts. Events outside a enabled category are skipped.
 
+### The Text-to-Speech card {#text-to-speech-card}
+
+Added in 1.1.0. The card configures the app's single TTS engine — used both for **spoken alerts** ("New Follower, Bob" spoken as the popup appears) and the **`!tts` chat command** (see the [command catalog](../reference/command-catalog.md#tts-command)):
+
+- **Enable Text-to-Speech** — the master switch (`Tts.Enabled`). Off = neither alerts nor `!tts` speak anything; `!tts` is silently ignored, exactly like other disabled commands.
+- **Speak Alert TTS** — speaks "{title}, {username}" (trailing `!`/`.` dropped) through the speakers whenever an alert popup appears (`AlertSettings.TtsAlertsEnabled`, on by default). This toggle saves with the alert settings; everything else on the card saves as individual `Tts.*` keys.
+- **Voice** — dropdown of the installed Windows SAPI voices (`ITtsService.GetVoices` enumerates them once and caches). Empty selection = the OS default voice. A configured voice that has since been uninstalled falls back to the default voice (logged).
+- **Rate (%)** — −50 to +50 (SAPI's −10..10 scale under the hood).
+- **Volume (%)** — 0–100.
+- **Allow viewers to use !tts** — when off, only moderators can use `!tts` (viewers are silently ignored; mods always pass and also bypass the cooldown).
+- **Max message length** — 10–1000 characters; longer `!tts` messages (and longer programmatic speaks) are truncated to it.
+- **Test TTS** — speaks a sample line with the current (unsaved) selections; suppressed with an explanation when the master toggle is off, and reports when no SAPI voices are installed.
+
+**Do Not Disturb gates everything**: with `Notifications.DoNotDisturb` on (the same key [Sounds](sounds.md) and alerts respect), no TTS plays at all — `!tts` is ignored and alert speech is skipped before it even queues. Speech is serialized on a single-consumer queue (max 10 pending, drop-oldest) so overlapping utterances can never dogpile the audio device; the queue drop is logged at info.
+
 ### Save and Reset
 
-- **Save Settings** — persists everything on the page to the `AlertSettings` Configs key (JSON) and confirms with "Alert settings saved successfully!". Real alerts use the saved values from the next event on.
-- **Reset to Defaults** — returns the on-screen controls to their defaults (on, 5s, SlideInFromTop, TopCenter, all events on). Save afterwards to persist the reset.
+- **Save Settings** — persists the alert settings to the `AlertSettings` Configs key (JSON) and the Text-to-Speech card to its individual `Tts.*` keys, then confirms with "Alert settings saved successfully!". Real alerts use the saved values from the next event on.
+- **Reset to Defaults** — returns the on-screen controls to their defaults (on, 5s, SlideInFromTop, TopCenter, all events on, TTS defaults). Save afterwards to persist the reset.
 
 ### What actually triggers alerts
 
@@ -70,6 +85,7 @@ You can fire most of these on demand from the [Event Testing](../chat-features/e
 
 - **Alerts queue (bounded FIFO).** One alert is on screen at a time; an alert arriving while another is showing waits in a **queue capped at 10** (drop-oldest when exceeded) and plays when the current one closes. A burst no longer truncates itself — beyond ten deep, the oldest waiting alerts are dropped so the queue can never grow unbounded.
 - **Auto-close.** The alert closes itself after its duration via a fade-out — a real `Close()`, which is what drains the queue (an earlier build only *hid* the window, so the service never learned it finished and every alert after the first stalled; fixed 2026-11-07, pre-marathon).
+- **Alerts can speak.** With **Speak Alert TTS** on (and the TTS master switch on, and DND off), each popup is followed by "{title}, {username}" spoken through the configured voice — fire-and-forget on the same bounded speech queue `!tts` uses, so a burst of alerts serializes instead of talking over itself.
 - **Always on top.** The window is `Topmost` with no taskbar entry, sized and positioned against your **primary** monitor. If you run OBS on a second monitor, position alerts accordingly (or expect them on the primary screen).
 
 ## How It Works (Developer)
@@ -112,12 +128,22 @@ private async Task ShowEventAlertAsync(string title, string username, string? me
 
 Note it still passes `imageUrl: null` — even the (supported) image slot is unused by real events. The callers that bypass the saved settings are the settings page's own preview commands: **Preview Current Settings** parses the dropdown strings into the enums and passes them straight to the service with `applySettings: false` so you preview unsaved selections, and the per-event **TEST** buttons send the live title through the normal settings path (title→toggle routing included) so a disabled row is suppressed exactly like a real event (AlertSettingsViewModel.cs, `TestAlertCommand`/`TestEventAlertCommand`).
 
+### The TTS engine (1.1.0)
+
+[TextToSpeechService.cs](../../src/VyralBot.Core/Services/Audio/TextToSpeechService.cs) (`ITtsService`, Core — Windows SAPI via `System.Speech.Synthesis`) is a DI singleton with two faces:
+
+- **`SpeakAsync(text, voice?, ratePercent, volumePercent)`** — the programmatic speak (used by alert TTS). Gates on `Tts.Enabled` + Do Not Disturb, resolves defaults from the saved settings (explicit arguments override per-utterance), truncates to `Tts.MaxLength`, and enqueues onto a **bounded channel (capacity 10, DropOldest, single consumer)** — SAPI's `Speak()` is a blocking call, so the worker loop is the only thing that ever touches the synthesizer; overlapping callers only enqueue. `StopSpeaking` drains the queue and cancels the in-flight prompt; `Dispose` cuts off speech at shutdown.
+- **`ProcessCommandAsync`** — the `!tts` chat command (full rules in the [command catalog](../reference/command-catalog.md#tts-command)): master toggle → viewer gate → DND → 30-second per-user cooldown (mods exempt) → truncate → speak → "🔊 {user} says: {text}".
+
+Alert TTS itself lives in `AlertService.TrySpeakAlertTtsAsync` (AlertService.cs:308-345): after a popup shows, it checks `AlertSettings.TtsAlertsEnabled`, strips trailing punctuation, and fire-and-forgets `SpeakAsync("{title}, {username}")` — so the inner gates (master toggle, DND) still apply. SAPI-unavailable machines (no voices / COM failure) disable the engine for the session after one attempt (logged, status surfaces on the card's Test).
+
 ### What does not exist
 
-- No text-to-speech, GIF/video support, or customizable templates/themes — the alert layout is fixed XAML.
+- No GIF/video support, or customizable templates/themes — the alert layout is fixed XAML.
 - No per-event alert asset customization (image/GIF/sound pairing per event) — the title/message strings are hard-coded at each call site, and the page's Notes say so plainly: `{variables}` like `{username}` are not substituted in alert text (they apply to commands, auto-replies and chat responses), and per-event *sounds* live on the [Sounds](sounds.md) page, not here.
 - `src/VyralBot.Core/Services/Alerts/` exists in the tree but is an **empty folder** — no files. All alert logic lives in the UI project; the folder is presumably reserved for a future Core-level alert service.
 - No browser-source/overlay HTML for alerts (see [Browser Sources](browser-sources.md)).
+- TTS has no output-device routing — SAPI speaks to the system default audio device (same boundary as local sound playback, KI-50).
 
 ## Files & Code
 
@@ -126,7 +152,8 @@ Note it still passes `imageUrl: null` — even the (supported) image slot is unu
 | [AlertService.cs](../../src/VyralBot.UI/Services/AlertService.cs) | `IAlertService` + implementation: dispatcher marshaling, settings overlay, bounded FIFO queue (cap 10, drop-oldest) with close-driven drain, title→toggle routing |
 | [AlertOverlayWindow.xaml](../../src/VyralBot.UI/Views/AlertOverlayWindow.xaml) | The overlay window: transparent/topless window chrome, alert layout, the 4 in-animations + FadeOut storyboards |
 | [AlertOverlayWindow.xaml.cs](../../src/VyralBot.UI/Views/AlertOverlayWindow.xaml.cs) | Show/hide logic, storyboard selection, 9-position screen math, auto-close DispatcherTimer, `AlertAnimation`/`AlertPosition` enums |
-| [AlertSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/AlertSettingsViewModel.cs) | The settings page state: load/save/reset against the `AlertSettings` Configs key, the Test Alert previewer |
+| [AlertSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/AlertSettingsViewModel.cs) | The settings page state: load/save/reset against the `AlertSettings` Configs key, the Test Alert previewer, and the Text-to-Speech card (voice list, clamped rate/volume/length, Test TTS) |
+| [TextToSpeechService.cs](../../src/VyralBot.Core/Services/Audio/TextToSpeechService.cs) | `ITtsService` — SAPI synthesis behind a single-consumer bounded queue, the `Tts.*` settings store, and the `!tts` command handler (1.1.0) |
 | [AlertSettingsView.xaml](../../src/VyralBot.UI/Views/AlertSettingsView.xaml) | The settings page: General Settings card (Preview Current Settings), six per-event toggles each with a TEST button, scope Notes, Save/Reset |
 | [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) | The 12 real-event call sites and the `ShowEventAlertAsync` funnel |
 | [App.xaml.cs](../../src/VyralBot.UI/App.xaml.cs) | DI registration of `IAlertService → AlertService` (:180) |
@@ -203,6 +230,14 @@ await _dataService.SetConfigValueAsync("AlertSettings", JsonSerializer.Serialize
 | Data | Where | Notes |
 |---|---|---|
 | Alert settings | Configs key `AlertSettings` (per-profile SQLite) | JSON blob (shape above). Written by the Alert Settings page; read by `AlertService` when real alerts fire. See [Database Reference](../reference/database-reference.md). |
+| `Tts.Enabled` | Configs (category `Tts`) | TTS master switch (default **off** until first saved). Gates alert speech and `!tts` alike. |
+| `Tts.Voice` | Configs | Installed SAPI voice name; empty = OS default. Uninstalled names fall back to the default voice. |
+| `Tts.RatePercent` | Configs | −50..50 (default 0); maps to SAPI's −10..10. |
+| `Tts.VolumePercent` | Configs | 0..100 (default 100). |
+| `Tts.AllowViewers` | Configs | Whether non-moderators may use `!tts` (default true). |
+| `Tts.MaxLength` | Configs | 10..1000 chars (default 300); longer messages are truncated. |
+| `AlertSettings.TtsAlertsEnabled` | inside the `AlertSettings` JSON | The **Speak Alert TTS** toggle (default on) — speaks "{title}, {username}" when a popup appears. |
+| `Notifications.DoNotDisturb` | Configs | Shared DND key (owned by Settings → Notifications): on = no TTS at all, plus no sounds/alerts. |
 
 Everything on the settings page persists; real-alert styling comes from the saved values, and only the page's Test Alert previews unsaved selections.
 
@@ -213,7 +248,7 @@ Every item below is verified against the current code. See the [known issues led
 1. **The Alert Settings page is fully wired** — load/save/reset persist to the `AlertSettings` Configs key; real alerts apply the saved master toggle, duration, animation, position, and per-event switches (fixed 2026-08-15, KI-6 resolved). [known issues ledger](../reference/known-issues.md)
 2. **Test Alert previews unsaved selections** — it passes `applySettings: false`, so you can experiment freely; nothing is persisted until Save. [known issues ledger](../reference/known-issues.md)
 3. **Alerts queue — bounded, drop-oldest (fixed 2026-11-07)** — one alert at a time with up to 10 waiting; beyond that the oldest waiting alert is dropped. An earlier build had no queue *and* auto-close only hid the window, so the service never advanced and every alert after the first in a session stalled on screen — both are fixed (KI-48 resolved). [known issues ledger](../reference/known-issues.md)
-4. **No TTS, GIFs, or templates** — static XAML layout, static or URL image only, hard-coded title/message strings per call site; real alerts always pass `imageUrl: null` anyway. [known issues ledger](../reference/known-issues.md)
+4. **No GIFs or templates** — static XAML layout, static or URL image only, hard-coded title/message strings per call site; real alerts always pass `imageUrl: null` anyway. (TTS arrived in 1.1.0 — see [The Text-to-Speech card](#text-to-speech-card).) [known issues ledger](../reference/known-issues.md)
 5. **WPF window, not a browser source** — alerts render over the streamer's primary screen; there is no overlay URL for OBS (see [Browser Sources](browser-sources.md)), so capturing alerts requires display capture. [known issues ledger](../reference/known-issues.md)
 6. **`src/VyralBot.Core/Services/Alerts/` is an empty folder** — reserved, unused; all alert code lives in VyralBot.UI. [known issues ledger](../reference/known-issues.md)
 7. **Alert delivery rides on the event pipeline** — Twitch alerts arrive now that EventSub connects after the auth fix (see [Twitch](../platforms/twitch.md)). [known issues ledger](../reference/known-issues.md)

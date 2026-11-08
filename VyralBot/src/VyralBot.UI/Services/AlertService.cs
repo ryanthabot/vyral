@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Extensions.Logging;
+using VyralBot.Core.Services.Audio;
 using VyralBot.Data;
 
 namespace VyralBot.UI.Services;
@@ -55,6 +56,13 @@ public class AlertSettings
     public bool RaidAlertsEnabled { get; set; } = true;
     public bool HostAlertsEnabled { get; set; } = true;
     public bool CheerAlertsEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Speak alerts aloud via ITtsService ("{title}, {username}") after the
+    /// popup shows. Only takes effect when the TTS master switch is on too
+    /// (Tts.Enabled — see the Alert Settings page's Text-to-Speech card).
+    /// </summary>
+    public bool TtsAlertsEnabled { get; set; } = true;
 }
 
 public class AlertService : IAlertService
@@ -92,6 +100,7 @@ public class AlertService : IAlertService
 
     private readonly ILogger<AlertService> _logger;
     private readonly IDataService _dataService;
+    private readonly ITtsService? _ttsService;
     private Views.AlertOverlayWindow? _currentAlert;
     private readonly object _lock = new();
     private readonly Queue<QueuedAlert> _pendingAlerts = new();
@@ -109,10 +118,11 @@ public class AlertService : IAlertService
 
     public bool IsAlertVisible => _currentAlert?.IsVisible ?? false;
 
-    public AlertService(ILogger<AlertService> logger, IDataService dataService)
+    public AlertService(ILogger<AlertService> logger, IDataService dataService, ITtsService? ttsService = null)
     {
         _logger = logger;
         _dataService = dataService;
+        _ttsService = ttsService;
     }
 
     public async Task ShowAlertAsync(
@@ -199,6 +209,9 @@ public class AlertService : IAlertService
                         title, username, message, imageUrl,
                         effectiveAnimation, effectivePosition, effectiveDuration));
                     _logger.LogInformation("Alert shown: {Title} - {Username}", title, username);
+
+                    // Spoken alerts: AFTER the popup is on screen, fire-and-forget.
+                    _ = TrySpeakAlertTtsAsync(title, username);
                 }
                 catch (Exception ex)
                 {
@@ -273,6 +286,9 @@ public class AlertService : IAlertService
             {
                 await ShowCore(next);
                 _logger.LogInformation("Alert shown from queue: {Title} - {Username}", next.Title, next.Username);
+
+                // Spoken alerts: AFTER the popup is on screen, fire-and-forget.
+                _ = TrySpeakAlertTtsAsync(next.Title, next.Username);
             }
             catch (Exception ex)
             {
@@ -282,6 +298,48 @@ public class AlertService : IAlertService
                     _isShowing = false;
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Speaks an alert that just appeared on screen: "{title}, {username}"
+    /// (trailing punctuation dropped, e.g. "New Follower!, Bob" →
+    /// "New Follower, Bob"). Fire-and-forget — gated by the alert-settings
+    /// toggle <see cref="AlertSettings.TtsAlertsEnabled"/> here, and by the
+    /// TTS master switch + do-not-disturb inside <see cref="ITtsService.SpeakAsync"/>
+    /// (which never throws). Alerts shown while do-not-disturb is on never
+    /// reach this path at all.
+    /// </summary>
+    private async Task TrySpeakAlertTtsAsync(string? title, string? username)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return;
+            }
+
+            var settings = await GetAlertSettingsAsync();
+            if (!settings.TtsAlertsEnabled)
+            {
+                return;
+            }
+
+            var spokenTitle = title.TrimEnd('!', '.').Trim();
+            if (string.IsNullOrWhiteSpace(spokenTitle))
+            {
+                return;
+            }
+
+            var spokenText = string.IsNullOrWhiteSpace(username)
+                ? spokenTitle
+                : $"{spokenTitle}, {username}";
+
+            await _ttsService.SpeakAsync(spokenText);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error speaking alert TTS: {Title} - {Username}", title, username);
         }
     }
 

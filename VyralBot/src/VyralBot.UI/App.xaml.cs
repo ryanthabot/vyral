@@ -207,6 +207,13 @@ public partial class App : Application
 
                 // Quotes system (chat quote database — !quote family, Commands page QUOTES tab)
                 services.AddSingleton<IQuoteService, QuoteService>();
+                // Stream tools (!so/!clip/!raid/!title/!game/!commercial/!uptime/!followage):
+                // interface in Core, class in Integrations next to ITwitchService
+                // (same split as IStreamLiveRegistry — Core cannot reference Integrations).
+                services.AddSingleton<VyralBot.Core.Services.Commands.IStreamToolsCommandService, VyralBot.Integrations.StreamTools.StreamToolsCommandService>();
+                services.AddSingleton<VyralBot.Core.Services.Counters.IDeathCounterService, VyralBot.Core.Services.Counters.DeathCounterService>();
+                // Text-to-speech (!tts command + spoken alerts); SAPI engine lives in Core/Services/Audio
+                services.AddSingleton<VyralBot.Core.Services.Audio.ITtsService, VyralBot.Core.Services.Audio.TextToSpeechService>();
 
                 // Song requests (chat-driven song queue — !sr family; titles arrive
                 // from the song player via UpdateTitleAsync, NullTitleResolver by default)
@@ -253,6 +260,18 @@ public partial class App : Application
                 services.AddSingleton<UI.Services.WorkflowDiscordBridge>();
                 services.AddSingleton<VyralBot.Workflows.Abstractions.IDiscordWorkflowBridge>(sp =>
                     sp.GetRequiredService<UI.Services.WorkflowDiscordBridge>());
+
+                // Workflow stream-control bridge: the obs_scene / obs_stream /
+                // obs_replay / twitch_clip nodes resolve this from the workflow
+                // execution context. The adapter (class at the file bottom,
+                // next to the moderation adapters) reuses the VyralDeck
+                // ObsRemoteBridge for scenes + stream start/stop and the
+                // embedded ObsOutputService for the replay-buffer save.
+                services.AddSingleton<VyralBot.Workflows.Abstractions.IStreamControlWorkflowBridge>(sp =>
+                    new StreamControlWorkflowAdapter(
+                        sp.GetRequiredService<UI.Services.VyralDeck.ObsRemoteBridge>(),
+                        sp.GetRequiredService<VyralBot.Integrations.Obs.Engine.ObsOutputService>(),
+                        sp.GetRequiredService<ITwitchService>()));
 
                 // Trigger service consumes the bridge + bot manager + the
                 // effective mod-tier resolver via its optional trailing ctor
@@ -1767,6 +1786,124 @@ public partial class App : Application
                 return false;
             }
         }
+    }
+
+    // ======================================================================
+    // Stream-control workflow adapter (IStreamControlWorkflowBridge). Lives
+    // in the composition root next to the moderation adapters: the workflow
+    // engine has no Integrations/UI dependencies, so the obs_scene /
+    // obs_stream / obs_replay / twitch_clip nodes get their actions bridged
+    // here. Scene switches and stream start/stop go through the SAME
+    // ObsRemoteBridge the VyralDeck OBS buttons use (obs-websocket, works
+    // against standalone obs64.exe and the embedded engine alike); replay
+    // saves go through the embedded ObsOutputService's save proc; clips
+    // through the Twitch Helix engine-facing CreateClipUrlAsync. Like the
+    // moderation adapters every method is best-effort and NEVER throws —
+    // a failure is an Ok=false outcome so the node's error branch routes it.
+    // ======================================================================
+
+    /// <summary>
+    /// Bridges the stream-control workflow nodes onto the app's OBS and
+    /// Twitch seams: <see cref="UI.Services.VyralDeck.ObsRemoteBridge"/> for
+    /// scenes and stream start/stop (returns the same ✅/❌-prefixed user
+    /// messages the deck status line shows — success keyed off the ✅ prefix,
+    /// exactly like <c>DeckActionExecutor.Msg</c>),
+    /// <see cref="VyralBot.Integrations.Obs.Engine.ObsOutputService"/> for
+    /// the embedded replay-buffer save, and
+    /// <see cref="ITwitchService.CreateClipUrlAsync"/> for clips.
+    /// </summary>
+    internal sealed class StreamControlWorkflowAdapter : VyralBot.Workflows.Abstractions.IStreamControlWorkflowBridge
+    {
+        private readonly UI.Services.VyralDeck.ObsRemoteBridge _obs;
+        private readonly VyralBot.Integrations.Obs.Engine.ObsOutputService _outputs;
+        private readonly ITwitchService _twitch;
+
+        public StreamControlWorkflowAdapter(
+            UI.Services.VyralDeck.ObsRemoteBridge obs,
+            VyralBot.Integrations.Obs.Engine.ObsOutputService outputs,
+            ITwitchService twitch)
+        {
+            _obs = obs ?? throw new ArgumentNullException(nameof(obs));
+            _outputs = outputs ?? throw new ArgumentNullException(nameof(outputs));
+            _twitch = twitch ?? throw new ArgumentNullException(nameof(twitch));
+        }
+
+        public async Task<VyralBot.Workflows.Abstractions.StreamControlOutcome> SetSceneAsync(string sceneName)
+        {
+            try
+            {
+                return DeckMessage(await _obs.SetSceneAsync(sceneName).ConfigureAwait(false));
+            }
+            catch (Exception ex)
+            {
+                return Fail("OBS scene switch", ex);
+            }
+        }
+
+        public async Task<VyralBot.Workflows.Abstractions.StreamControlOutcome> StartStreamAsync()
+        {
+            try
+            {
+                return DeckMessage(await _obs.StartStreamAsync().ConfigureAwait(false));
+            }
+            catch (Exception ex)
+            {
+                return Fail("OBS stream start", ex);
+            }
+        }
+
+        public async Task<VyralBot.Workflows.Abstractions.StreamControlOutcome> StopStreamAsync()
+        {
+            try
+            {
+                return DeckMessage(await _obs.StopStreamAsync().ConfigureAwait(false));
+            }
+            catch (Exception ex)
+            {
+                return Fail("OBS stream stop", ex);
+            }
+        }
+
+        public async Task<VyralBot.Workflows.Abstractions.StreamControlOutcome> SaveReplayBufferAsync()
+        {
+            try
+            {
+                // ObsOutputService is itself non-throwing (engine-not-ready and
+                // buffer-not-active come back as Success=false messages).
+                var result = await _outputs.SaveReplayAsync().ConfigureAwait(false);
+                return new VyralBot.Workflows.Abstractions.StreamControlOutcome(result.Success, result.Message);
+            }
+            catch (Exception ex)
+            {
+                return Fail("OBS replay save", ex);
+            }
+        }
+
+        public async Task<VyralBot.Workflows.Abstractions.StreamControlOutcome> CreateTwitchClipAsync()
+        {
+            try
+            {
+                var url = await _twitch.CreateClipUrlAsync().ConfigureAwait(false);
+                return url is null
+                    ? new VyralBot.Workflows.Abstractions.StreamControlOutcome(
+                        false, "Twitch clip failed — channel offline or Twitch not connected.")
+                    : new VyralBot.Workflows.Abstractions.StreamControlOutcome(true, $"Clip created: {url}");
+            }
+            catch (Exception ex)
+            {
+                return Fail("Twitch clip", ex);
+            }
+        }
+
+        /// <summary>
+        /// ObsRemoteBridge returns ✅/❌-prefixed user messages (OBS absent,
+        /// remote control disabled, stale socket…); success is the ✅ prefix.
+        /// </summary>
+        private static VyralBot.Workflows.Abstractions.StreamControlOutcome DeckMessage(string message) =>
+            new(message.StartsWith("✅", StringComparison.Ordinal), message);
+
+        private static VyralBot.Workflows.Abstractions.StreamControlOutcome Fail(string what, Exception ex) =>
+            new(false, $"{what} failed: {ex.Message}");
     }
 }
 

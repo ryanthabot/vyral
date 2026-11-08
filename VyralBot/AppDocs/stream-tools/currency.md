@@ -66,6 +66,10 @@ The approver name recorded on processed redemptions is hard-coded to "Admin".
 
 The top 10 balances with a **Refresh** button, plus the **transaction lookup**: type a username and press **Load Transactions** to see that user's last 100 currency movements (amount, type, reason, balance before/after, timestamp).
 
+### Leaderboard Overlay {#leaderboard-overlay}
+
+Also on the Leaderboard tab (1.1.0): a **📡 Leaderboard Overlay** card that builds the OBS browser-source URL for the [points-leaderboard widget](browser-sources.md#points-leaderboard-leaderboardhtml). Two fields — **Rows** (clamped 1–25, default 10) and **Title** (default "Top Points") — regenerate the URL live (`http://localhost:5000/leaderboard.html?count=10&title=Top%20Points`); **📋 COPY** puts it on the clipboard to paste into an OBS Browser Source. The port in the URL follows your Web Server settings (default 5000, read on page load). The widget polls the embedded server every 10 s and labels points with your configured currency name/symbol; for the extra params (`style`, the `platform` filter), hand-edit the copied URL — see [Browser Sources](browser-sources.md#points-leaderboard-leaderboardhtml).
+
 ### Earning and spending from the viewer's side
 
 Everything viewers do with currency happens through chat commands. The full command surface — about 25 commands — is in the [command catalog](../reference/command-catalog.md); the groups:

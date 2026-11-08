@@ -674,7 +674,7 @@ public class TwitchService : ITwitchService, IDisposable
                 "Could not resolve the Twitch broadcaster id - re-complete the Twitch setup in Platforms.");
         }
 
-        var response = await SendHelixAsync(HttpMethod.Delete, $"raids?broadcaster_id={broadcasterId}", null);
+        var response = await SendHelixAsync(HttpMethod.Delete, $"raids?from_broadcaster_id={broadcasterId}", null);
         if (!response.Success)
         {
             return new TwitchActionResponse(false, MapHelixFailure(response));
@@ -928,7 +928,456 @@ public class TwitchService : ITwitchService, IDisposable
         }
     }
 
-    #endregion
+    /// <summary>Commercial lengths Twitch accepts, in ascending order.</summary>
+    private static readonly int[] s_commercialLengths = { 30, 60, 90, 120, 150, 180 };
+
+    /// <summary>
+    /// Parses a Helix ISO-8601 UTC timestamp (started_at / followed_at)
+    /// without throwing; false when missing or unparseable.
+    /// </summary>
+    private static bool TryParseTwitchTimestamp(string? text, out DateTimeOffset value)
+    {
+        value = default;
+        return !string.IsNullOrEmpty(text) &&
+               DateTimeOffset.TryParse(text, System.Globalization.CultureInfo.InvariantCulture,
+                   System.Globalization.DateTimeStyles.RoundtripKind, out value);
+    }
+
+    /// <summary>
+    /// Parses a Helix data array of { id, name } objects (games / categories)
+    /// into id-name pairs, skipping entries without both fields.
+    /// </summary>
+    private static List<(string Id, string Name)> ParseGameList(string body)
+    {
+        var games = new List<(string Id, string Name)>();
+        using var doc = JsonDocument.Parse(body);
+        if (doc.RootElement.TryGetProperty("data", out var data))
+        {
+            foreach (var item in data.EnumerateArray())
+            {
+                var id = item.TryGetProperty("id", out var idProp) ? idProp.GetString() : null;
+                var name = item.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null;
+                if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(name))
+                {
+                    games.Add((id!, name!));
+                }
+            }
+        }
+
+        return games;
+    }
+
+    /// <inheritdoc />
+    public async Task<string?> CreateClipUrlAsync()
+    {
+        try
+        {
+            var broadcasterId = await ResolveBroadcasterIdAsync();
+            if (string.IsNullOrEmpty(broadcasterId))
+            {
+                _logger.LogInformation("Twitch clip creation skipped - could not resolve the broadcaster id");
+                return null;
+            }
+
+            var response = await SendHelixAsync(HttpMethod.Post, $"clips?broadcaster_id={broadcasterId}", null);
+            if (!response.Success)
+            {
+                _logger.LogInformation("Twitch clip creation failed: {Failure}", MapHelixFailure(response));
+                return null;
+            }
+
+            using var doc = JsonDocument.Parse(response.Body);
+            if (doc.RootElement.TryGetProperty("data", out var data) && data.GetArrayLength() > 0)
+            {
+                // Clips finalize asynchronously on Twitch's side — hand back
+                // the URL immediately rather than waiting for processing.
+                var clip = data[0];
+                if (clip.TryGetProperty("id", out var id) && id.GetString() is { Length: > 0 } clipId)
+                {
+                    var url = $"https://clips.twitch.tv/{clipId}";
+                    _logger.LogInformation("Twitch clip created: {ClipUrl}", url);
+                    return url;
+                }
+
+                if (clip.TryGetProperty("edit_url", out var editUrl) && editUrl.GetString() is { Length: > 0 } fallback)
+                {
+                    _logger.LogInformation("Twitch clip created: {ClipUrl}", fallback);
+                    return fallback;
+                }
+            }
+
+            _logger.LogInformation("Twitch clip creation response contained no clip payload");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Twitch clip creation failed");
+            return null;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> StartRaidAsync(string targetLogin)
+    {
+        if (string.IsNullOrWhiteSpace(targetLogin))
+        {
+            _logger.LogInformation("Twitch raid skipped - no target login provided");
+            return false;
+        }
+
+        try
+        {
+            var target = targetLogin.Trim().TrimStart('@', '#');
+
+            var broadcasterId = await ResolveBroadcasterIdAsync();
+            if (string.IsNullOrEmpty(broadcasterId))
+            {
+                _logger.LogInformation("Twitch raid to {Target} skipped - could not resolve the broadcaster id", target);
+                return false;
+            }
+
+            var targetId = await ResolveUserIdByLoginAsync(target);
+            if (string.IsNullOrEmpty(targetId))
+            {
+                _logger.LogInformation("Twitch raid skipped - could not resolve user id for {Target}", target);
+                return false;
+            }
+
+            var response = await SendHelixAsync(HttpMethod.Post,
+                $"raids?from_broadcaster_id={broadcasterId}&to_broadcaster_id={targetId}", null);
+            if (!response.Success)
+            {
+                _logger.LogInformation("Twitch raid to {Target} not started: {Failure}",
+                    target, MapHelixFailure(response));
+                return false;
+            }
+
+            _logger.LogInformation("Started Twitch raid to {Target}", target);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Twitch raid to {TargetLogin} failed", targetLogin);
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> CancelRaidAsync()
+    {
+        try
+        {
+            var broadcasterId = await ResolveBroadcasterIdAsync();
+            if (string.IsNullOrEmpty(broadcasterId))
+            {
+                _logger.LogInformation("Twitch raid cancel skipped - could not resolve the broadcaster id");
+                return false;
+            }
+
+            var response = await SendHelixAsync(HttpMethod.Delete,
+                $"raids?from_broadcaster_id={broadcasterId}", null);
+            if (!response.Success)
+            {
+                _logger.LogInformation("Twitch raid cancel not applied: {Failure}", MapHelixFailure(response));
+                return false;
+            }
+
+            _logger.LogInformation("Cancelled the outgoing Twitch raid");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Twitch raid cancel failed");
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> UpdateChannelInfoAsync(string? title, string? gameId)
+    {
+        var hasTitle = !string.IsNullOrWhiteSpace(title);
+        var hasGame = !string.IsNullOrWhiteSpace(gameId);
+        if (!hasTitle && !hasGame)
+        {
+            _logger.LogInformation("Twitch channel update skipped - neither title nor game id provided");
+            return false;
+        }
+
+        try
+        {
+            var broadcasterId = await ResolveBroadcasterIdAsync();
+            if (string.IsNullOrEmpty(broadcasterId))
+            {
+                _logger.LogInformation("Twitch channel update skipped - could not resolve the broadcaster id");
+                return false;
+            }
+
+            var body = new Dictionary<string, object>();
+            if (hasTitle)
+            {
+                body["title"] = title!.Trim();
+            }
+
+            if (hasGame)
+            {
+                body["game_id"] = gameId!.Trim();
+            }
+
+            var response = await SendHelixAsync(HttpMethod.Patch,
+                $"channels?broadcaster_id={broadcasterId}", JsonSerializer.Serialize(body));
+            if (!response.Success)
+            {
+                _logger.LogInformation("Twitch channel update not applied: {Failure}", MapHelixFailure(response));
+                return false;
+            }
+
+            _logger.LogInformation("Updated Twitch channel info (title set: {TitleSet}, game id set: {GameSet})",
+                hasTitle, hasGame);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Twitch channel update failed");
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<(string Title, string GameName)?> GetChannelInfoAsync()
+    {
+        try
+        {
+            var broadcasterId = await ResolveBroadcasterIdAsync();
+            if (string.IsNullOrEmpty(broadcasterId))
+            {
+                return null;
+            }
+
+            var response = await SendHelixAsync(HttpMethod.Get, $"channels?broadcaster_id={broadcasterId}", null);
+            if (!response.Success)
+            {
+                _logger.LogInformation("Twitch channel info read failed: {Failure}", MapHelixFailure(response));
+                return null;
+            }
+
+            using var doc = JsonDocument.Parse(response.Body);
+            if (doc.RootElement.TryGetProperty("data", out var data) && data.GetArrayLength() > 0)
+            {
+                var channel = data[0];
+                var channelTitle = channel.TryGetProperty("title", out var titleProp) ? titleProp.GetString() ?? string.Empty : string.Empty;
+                var gameName = channel.TryGetProperty("game_name", out var gameProp) ? gameProp.GetString() ?? string.Empty : string.Empty;
+                return (channelTitle, gameName);
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Twitch channel info read failed");
+            return null;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<string?> GetTopGamesAsync(string? query = null, int limit = 20)
+    {
+        try
+        {
+            limit = Math.Clamp(limit, 1, 100);
+            List<(string Id, string Name)> games;
+
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                var top = await SendHelixAsync(HttpMethod.Get, $"games?first={limit}", null);
+                if (!top.Success)
+                {
+                    _logger.LogInformation("Twitch top games read failed: {Failure}", MapHelixFailure(top));
+                    return null;
+                }
+
+                games = ParseGameList(top.Body);
+            }
+            else
+            {
+                // Exact-name lookup first — GET /games?name= only returns exact
+                // matches (Helix limitation: no fuzzy search on this endpoint).
+                var searchTerm = query.Trim();
+                var exact = await SendHelixAsync(HttpMethod.Get,
+                    $"games?name={Uri.EscapeDataString(searchTerm)}", null);
+                if (!exact.Success)
+                {
+                    _logger.LogInformation("Twitch game lookup failed: {Failure}", MapHelixFailure(exact));
+                    return null;
+                }
+
+                games = ParseGameList(exact.Body);
+                if (games.Count == 0)
+                {
+                    // Fall back to category search for partial/misspelled names.
+                    var search = await SendHelixAsync(HttpMethod.Get,
+                        $"search/categories?query={Uri.EscapeDataString(searchTerm)}&first={limit}", null);
+                    if (!search.Success)
+                    {
+                        _logger.LogInformation("Twitch category search failed: {Failure}", MapHelixFailure(search));
+                        return null;
+                    }
+
+                    games = ParseGameList(search.Body);
+                }
+            }
+
+            if (games.Count == 0)
+            {
+                return null;
+            }
+
+            return string.Join(";", games.Take(limit).Select(g => $"{g.Id}:{g.Name}"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Twitch game lookup failed");
+            return null;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> StartCommercialAsync(int seconds)
+    {
+        try
+        {
+            // Clamp to the nearest length Twitch accepts (30/60/90/120/150/180).
+            var clamped = s_commercialLengths.MinBy(v => Math.Abs(v - seconds));
+
+            var broadcasterId = await ResolveBroadcasterIdAsync();
+            if (string.IsNullOrEmpty(broadcasterId))
+            {
+                _logger.LogInformation("Twitch commercial skipped - could not resolve the broadcaster id");
+                return false;
+            }
+
+            var response = await SendHelixAsync(HttpMethod.Post, "channels/commercial",
+                JsonSerializer.Serialize(new { broadcaster_id = broadcasterId, length = clamped }));
+            if (!response.Success)
+            {
+                _logger.LogInformation("Twitch commercial ({Length}s) not started: {Failure}",
+                    clamped, MapHelixFailure(response));
+                return false;
+            }
+
+            _logger.LogInformation("Started a {Length}s Twitch commercial (requested {Requested}s)", clamped, seconds);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Twitch commercial start failed");
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<TimeSpan?> GetStreamUptimeAsync()
+    {
+        try
+        {
+            var broadcasterId = await ResolveBroadcasterIdAsync();
+            if (string.IsNullOrEmpty(broadcasterId))
+            {
+                return null;
+            }
+
+            var response = await SendHelixAsync(HttpMethod.Get, $"streams?user_id={broadcasterId}", null);
+            if (!response.Success)
+            {
+                _logger.LogInformation("Twitch stream lookup failed: {Failure}", MapHelixFailure(response));
+                return null;
+            }
+
+            using var doc = JsonDocument.Parse(response.Body);
+            if (!doc.RootElement.TryGetProperty("data", out var data) || data.GetArrayLength() == 0)
+            {
+                // Empty data array = channel is offline (not an error).
+                return null;
+            }
+
+            var startedAt = data[0].TryGetProperty("started_at", out var started) ? started.GetString() : null;
+            if (!TryParseTwitchTimestamp(startedAt, out var start))
+            {
+                _logger.LogInformation("Twitch stream uptime unavailable - no parseable started_at");
+                return null;
+            }
+
+            var uptime = DateTimeOffset.UtcNow - start;
+            return uptime < TimeSpan.Zero ? TimeSpan.Zero : uptime;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Twitch stream uptime lookup failed");
+            return null;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<TimeSpan?> GetFollowAgeAsync(string login)
+    {
+        if (string.IsNullOrWhiteSpace(login))
+        {
+            _logger.LogInformation("Twitch follow age lookup skipped - no login provided");
+            return null;
+        }
+
+        try
+        {
+            var target = login.Trim().TrimStart('@');
+
+            var broadcasterId = await ResolveBroadcasterIdAsync();
+            if (string.IsNullOrEmpty(broadcasterId))
+            {
+                _logger.LogInformation("Twitch follow age lookup skipped - could not resolve the broadcaster id");
+                return null;
+            }
+
+            var userId = await ResolveUserIdByLoginAsync(target);
+            if (string.IsNullOrEmpty(userId))
+            {
+                _logger.LogInformation("Twitch follow age lookup skipped - could not resolve user id for {Login}", target);
+                return null;
+            }
+
+            var response = await SendHelixAsync(HttpMethod.Get,
+                $"channels/followers?broadcaster_id={broadcasterId}&user_id={userId}", null);
+            if (!response.Success)
+            {
+                _logger.LogInformation("Twitch follow age lookup for {Login} failed: {Failure}",
+                    target, MapHelixFailure(response));
+                return null;
+            }
+
+            using var doc = JsonDocument.Parse(response.Body);
+            if (!doc.RootElement.TryGetProperty("data", out var data) || data.GetArrayLength() == 0)
+            {
+                // Empty data array = the user doesn't follow the channel.
+                _logger.LogInformation("Twitch follow age for {Login} unavailable - not a follower", target);
+                return null;
+            }
+
+            var followedAt = data[0].TryGetProperty("followed_at", out var followed) ? followed.GetString() : null;
+            if (!TryParseTwitchTimestamp(followedAt, out var since))
+            {
+                _logger.LogInformation("Twitch follow age for {Login} unavailable - no parseable followed_at", target);
+                return null;
+            }
+
+            var age = DateTimeOffset.UtcNow - since;
+            return age < TimeSpan.Zero ? TimeSpan.Zero : age;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Twitch follow age lookup for {Login} failed", login);
+            return null;
+        }
+    }
+
+#endregion
 
     private void OnConnected(object? sender, EventArgs e)
     {

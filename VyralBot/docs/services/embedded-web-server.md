@@ -21,7 +21,9 @@ off by default, PIN-paired device tokens).
 | `/songs/queue` | GET | loopback bind + same-origin (no CORS) | `{ current, upcoming }` song-request snapshot for the player page; lazily promotes the queue head to Playing. |
 | `/songs/played` | POST | loopback Origin check + 4 KB body cap | Player reports the current video finished/errored — marks Played, promotes next. Body `{"videoId":"..."}` (stale ids are no-ops). |
 | `/songs/title` | POST | loopback Origin check + 4 KB body cap | Player reports a resolved title/duration. Body `{"id":"...","title":"...","duration":123}`. |
-| `/*` (static) | GET | none | `/sounds/*` is served first from the active profile's sounds folder (`ISoundService.GetSoundsDirectory()` — `appdata/profiles/<name>/data/sounds`), then falls back to `wwwroot` (`audio.html`, `songplayer.html`, legacy `/sounds/*`) from `AppContext.BaseDirectory`. |
+| `/leaderboard/data` | GET | loopback bind + same-origin (no CORS) | Top-N currency leaderboard snapshot for the overlay page (`leaderboard.html`); `count` clamped to 1..25, optional `platform` filter. See `docs/features/leaderboard-overlay.md`. |
+| `/counters/death` | GET | loopback bind + same-origin (no CORS) | `{ count }` death-counter snapshot for the OBS widget (`deathcounter.html`, polls every 3s); 503 `counters_disabled` when the service is not registered. See `docs/features/death-counter.md`. |
+| `/*` (static) | GET | none | `/sounds/*` is served first from the active profile's sounds folder (`ISoundService.GetSoundsDirectory()` — `appdata/profiles/<name>/data/sounds`), then falls back to `wwwroot` (`audio.html`, `songplayer.html`, `leaderboard.html`, `deathcounter.html`, legacy `/sounds/*`) from `AppContext.BaseDirectory`. |
 
 ## Control API (`/api`) — community-tool surface
 

@@ -21,6 +21,7 @@ using VyralBot.Core.Services.Audio;
 using VyralBot.Core.Services.Channels;
 using VyralBot.Core.Services.Chat;
 using VyralBot.Core.Services.Commands;
+using VyralBot.Core.Services.Counters;
 using VyralBot.Core.Services.Currency;
 using VyralBot.Core.Services.EventBus;
 using VyralBot.Core.Services.EventBus.Events;
@@ -101,6 +102,12 @@ public class ChatViewModel : ViewModelBase
 	private readonly IQuoteService? _quoteService;
 
 	private readonly ISongRequestService? _songRequestService;
+
+	private readonly IStreamToolsCommandService? _streamToolsCommandService;
+
+	private readonly IDeathCounterService? _deathCounterService;
+
+	private readonly ITtsService? _ttsService;
 
 	private readonly IVariableReplacementService? _variableReplacementService;
 
@@ -2146,7 +2153,7 @@ public class ChatViewModel : ViewModelBase
 		return Task.CompletedTask;
 	}
 
-	public ChatViewModel(ILogger<ChatViewModel> logger, IEventBus eventBus, ITwitchService twitchService, IKickService kickService, IYouTubeService youtubeService, IDiscordService discordService, IDiscordBotManager discordBotManager, KickSettingsViewModel kickSettings, IChatMessageStore chatStore, IChatEventSettingsService eventSettingsService, IAutoReplyService autoReplyService, IDiscordCommandHandler? discordCommandHandler = null, ICurrencyService? currencyService = null, ICurrencyCommandService? currencyCommandService = null, ICommandService? commandService = null, ISoundService? soundService = null, IAlertService? alertService = null, GiveawayCommandService? giveawayCommandService = null, PollCommandService? pollCommandService = null, WatchtimeService? watchtimeService = null, WatchtimeCommandService? watchtimeCommandService = null, IVariableReplacementService? variableReplacementService = null, IDataService? dataService = null, CommandActionRunner? commandActionRunner = null, WorkflowTriggerService? workflowTriggerService = null, IResponseWaiterRegistry? responseWaiters = null, ILinkCodeService? linkCodeService = null, IViewerStatusService? viewerStatusService = null, ISocialGoalService? socialGoalService = null, StreamEffectCommandRouter? streamEffectRouter = null, IConnectedChannelService? connectedChannels = null, IChatModerationEngine? chatModerationEngine = null, ModerationActionService? moderationActionService = null, IQuoteService? quoteService = null, ISongRequestService? songRequestService = null)
+	public ChatViewModel(ILogger<ChatViewModel> logger, IEventBus eventBus, ITwitchService twitchService, IKickService kickService, IYouTubeService youtubeService, IDiscordService discordService, IDiscordBotManager discordBotManager, KickSettingsViewModel kickSettings, IChatMessageStore chatStore, IChatEventSettingsService eventSettingsService, IAutoReplyService autoReplyService, IDiscordCommandHandler? discordCommandHandler = null, ICurrencyService? currencyService = null, ICurrencyCommandService? currencyCommandService = null, ICommandService? commandService = null, ISoundService? soundService = null, IAlertService? alertService = null, GiveawayCommandService? giveawayCommandService = null, PollCommandService? pollCommandService = null, WatchtimeService? watchtimeService = null, WatchtimeCommandService? watchtimeCommandService = null, IVariableReplacementService? variableReplacementService = null, IDataService? dataService = null, CommandActionRunner? commandActionRunner = null, WorkflowTriggerService? workflowTriggerService = null, IResponseWaiterRegistry? responseWaiters = null, ILinkCodeService? linkCodeService = null, IViewerStatusService? viewerStatusService = null, ISocialGoalService? socialGoalService = null, StreamEffectCommandRouter? streamEffectRouter = null, IConnectedChannelService? connectedChannels = null, IChatModerationEngine? chatModerationEngine = null, ModerationActionService? moderationActionService = null, IQuoteService? quoteService = null, ISongRequestService? songRequestService = null, IStreamToolsCommandService? streamToolsCommandService = null, IDeathCounterService? deathCounterService = null, ITtsService? ttsService = null)
 	{
 		_logger = logger ?? throw new ArgumentNullException("logger");
 		_eventBus = eventBus ?? throw new ArgumentNullException("eventBus");
@@ -2183,6 +2190,9 @@ public class ChatViewModel : ViewModelBase
 		_moderationActionService = moderationActionService ?? ModerationActionService.Shared;
 		_quoteService = quoteService;
 		_songRequestService = songRequestService;
+		_streamToolsCommandService = streamToolsCommandService;
+		_deathCounterService = deathCounterService;
+		_ttsService = ttsService;
 		_currencyService = currencyService;
 		_currencyCommandService = currencyCommandService;
 		_commandService = commandService;
@@ -3634,6 +3644,108 @@ public class ChatViewModel : ViewModelBase
 					Exception ex33 = ex32;
 					Exception ex34 = ex33;
 					_logger.LogError(ex34, "Error processing song request command: {Command}", evt.Message);
+				}
+			}
+		if (_streamToolsCommandService != null && evt.Message.StartsWith("!"))
+			{
+				try
+				{
+					string response8 = await _streamToolsCommandService.ProcessCommandAsync(evt.Username, evt.Platform, evt.IsModerator, evt.Message);
+					if (response8 != null)
+					{
+						if (string.Equals(evt.Platform, "Twitch", StringComparison.OrdinalIgnoreCase))
+						{
+							await _twitchService.SendMessageAsync(response8);
+						}
+						else if (string.Equals(evt.Platform, "Kick", StringComparison.OrdinalIgnoreCase))
+						{
+							await _kickService.SendMessageAsync(response8);
+						}
+						else if (string.Equals(evt.Platform, "YouTube", StringComparison.OrdinalIgnoreCase))
+						{
+							await _youtubeService.SendMessageAsync(response8);
+						}
+						else if (string.Equals(evt.Platform, "Discord", StringComparison.OrdinalIgnoreCase))
+						{
+							await SendDiscordReplyAsync(response8, discordBotId, discordDmChannelId, evt.Username);
+						}
+						_logger.LogDebug("Processed stream tools command: {Command} -> {Response}", evt.Message, response8);
+					}
+				}
+				catch (Exception ex)
+				{
+					Exception ex35 = ex;
+					Exception ex36 = ex35;
+					Exception ex37 = ex36;
+					_logger.LogError(ex37, "Error processing stream tools command: {Command}", evt.Message);
+				}
+			}
+		if (_deathCounterService != null && evt.Message.StartsWith("!death"))
+			{
+				try
+				{
+					string response9 = await _deathCounterService.ProcessCommandAsync(evt.Username, evt.Platform, evt.IsModerator, evt.Message);
+					if (response9 != null)
+					{
+						if (string.Equals(evt.Platform, "Twitch", StringComparison.OrdinalIgnoreCase))
+						{
+							await _twitchService.SendMessageAsync(response9);
+						}
+						else if (string.Equals(evt.Platform, "Kick", StringComparison.OrdinalIgnoreCase))
+						{
+							await _kickService.SendMessageAsync(response9);
+						}
+						else if (string.Equals(evt.Platform, "YouTube", StringComparison.OrdinalIgnoreCase))
+						{
+							await _youtubeService.SendMessageAsync(response9);
+						}
+						else if (string.Equals(evt.Platform, "Discord", StringComparison.OrdinalIgnoreCase))
+						{
+							await SendDiscordReplyAsync(response9, discordBotId, discordDmChannelId, evt.Username);
+						}
+						_logger.LogDebug("Processed death counter command: {Command} -> {Response}", evt.Message, response9);
+					}
+				}
+				catch (Exception ex)
+				{
+					Exception ex38 = ex;
+					Exception ex39 = ex38;
+					Exception ex40 = ex39;
+					_logger.LogError(ex40, "Error processing death counter command: {Command}", evt.Message);
+				}
+			}
+		if (_ttsService != null && evt.Message.StartsWith("!tts"))
+			{
+				try
+				{
+					string response10 = await _ttsService.ProcessCommandAsync(evt.Username, evt.Platform, evt.IsModerator, evt.Message);
+					if (response10 != null)
+					{
+						if (string.Equals(evt.Platform, "Twitch", StringComparison.OrdinalIgnoreCase))
+						{
+							await _twitchService.SendMessageAsync(response10);
+						}
+						else if (string.Equals(evt.Platform, "Kick", StringComparison.OrdinalIgnoreCase))
+						{
+							await _kickService.SendMessageAsync(response10);
+						}
+						else if (string.Equals(evt.Platform, "YouTube", StringComparison.OrdinalIgnoreCase))
+						{
+							await _youtubeService.SendMessageAsync(response10);
+						}
+						else if (string.Equals(evt.Platform, "Discord", StringComparison.OrdinalIgnoreCase))
+						{
+							await SendDiscordReplyAsync(response10, discordBotId, discordDmChannelId, evt.Username);
+						}
+						_logger.LogDebug("Processed tts command: {Command} -> {Response}", evt.Message, response10);
+					}
+				}
+				catch (Exception ex)
+				{
+					Exception ex41 = ex;
+					Exception ex42 = ex41;
+					Exception ex43 = ex42;
+					_logger.LogError(ex43, "Error processing tts command: {Command}", evt.Message);
 				}
 			}
 		if (_watchtimeService != null)

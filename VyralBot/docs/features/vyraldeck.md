@@ -29,7 +29,17 @@ through PIN pairing.
   them up by .NET spelling) and the full action `catalog` (so the mobile
   editor never hardcodes a copy).
 - Push channels: `config` (layout changed on either side), `state` (a platform
-  went live/offline via `IStreamLiveRegistry`), `press_result`, `pong`, `error`.
+  went live/offline via `IStreamLiveRegistry`, plus a deduped 20s pump for the
+  context keys), `press_result`, `pong`, `error`.
+- **Stream-context keys:** the state map also carries optional strings the
+  mobile app renders as status chips — `nowPlaying` (current song-request
+  title via `ISongRequestService.GetCurrentSongRequestAsync`), `uptimeText`
+  (compact "2h 14m", same `Stream.StartedAtUtc` config source the `!uptime`
+  command reads) and the `deathCount` string (the shared `!death` counter,
+  see `docs/features/death-counter.md`; its `CountChanged` event pushes
+  immediately, the 20s pump is the fallback). All are resolved lazily from
+  `IServiceProvider` and the keys are omitted when the service/data is
+  unavailable or empty; older clients ignore unknown keys.
 - Client messages: `press` (saved button by id), `action` (ad-hoc tool, no
   saved button), `config_set` (persist an edited layout), `ping`.
 - `LanAddress` picks the primary private IPv4 (gateway + 10.x/172.16-31/192.168)

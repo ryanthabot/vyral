@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -9,9 +10,13 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using VyralBot.Core.Services.Counters;
+using VyralBot.Core.Services.Songs;
 using VyralBot.Core.Services.StreamStatus;
+using VyralBot.Data;
 
 namespace VyralBot.UI.Services.VyralDeck;
 
@@ -52,29 +57,42 @@ public sealed class DeckServer : IDisposable
     private readonly DeckActionExecutor _executor;
     private readonly IStreamLiveRegistry _liveRegistry;
 
+    // Stream-context sources for the live-state payload. Resolved lazily and
+    // optionally: when a service is not registered the matching state key is
+    // simply omitted (older/newer clients both tolerate that).
+    private readonly IServiceProvider _services;
+    private ISongRequestService? _songRequests;
+    private IDataService? _dataService;
+    private IDeathCounterService? _deathCounter;
+
     private WebApplication? _app;
     private CancellationTokenSource? _cts;
     private Task? _runTask;
     private Task? _discoveryTask;
     private UdpClient? _discoveryUdp;
     private CancellationTokenSource? _discoveryCts;
+    private Timer? _statePump;
     private int _port;
     private volatile bool _isRunning;
 
     private readonly ConcurrentDictionary<DeckClientConnection, byte> _clients = new();
+    private readonly object _stateLock = new();
+    private string _lastStateJson = "";
 
     public DeckServer(
         ILogger<DeckServer> logger,
         DeckPairingStore pairing,
         DeckLayoutStore layout,
         DeckActionExecutor executor,
-        IStreamLiveRegistry liveRegistry)
+        IStreamLiveRegistry liveRegistry,
+        IServiceProvider services)
     {
         _logger = logger;
         _pairing = pairing;
         _layout = layout;
         _executor = executor;
         _liveRegistry = liveRegistry;
+        _services = services;
 
         // Layout edits (desktop or phone) rebroadcast to every connected client.
         _layout.LayoutChanged += OnLayoutChanged;
@@ -225,6 +243,7 @@ public sealed class DeckServer : IDisposable
             }, _cts.Token);
 
             StartDiscoveryResponder();
+            StartStatePump();
 
             // Give Kestrel a beat to bind before reporting success.
             await Task.Delay(300).ConfigureAwait(false);
@@ -250,6 +269,8 @@ public sealed class DeckServer : IDisposable
         }
 
         _isRunning = false;
+
+        StopStatePump();
 
         foreach (var client in _clients.Keys)
         {
@@ -303,15 +324,22 @@ public sealed class DeckServer : IDisposable
         try
         {
             var layout = await _layout.LoadAsync().ConfigureAwait(false);
+            var state = await LiveStateAsync().ConfigureAwait(false);
             await connection.SendAsync(new
             {
                 type = "welcome",
                 serverName = Environment.MachineName,
                 protocol = ProtocolVersion,
                 layout,
-                state = LiveState(),
+                state,
                 catalog = CatalogPayload(),
             }, ct).ConfigureAwait(false);
+
+            // The welcome state becomes the dedupe baseline for the pump.
+            lock (_stateLock)
+            {
+                _lastStateJson = JsonSerializer.Serialize(state, Json);
+            }
 
             var buffer = new byte[256 * 1024];
             while (socket.State == WebSocketState.Open && !ct.IsCancellationRequested)
@@ -480,18 +508,203 @@ public sealed class DeckServer : IDisposable
         _ = BroadcastAsync(new { type = "config", layout });
     }
 
-    private void OnLiveChanged(object? sender, string platform)
+    private void OnLiveChanged(object? sender, string platform) => _ = PushStateAsync();
+
+    /// <summary>
+    /// The live-state payload: the per-platform live flags (PascalCase keys per
+    /// PROTOCOL.md) plus optional stream-context strings — `nowPlaying` (song
+    /// queue), `uptimeText` (same "Stream.StartedAtUtc" source the !uptime
+    /// command reads), `deathCount` (the shared !death counter; unknown keys
+    /// are ignorable by older clients). Every context key is omitted when its
+    /// backing service/data is unavailable, so clients only ever render what
+    /// exists.
+    /// </summary>
+    private async Task<Dictionary<string, object?>> LiveStateAsync()
+    {
+        var state = new Dictionary<string, object?>();
+        foreach (var platform in TrackedPlatforms)
+        {
+            state[platform] = _liveRegistry.IsLive(platform);
+        }
+
+        var nowPlaying = await TryGetNowPlayingAsync().ConfigureAwait(false);
+        if (nowPlaying is not null)
+        {
+            state["nowPlaying"] = nowPlaying;
+        }
+
+        var uptimeText = await TryGetUptimeTextAsync().ConfigureAwait(false);
+        if (uptimeText is not null)
+        {
+            state["uptimeText"] = uptimeText;
+        }
+
+        var deathCount = await TryGetDeathCountAsync().ConfigureAwait(false);
+        if (deathCount is not null)
+        {
+            state["deathCount"] = deathCount.Value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return state;
+    }
+
+    private async Task<int?> TryGetDeathCountAsync()
+    {
+        if (DeathCounter is not { } counters)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await counters.GetCountAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "VyralDeck: could not read the death counter");
+            return null;
+        }
+    }
+
+    private async Task<string?> TryGetNowPlayingAsync()
+    {
+        if (SongRequests is not { } songs)
+        {
+            return null;
+        }
+
+        try
+        {
+            var current = await songs.GetCurrentSongRequestAsync().ConfigureAwait(false);
+            var title = current?.Title?.Trim();
+            return string.IsNullOrEmpty(title) ? null : title;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "VyralDeck: could not read the current song request");
+            return null;
+        }
+    }
+
+    /// <summary>Compact "2h 14m" uptime — same source !uptime reads.</summary>
+    private async Task<string?> TryGetUptimeTextAsync()
+    {
+        if (DataService is not { } data)
+        {
+            return null;
+        }
+
+        try
+        {
+            var startedAtRaw = await data.GetConfigValueAsync("Stream.StartedAtUtc").ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(startedAtRaw))
+            {
+                return null;
+            }
+
+            if (!DateTimeOffset.TryParse(startedAtRaw, CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var startedAt)
+                || startedAt >= DateTimeOffset.UtcNow)
+            {
+                return null;
+            }
+
+            var uptime = DateTimeOffset.UtcNow - startedAt;
+            return $"{(int)uptime.TotalHours}h {uptime.Minutes}m";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "VyralDeck: could not compute stream uptime");
+            return null;
+        }
+    }
+
+    /// <summary>Recomputes the live state and rebroadcasts it when it changed.</summary>
+    private async Task PushStateAsync()
     {
         if (_clients.IsEmpty)
         {
             return;
         }
 
-        _ = BroadcastAsync(new { type = "state", state = LiveState() });
+        var state = await LiveStateAsync().ConfigureAwait(false);
+        var json = JsonSerializer.Serialize(state, Json);
+        lock (_stateLock)
+        {
+            if (json == _lastStateJson)
+            {
+                return;
+            }
+
+            _lastStateJson = json;
+        }
+
+        await BroadcastAsync(new { type = "state", state }).ConfigureAwait(false);
     }
 
-    private Dictionary<string, bool> LiveState() =>
-        TrackedPlatforms.ToDictionary(p => p, p => _liveRegistry.IsLive(p));
+    // ── state pump ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Live flags push on StreamLiveChanged, but the context keys change on
+    /// their own (next song, minute rollover) — refresh periodically while
+    /// the server runs. The dedupe guard keeps idle ticks off the wire.
+    /// </summary>
+    private void StartStatePump()
+    {
+        _statePump = new Timer(
+            _ => _ = PushStateAsync(),
+            null,
+            TimeSpan.FromSeconds(20),
+            TimeSpan.FromSeconds(20));
+    }
+
+    private void StopStatePump()
+    {
+        _statePump?.Dispose();
+        _statePump = null;
+        lock (_stateLock)
+        {
+            _lastStateJson = "";
+        }
+    }
+
+    private ISongRequestService? SongRequests =>
+        _songRequests ??= _services.GetService<ISongRequestService>();
+
+    private IDataService? DataService =>
+        _dataService ??= _services.GetService<IDataService>();
+
+    /// <summary>
+    /// The death counter resolves lazily and optionally; the first successful
+    /// resolution also hooks <c>CountChanged</c> so the mobile chip ticks the
+    /// moment a death is counted (the 20s pump is only the fallback).
+    /// </summary>
+    private IDeathCounterService? DeathCounter
+    {
+        get
+        {
+            if (_deathCounter is { } cached)
+            {
+                return cached;
+            }
+
+            var service = _services.GetService<IDeathCounterService>();
+            if (service is null)
+            {
+                return null;
+            }
+
+            if (Interlocked.CompareExchange(ref _deathCounter, service, null) is { } winner)
+            {
+                return winner;
+            }
+
+            service.CountChanged += OnDeathCountChanged;
+            return service;
+        }
+    }
+
+    private void OnDeathCountChanged(object? sender, int count) => _ = PushStateAsync();
 
     private static List<object> CatalogPayload() =>
         DeckActionCatalog.Actions
@@ -686,6 +899,11 @@ public sealed class DeckServer : IDisposable
         _layout.LayoutChanged -= OnLayoutChanged;
         _liveRegistry.StreamLiveChanged -= OnLiveChanged;
         _pairing.DeviceRemoved -= OnDeviceRemoved;
+        if (_deathCounter is { } deaths)
+        {
+            deaths.CountChanged -= OnDeathCountChanged;
+        }
+
         if (_isRunning)
         {
             StopAsync().GetAwaiter().GetResult();

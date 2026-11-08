@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vyral Death Counter - Browser Source</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        /* Counter block - centered; every visual knob (label text, number
+           size, color) comes from the URL params below. */
+        #counter {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            white-space: nowrap;
+            color: #ffffff; /* overridden by ?color= */
+            /* Soft dark glow so white text stays readable on bright scenes. */
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.65), 0 0 2px rgba(0, 0, 0, 0.9);
+        }
+        #skull {
+            display: inline-block;
+            vertical-align: baseline;
+            font-size: 1em; /* scales with the number's size */
+            margin-right: 0.25em;
+        }
+        #number {
+            display: inline-block;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.02em;
+            transition: transform 0.15s ease-out;
+        }
+        /* Pop animation whenever the count changes. */
+        #number.pop {
+            transition: none;
+            transform: scale(1.22);
+        }
+        #label {
+            display: block;
+            font-size: 0.22em;
+            font-weight: 600;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            opacity: 0.85;
+            margin-top: 0.1em;
+        }
+        /* Status badge - identical conventions to audio.html/songplayer.html
+           (connected auto-hides after 5s; disconnected/connecting stay
+           visible; polling doubles as the reconnect loop). */
+        #status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: opacity 0.3s;
+            z-index: 9999;
+        }
+        .connected {
+            background: rgba(0, 255, 0, 0.2);
+            color: lime;
+            border: 2px solid lime;
+        }
+        .disconnected {
+            background: rgba(255, 0, 0, 0.2);
+            color: red;
+            border: 2px solid red;
+        }
+        .connecting {
+            background: rgba(255, 255, 0, 0.2);
+            color: yellow;
+            border: 2px solid yellow;
+        }
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="status" class="connecting">Connecting to Vyral...</div>
+    <div id="counter">
+        <span id="skull">💀</span><span id="number">0</span>
+        <span id="label">Deaths</span>
+    </div>
+    <script>
+        // Configuration - host/port derived from the URL the page is served
+        // from (same convention as audio.html/songplayer.html), so the file
+        // works on any port the embedded loopback web server listens on.
+        const BASE_URL = window.location.protocol.indexOf('http') === 0
+            ? window.location.origin
+            : 'http://' + (window.location.host || 'localhost:5000');
+        const COUNT_URL = BASE_URL + '/counters/death';
+        const POLL_MS = 3000;           // count auto-refresh
+        const STATUS_HIDE_DELAY = 5000;
+
+        // Query params: ?label=Deaths&size=120&color=%23ffffff
+        // - label  text under the number (plain text only, never HTML)
+        // - size   number font size in px (clamped 20..480, default 120)
+        // - color  any CSS hex color (%23 = '#'; strict #rgb/#rrggbb/#rrggbbaa
+        //          pattern check - anything else falls back to white)
+        const params = new URLSearchParams(window.location.search);
+
+        const labelEl = document.getElementById('label');
+        labelEl.textContent = (params.get('label') || 'Deaths').slice(0, 40);
+
+        let size = parseInt(params.get('size'), 10);
+        size = (isFinite(size) && size >= 20 && size <= 480) ? size : 120;
+        document.getElementById('counter').style.fontSize = size + 'px';
+
+        const color = params.get('color');
+        if (color && /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(color)) {
+            document.getElementById('counter').style.color = color;
+        }
+
+        // State
+        let currentCount = null;
+        let pollTimer = null;
+        let refreshing = false;
+        let statusHideTimeout = null;
+
+        const statusDiv = document.getElementById('status');
+        const numberEl = document.getElementById('number');
+
+        // ------------------------------------------------------------------
+        // Count polling (reconnects forever, 3s cadence)
+        // ------------------------------------------------------------------
+        refresh();
+        function refresh() {
+            if (refreshing) return; // never overlap requests
+            refreshing = true;
+            fetch(COUNT_URL, { cache: 'no-store' })
+                .then((res) => {
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.json();
+                })
+                .then((data) => {
+                    updateStatus('Connected to Vyral', 'connected');
+                    hideStatusAfterDelay();
+                    applyCount(typeof data.count === 'number' ? data.count : 0);
+                })
+                .catch((err) => {
+                    console.warn('Count fetch failed:', err);
+                    updateStatus('Disconnected from VyralBot', 'disconnected');
+                })
+                .finally(() => {
+                    refreshing = false;
+                    pollTimer = setTimeout(refresh, POLL_MS);
+                });
+        }
+
+        function applyCount(count) {
+            if (count === currentCount) return;
+            const changed = currentCount !== null;
+            currentCount = count;
+            numberEl.textContent = String(count);
+            if (changed) {
+                // pop: jump big, ease back (the transition property does the ease)
+                numberEl.classList.add('pop');
+                void numberEl.offsetWidth; // reflow so the scale restarts each change
+                numberEl.classList.remove('pop');
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Status badge (audio.html conventions)
+        // ------------------------------------------------------------------
+        function updateStatus(text, statusClass) {
+            statusDiv.textContent = text;
+            statusDiv.className = statusClass;
+            if (statusClass !== 'connected' && statusHideTimeout) {
+                clearTimeout(statusHideTimeout);
+                statusHideTimeout = null;
+            }
+        }
+
+        function hideStatusAfterDelay() {
+            if (statusHideTimeout) clearTimeout(statusHideTimeout);
+            statusHideTimeout = setTimeout(() => {
+                statusDiv.classList.add('hidden');
+            }, STATUS_HIDE_DELAY);
+        }
+    </script>
+</body>
+</html>

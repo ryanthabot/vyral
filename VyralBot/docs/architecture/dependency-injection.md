@@ -134,6 +134,7 @@ All registered as singletons. These power the local Kestrel web server, ngrok tu
 | Interface | Implementation |
 |-----------|---------------|
 | `Core.Services.Audio.ISoundService` | `Core.Services.Audio.SoundService` |
+| `Core.Services.Audio.ITtsService` | `Core.Services.Audio.TextToSpeechService` |
 
 ### Statistics Service
 

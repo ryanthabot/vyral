@@ -10,6 +10,8 @@
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="9.0.0" />
     <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
+    <!-- TextToSpeechService: in-box Windows SAPI voices (SpeechSynthesizer) -->
+    <PackageReference Include="System.Speech" Version="10.0.0" />
     <PackageReference Include="System.Windows.Extensions" Version="9.0.0" />
   </ItemGroup>
 

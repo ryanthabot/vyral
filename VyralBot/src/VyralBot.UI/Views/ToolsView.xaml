@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:vm="clr-namespace:VyralBot.UI.ViewModels"
+             xmlns:converters="clr-namespace:VyralBot.UI.Converters"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -15,6 +16,8 @@
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Margin" Value="0,0,0,0"/>
         </Style>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <converters:InvertBooleanToVisibilityConverter x:Key="InvertBoolToVis"/>
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -251,6 +254,128 @@
                     </StackPanel>
                 </materialDesign:Card>
             </Grid>
+
+            <!-- Death Counter Section -->
+            <TextBlock Text="Death Counter" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,20,0,12"/>
+
+            <materialDesign:Card Background="{DynamicResource CardBackgroundBrush}" Margin="0,0,0,15" Padding="20">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left: big count + control buttons -->
+                    <StackPanel Grid.Column="0" Margin="0,0,32,0" VerticalAlignment="Top">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,4">
+                            <materialDesign:PackIcon Kind="Skull" Width="44" Height="44"
+                                                     Foreground="{DynamicResource TextSecondaryBrush}"
+                                                     VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="{Binding DeathCount}" FontSize="56" FontWeight="Bold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="Chat: !death (count) • mods: !death+, !death-, !death set &lt;n&gt;, !death reset"
+                                   FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Center" Margin="0,0,0,16"/>
+
+                        <UniformGrid Columns="2" Margin="0,0,0,8">
+                            <Button Content="+1"
+                                    Command="{Binding DeathIncrementCommand}"
+                                    Style="{StaticResource MaterialDesignRaisedButton}"
+                                    Background="{DynamicResource PrimaryBrush}"
+                                    BorderBrush="{DynamicResource PrimaryBrush}"
+                                    Margin="0,0,6,6"/>
+                            <Button Content="−1"
+                                    Command="{Binding DeathDecrementCommand}"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                                    Margin="6,0,0,6"/>
+                        </UniformGrid>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding DeathSetValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     materialDesign:HintAssist.Hint="Set value"
+                                     VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <Button Grid.Column="1" Content="SET"
+                                    Command="{Binding DeathSetCommand}"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                                    Height="30"/>
+                        </Grid>
+                        <Button Content="RESET TO 0"
+                                Command="{Binding DeathResetCommand}"
+                                Style="{StaticResource MaterialDesignOutlinedButton}"
+                                Margin="0,8,0,0"/>
+                    </StackPanel>
+
+                    <!-- Right: widget URL + label + history -->
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="OBS Browser Source" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding DeathWidgetUrl, Mode=OneWay}"
+                                     IsReadOnly="True" FontSize="11"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <Button Grid.Column="1" Content="Copy"
+                                    Command="{Binding CopyDeathWidgetUrlCommand}"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                                    Height="30"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Label:" FontSize="12" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,8,0"/>
+                            <TextBox Grid.Column="1" Text="{Binding DeathLabel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     VerticalAlignment="Center"
+                                     ToolTip="Baked into the widget URL as ?label=… and shown under the number"/>
+                        </Grid>
+
+                        <TextBlock Text="Recent changes" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                        <ItemsControl ItemsSource="{Binding DeathHistory}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{DynamicResource BorderLightBrush}"
+                                            BorderThickness="0,0,0,1" Padding="4,5">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Change}" FontSize="13" FontWeight="Bold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       Width="48" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding By}" FontSize="12"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Time}" FontSize="12"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="No changes yet — +1 or a chat !death+ command lands here."
+                                   FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"
+                                   Margin="4,8,0,0"
+                                   Visibility="{Binding HasDeathHistory, Converter={StaticResource InvertBoolToVis}}"/>
+                    </StackPanel>
+                </Grid>
+            </materialDesign:Card>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

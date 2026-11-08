@@ -25,7 +25,7 @@ Server → client:
   "catalog": [ {"type":"TwitchClip","name":"Twitch: Create Clip","category":"Twitch","param1Label":null,"param2Label":null,"param1Placeholder":"","param2Placeholder":""}, … ] }
 
 { "type": "config", "layout": { … } }          // layout changed (phone or desktop edit)
-{ "type": "state",  "state": { … } }           // pushed when a platform goes live/offline
+{ "type": "state",  "state": { … } }           // live flags pushed on live/offline; context keys also refresh on a periodic pump (deduped)
 { "type": "press_result", "buttonId": "…", "ok": true, "message": "✅ Clip created." }
 { "type": "config_saved", "ok": true }
 { "type": "pong" }
@@ -43,6 +43,22 @@ Client → server:
 
 `config_set` persists on the PC (config KV store) and is rebroadcast as
 `config` to every connected client, including the sender.
+
+## Live-state payload
+
+`welcome.state` and every `state` frame carry the same map:
+
+```jsonc
+{ "Twitch": true, "Kick": false, "YouTube": false,
+  "nowPlaying": "Never Gonna Give You Up",   // optional: current song-request title
+  "uptimeText": "2h 14m",                    // optional: same source the !uptime command reads
+  "deathCount": "42" }                       // optional: the shared !death counter
+```
+
+The optional context keys are strings, omitted whenever the PC cannot fill
+them (no song playing, stream offline, service absent). Clients should render
+only the keys they receive and ignore the rest; older clients ignore unknown
+keys entirely (they read the platform flags only).
 
 ## Action types
 

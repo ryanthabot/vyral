@@ -73,6 +73,29 @@ strip on Home and eight starter workflow templates. 771 automated tests.
   the platforms you choose.
 - **Crash reports** — if VyralBot crashes, it now writes a report (with
   secrets removed), shows a clear error dialog, and keeps logs size-capped.
+- **Mod & stream tools** — the classic mod commands in chat: `!so <user>`
+  (all platforms), `!clip`, `!raid`/`!raid cancel`, `!title`, `!game`,
+  `!commercial`, `!followage` (Twitch), and a Helix-backed `!uptime` (all
+  platforms; the seeded built-in still answers first — disable it on the
+  Commands page for the live-registry version).
+- **Workflow Streaming blocks** — four new action blocks: Switch OBS Scene,
+  OBS Stream Start/Stop, Save OBS Replay Buffer, and Create Twitch Clip.
+  They ride the OBS remote-control bridge (obs-websocket) and route failures
+  to the error branch. The block catalog is now 40 blocks (29 actions).
+- **Text-to-speech** — SAPI voice synthesis with a settings card on the Alert
+  Settings page (voice, rate, volume, max length, viewer toggle), spoken
+  alerts ("New Follower, Bob"), and a `!tts` chat command with a 30-second
+  per-viewer cooldown; Do Not Disturb mutes all of it.
+- **Death counter** — a Tools-page card (+/−/set/reset, editable label,
+  change history) sharing state with the `!death` chat command family and an
+  OBS browser-source widget (`deathcounter.html`, polls every 3 s).
+- **Leaderboard overlay** — an OBS browser-source widget for the top balances
+  (`leaderboard.html`, polls every 10 s, shows your currency name/symbol,
+  dark/light styles, optional platform filter) with a URL-builder card on the
+  Currency page's Leaderboard tab.
+- **VyralDeck status chips** — the deck's live-state payload now includes
+  now-playing, uptime and death-count context strings the phone app renders
+  as status chips (older clients safely ignore them).
 
 ### Fixed
 

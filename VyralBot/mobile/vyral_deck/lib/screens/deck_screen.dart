@@ -267,6 +267,49 @@ class _DeckScreenState extends State<DeckScreen> {
     );
   }
 
+  /// Compact stream-context chips (now playing / uptime / deaths). The server
+  /// omits keys it cannot fill, and older servers send none — only chips whose
+  /// key is present (non-empty) are built, so the row disappears entirely on
+  /// servers without context.
+  Widget _statusChips() {
+    final nowPlaying = _state['nowPlaying'];
+    final uptimeText = _state['uptimeText'];
+    final deathCount = _state['deathCount'];
+
+    final chips = [
+      if (nowPlaying is String && nowPlaying.trim().isNotEmpty)
+        _StatusChip(icon: '🎵', label: _shorten(nowPlaying)),
+      if (uptimeText is String && uptimeText.trim().isNotEmpty)
+        _StatusChip(icon: '⏱', label: uptimeText.trim()),
+      if (deathCount != null && '$deathCount'.trim().isNotEmpty)
+        _StatusChip(icon: '💀', label: '$deathCount'.trim()),
+    ];
+    if (chips.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 34,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        children: [
+          for (final chip in chips)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: chip,
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Titles can be long — clamp for the chip row (manual, because a horizontal
+  /// ListView gives chips unbounded width where ellipsis never engages).
+  static String _shorten(String text, {int max = 32}) {
+    final trimmed = text.trim();
+    if (trimmed.length <= max) return trimmed;
+    return '${trimmed.substring(0, max - 1)}…';
+  }
+
   Widget _liveDot(String platform, Color color) {
     final live = _state[platform] == true;
     return Padding(
@@ -293,6 +336,7 @@ class _DeckScreenState extends State<DeckScreen> {
   Widget _buildDeck() {
     return Column(
       children: [
+        _statusChips(),
         // Page selector
         SizedBox(
           height: 52,
@@ -410,5 +454,38 @@ class _DeckButtonTile extends StatelessWidget {
     if (value.length == 6) value = 'FF$value';
     final parsed = int.tryParse(value, radix: 16);
     return parsed == null ? const Color(0xFF21262D) : Color(parsed);
+  }
+}
+
+/// One pill of the stream-context row — same dark-card look as empty slots.
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.icon, required this.label});
+
+  final String icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFF21262D),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(icon, style: const TextStyle(fontSize: 12)),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: Colors.white70),
+          ),
+        ],
+      ),
+    );
   }
 }

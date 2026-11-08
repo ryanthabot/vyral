@@ -162,6 +162,7 @@ Where the major subsystems live and which doc covers them:
 | [services/performance-monitor.md](services/performance-monitor.md) | Performance + pooling |
 | [services/profile-service.md](services/profile-service.md) | ProfileService |
 | [services/process-management.md](services/process-management.md) | Process management |
+| [services/tts-service.md](services/tts-service.md) | TextToSpeechService (!tts + spoken alerts, SAPI) |
 
 ### Models
 | Doc | Description |

@@ -73,6 +73,7 @@ public static class BlockSections
     public const string Economy = "Economy";
     public const string Loops = "Loops";
     public const string Utility = "Utility";
+    public const string Streaming = "Streaming";
 }
 
 /// <summary>
@@ -206,6 +207,22 @@ public static class BlockCatalog
             new ParamField("SoundName", "Sound", ParamKind.Text,
                 "File name as listed on the Audio & Sounds page, e.g. subscribe.wav — supports {variables}"),
             new ParamField("Volume", "Volume", ParamKind.Number, "0-100", null, "100")),
+        new("obs_scene", BlockGroup.Action, "🎬", "Switch OBS Scene",
+            "Switch the OBS program scene (OBS remote control — same seam as the VyralDeck OBS buttons). Failures (OBS offline, unknown scene) take the error branch.",
+            ActionColor, false, BlockSections.Streaming,
+            new ParamField("SceneName", "Scene", ParamKind.Text,
+                "OBS scene name, e.g. Gameplay — supports {variables}")),
+        new("obs_stream", BlockGroup.Action, "📡", "OBS Stream Start/Stop",
+            "Start or stop the OBS stream output (OBS remote control). Failures (OBS offline, remote control disabled) take the error branch.",
+            ActionColor, false, BlockSections.Streaming,
+            new ParamField("Action", "Action", ParamKind.Select, null,
+                new[] { "Start", "Stop" }, "Start")),
+        new("obs_replay", BlockGroup.Action, "⏺️", "Save OBS Replay Buffer",
+            "Save the OBS replay buffer highlight. No parameters — fails with a hint on the error branch when the replay buffer isn't running in OBS.",
+            ActionColor, false, BlockSections.Streaming),
+        new("twitch_clip", BlockGroup.Action, "✂️", "Create Twitch Clip",
+            "Clip the live Twitch stream (Helix). No parameters — fails with a message on the error branch when Twitch is disconnected or the stream is offline.",
+            ActionColor, false, BlockSections.Streaming),
         new("builtin", BlockGroup.Action, "🧩", "Run Built-in Command",
             "Run a legacy built-in command (Commands table engine) and store its reply: cooldowns, permissions and variables all apply.",
             ActionColor, false, BlockSections.Moderation,

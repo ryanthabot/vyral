@@ -13,11 +13,17 @@
 - **Timers & scheduled messages** — recurring commands (optionally only while chat is active) and per-bot Discord announcements on a schedule with `{time}`/`{date}` variables.
 - **Event Testing page** — fire any of 17 test events (follow, sub, raid, Super Chat, redemption…) to try alerts, sounds and workflows before going live. See [Event Testing](../chat-features/event-testing.md).
 - **Easier first run** — a dismissible three-step "Get started" strip on Home and eight ready-made workflow templates (each imports disabled so you can edit first). See [Quick Start](quick-start.md) and [Automation](../chat-features/automation.md).
+- **Mod & stream tools** — `!so` shoutouts on every platform, plus `!clip`, `!raid`, `!title`, `!game`, `!commercial` and `!followage` on Twitch — driven from chat by you or your mods. See the [Command Catalog](../reference/command-catalog.md#mod--stream-tools-commands).
+- **Text-to-speech** — Vyral speaks: alert popups can say "New Follower, Bob", viewers get a `!tts` command (rate-limited, optional mods-only), and the voice/rate/volume are configured on the Alert Settings page. See [Visual Alerts](../stream-tools/visual-alerts.md#text-to-speech-card).
+- **Death counter** — a big counter card on the Tools page, the `!death` chat family, and a matching OBS overlay widget — one number, three surfaces. See [Tools Hub](../home/tools-hub.md).
+- **Leaderboard overlay** — show your top viewers on stream: an OBS browser-source widget for the points leaderboard, URL built for you on the Currency page. See [Currency & Rewards](../stream-tools/currency.md#leaderboard-overlay).
+- **Streaming workflow blocks** — flows can switch OBS scenes, start/stop the OBS stream, save replay-buffer highlights, and clip the Twitch stream. See [Automation](../chat-features/automation.md).
+- **VyralDeck status chips** — the phone app now shows now-playing, stream uptime and the death count alongside the live dots. See [StreamDeck & VyralDeck](../stream-tools/vyraldeck.md).
 
 ## Improvements
 
 - **Workflows can play sounds** — a new **Play Sound** block plays anything in your Sounds library at a chosen volume; starter templates use it for sub celebrations.
-- **Do-not-disturb** — one switch in Settings → Notifications mutes every event sound and alert overlay instantly (no restart), with a preview button to check your setup. See [Settings Overview](../settings/overview.md).
+- **Do-not-disturb** — one switch in Settings → Notifications mutes every event sound, alert overlay **and all text-to-speech** instantly (no restart), with a preview button to check your setup. See [Settings Overview](../settings/overview.md).
 - **Sounds upgrades** — master-volume slider (covers the browser source too), per-sound preview play, and drag-and-drop import for `.wav`/`.mp3`/`.ogg`/`.m4a`. See [Sounds](../stream-tools/sounds.md).
 - **Commands page** — duplicate a command, search, per-platform columns and sortable usage / last-used.
 - **CSV export** — Statistics and Event History export the current filtered view to an Excel-friendly file.

@@ -347,7 +347,10 @@ public class CommandService : ICommandService
             // seeded "!help" row only carries the enable/permission/cooldown
             // settings — the response text always comes from here.
             "!help" => HelpText,
-            "!uptime" => await ExecuteUptimeAsync(),
+            // !uptime defers to StreamToolsCommandService (real Helix uptime +
+            // per-platform live status) via the same fall-through convention as
+            // !watchtime below — this placeholder must not shadow it (KI-59).
+            "!uptime" => null,
             // !watchtime defers to WatchtimeCommandService via the ChatViewModel
             // fallback chain: returning null (without applying cooldowns) lets
             // ExecuteAsync fall through so the real implementation answers

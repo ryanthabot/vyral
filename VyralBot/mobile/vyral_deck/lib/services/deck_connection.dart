@@ -5,8 +5,10 @@ import 'dart:io';
 import '../core/action_catalog.dart';
 import '../core/models.dart';
 
-/// Live status of one platform as reported by the server.
-typedef LiveState = Map<String, bool>;
+/// Live state as reported by the server: per-platform live flags
+/// ("Twitch"/"Kick"/"YouTube" → bool) plus optional stream-context strings
+/// ("nowPlaying", "uptimeText", "deathCount") that only newer servers send.
+typedef LiveState = Map<String, dynamic>;
 
 /// Events surfaced from the socket to the UI.
 sealed class DeckEvent {}
@@ -175,10 +177,13 @@ class DeckConnection {
     }
   }
 
+  /// Values are stored as-is; readers type-check (`_state['Twitch'] == true`,
+  /// `_state['nowPlaying'] is String`) so keys a version does not know about
+  /// — and keys an older server never sends — are both harmless.
   LiveState parseLiveState(dynamic raw) {
-    final map = <String, bool>{};
+    final map = <String, dynamic>{};
     if (raw is Map<String, dynamic>) {
-      raw.forEach((key, value) => map[key] = value == true);
+      raw.forEach((key, value) => map[key] = value);
     }
     return map;
   }

@@ -452,19 +452,47 @@
                 <Grid Margin="20">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="200"/>
                     </Grid.RowDefinitions>
 
+                    <!-- Leaderboard Overlay card (OBS browser source) -->
+                    <Border Grid.Row="0" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderPrimaryBrush}"
+                            BorderThickness="1" CornerRadius="6" Padding="15" Margin="0,0,0,15">
+                        <StackPanel>
+                            <TextBlock Text="📡 Leaderboard Overlay" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"/>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <TextBlock Text="Rows" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBox Text="{Binding OverlayCount, UpdateSourceTrigger=PropertyChanged}" Width="60"
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                                <TextBlock Text="Title" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="20,0,8,0"/>
+                                <TextBox Text="{Binding OverlayTitle, UpdateSourceTrigger=PropertyChanged}" Width="220"
+                                         Background="{DynamicResource BackgroundTertiaryBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="8,6" BorderBrush="{DynamicResource BorderPrimaryBrush}"/>
+                            </StackPanel>
+
+                            <DockPanel Margin="0,10,0,0">
+                                <Button DockPanel.Dock="Right" Content="📋 COPY" Command="{Binding CopyLeaderboardOverlayUrlCommand}"
+                                        Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="15,8" Margin="10,0,0,0" BorderThickness="0" Cursor="Hand" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding LeaderboardOverlayUrl}" Foreground="{DynamicResource TextSecondaryBrush}"
+                                           FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                            </DockPanel>
+
+                            <TextBlock Text="Add the URL as a Browser Source in OBS (loopback - OBS must run on this machine). It shows the top viewers by balance and refreshes every 10 seconds; add &amp;platform=Twitch or &amp;style=light to the URL to customize."
+                                       FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Leaderboard Toolbar -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
-                        <Button Content="🔄 Refresh" Command="{Binding LoadLeaderboardCommand}" 
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,15">
+                        <Button Content="🔄 Refresh" Command="{Binding LoadLeaderboardCommand}"
                                 Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="15,8" BorderThickness="0" Cursor="Hand"/>
                     </StackPanel>
 
                     <!-- Leaderboard DataGrid -->
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding Leaderboard}" AutoGenerateColumns="False" 
+                    <DataGrid Grid.Row="2" ItemsSource="{Binding Leaderboard}" AutoGenerateColumns="False"
                               CanUserAddRows="False" Background="{DynamicResource CardBackgroundBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderPrimaryBrush}" 
                               GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{DynamicResource BorderPrimaryBrush}" IsReadOnly="True">
                         <DataGrid.Columns>
@@ -483,10 +511,10 @@
                     </DataGrid>
 
                     <!-- Transaction History Section -->
-                    <TextBlock Grid.Row="2" Text="Transaction History" FontSize="16" FontWeight="SemiBold"
+                    <TextBlock Grid.Row="3" Text="Transaction History" FontSize="16" FontWeight="SemiBold"
                                Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,20,0,10"/>
-                    
-                    <Grid Grid.Row="3">
+
+                    <Grid Grid.Row="4">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>

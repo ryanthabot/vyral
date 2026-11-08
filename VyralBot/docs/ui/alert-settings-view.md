@@ -12,7 +12,27 @@ Single JSON blob under the Configs key `AlertSettings`
 the per-profile database via `IDataService.SetConfigValueAsync`. Fields:
 `AlertsEnabled`, `DurationSeconds` (1–15, clamped), `Animation`
 (`SlideInFromTop|SlideInFromBottom|FadeIn|Bounce`), `Position` (9-point grid),
-and six per-event toggles (`Follow|Subscribe|GiftSub|Raid|Host|Cheer`AlertsEnabled).
+six per-event toggles (`Follow|Subscribe|GiftSub|Raid|Host|Cheer`AlertsEnabled)
+and `TtsAlertsEnabled` (spoken alerts — see below).
+
+## Text-to-Speech card + spoken alerts
+
+The page's **Text-to-Speech (TTS)** card configures `ITtsService`
+(`Core/Services/Audio/TextToSpeechService.cs` — see
+[services/tts-service.md](../services/tts-service.md)): enable toggle, voice
+combo (installed SAPI voices via `ITtsService.GetVoices`, cached), rate slider
+(-50..50), volume slider (0..100), Allow Viewers toggle (`!tts` for
+non-mods) and max message length slider (50..500). Persisted as individual
+Configs rows `Tts.*` (category `Tts`) via `ITtsService.SaveSettingsAsync`;
+Save Settings persists both the alert blob and the TTS keys, Reset to Defaults
+resets both. "Save & Speak Test" persists the page state first (SpeakAsync
+gates on the stored `Tts.Enabled`), then speaks a sample sentence;
+`TtsStatusMessage` carries the feedback/suppression line.
+
+The Alert Events card's **Speak Alerts (TTS)** toggle maps to
+`AlertSettings.TtsAlertsEnabled`: when it and `Tts.Enabled` are both on,
+`AlertService` fire-and-forgets `SpeakAsync("{title}, {username}")` after each
+alert popup renders (trailing `!` stripped). Do-not-disturb mutes TTS too.
 
 ## Config alignment (settings ↔ service)
 

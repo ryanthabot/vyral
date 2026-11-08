@@ -39,3 +39,29 @@ cancellation stops the interpreter **between** nodes but cannot interrupt an
 in-flight node await (`wait_for_response`, `http_request`). Surfacing the
 linked token to nodes needs an `ExecutionContext` change (mutable/linked
 token).
+
+## Stream-control blocks + IStreamControlWorkflowBridge (2026-11-07)
+
+Four "Streaming" section blocks (`Nodes/BuiltIn/StreamControlNodes.cs`,
+catalog entries in `BlockCatalog`) let chat/workflow triggers control the
+stream: `obs_scene` (param `SceneName`, variable-substituted), `obs_stream`
+(param `Action` = Start/Stop), `obs_replay` (no params) and `twitch_clip`
+(no params).
+
+The Workflows engine keeps its no-Integration-dependencies rule
+(`VyralBot.Workflows.csproj` references Core + Data only), so these nodes use
+the same seam as `IDiscordWorkflowBridge`: they resolve
+`Abstractions.IStreamControlWorkflowBridge` (new file
+`Abstractions/StreamControlWorkflowBridge.cs`) from `ctx.Services` and fail
+the node — never throw — when it is not registered. The **UI layer** must
+register an implementation adapting over the OBS remote bridge
+(`UI/Services/VyralDeck/ObsRemoteBridge` / obs-websocket client — scene,
+stream start/stop, SaveReplayBuffer) and the Twitch Helix clip call
+(`IStreamActionsService.TwitchCreateClipAsync` / `ITwitchService.CreateClipAsync`).
+
+Failure semantics (all four): bridge outcomes map `Ok=false` onto
+`NodeResult.Fail(message)` — routable through the node's error branch like
+`play_sound`; helpful messages for OBS offline / remote control disabled /
+replay buffer not running / Twitch disconnected or offline. Run-level
+cancellation is rethrown (WaitNode pattern) so the run records `"Cancelled"`.
+Both success and failure info-log through `ctx.Logger`.

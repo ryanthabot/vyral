@@ -139,4 +139,79 @@ public interface ITwitchService
     /// GET /helix/moderation/shield_mode); null when unavailable.
     /// </summary>
     Task<TwitchChatModeState?> GetChatModeStateAsync();
+
+    // ── Helix engine-facing actions & lookups ─────────────────────────
+    // Bool/string-returning variants of the quick actions above for engine
+    // callers (chat commands, workflows): never throw, log at info level on
+    // failure (same contract as TimeoutUserAsync/BanUserAsync). Named
+    // *UrlAsync/*CancelRaidAsync where CreateClipAsync/StopRaidAsync already
+    // exist above with TwitchActionResponse returns for the UI.
+
+    /// <summary>
+    /// Creates a clip via POST /helix/clips and returns its URL
+    /// (https://clips.twitch.tv/{id}), or null on failure. Clips finalize
+    /// asynchronously on Twitch's side, so the URL is returned immediately
+    /// after creation. Requires the clips:edit scope.
+    /// </summary>
+    Task<string?> CreateClipUrlAsync();
+
+    /// <summary>
+    /// Starts a raid via POST /helix/raids after resolving the target login
+    /// to a user id. Requires channel:manage:raids. Returns false (never
+    /// throws) when the target can't be resolved or Twitch rejects the raid.
+    /// </summary>
+    Task<bool> StartRaidAsync(string targetLogin);
+
+    /// <summary>
+    /// Cancels the outgoing raid via DELETE /helix/raids. Requires
+    /// channel:manage:raids. Returns false (never throws) on failure.
+    /// </summary>
+    Task<bool> CancelRaidAsync();
+
+    /// <summary>
+    /// Updates title and/or category via PATCH /helix/channels; only the
+    /// provided fields are sent (null = unchanged). Unlike
+    /// <see cref="EditChannelInfoAsync"/> this takes a raw Twitch game id
+    /// (resolve names via <see cref="GetTopGamesAsync"/>). Requires the
+    /// channel:manage:broadcast scope.
+    /// </summary>
+    Task<bool> UpdateChannelInfoAsync(string? title, string? gameId);
+
+    /// <summary>
+    /// Reads the broadcaster's current title and game name via
+    /// GET /helix/channels; null when unavailable.
+    /// </summary>
+    Task<(string Title, string GameName)?> GetChannelInfoAsync();
+
+    /// <summary>
+    /// Looks up games as a "id:name;id:name;..." string for !game-style
+    /// commands. With a query: GET /helix/games?name= (exact match only)
+    /// first, then GET /helix/search/categories as a partial-match fallback
+    /// (limitation: Helix has no fuzzy game search, so misspelled names only
+    /// match via the search endpoint's own matching rules). Without a query:
+    /// the current top games. Null when nothing matches or the call fails.
+    /// </summary>
+    Task<string?> GetTopGamesAsync(string? query = null, int limit = 20);
+
+    /// <summary>
+    /// Runs a commercial via POST /helix/channels/commercial. The length is
+    /// clamped to Twitch's allowed values (30/60/90/120/150/180 seconds).
+    /// Requires the channel:edit:commercial scope on the broadcaster's own
+    /// token; returns false (never throws) otherwise.
+    /// </summary>
+    Task<bool> StartCommercialAsync(int seconds);
+
+    /// <summary>
+    /// Live stream uptime from GET /helix/streams started_at (now-UTC
+    /// delta); null when the channel is offline or the call fails.
+    /// </summary>
+    Task<TimeSpan?> GetStreamUptimeAsync();
+
+    /// <summary>
+    /// How long the given user has followed the broadcaster, from
+    /// GET /helix/channels/followers followed_at (now-UTC delta); null when
+    /// they don't follow, the login can't be resolved, or the call fails.
+    /// Requires the moderator:read:followers scope.
+    /// </summary>
+    Task<TimeSpan?> GetFollowAgeAsync(string login);
 }
