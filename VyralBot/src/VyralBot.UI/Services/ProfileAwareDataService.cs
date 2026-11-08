@@ -270,6 +270,16 @@ public class ProfileAwareDataService : IDataService
     public Task<bool> DeleteQuoteAsync(int number) => GetCurrentService().DeleteQuoteAsync(number);
     public Task<int> GetQuoteCountAsync() => GetCurrentService().GetQuoteCountAsync();
 
+    // Song request operations (chat-driven song queue)
+    public Task<SongRequest> AddSongRequestAsync(SongRequest request) => GetCurrentService().AddSongRequestAsync(request);
+    public Task<IEnumerable<SongRequest>> GetSongQueueAsync() => GetCurrentService().GetSongQueueAsync();
+    public Task<SongRequest?> GetCurrentSongRequestAsync() => GetCurrentService().GetCurrentSongRequestAsync();
+    public Task<bool> SetSongRequestStatusAsync(int id, string status) => GetCurrentService().SetSongRequestStatusAsync(id, status);
+    public Task<int> GetQueuedSongRequestCountAsync() => GetCurrentService().GetQueuedSongRequestCountAsync();
+    public Task<int> GetQueuedSongRequestCountByUserAsync(string requestedBy) => GetCurrentService().GetQueuedSongRequestCountByUserAsync(requestedBy);
+    public Task<int> ClearSongRequestsAsync() => GetCurrentService().ClearSongRequestsAsync();
+    public Task<int> UpdateSongRequestTitleAsync(string youtubeId, string title, int? durationSeconds) => GetCurrentService().UpdateSongRequestTitleAsync(youtubeId, title, durationSeconds);
+
     // AutoReplyRule operations
     public Task<IEnumerable<AutoReplyRule>> GetAutoReplyRulesAsync() => GetCurrentService().GetAutoReplyRulesAsync();
     public Task<IEnumerable<AutoReplyRule>> GetAutoReplyRulesByPlatformAndEventAsync(string platform, string eventType) => GetCurrentService().GetAutoReplyRulesByPlatformAndEventAsync(platform, eventType);

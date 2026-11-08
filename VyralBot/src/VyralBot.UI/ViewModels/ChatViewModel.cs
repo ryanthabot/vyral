@@ -27,6 +27,7 @@ using VyralBot.Core.Services.EventBus.Events;
 using VyralBot.Core.Services.Linking;
 using VyralBot.Core.Services.Moderation;
 using VyralBot.Core.Services.Quotes;
+using VyralBot.Core.Services.Songs;
 using VyralBot.Core.Services.StreamEffects;
 using VyralBot.Core.Services.Variables;
 using VyralBot.Data;
@@ -98,6 +99,8 @@ public class ChatViewModel : ViewModelBase
 	private readonly WatchtimeCommandService? _watchtimeCommandService;
 
 	private readonly IQuoteService? _quoteService;
+
+	private readonly ISongRequestService? _songRequestService;
 
 	private readonly IVariableReplacementService? _variableReplacementService;
 
@@ -2143,7 +2146,7 @@ public class ChatViewModel : ViewModelBase
 		return Task.CompletedTask;
 	}
 
-	public ChatViewModel(ILogger<ChatViewModel> logger, IEventBus eventBus, ITwitchService twitchService, IKickService kickService, IYouTubeService youtubeService, IDiscordService discordService, IDiscordBotManager discordBotManager, KickSettingsViewModel kickSettings, IChatMessageStore chatStore, IChatEventSettingsService eventSettingsService, IAutoReplyService autoReplyService, IDiscordCommandHandler? discordCommandHandler = null, ICurrencyService? currencyService = null, ICurrencyCommandService? currencyCommandService = null, ICommandService? commandService = null, ISoundService? soundService = null, IAlertService? alertService = null, GiveawayCommandService? giveawayCommandService = null, PollCommandService? pollCommandService = null, WatchtimeService? watchtimeService = null, WatchtimeCommandService? watchtimeCommandService = null, IVariableReplacementService? variableReplacementService = null, IDataService? dataService = null, CommandActionRunner? commandActionRunner = null, WorkflowTriggerService? workflowTriggerService = null, IResponseWaiterRegistry? responseWaiters = null, ILinkCodeService? linkCodeService = null, IViewerStatusService? viewerStatusService = null, ISocialGoalService? socialGoalService = null, StreamEffectCommandRouter? streamEffectRouter = null, IConnectedChannelService? connectedChannels = null, IChatModerationEngine? chatModerationEngine = null, ModerationActionService? moderationActionService = null, IQuoteService? quoteService = null)
+	public ChatViewModel(ILogger<ChatViewModel> logger, IEventBus eventBus, ITwitchService twitchService, IKickService kickService, IYouTubeService youtubeService, IDiscordService discordService, IDiscordBotManager discordBotManager, KickSettingsViewModel kickSettings, IChatMessageStore chatStore, IChatEventSettingsService eventSettingsService, IAutoReplyService autoReplyService, IDiscordCommandHandler? discordCommandHandler = null, ICurrencyService? currencyService = null, ICurrencyCommandService? currencyCommandService = null, ICommandService? commandService = null, ISoundService? soundService = null, IAlertService? alertService = null, GiveawayCommandService? giveawayCommandService = null, PollCommandService? pollCommandService = null, WatchtimeService? watchtimeService = null, WatchtimeCommandService? watchtimeCommandService = null, IVariableReplacementService? variableReplacementService = null, IDataService? dataService = null, CommandActionRunner? commandActionRunner = null, WorkflowTriggerService? workflowTriggerService = null, IResponseWaiterRegistry? responseWaiters = null, ILinkCodeService? linkCodeService = null, IViewerStatusService? viewerStatusService = null, ISocialGoalService? socialGoalService = null, StreamEffectCommandRouter? streamEffectRouter = null, IConnectedChannelService? connectedChannels = null, IChatModerationEngine? chatModerationEngine = null, ModerationActionService? moderationActionService = null, IQuoteService? quoteService = null, ISongRequestService? songRequestService = null)
 	{
 		_logger = logger ?? throw new ArgumentNullException("logger");
 		_eventBus = eventBus ?? throw new ArgumentNullException("eventBus");
@@ -2179,6 +2182,7 @@ public class ChatViewModel : ViewModelBase
 		_chatModerationEngine = chatModerationEngine ?? ChatModerationEngine.Shared;
 		_moderationActionService = moderationActionService ?? ModerationActionService.Shared;
 		_quoteService = quoteService;
+		_songRequestService = songRequestService;
 		_currencyService = currencyService;
 		_currencyCommandService = currencyCommandService;
 		_commandService = commandService;
@@ -3590,14 +3594,48 @@ public class ChatViewModel : ViewModelBase
 					_logger.LogDebug("Processed quote command: {Command} -> {Response}", evt.Message, response6);
 				}
 			}
-			catch (Exception ex)
-			{
-				Exception ex29 = ex;
-				Exception ex30 = ex29;
-				Exception ex31 = ex30;
-				_logger.LogError(ex31, "Error processing quote command: {Command}", evt.Message);
+				catch (Exception ex)
+				{
+					Exception ex29 = ex;
+					Exception ex30 = ex29;
+					Exception ex31 = ex30;
+					_logger.LogError(ex31, "Error processing quote command: {Command}", evt.Message);
+				}
 			}
-		}
+		if (_songRequestService != null && evt.Message.StartsWith("!sr"))
+			{
+				try
+				{
+					string response7 = await _songRequestService.ProcessCommandAsync(evt.Message, evt.Username, evt.Platform, evt.IsModerator);
+					if (response7 != null)
+					{
+						if (string.Equals(evt.Platform, "Twitch", StringComparison.OrdinalIgnoreCase))
+						{
+							await _twitchService.SendMessageAsync(response7);
+						}
+						else if (string.Equals(evt.Platform, "Kick", StringComparison.OrdinalIgnoreCase))
+						{
+							await _kickService.SendMessageAsync(response7);
+						}
+						else if (string.Equals(evt.Platform, "YouTube", StringComparison.OrdinalIgnoreCase))
+						{
+							await _youtubeService.SendMessageAsync(response7);
+						}
+						else if (string.Equals(evt.Platform, "Discord", StringComparison.OrdinalIgnoreCase))
+						{
+							await SendDiscordReplyAsync(response7, discordBotId, discordDmChannelId, evt.Username);
+						}
+						_logger.LogDebug("Processed song request command: {Command} -> {Response}", evt.Message, response7);
+					}
+				}
+				catch (Exception ex)
+				{
+					Exception ex32 = ex;
+					Exception ex33 = ex32;
+					Exception ex34 = ex33;
+					_logger.LogError(ex34, "Error processing song request command: {Command}", evt.Message);
+				}
+			}
 		if (_watchtimeService != null)
 		{
 			try

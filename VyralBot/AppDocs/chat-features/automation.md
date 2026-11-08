@@ -156,6 +156,7 @@ Every placeable block, from the catalog in [BlockCatalog.cs](../../src/VyralBot.
 |---|---|---|
 | 🌐 `http_request` — HTTP Request | Calls an external API; the response body is stored as `{http_response}` and the status as `{http_status}`. | `Method` (GET/POST/PUT/DELETE), `Url`, `Headers` (`Key: Value` per line), `Body`, `SaveAs` (variable name, default `http_response`) |
 | ⏱️ `wait` — Delay | Pauses the flow for a fixed duration. | `seconds` (default 5) |
+| 🔊 `play_sound` — Play Sound | Plays a file from your [Sounds](../stream-tools/sounds.md) library — from a command, timer or event flow, at an optional volume. Respects the Streamer/Stream output toggles (added in 1.1.0; the 25th action block). | `SoundName` (file name as listed on the Sounds page, supports `{variables}`), `Volume` (0–100, default 100) |
 | 📝 `log` — Log | Writes a message to the engine log (debugging). | `text` |
 | 🗒️ `note` — Note | Writes a note in the tree: a canvas annotation that does nothing when the flow runs — it executes instantly, succeeds, and continues via **Next**. Its text is kept literally (no `{variables}` — it's documentation, not data). | `Text` |
 

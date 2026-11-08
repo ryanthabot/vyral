@@ -187,25 +187,6 @@ Fired when a user cheers bits in chat.
 
 ---
 
-### TwitchChannelPointsEvent
-
-**File:** `TwitchChannelPointsEvent.cs`
-
-Fired when a user redeems channel points.
-
-| Property | Type | Required | Default | Description |
-|----------|------|----------|---------|-------------|
-| RewardId | `string` | **required** | — | Reward unique ID |
-| RewardTitle | `string` | **required** | — | Reward display title |
-| RewardCost | `int` | **required** | — | Point cost |
-| Username | `string` | **required** | — | Username |
-| UserId | `string` | **required** | — | Platform user ID |
-| DisplayName | `string` | **required** | — | Display name |
-| UserInput | `string?` | — | `null` | User-provided text |
-| Status | `string?` | — | `null` | "unfulfilled", "fulfilled", "canceled" |
-
----
-
 ### TwitchChannelPointsRedeemEvent
 
 **File:** `TwitchChannelPointsRedeemEvent.cs`

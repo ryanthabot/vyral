@@ -32,6 +32,9 @@ builder.Services.AddSingleton<WebhookCoordinatorService>();
 // service resolves platform/OBS/restream state lazily (absent here → defaults).
 builder.Services.AddSingleton<VyralBot.Integrations.Testing.TestEventPublisher>();
 builder.Services.AddSingleton<ControlApiStatusService>();
+// Song-request queue behind the /songs routes (songplayer.html browser source)
+builder.Services.AddSingleton<VyralBot.Core.Services.Songs.ISongRequestService,
+    VyralBot.Core.Services.Songs.SongRequestService>();
 builder.Services.AddSingleton<VyralBot.Core.Services.Statistics.IStatisticsService,
     VyralBot.Core.Services.Statistics.StatisticsService>();
 

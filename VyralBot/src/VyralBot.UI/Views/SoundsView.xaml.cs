@@ -33,7 +33,17 @@ public partial class SoundsView : UserControl
         }
 
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
-        if (await viewModel.HandleCaptureKeyDownAsync(key, e.KeyboardDevice.Modifiers))
+
+        // Mark handled synchronously while a capture is active: the await
+        // below would otherwise let Space/Enter re-click the focused capture
+        // button before the capture resolves.
+        var captureActive = viewModel.CapturingSoundName != null;
+        if (captureActive)
+        {
+            e.Handled = true;
+        }
+
+        if (await viewModel.HandleCaptureKeyDownAsync(key, e.KeyboardDevice.Modifiers) && !captureActive)
         {
             e.Handled = true;
         }

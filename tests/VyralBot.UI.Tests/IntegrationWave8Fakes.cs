@@ -215,6 +215,16 @@ public class IntegrationWave8DataService : IDataService
 
     public Task<int> GetQuoteCountAsync() => Task.FromResult(Quotes.Count);
 
+    // ----- Song requests (chat-driven song queue; not used by wave 8 tests) -----
+    public Task<VyralBot.Data.Entities.SongRequest> AddSongRequestAsync(VyralBot.Data.Entities.SongRequest request) => throw new NotImplementedException(NotImplemented);
+    public Task<IEnumerable<VyralBot.Data.Entities.SongRequest>> GetSongQueueAsync() => throw new NotImplementedException(NotImplemented);
+    public Task<VyralBot.Data.Entities.SongRequest?> GetCurrentSongRequestAsync() => throw new NotImplementedException(NotImplemented);
+    public Task<bool> SetSongRequestStatusAsync(int id, string status) => throw new NotImplementedException(NotImplemented);
+    public Task<int> GetQueuedSongRequestCountAsync() => throw new NotImplementedException(NotImplemented);
+    public Task<int> GetQueuedSongRequestCountByUserAsync(string requestedBy) => throw new NotImplementedException(NotImplemented);
+    public Task<int> ClearSongRequestsAsync() => throw new NotImplementedException(NotImplemented);
+    public Task<int> UpdateSongRequestTitleAsync(string youtubeId, string title, int? durationSeconds) => throw new NotImplementedException(NotImplemented);
+
     // ----- Platforms (real behavior: the DapperDataService at-rest secret convention) -----
 
     /// <summary>

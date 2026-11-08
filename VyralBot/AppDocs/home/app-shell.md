@@ -90,7 +90,7 @@ The window declares `WindowStyle="None"`, `AllowsTransparency="True"`, a transpa
 
 ### View-model-first navigation
 
-The content area is a single `ContentControl Content="{Binding CurrentViewModel}"` whose resources map ViewModel **types** to Views via `DataTemplate`s (`MainWindow.xaml:522-947`) — e.g. `<DataTemplate DataType="{x:Type vm:SettingsViewModel}"><local:SettingsView/></DataTemplate>`. WPF instantiates the view lazily when the ViewModel is set; this is the app's lazy-loading mechanism, and the Home page is the one template that inlines an entire page instead of referencing a view.
+The content area is a single `ContentControl Content="{Binding CurrentViewModel}"` whose resources map ViewModel **types** to Views via `DataTemplate`s (`MainWindow.xaml:610-1346`) — e.g. `<DataTemplate DataType="{x:Type vm:SettingsViewModel}"><local:SettingsView/></DataTemplate>`. WPF instantiates the view lazily when the ViewModel is set; this is the app's lazy-loading mechanism, and the Home page is the one template that inlines an entire page instead of referencing a view.
 
 The navigation pipeline, repeated in every `NavigateToX` command of [MainViewModel.cs](../../src/VyralBot.UI/ViewModels/MainViewModel.cs):
 
@@ -123,7 +123,7 @@ An older demo pair, [DemoSetupViewModel.cs](../../src/VyralBot.UI/ViewModels/Dem
 
 | File | Role |
 |---|---|
-| [MainWindow.xaml](../../src/VyralBot.UI/MainWindow.xaml) | The whole shell: chrome (`15-31`), title bar (`52-116`), sidebar (`122-497`), content host + DataTemplate map (`522-947`), profile overlay (`953-1205`) |
+| [MainWindow.xaml](../../src/VyralBot.UI/MainWindow.xaml) | The whole shell: chrome (`24-30`), title bar (`50-116`), sidebar (`120-607`), content host + DataTemplate map (`608-1347`), profile overlay (`1350-1601`) |
 | [MainWindow.xaml.cs](../../src/VyralBot.UI/MainWindow.xaml.cs) | Title bar drag/maximize/min/max/close handlers; PIN PasswordBox plumbing |
 | [MainViewModel.cs](../../src/VyralBot.UI/ViewModels/MainViewModel.cs) | Every navigation command, sidebar state, platform status flags, disposal pipeline |
 | [App.xaml.cs](../../src/VyralBot.UI/App.xaml.cs) | DI registrations (all-VM-singletons), startup order, exit watchdog |

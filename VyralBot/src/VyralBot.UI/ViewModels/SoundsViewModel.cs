@@ -8,7 +8,9 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using VyralBot.Core.Services.Audio;
+using VyralBot.Core.Services.Songs;
 using VyralBot.Data;
+using VyralBot.Data.Entities;
 using VyralBot.UI.Services.Hotkey;
 
 namespace VyralBot.UI.ViewModels;
@@ -37,6 +39,22 @@ public partial class SoundsViewModel : ViewModelBase, IDisposable
 
     // Same debounce pattern for the master volume slider.
     private CancellationTokenSource? _masterVolumePersistCts;
+
+    // Song requests: queue + limits come from the shared ISongRequestService
+    // (the !sr chat command family writes the same rows; the /songs API and
+    // songplayer.html browser source read/advance them).
+    private readonly ISongRequestService _songService;
+    private CancellationTokenSource? _songSettingsCts;
+
+    // Polls the queue while the page is open so the card reflects player-side
+    // advances (POST /songs/played) without any cross-thread event plumbing.
+    private System.Windows.Threading.DispatcherTimer? _songQueueTimer;
+
+    // True while InitializeSongRequestsAsync hydrates the limits from storage -
+    // OnChanged handlers must not schedule a write-back of what they just read.
+    private bool _suppressSongSettingsPersist;
+    private int _songPlayerPort = 5000;
+    private bool _songQueueReloading;
 
     [ObservableProperty]
     private ObservableCollection<SoundFileItem> _soundFiles = new();
@@ -84,12 +102,14 @@ public partial class SoundsViewModel : ViewModelBase, IDisposable
         ILogger<SoundsViewModel> logger,
         ISoundService soundService,
         IDataService dataService,
-        GlobalHotkeyService hotkeyService)
+        GlobalHotkeyService hotkeyService,
+        ISongRequestService songService)
     {
         _logger = logger;
         _soundService = soundService;
         _dataService = dataService;
         _hotkeyService = hotkeyService;
+        _songService = songService;
     }
 
     /// <summary>
@@ -103,6 +123,7 @@ public partial class SoundsViewModel : ViewModelBase, IDisposable
             await LoadMasterVolumeAsync();
             await LoadSoundFilesAsync();
             await LoadEventMappingsAsync();
+            await InitializeSongRequestsAsync();
             _logger.LogInformation("SoundsViewModel initialized successfully");
         }
         catch (Exception ex)
@@ -783,6 +804,280 @@ public partial class SoundsViewModel : ViewModelBase, IDisposable
         CaptureHint = null;
     }
 
+    // ------------------------------------------------------------------
+    // Song Requests: queue card mirroring the songplayer.html browser
+    // source. The SongRequestService singleton owns the queue; the player
+    // page advances it via POST /songs/played and reports resolved titles
+    // via POST /songs/title. This card can Skip/Clear and configures the
+    // limits + browser-source URL.
+    // ------------------------------------------------------------------
+
+    [ObservableProperty]
+    private ObservableCollection<SongQueueRow> _songQueue = new();
+
+    /// <summary>OBS browser-source URL (volume baked in as ?volume=N).</summary>
+    [ObservableProperty]
+    private string _songPlayerUrl = "http://localhost:5000/songplayer.html?volume=50";
+
+    /// <summary>Browser-source volume percent - feeds the URL and persists with the limits.</summary>
+    [ObservableProperty]
+    private int _songVolumePercent = 50;
+
+    /// <summary>Per-requester queue limit (config key "Songs.MaxPerUser", enforced by !sr).</summary>
+    [ObservableProperty]
+    private int _maxSongsPerUser = 2;
+
+    /// <summary>Total queue capacity (config key "Songs.MaxQueue", enforced by !sr).</summary>
+    [ObservableProperty]
+    private int _maxSongQueueTotal = 30;
+
+    /// <summary>True while the queue holds anything (drives Skip/Clear + empty state).</summary>
+    [ObservableProperty]
+    private bool _hasSongQueueItems;
+
+    partial void OnSongVolumePercentChanged(int value)
+    {
+        var clamped = System.Math.Clamp(value, 0, 100);
+        if (clamped != value)
+        {
+            SongVolumePercent = clamped; // re-enters once with the clamped value
+            return;
+        }
+
+        RebuildSongPlayerUrl();
+        ScheduleSongSettingsPersist();
+    }
+
+    partial void OnMaxSongsPerUserChanged(int value)
+    {
+        var clamped = System.Math.Clamp(value, 1, 50);
+        if (clamped != value)
+        {
+            MaxSongsPerUser = clamped;
+            return;
+        }
+
+        ScheduleSongSettingsPersist();
+    }
+
+    partial void OnMaxSongQueueTotalChanged(int value)
+    {
+        var clamped = System.Math.Clamp(value, 1, 200);
+        if (clamped != value)
+        {
+            MaxSongQueueTotal = clamped;
+            return;
+        }
+
+        ScheduleSongSettingsPersist();
+    }
+
+    /// <summary>Hydrates limits/volume, builds the browser-source URL, loads the queue.</summary>
+    private async Task InitializeSongRequestsAsync()
+    {
+        try
+        {
+            // Browser source is served by the embedded Kestrel server - build the
+            // URL from the persisted web-server port (5000 fallback), same as the
+            // audio.html URL on the Audio Settings page.
+            var port = 5000;
+            try
+            {
+                var webSettings = await _dataService.GetWebServerSettingsAsync();
+                if (webSettings is not null && webSettings.Port > 0)
+                {
+                    port = webSettings.Port;
+                }
+            }
+            catch (Exception portEx)
+            {
+                _logger.LogWarning(portEx, "Could not load web-server settings - using default port 5000 for the song player URL");
+            }
+
+            _songPlayerPort = port;
+
+            // Limits live in the config keys the !sr command family enforces;
+            // volume is the player-card's own key baked into the URL.
+            _suppressSongSettingsPersist = true;
+            SongVolumePercent = await ReadIntConfigAsync("Songs.PlayerVolume", 50, 0, 100);
+            MaxSongsPerUser = await ReadIntConfigAsync("Songs.MaxPerUser", 2, 1, 50);
+            MaxSongQueueTotal = await ReadIntConfigAsync("Songs.MaxQueue", 30, 1, 200);
+            _suppressSongSettingsPersist = false;
+            RebuildSongPlayerUrl();
+
+            await LoadSongQueueAsync();
+
+            // Keep the card in sync with player-side advances (auto-advance on
+            // video end). Same polling pattern as the Audio Settings client count.
+            _songQueueTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(3)
+            };
+            _songQueueTimer.Tick += (_, _) => _ = LoadSongQueueAsync();
+            _songQueueTimer.Start();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error initializing the song request card");
+        }
+    }
+
+    /// <summary>Reads a plain-int config key with fallback + clamp.</summary>
+    private async Task<int> ReadIntConfigAsync(string key, int fallback, int min, int max)
+    {
+        var raw = await _dataService.GetConfigValueAsync(key);
+        return int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? System.Math.Clamp(value, min, max)
+            : fallback;
+    }
+
+    /// <summary>Rebuilds the queue list from the service (Playing row + Queued rows).</summary>
+    private async Task LoadSongQueueAsync()
+    {
+        if (_songQueueReloading)
+        {
+            return; // a reload is already in flight
+        }
+
+        _songQueueReloading = true;
+        try
+        {
+            var current = await _dataService.GetCurrentSongRequestAsync();
+            var upcoming = await _songService.GetQueueAsync();
+
+            SongQueue.Clear();
+            if (current != null)
+            {
+                SongQueue.Add(SongQueueRow.From(current, isNowPlaying: true));
+            }
+
+            foreach (var item in upcoming)
+            {
+                SongQueue.Add(SongQueueRow.From(item, isNowPlaying: false));
+            }
+
+            HasSongQueueItems = SongQueue.Count > 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading the song queue");
+        }
+        finally
+        {
+            _songQueueReloading = false;
+        }
+    }
+
+    private void RebuildSongPlayerUrl()
+    {
+        SongPlayerUrl = $"http://localhost:{_songPlayerPort}/songplayer.html?volume={SongVolumePercent}";
+    }
+
+    /// <summary>Debounced persist of limits + volume into the Songs.* config keys.</summary>
+    private void ScheduleSongSettingsPersist()
+    {
+        if (_suppressSongSettingsPersist)
+        {
+            return;
+        }
+
+        _songSettingsCts?.Cancel();
+        _songSettingsCts?.Dispose();
+        _songSettingsCts = new CancellationTokenSource();
+        _ = PersistSongSettingsAsync(_songSettingsCts.Token);
+    }
+
+    private async Task PersistSongSettingsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(600, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return; // superseded by a newer value
+        }
+
+        try
+        {
+            // Songs.MaxPerUser / Songs.MaxQueue are the keys the !sr command
+            // family enforces; Songs.PlayerVolume only feeds the browser URL.
+            await _dataService.SetConfigValueAsync("Songs.MaxPerUser",
+                MaxSongsPerUser.ToString(CultureInfo.InvariantCulture), "Songs");
+            await _dataService.SetConfigValueAsync("Songs.MaxQueue",
+                MaxSongQueueTotal.ToString(CultureInfo.InvariantCulture), "Songs");
+            await _dataService.SetConfigValueAsync("Songs.PlayerVolume",
+                SongVolumePercent.ToString(CultureInfo.InvariantCulture), "Songs");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error persisting song request settings");
+        }
+    }
+
+    /// <summary>Advances the current song regardless of completion (player auto-advances on end).</summary>
+    [RelayCommand]
+    private async Task SkipSongAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Skipping current song (Sounds page)");
+            await _songService.SkipCurrentAsync();
+            await LoadSongQueueAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error skipping the current song");
+            MessageBox.Show($"Error skipping song: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>Clears the whole queue (with confirmation).</summary>
+    [RelayCommand]
+    private async Task ClearSongQueueAsync()
+    {
+        if (!HasSongQueueItems)
+        {
+            return;
+        }
+
+        var result = MessageBox.Show(
+            "Clear the whole song request queue?",
+            "Confirm Clear", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            await _songService.ClearAsync();
+            await LoadSongQueueAsync();
+            _logger.LogInformation("Song queue cleared (Sounds page)");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error clearing the song queue");
+            MessageBox.Show($"Error clearing queue: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>Copies the browser-source URL for the OBS "Browser" source.</summary>
+    [RelayCommand]
+    private void CopySongPlayerUrl()
+    {
+        try
+        {
+            System.Windows.Clipboard.SetText(SongPlayerUrl);
+            _logger.LogInformation("Song player browser-source URL copied to clipboard");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error copying the song player URL");
+            MessageBox.Show($"Error copying URL: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     /// <summary>
     /// Assign a sound to an event.
     /// </summary>
@@ -941,6 +1236,14 @@ public partial class SoundsViewModel : ViewModelBase, IDisposable
     {
         EndCapture();
 
+        // Song requests: stop the queue poll and any pending settings write.
+        // Queue rows live in the per-profile database, not in this VM.
+        _songQueueTimer?.Stop();
+        _songQueueTimer = null;
+        _songSettingsCts?.Cancel();
+        _songSettingsCts?.Dispose();
+        _songSettingsCts = null;
+
         _volumePersistCts?.Cancel();
         _volumePersistCts?.Dispose();
         _volumePersistCts = null;
@@ -1005,4 +1308,63 @@ public partial class EventSoundMapping : ObservableObject
 
     [ObservableProperty]
     private double _volume = 1.0;
+}
+
+/// <summary>
+/// One row of the Song Requests queue list on the Sounds page. Built from a
+/// <see cref="SongRequest"/> row; the Playing row is flagged as now playing
+/// (drives the highlight + status text in the card).
+/// </summary>
+public partial class SongQueueRow : ObservableObject
+{
+    [ObservableProperty]
+    private string _videoId = string.Empty;
+
+    /// <summary>Resolved title, or the video id while metadata is still unknown.</summary>
+    [ObservableProperty]
+    private string _displayTitle = string.Empty;
+
+    [ObservableProperty]
+    private string _durationText = string.Empty;
+
+    [ObservableProperty]
+    private string _requester = string.Empty;
+
+    [ObservableProperty]
+    private string _platform = string.Empty;
+
+    [ObservableProperty]
+    private bool _isNowPlaying;
+
+    public bool HasDuration => !string.IsNullOrEmpty(DurationText);
+
+    partial void OnDurationTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasDuration));
+    }
+
+    public static SongQueueRow From(SongRequest item, bool isNowPlaying)
+    {
+        var durationText = string.Empty;
+        if (item.DurationSeconds is > 0)
+        {
+            durationText = TimeSpan.FromSeconds(item.DurationSeconds.Value)
+                .ToString(@"m\:ss", CultureInfo.InvariantCulture);
+        }
+
+        // Titles are stored as the placeholder "Video <id>" until the player
+        // page reports the real one - show the bare id for those rows.
+        var placeholder = $"Video {item.YoutubeId}";
+        return new SongQueueRow
+        {
+            VideoId = item.YoutubeId,
+            DisplayTitle = string.IsNullOrWhiteSpace(item.Title) || item.Title == placeholder
+                ? item.YoutubeId
+                : item.Title,
+            DurationText = durationText,
+            Requester = item.RequestedBy,
+            Platform = item.Platform,
+            IsNowPlaying = isNowPlaying
+        };
+    }
 }

@@ -1979,6 +1979,88 @@ public class DapperDataService : IDataService
             "SELECT COUNT(*) FROM Quotes");
     }
 
+    // Song requests (chat-driven song queue, "!sr" family)
+    public async Task<SongRequest> AddSongRequestAsync(SongRequest request)
+    {
+        using var conn = CreateConnection();
+        request.RequestedAt = request.RequestedAt == default ? DateTime.UtcNow : request.RequestedAt;
+        if (string.IsNullOrWhiteSpace(request.Status))
+        {
+            request.Status = SongRequestStatuses.Queued;
+        }
+
+        await conn.ExecuteAsync(
+            @"INSERT INTO SongRequests (RequestedBy, Platform, YoutubeId, Title, RequestedAt, Status, DurationSeconds)
+              VALUES (@RequestedBy, @Platform, @YoutubeId, @Title, @RequestedAt, @Status, @DurationSeconds)",
+            new
+            {
+                request.RequestedBy,
+                request.Platform,
+                request.YoutubeId,
+                request.Title,
+                request.RequestedAt,
+                request.Status,
+                request.DurationSeconds
+            });
+
+        // Same connection, so last_insert_rowid() is this insert's rowid
+        // (mirrors the Quotes/AutoReplyRules insert pattern).
+        request.Id = (int)conn.QuerySingle<long>("SELECT last_insert_rowid()");
+        return request;
+    }
+
+    public async Task<IEnumerable<SongRequest>> GetSongQueueAsync()
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryAsync<SongRequest>(
+            "SELECT * FROM SongRequests WHERE Status = 'Queued' ORDER BY Id ASC");
+    }
+
+    public async Task<SongRequest?> GetCurrentSongRequestAsync()
+    {
+        using var conn = CreateConnection();
+        return await conn.QueryFirstOrDefaultAsync<SongRequest>(
+            "SELECT * FROM SongRequests WHERE Status = 'Playing' ORDER BY Id ASC LIMIT 1");
+    }
+
+    public async Task<bool> SetSongRequestStatusAsync(int id, string status)
+    {
+        using var conn = CreateConnection();
+        var changed = await conn.ExecuteAsync(
+            "UPDATE SongRequests SET Status = @Status WHERE Id = @Id",
+            new { Id = id, Status = status });
+        return changed > 0;
+    }
+
+    public async Task<int> GetQueuedSongRequestCountAsync()
+    {
+        using var conn = CreateConnection();
+        return (int)await conn.ExecuteScalarAsync<long>(
+            "SELECT COUNT(*) FROM SongRequests WHERE Status = 'Queued'");
+    }
+
+    public async Task<int> GetQueuedSongRequestCountByUserAsync(string requestedBy)
+    {
+        using var conn = CreateConnection();
+        return (int)await conn.ExecuteScalarAsync<long>(
+            "SELECT COUNT(*) FROM SongRequests WHERE Status = 'Queued' AND RequestedBy = @RequestedBy",
+            new { RequestedBy = requestedBy });
+    }
+
+    public async Task<int> ClearSongRequestsAsync()
+    {
+        using var conn = CreateConnection();
+        return await conn.ExecuteAsync("DELETE FROM SongRequests");
+    }
+
+    public async Task<int> UpdateSongRequestTitleAsync(string youtubeId, string title, int? durationSeconds)
+    {
+        using var conn = CreateConnection();
+        return await conn.ExecuteAsync(
+            "UPDATE SongRequests SET Title = @Title, DurationSeconds = @DurationSeconds WHERE YoutubeId = @YoutubeId",
+            new { YoutubeId = youtubeId, Title = title, DurationSeconds = durationSeconds });
+    }
+
     // Auto-Reply Rules
     public async Task<IEnumerable<AutoReplyRule>> GetAutoReplyRulesAsync()
     {
@@ -3305,6 +3387,7 @@ public class DapperDataService : IDataService
         ("Commands", "Commands"),
         ("CommandTimers", "Command timers"),
         ("Quotes", "Quotes"),
+        ("SongRequests", "Song requests"),
         ("Workflows", "Workflows"),
         ("WorkflowExecutions", "Workflow executions"),
         ("EventLogs", "Event history"),
@@ -4461,6 +4544,24 @@ public class DapperDataService : IDataService
                 CreatedAt TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS IX_Quotes_CreatedAt ON Quotes(CreatedAt);
+        ");
+
+        // Song requests: chat-driven song queue (streamer.bot staple). Queue
+        // order is Id ASC; status lifecycle Queued -> Playing -> Played/Skipped.
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS SongRequests (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                RequestedBy TEXT NOT NULL DEFAULT '',
+                Platform TEXT NOT NULL DEFAULT '',
+                YoutubeId TEXT NOT NULL,
+                Title TEXT NOT NULL DEFAULT '',
+                RequestedAt TEXT NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'Queued',
+                DurationSeconds INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS IX_SongRequests_Status ON SongRequests(Status);
+            CREATE INDEX IF NOT EXISTS IX_SongRequests_RequestedBy ON SongRequests(RequestedBy);
+            CREATE INDEX IF NOT EXISTS IX_SongRequests_YoutubeId ON SongRequests(YoutubeId);
         ");
 
         // Visual automation engine (VyralBot.Workflows): workflow definitions.

@@ -18,7 +18,10 @@ off by default, PIN-paired device tokens).
 | `/api/events/test` | POST | Bearer token | Fires a canned test event via `TestEventPublisher` — the exact payloads of the Event Testing page. Body: `{"type":"twitch.follow","username":"...","message":"..."}` (≤16 KB). |
 | `/api/version` | GET | Bearer token | Entry-assembly version + .NET runtime version. |
 | `/audio-ws` | WS | loopback Origin check + 16-connection cap | One-way push of sound-play messages for OBS browser sources. |
-| `/*` (static) | GET | none | `/sounds/*` is served first from the active profile's sounds folder (`ISoundService.GetSoundsDirectory()` — `appdata/profiles/<name>/data/sounds`), then falls back to `wwwroot` (`audio.html`, legacy `/sounds/*`) from `AppContext.BaseDirectory`. |
+| `/songs/queue` | GET | loopback bind + same-origin (no CORS) | `{ current, upcoming }` song-request snapshot for the player page; lazily promotes the queue head to Playing. |
+| `/songs/played` | POST | loopback Origin check + 4 KB body cap | Player reports the current video finished/errored — marks Played, promotes next. Body `{"videoId":"..."}` (stale ids are no-ops). |
+| `/songs/title` | POST | loopback Origin check + 4 KB body cap | Player reports a resolved title/duration. Body `{"id":"...","title":"...","duration":123}`. |
+| `/*` (static) | GET | none | `/sounds/*` is served first from the active profile's sounds folder (`ISoundService.GetSoundsDirectory()` — `appdata/profiles/<name>/data/sounds`), then falls back to `wwwroot` (`audio.html`, `songplayer.html`, legacy `/sounds/*`) from `AppContext.BaseDirectory`. |
 
 ## Control API (`/api`) — community-tool surface
 

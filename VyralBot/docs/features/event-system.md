@@ -73,7 +73,6 @@ Channel-based event bus using `System.Threading.Channels` for decoupled communic
 | `TwitchGiftSubEvent` | GifterUsername, RecipientUsername, Tier, Total |
 | `TwitchRaidEvent` | FromUsername, ViewerCount |
 | `TwitchCheerEvent` | Username, Bits, Message |
-| `TwitchChannelPointsEvent` | Username, RewardTitle, RewardCost, UserInput |
 | `TwitchChannelPointsRedeemEvent` | Username, RewardTitle, RewardId, UserInput, Status |
 
 ---

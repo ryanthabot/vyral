@@ -13,6 +13,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -427,8 +428,230 @@
             </materialDesign:Card>
         </Grid>
 
+        <!-- Song Requests (wave 13): queue card for the songplayer.html browser
+             source. Collapsed by default so the sounds layout is unchanged for
+             streamers who don't use song requests. -->
+        <materialDesign:Card Grid.Row="2" Margin="0,10,0,0">
+            <Expander IsExpanded="False">
+                <Expander.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="MusicBox"
+                                                 Width="18"
+                                                 Height="18"
+                                                 VerticalAlignment="Center"
+                                                 Foreground="{DynamicResource PrimaryBrush}"/>
+                        <TextBlock Text="Song Requests"
+                                   Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                                   VerticalAlignment="Center"
+                                   Margin="8,0,0,0"/>
+                    </StackPanel>
+                </Expander.Header>
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="330"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Queue list: NOW PLAYING row highlighted, upcoming below -->
+                    <Grid Grid.Column="0" Margin="0,0,10,0" MinHeight="150" MaxHeight="220">
+                        <ListBox ItemsSource="{Binding SongQueue}"
+                                 HorizontalContentAlignment="Stretch"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{DynamicResource BorderLightBrush}"
+                                            BorderThickness="0,0,0,1"
+                                            CornerRadius="2"
+                                            Padding="6,4"
+                                            Margin="0,1">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsNowPlaying}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+                                                        <Setter Property="BorderThickness" Value="2,0,0,0"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <materialDesign:PackIcon Grid.Column="0"
+                                                                     Kind="PlayCircleOutline"
+                                                                     Width="18"
+                                                                     Height="18"
+                                                                     VerticalAlignment="Center"
+                                                                     Margin="0,0,8,0"
+                                                                     Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding DisplayTitle}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding VideoId}"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                    <TextBlock Text="{Binding Requester}"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                    <TextBlock Text="{Binding Platform, StringFormat=' · {0}'}"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                    <TextBlock FontSize="11"
+                                                               Margin="8,0,0,0"
+                                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                                               Text="Queued">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsNowPlaying}" Value="True">
+                                                                        <Setter Property="Text" Value="NOW PLAYING"/>
+                                                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+                                                                        <Setter Property="FontWeight" Value="Bold"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding DurationText}"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="8,0,0,0"
+                                                       Visibility="{Binding HasDuration, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <!-- Empty state (hit-test disabled so the list stays usable) -->
+                        <StackPanel IsHitTestVisible="False"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasSongQueueItems}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <TextBlock Text="Queue is empty — the player page starts the next song automatically"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Right panel: browser source URL, volume, limits, actions -->
+                    <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                        <TextBlock Text="OBS Browser Source"
+                                   Style="{StaticResource MaterialDesignBody2TextBlock}"
+                                   Margin="0,0,0,4"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding SongPlayerUrl, Mode=OneWay}"
+                                     IsReadOnly="True"
+                                     FontSize="11"
+                                     VerticalAlignment="Center"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     Margin="0,0,6,0"/>
+                            <Button Grid.Column="1"
+                                    Content="Copy"
+                                    Command="{Binding CopySongPlayerUrlCommand}"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                                    Height="30"
+                                    Padding="10,0"
+                                    VerticalAlignment="Center"
+                                    ToolTip="Copy the browser-source URL for OBS"/>
+                        </Grid>
+
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="70"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Volume (%)"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding SongVolumePercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     VerticalAlignment="Center"
+                                     ToolTip="Baked into the URL as ?volume=N (0-100)"/>
+                        </Grid>
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="70"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Max per user"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding MaxSongsPerUser, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     VerticalAlignment="Center"
+                                     ToolTip="Queued songs one requester may have (1-50)"/>
+                        </Grid>
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="70"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Max queue total"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding MaxSongQueueTotal, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     VerticalAlignment="Center"
+                                     ToolTip="Total queue capacity across requesters (1-200)"/>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Content="Skip"
+                                    Command="{Binding SkipSongCommand}"
+                                    IsEnabled="{Binding HasSongQueueItems}"
+                                    Style="{StaticResource MaterialDesignRaisedButton}"
+                                    Height="32"
+                                    Padding="12,0"
+                                    Margin="0,0,8,0"
+                                    ToolTip="Advance the current song (the player picks up the change within 5s)"/>
+                            <Button Content="Clear Queue"
+                                    Command="{Binding ClearSongQueueCommand}"
+                                    IsEnabled="{Binding HasSongQueueItems}"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                                    Height="32"
+                                    Padding="12,0"
+                                    Foreground="{DynamicResource ErrorBrush}"
+                                    ToolTip="Remove every queued song"/>
+                        </StackPanel>
+
+                        <TextBlock Text="The player page auto-advances when a video ends and reports titles back automatically. Use the copied URL as an OBS Browser source."
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,10,0,0"/>
+                    </StackPanel>
+                </Grid>
+            </Expander>
+        </materialDesign:Card>
+
         <!-- Loading Overlay -->
-        <Grid Grid.RowSpan="2" 
+        <Grid Grid.RowSpan="3"
               Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"
               Background="{DynamicResource OverlayBackgroundBrush}">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">

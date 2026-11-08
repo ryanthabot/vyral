@@ -2645,13 +2645,13 @@ public partial class MainViewModel : ViewModelBase
             disposedCount++;
         }
 
-        // Dispose Demo Setup (rarely used)
+        // Dispose Demo Setup Wizard (rarely used)
         if (_demoSetupViewModel != null && _demoSetupViewModel != excludeViewModel)
         {
             _demoSetupScope?.Dispose();
             _demoSetupScope = null;
             _demoSetupViewModel = null;
-            _logger.LogInformation("♻️ Disposed DemoSetupViewModel to free memory");
+            _logger.LogInformation("♻️ Disposed GoogleDemoSetupViewModel to free memory");
             disposedCount++;
         }
 

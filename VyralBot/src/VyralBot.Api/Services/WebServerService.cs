@@ -82,6 +82,9 @@ public class WebServerService : IDisposable
             FromParent<VyralBot.Api.Services.NgrokService>(); // token source for ControlApiAuthMiddleware
             FromParent<VyralBot.Core.Services.Statistics.IStatisticsService>();
             FromParent<VyralBot.Integrations.Testing.TestEventPublisher>();
+            // Song-request queue state for the /songs routes (songplayer.html)
+            FromParent<VyralBot.Core.Services.Songs.ISongRequestService>();
+            FromParent<VyralBot.Data.IDataService>();
 
             // Add ASP.NET Core services
             builder.Services.AddControllers()

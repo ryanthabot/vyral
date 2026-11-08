@@ -67,9 +67,32 @@ Connected badge auto-hides), reconnects after 3s, and plays
 `{type:'play',sound,volume}` messages where `volume` is already the final
 loudness (master x per-event) — see `docs/services/embedded-web-server.md`.
 
+## Song Requests card
+
+Collapsible card at the bottom of the page (collapsed by default) for the
+chat-driven song queue (`!sr` family — `docs/features/song-requests.md`).
+Backed by `ISongRequestService` + `IDataService` song-request rows; a 3s
+`DispatcherTimer` refreshes the list while the page is open so player-side
+advances (`POST /songs/played` from `songplayer.html`) show up without
+cross-thread events. Rows show title (bare video id until the player reports
+the real one), requester, platform, duration when known; the Playing row gets
+a NOW PLAYING highlight + primary border. Right panel: OBS browser-source URL
+(`http://localhost:<port>/songplayer.html?volume=N`, built from the persisted
+web-server port) with Copy button, volume box (0-100, feeds the URL), and
+max-per-user / max-queue-total boxes. Persistence keys (debounced 600ms):
+
+- `Songs.MaxPerUser` (default 2) and `Songs.MaxQueue` (default 30) — the caps
+  the `!sr` command family enforces, stored as plain invariant ints.
+- `Songs.PlayerVolume` (default 50) — only feeds the browser-source URL.
+
+Buttons: Skip (`SkipCurrentAsync`; the player picks the next song up within
+5s) and Clear Queue (`ClearAsync`, with confirmation). Limits are clamped
+(1-50 per user, 1-200 total, 0-100 volume) on change.
+
 ## Disposal
 
-`IDisposable` cancels the two debounce CTSs and aborts any in-progress hotkey
-capture; live hotkey registrations are owned by the `GlobalHotkeyService`
-singleton and keep firing. `MainViewModel` scope disposal invokes it on page
-switch.
+`IDisposable` stops the song-queue timer, cancels the three debounce CTSs
+(event volume, master volume, song settings) and aborts any in-progress
+hotkey capture; live hotkey registrations are owned by the
+`GlobalHotkeyService` singleton and keep firing. `MainViewModel` scope
+disposal invokes it on page switch.

@@ -1,13 +1,13 @@
 # Sounds Management
 
-> Upload a library of sound files and map each of the fourteen supported Kick/Twitch events to a sound, with its own volume — the page where "what plays when someone follows" is decided.
+> Upload a library of sound files and map each of the seventeen supported events across Kick, Twitch, YouTube and Discord to a sound, with its own volume — the page where "what plays when someone follows" is decided.
 
 ## Overview
 
 Sounds Management is two panels side by side:
 
 - **Sound Library** (left) — upload sound files, preview them, delete them, and (since 1.1.0) assign each one a **global hotkey** that fires it from anywhere — including while a game has focus. Files live in the **current profile's `sounds` folder** (migrated there automatically from the old app-global location), and the embedded server serves them to OBS at `/sounds/<file>`.
-- **Event Sound Assignments** (right) — a fixed table of fourteen platform events. For each one you can assign a sound from your library, set a per-event volume, and test it.
+- **Event Sound Assignments** (right) — a fixed table of seventeen platform events (Kick, Twitch, YouTube, Discord). For each one you can assign a sound from your library, set a per-event volume, and test it.
 
 The page only manages the *mappings*. The actual "when" is elsewhere: sounds fire from the chat event handlers in [ChatViewModel](#files--code) when a real (or [tested](../chat-features/event-testing.md)) follow/sub/raid/cheer/host/redemption arrives. Where the sound physically plays — locally for you, in the browser source for viewers — is controlled by the two toggles on [Audio Settings](audio.md).
 
@@ -40,7 +40,7 @@ The page header carries its own **Master Volume** slider (0–100%) — the *sam
 
 ### Assigning sounds to events
 
-The right panel lists the fourteen supported events:
+The right panel lists the seventeen supported events:
 
 | Event row | Platform | Event type |
 |---|---|---|
@@ -57,6 +57,10 @@ The right panel lists the fourteen supported events:
 | Twitch - Raid | Twitch | raid |
 | Twitch - Cheer | Twitch | cheer |
 | Twitch - Reward Redeemed | Twitch | redemption |
+| YouTube - Super Chat | YouTube | cheer |
+| YouTube - Membership | YouTube | membership |
+| Discord - Member Joined | Discord | follow |
+| Discord - Server Boost | Discord | subscribe |
 
 To assign:
 
@@ -93,7 +97,18 @@ Ground rules, also shown in the banner at the top of the page:
 - **Viewers hear it** through the OBS browser source when the Stream Sounds toggle is on — same formats, volume honored (the broadcast is the camelCase shape the page understands). See [Browser Sources](browser-sources.md).
 - If both toggles are off, nothing plays even with assignments configured.
 
-There are still no YouTube/TikTok/Discord event rows in the UI (YouTube Super Chats do call the cheer sound key — `PlayEventSoundAsync("cheer", "YouTube")` — but with no YouTube row here there is no way to map it from the UI yet; see [YouTube](../platforms/youtube.md#super-chats--super-stickers)). On-demand playback now exists two ways: **global hotkeys** (below — one keypress from any app) and, since 1.1.0, the workflow **Play Sound** block (`play_sound`), which plays any file in this library by name at a chosen volume from a command, timer or event flow ([Automation](../chat-features/automation.md)). Event-row sounds trigger from the fourteen events above and from this page's test buttons.
+YouTube and Discord events are first-class rows here now (Super Chat plays the YouTube `cheer` key, memberships the `membership` key; Discord member joins the `follow` key, boosts the `subscribe` key) — only TikTok has no rows (identity only, no chat integration). On-demand playback also exists two ways: **global hotkeys** (below — one keypress from any app) and, since 1.1.0, the workflow **Play Sound** block (`play_sound`), which plays any file in this library by name at a chosen volume from a command, timer or event flow ([Automation](../chat-features/automation.md)). Event-row sounds trigger from the seventeen events above and from this page's test buttons.
+
+### Song Requests
+
+The bottom of the page carries a collapsible **Song Requests** card (collapsed by default — expand it only when you use song requests). It manages the chat-driven song queue viewers fill with `!sr <YouTube link>`:
+
+- **Queue list** — title (the bare video id until the player resolves it), requester, platform and duration, with a NOW PLAYING highlight on the current song. It refreshes every 3 seconds, so songs viewers requested (and the player's automatic advances) appear on their own.
+- **Skip / Clear Queue** — Skip ends the current song (the player picks the next one up within 5 seconds); Clear empties the queue after a confirmation. Mods can do the same from chat with `!srskip` / `!srclear`.
+- **OBS Browser Source** — the URL to paste into an OBS Browser source (`http://localhost:<port>/songplayer.html?volume=N`) with a Copy button. The player page plays each song's audio, auto-advances when a video ends, skips videos that cannot be played, and reports real titles/durations back so the queue shows them.
+- **Limits** — *Volume* (0-100, baked into the URL — browser sources cannot receive keyboard input), *Max per user* and *Max queue total* (the caps `!sr` enforces when viewers request songs).
+
+The queue is per-profile (it lives in the profile's database), so switching profiles switches queues.
 
 ## How It Works (Developer)
 
@@ -101,12 +116,12 @@ There are still no YouTube/TikTok/Discord event rows in the UI (YouTube Super Ch
 
 Uploaded files are copied into the **current profile's sounds directory** — `ProfileService.GetProfileDataPath(profile)/sounds` — chosen at SoundService construction (a profile-less first run keeps the legacy app-global location). A one-time `MigrateLegacySounds` copies app-global files in (no overwrites, originals kept, never re-run once the profile folder has a file). The Kestrel server maps `/sounds` to that directory first, with the static wwwroot provider as the fallback for files left in the legacy path.
 
-Mappings are not an entity; they are 28 Configs rows using two key patterns:
+Mappings are not an entity; they are 34 Configs rows using two key patterns:
 
 - `EventSound_<Platform>_<eventType>` → the assigned file name (empty string = unassigned)
 - `EventVolume_<Platform>_<eventType>` → the slider value
 
-`SoundsViewModel.LoadEventMappingsAsync` builds the fixed fourteen-row table by reading those keys; every Assign/Unassign/slider change writes one key immediately.
+`SoundsViewModel.LoadEventMappingsAsync` builds the fixed seventeen-row table by reading those keys; every Assign/Unassign/slider change writes one key immediately.
 
 ### Playback flow, end to end
 
@@ -124,7 +139,7 @@ platform event → EventBus → ChatViewModel handler (e.g. OnKickFollowAsync)
                              → Kestrel /audio-ws → OBS browser source (see browser-sources.md)
 ```
 
-The trigger call sites sit inside the same event handlers that produce the chat announcement, the [visual alert](visual-alerts.md), the currency bonus, and the auto-reply — see [Event Reactions](../chat/event-reactions.md). They now include the redemption handlers: Kick `OnKickKicksGiftedAsync` / `OnKickRewardRedeemedAsync` (the `kicks_gifted` / `redemption` rows) and Twitch `OnTwitchChannelPointsRedeemAsync` (the `redemption` row). You can fire any of them on demand from the [Event Testing](../chat-features/event-testing.md) page, which publishes synthetic events onto the real [event bus](../architecture/event-bus.md).
+The trigger call sites sit inside the same event handlers that produce the chat announcement, the [visual alert](visual-alerts.md), the currency bonus, and the auto-reply — see [Event Reactions](../chat/event-reactions.md). They include the redemption handlers (Kick `OnKickKicksGiftedAsync` / `OnKickRewardRedeemedAsync` for `kicks_gifted` / `redemption`, Twitch `OnTwitchChannelPointsRedeemAsync` for `redemption`), the YouTube handlers (Super Chat → `cheer`, membership → `membership`), and the Discord member handlers (join → `follow`, boost → `subscribe`). You can fire any of them on demand from the [Event Testing](../chat-features/event-testing.md) page, which publishes synthetic events onto the real [event bus](../architecture/event-bus.md).
 
 ### Uploads and de-duplication
 
@@ -171,7 +186,7 @@ No audio files ship with the app; nothing is ever auto-assigned. If you want tho
 
 | File | Role |
 |---|---|
-| [SoundsViewModel.cs](../../src/VyralBot.UI/ViewModels/SoundsViewModel.cs) | Page logic: library list, upload/delete/preview, hotkey capture per row, the fixed 14-event mapping table, assign/unassign, per-event volume saves |
+| [SoundsViewModel.cs](../../src/VyralBot.UI/ViewModels/SoundsViewModel.cs) | Page logic: library list, upload/delete/preview, hotkey capture per row, the fixed 17-event mapping table, assign/unassign, per-event volume saves |
 | [SoundsView.xaml](../../src/VyralBot.UI/Views/SoundsView.xaml) | The two-panel layout: Sound Library (list + Upload/Play/Delete buttons, Hotkey column, capture banner) and the Event Sound Assignments DataGrid |
 | [GlobalHotkeyService.cs](../../src/VyralBot.UI/Services/Hotkey/GlobalHotkeyService.cs) | Global soundboard hotkeys (KI-55): Win32 `RegisterHotKey` slots on the main window, WM_HOTKEY dispatch → playback, `Sounds.Hotkeys` persistence, conflict + 10-slot limits. `HotkeyGesture` (same file) is the pure parse/format layer. |
 | [SoundService.cs](../../src/VyralBot.Core/Services/Audio/SoundService.cs) | Per-profile sounds directory + one-time legacy migration, file storage (upload/delete/list), `PlayEventSoundAsync` / `PlaySoundFileAsync` pipeline (MediaPlayer local playback), config-key lookups, default-sound check |
@@ -179,7 +194,7 @@ No audio files ship with the app; nothing is ever auto-assigned. If you want tho
 | ~~IAudioWebSocketServer.cs~~ | Deleted with the legacy 8080 server — broadcasts now use an inline camelCase payload from SoundService (see [Browser Sources](browser-sources.md)) |
 | [AudioWebSocketBroadcaster.cs](../../src/VyralBot.Core/Services/Audio/AudioWebSocketBroadcaster.cs) | Static delegate carrying broadcasts from SoundService to the Kestrel server's WebSocket clients |
 | [WebServerService.cs](../../src/VyralBot.Api/Services/WebServerService.cs) | Kestrel server that serves `/sounds/*` from the profile sounds directory (wwwroot fallback) and hosts `/audio-ws` |
-| [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) | The fourteen event handlers that actually trigger sounds at runtime |
+| [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) | The seventeen event handlers that actually trigger sounds at runtime |
 | [MainViewModel.cs](../../src/VyralBot.UI/ViewModels/MainViewModel.cs) | Calls `InitializeDefaultSoundsAsync()` at profile load |
 
 ### The fixed event list
@@ -200,7 +215,11 @@ var eventTypes = new[]
     ("Twitch", "giftsub",     "Gift Sub"),
     ("Twitch", "raid",        "Raid"),
     ("Twitch", "cheer",       "Cheer"),
-    ("Twitch", "redemption",  "Reward Redeemed")
+    ("Twitch", "redemption",  "Reward Redeemed"),
+    ("YouTube","cheer",       "Super Chat"),
+    ("YouTube","membership",  "Membership"),
+    ("Discord","follow",      "Member Joined"),
+    ("Discord","subscribe",   "Server Boost")
 };
 ```
 
@@ -235,7 +254,7 @@ public async Task PlayEventSoundAsync(string eventType, string platform)
 | `EventVolume_Kick_follow` | Configs | `0.70` | Per-event volume written by the slider |
 | `EventVolume_Twitch_cheer` | Configs | `1.00` | Same pattern for every event row |
 
-The full key set is those two patterns across the fourteen `<Platform>_<eventType>` combinations in the mapping table above (28 keys total). Related settings owned elsewhere: the `AudioSettings` blob ([Audio Settings](audio.md)) and `WebServerSettings` ([Web Server & ngrok](../settings/web-server-ngrok.md)). Sound files themselves live on disk in the current profile's `sounds` folder (legacy app-global location served as fallback), not in the database.
+The full key set is those two patterns across the seventeen `<Platform>_<eventType>` combinations in the mapping table above (34 keys total). Related settings owned elsewhere: the `AudioSettings` blob ([Audio Settings](audio.md)) and `WebServerSettings` ([Web Server & ngrok](../settings/web-server-ngrok.md)). Sound files themselves live on disk in the current profile's `sounds` folder (legacy app-global location served as fallback), not in the database.
 
 ## Status & Known Issues
 
@@ -245,7 +264,7 @@ Every item below is verified against the current code. See the [known issues led
 2. **Viewer-side playback works** — the broadcast is camelCase `{"type":"play","sound":...,"volume":0..1}` and the page honors the volume field. [known issues ledger](../reference/known-issues.md) (KI-4 resolved)
 3. **Local playback honors volume for every format** — fixed 2026-11-07: all formats (wav included) play through WPF `MediaPlayer` per playback on its own STA thread; the old `System.Media.SoundPlayer` wav path (which ignored volume and left non-wav files silent locally) is gone.
 4. **Per-event volume applies to real events** — `GetEventVolumeAsync` parses the saved invariant string with `double.TryParse` (normalizing legacy whole-percent rows and clamping to 0..1), so the slider is honored everywhere, not just Test.
-5. **Only Kick and Twitch event rows exist** — no YouTube/TikTok/Discord rows (YouTube Super Chats call the cheer key programmatically but it is not mappable from this page). On-demand playback is fully covered now: **global hotkeys** fire any library sound from any app (incl. games, KI-55 resolved 1.1.0), the **Test** buttons preview event rows, and the `play_sound` workflow block plays library files from any command/timer/event flow. [known issues ledger](../reference/known-issues.md)
+5. **Kick, Twitch, YouTube and Discord event rows exist; TikTok does not** — the YouTube Super Chat/membership and Discord member-join/boost rows are assignable from this page, matching their wired `PlayEventSoundAsync` call sites; TikTok has no rows (identity only — KI-56). On-demand playback is fully covered: **global hotkeys** fire any library sound from any app (incl. games, KI-55 resolved 1.1.0), the **Test** buttons preview event rows, and the `play_sound` workflow block plays library files from any command/timer/event flow. [known issues ledger](../reference/known-issues.md)
 6. **Delete clears assignments but not volumes** — deleting a file nulls out `EventSound_` keys that referenced it (SoundsViewModel.cs:191-197), while the orphaned `EventVolume_` keys are left behind (harmless, but they persist). [known issues ledger](../reference/known-issues.md)
 7. **Sound triggers depend on the wider event pipeline** — Twitch events arrive once EventSub is connected (it is, after the 2026-08-15 auth fix — see [Twitch](../platforms/twitch.md)). [known issues ledger](../reference/known-issues.md)
 8. **No output-device selection** — local playback always uses the system default output device; there is no picker or per-device routing for the streamer-side feed (KI-50 in the [known issues ledger](../reference/known-issues.md)).

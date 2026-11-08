@@ -11,7 +11,6 @@ XAML views for OAuth and service setup wizards.
 | `src/VyralBot.UI/Views/KickWebSetupView.xaml(.cs)` | `KickWebSetupViewModel` | Kick OAuth setup |
 | `src/VyralBot.UI/Views/GoogleDemoSetupView.xaml(.cs)` | `GoogleDemoSetupViewModel` | Google demo setup |
 | `src/VyralBot.UI/Views/NgrokSetupWizardView.xaml(.cs)` | `NgrokSetupWizardViewModel` | Ngrok wizard |
-| `src/VyralBot.UI/Views/DemoSetupView.xaml(.cs)` | `DemoSetupViewModel` | Demo setup |
 | `src/VyralBot.UI/Views/GenericWebSetupView.xaml(.cs)` | (shared template) | Generic web setup template |
 
 ## ViewModel Base Classes

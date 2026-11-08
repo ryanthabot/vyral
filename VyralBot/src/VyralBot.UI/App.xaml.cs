@@ -15,6 +15,7 @@ using VyralBot.Core.Services.Profiles;
 using VyralBot.Core.Services.Currency;
 using VyralBot.Core.Services.Linking;
 using VyralBot.Core.Services.Quotes;
+using VyralBot.Core.Services.Songs;
 using VyralBot.Core.Services.Commands;
 using VyralBot.Core.Services.Variables;
 using VyralBot.Core.Services;
@@ -206,6 +207,11 @@ public partial class App : Application
 
                 // Quotes system (chat quote database — !quote family, Commands page QUOTES tab)
                 services.AddSingleton<IQuoteService, QuoteService>();
+
+                // Song requests (chat-driven song queue — !sr family; titles arrive
+                // from the song player via UpdateTitleAsync, NullTitleResolver by default)
+                services.AddSingleton<ITitleResolver, NullTitleResolver>();
+                services.AddSingleton<ISongRequestService, SongRequestService>();
 
                 // Watchtime system
                 services.AddSingleton<WatchtimeService>();

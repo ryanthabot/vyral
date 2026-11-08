@@ -598,9 +598,15 @@ public sealed class GlobalHotkeyService : IDisposable
     public async Task RestoreSavedHotkeysAsync()
     {
         var map = await ReadHotkeyMapAsync();
+
+        // Always clear prior registrations first: after a profile switch the
+        // old profile's combos would otherwise keep firing (playing sounds
+        // under the new profile's data), eat the 10 slots, and register as
+        // gesture conflicts against the new profile's map.
+        await RunOnWindowDispatcherAsync(UnregisterAllCore);
+
         if (map.Count == 0)
         {
-            await RunOnWindowDispatcherAsync(UnregisterAllCore);
             return;
         }
 

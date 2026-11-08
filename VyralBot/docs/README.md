@@ -62,7 +62,6 @@ src/
 | `DiscordChatSettingsViewModel` | 93 | Discord chat settings |
 | `YoutubeChatSettingsViewModel` | 93 | YouTube chat settings |
 | `TiktokChatSettingsViewModel` | 93 | TikTok chat settings |
-| `DemoSetupViewModel` | 75 | Demo web setup |
 | `DashboardViewModel` | 35 | Dashboard status |
 | `TwitchSettingsViewModel` | 28 | Twitch settings (minimal) |
 | `ViewModelBase` | 12 | Abstract base (ObservableObject) |
@@ -99,6 +98,7 @@ Where the major subsystems live and which doc covers them:
 | Subsystem | Entry points | Doc |
 |---|---|---|
 | Quotes | `Core/Services/Quotes/QuoteService`, `!quote` command family, Commands page QUOTES tab | [features/quotes.md](features/quotes.md) |
+| Song requests | `Core/Services/Songs/SongRequestService`, `!sr` command family, queue lifecycle | [features/song-requests.md](features/song-requests.md) |
 | Restream | `Integrations/Restream/` (engine, builder, validation, bandwidth, FFmpeg locator/acquisition), Restream page | [features/restream.md](features/restream.md) |
 | Control API | `Api` Bearer-token `/api` surface (`/api/status`, `/api/events/test`) on the embedded web server | [services/embedded-web-server.md](services/embedded-web-server.md) |
 | Event testing | `Integrations/Testing/TestEventPublisher`, Event Testing page | [services/test-event-publisher-service.md](services/test-event-publisher-service.md), [ui/event-testing-viewmodel.md](ui/event-testing-viewmodel.md) |
@@ -135,6 +135,7 @@ Where the major subsystems live and which doc covers them:
 | [features/workflow-templates.md](features/workflow-templates.md) | Starter workflow templates (Automation page one-click import) |
 | [features/marketplace-sharecodes.md](features/marketplace-sharecodes.md) | Command marketplace + sharecode import |
 | [features/quotes.md](features/quotes.md) | Quote database + `!quote` command family |
+| [features/song-requests.md](features/song-requests.md) | Chat-driven song request queue + `!sr` command family |
 | [features/giveaways-and-polls.md](features/giveaways-and-polls.md) | Weighted-raffle giveaways + chat polls (race-hardened draws/votes) |
 | [features/restream.md](features/restream.md) | Multi-platform FFmpeg restream (ingest, fan-out, verified FFmpeg acquisition, uplink hint) |
 | [features/vyraldeck.md](features/vyraldeck.md) | VyralDeck mobile companion (LAN server, PIN pairing, 22 deck actions) |

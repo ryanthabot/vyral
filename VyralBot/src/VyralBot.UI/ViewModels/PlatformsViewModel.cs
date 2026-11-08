@@ -1686,25 +1686,6 @@ public partial class PlatformsViewModel : ViewModelBase
         }
     }
 
-    private async Task ReconnectYouTubeAsync()
-    {
-        await Task.CompletedTask;
-        try
-        {
-            _logger.LogInformation("Reconnecting to YouTube");
-            ShowYouTubeConnection = false;
-            ShowPlatformSelection = false;
-            if (_youtubeWebSetupViewModel != null)
-                _youtubeWebSetupViewModel.CurrentStep = 3;
-            ShowYouTubeSetup = true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error reconnecting to YouTube");
-            StatusMessage = $"Failed to reconnect: {ex.Message}";
-        }
-    }
-
     [RelayCommand]
     private async Task DisconnectYouTube()
     {

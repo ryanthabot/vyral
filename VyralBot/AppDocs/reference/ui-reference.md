@@ -10,7 +10,7 @@ Counts: 63 XAML surfaces under `Views/` (54 `*View.xaml` pages/views plus 9 wind
 
 ## How the UI is wired
 
-- All main pages render through one `ContentControl` bound to `MainViewModel.CurrentViewModel` ([MainWindow.xaml](../../src/VyralBot.UI/MainWindow.xaml):503) using 32 implicit `DataTemplate`s (`MainWindow.xaml:522-947`). There is no `Frame`/page navigation — navigation commands on [MainViewModel.cs](../../src/VyralBot.UI/ViewModels/MainViewModel.cs) swap the ViewModel and WPF picks the view.
+- All main pages render through one `ContentControl` bound to `MainViewModel.CurrentViewModel` ([MainWindow.xaml](../../src/VyralBot.UI/MainWindow.xaml):610) using 40 implicit `DataTemplate`s (`MainWindow.xaml:613-1345`). There is no `Frame`/page navigation — navigation commands on [MainViewModel.cs](../../src/VyralBot.UI/ViewModels/MainViewModel.cs) swap the ViewModel and WPF picks the view.
 - The five per-platform **chat quick-settings** views render inside `Popup`s in the chat window via a `LazyPopupContent` helper ([ChatView.xaml](../../src/VyralBot.UI/Views/ChatView.xaml):131-273).
 - The five **platform web-setup wizards** are embedded panels, not pages: `PlatformsView.xaml.cs:37-95` lazily constructs each view into a `*SetupContainer` `ContentControl` (`PlatformsView.xaml:384-402`) when its `Show<Platform>Setup` flag turns on. Four are OAuth wizards; Discord's is a bot-token flow (see [Discord](../platforms/discord.md)).
 - Two settings sub-pages and two platform settings pages render *inside* SettingsView through nested `ContentControl`s that reuse the same implicit templates ([SettingsView.xaml](../../src/VyralBot.UI/Views/SettingsView.xaml):834, :862, :904-905).

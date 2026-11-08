@@ -61,8 +61,9 @@ public class NgrokService : IDisposable
                 return false;
             }
 
-            // Build ngrok command arguments with auth token
-            var args = $"http {localPort} --region {region} --authtoken {authToken}";
+            // Auth token travels via environment variable, never the command
+            // line (args are visible to any local process listing processes).
+            var args = $"http {localPort} --region {region}";
 
             // Start ngrok through the tracked ProcessManager (zero-orphans rule): the
             // shutdown kill-all backstop then covers ngrok even if this service is
@@ -73,6 +74,7 @@ public class NgrokService : IDisposable
             {
                 FileName = "ngrok",
                 Arguments = args,
+                EnvironmentVariables = { ["NGROK_AUTHTOKEN"] = authToken },
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,

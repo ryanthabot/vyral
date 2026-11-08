@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vyral Song Player - Browser Source</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        /* Status badge - identical conventions to audio.html (connected auto-hides
+           after 5s; disconnected/connecting stay visible). */
+        #status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: opacity 0.3s;
+            z-index: 9999;
+        }
+        .connected {
+            background: rgba(0, 255, 0, 0.2);
+            color: lime;
+            border: 2px solid lime;
+        }
+        .disconnected {
+            background: rgba(255, 0, 0, 0.2);
+            color: red;
+            border: 2px solid red;
+        }
+        .connecting {
+            background: rgba(255, 255, 0, 0.2);
+            color: yellow;
+            border: 2px solid yellow;
+        }
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        /* Main player: default is a small VISIBLE player (bottom-right) so the
+           video is technically shown, per YouTube TOS. ?video=hidden shrinks it
+           to a 2x2 stub for audio-only layouts - still rendered, just tiny. */
+        #player-wrap {
+            position: fixed;
+            bottom: 8px;
+            right: 8px;
+            z-index: 1;
+        }
+        #player-wrap.small {
+            width: 200px;
+            height: 112px;
+        }
+        #player-wrap.tiny {
+            width: 2px;
+            height: 2px;
+        }
+        #player {
+            width: 100%;
+            height: 100%;
+        }
+        /* Metadata probe player: 2x2, rendered but effectively invisible. Used
+           only to cue upcoming videos so YouTube resolves their title/duration
+           (cue fetches metadata without playing audio). */
+        #probe-wrap {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 2px;
+            height: 2px;
+            z-index: 0;
+        }
+        #probe-player {
+            width: 2px;
+            height: 2px;
+        }
+        /* Autoplay unblock: browsers (not OBS browser sources) block unmuted
+         * autoplay until a user gesture. Shown only when playback was requested
+         * but never started. */
+        #unblock {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            background: rgba(220, 0, 78, 0.85);
+            border: 2px solid white;
+            border-radius: 6px;
+            cursor: pointer;
+            z-index: 9998;
+        }
+    </style>
+</head>
+<body>
+    <div id="status" class="connecting">Connecting to Vyral...</div>
+    <div id="player-wrap" class="small"><div id="player"></div></div>
+    <div id="probe-wrap"><div id="probe-player"></div></div>
+    <button id="unblock" hidden>Click to start song audio</button>
+    <script>
+        // Configuration - host/port derived from the URL the page is served from
+        // (same convention as audio.html), so the file works on any port the
+        // embedded loopback web server listens on.
+        const BASE_URL = window.location.protocol.indexOf('http') === 0
+            ? window.location.origin
+            : 'http://' + (window.location.host || 'localhost:5000');
+        const QUEUE_URL = BASE_URL + '/songs/queue';
+        const PLAYED_URL = BASE_URL + '/songs/played';
+        const TITLE_URL = BASE_URL + '/songs/title';
+        const POLL_MS = 5000;          // queue auto-refresh
+        const PROBE_TIMEOUT_MS = 12000; // metadata probe deadline per video
+        const STATUS_HIDE_DELAY = 5000;
+
+        // Query params: ?volume=50 (0..100) sets player loudness; browser
+        // sources receive no keyboard input, so volume is URL-only.
+        // ?video=hidden swaps the small visible player for a 2x2 stub.
+        const params = new URLSearchParams(window.location.search);
+        let volume = parseInt(params.get('volume'), 10);
+        volume = (isFinite(volume) && volume >= 0 && volume <= 100) ? volume : 50;
+        if (params.get('video') === 'hidden') {
+            document.getElementById('player-wrap').className = 'tiny';
+        }
+
+        // State
+        let mainPlayer = null;
+        let probePlayer = null;
+        let currentVideoId = null;   // video loaded into the main player
+        let pendingVideoId = null;   // queue arrived before the API was ready
+        let pollTimer = null;
+        let refreshing = false;
+        let statusHideTimeout = null;
+        const postedTitles = new Set();  // ids whose title we already reported
+        const probe = {
+            queue: [],                 // upcoming ids missing titles
+            failed: new Set(),         // ids that errored/never resolved (this session)
+            active: false,
+            id: null,
+            timeout: null
+        };
+
+        // DOM Elements
+        const statusDiv = document.getElementById('status');
+        const unblockBtn = document.getElementById('unblock');
+
+        // ------------------------------------------------------------------
+        // Queue polling (reconnects forever, 5s cadence)
+        // ------------------------------------------------------------------
+        // The server stores unresolved titles as the placeholder "Video <id>" -
+        // those are the ones we must resolve and report back.
+        function needsTitle(title, videoId) {
+            return !title || title === 'Video ' + videoId;
+        }
+
+        refresh();
+        function refresh() {
+            if (refreshing) return; // never overlap requests
+            refreshing = true;
+            fetch(QUEUE_URL, { cache: 'no-store' })
+                .then((res) => {
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.json();
+                })
+                .then((data) => {
+                    updateStatus('Connected to Vyral', 'connected');
+                    hideStatusAfterDelay();
+                    applyQueue(data);
+                })
+                .catch((err) => {
+                    console.warn('Queue fetch failed:', err);
+                    updateStatus('Disconnected from VyralBot', 'disconnected');
+                })
+                .finally(() => {
+                    refreshing = false;
+                    pollTimer = setTimeout(refresh, POLL_MS);
+                });
+        }
+
+        function applyQueue(data) {
+            const cur = (data && data.current) || null;
+            if (!cur) {
+                if (currentVideoId && mainPlayer && typeof mainPlayer.stopVideo === 'function') {
+                    try { mainPlayer.stopVideo(); } catch (e) { /* player mid-teardown */ }
+                }
+                currentVideoId = null;
+                unblockBtn.hidden = true;
+                return;
+            }
+
+            if (cur.videoId !== currentVideoId) {
+                currentVideoId = cur.videoId;
+                unblockBtn.hidden = true;
+                if (mainPlayer && typeof mainPlayer.loadVideoById === 'function') {
+                    mainPlayer.loadVideoById(cur.videoId);
+                    mainPlayer.setVolume(volume);
+                } else {
+                    pendingVideoId = cur.videoId; // API still loading
+                }
+            }
+
+            // Title feedback for the CURRENT video: the main player has the
+            // metadata once it starts buffering/playing.
+            if (needsTitle(cur.title, cur.videoId)) {
+                maybeReportCurrentTitle(cur.videoId);
+            }
+
+            // Title feedback for UPCOMING videos: hand missing ids to the probe.
+            const upcoming = (data && data.upcoming) || [];
+            const missing = upcoming
+                .filter((it) => it && needsTitle(it.title, it.videoId))
+                .map((it) => it.videoId)
+                .filter((id) => id && id !== currentVideoId
+                    && !probe.failed.has(id) && probe.queue.indexOf(id) === -1);
+            probe.queue.push(...missing);
+            probeNext();
+        }
+
+        // ------------------------------------------------------------------
+        // Reporting endpoints (loopback, same origin)
+        // ------------------------------------------------------------------
+        function postJson(url, payload) {
+            return fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                cache: 'no-store'
+            });
+        }
+
+        // Video ended or is unplayable -> tell the app to advance, then sync
+        // immediately instead of waiting for the next poll.
+        function reportPlayed(videoId) {
+            if (!videoId) return;
+            updateStatus('Skipping to next song...', 'connecting');
+            postJson(PLAYED_URL, { videoId: videoId })
+                .then((res) => (res.ok ? res.json() : null))
+                .then((data) => { if (data) applyQueue(data); })
+                .catch((err) => console.warn('Played report failed:', err))
+                .finally(() => {
+                    clearTimeout(pollTimer);
+                    refresh();
+                });
+        }
+
+        function postTitle(id, title, durationSeconds) {
+            if (!id || !title || postedTitles.has(id)) return;
+            postedTitles.add(id);
+            // Live streams report duration 0 - send null (unknown), not 0.
+            const duration = (typeof durationSeconds === 'number' && durationSeconds > 0)
+                ? Math.round(durationSeconds)
+                : null;
+            postJson(TITLE_URL, { id: id, title: title, duration: duration })
+                .catch((err) => {
+                    console.warn('Title report failed:', err);
+                    postedTitles.delete(id); // allow a retry on a later poll
+                });
+        }
+
+        // ------------------------------------------------------------------
+        // Current-video title (read off the main player once available)
+        // ------------------------------------------------------------------
+        function maybeReportCurrentTitle(videoId) {
+            if (!mainPlayer || typeof mainPlayer.getVideoData !== 'function') return;
+            try {
+                const data = mainPlayer.getVideoData();
+                if (data && data.video_id === videoId && data.title) {
+                    let duration = null;
+                    if (typeof mainPlayer.getDuration === 'function') {
+                        const d = mainPlayer.getDuration();
+                        if (isFinite(d) && d > 0) duration = d;
+                    }
+                    postTitle(videoId, data.title, duration);
+                }
+            } catch (e) { /* player not ready */ }
+        }
+
+        // ------------------------------------------------------------------
+        // Upcoming-video metadata probe (cue without playing -> title+duration)
+        // ------------------------------------------------------------------
+        function probeNext() {
+            if (probe.active || !probePlayer) return;
+            const id = probe.queue.shift();
+            if (!id) return;
+            if (probe.failed.has(id) || id === currentVideoId) { probeNext(); return; }
+
+            probe.active = true;
+            probe.id = id;
+            probe.timeout = setTimeout(() => finishProbe(false), PROBE_TIMEOUT_MS);
+            try {
+                probePlayer.cueVideoById(id);
+            } catch (e) {
+                finishProbe(false);
+            }
+        }
+
+        function finishProbe(success) {
+            clearTimeout(probe.timeout);
+            probe.timeout = null;
+            if (!success && probe.id) {
+                probe.failed.add(probe.id); // don't hammer unresolvable videos
+            }
+            probe.active = false;
+            probe.id = null;
+            probeNext();
+        }
+
+        // ------------------------------------------------------------------
+        // YouTube IFrame API (the one allowed external script)
+        // ------------------------------------------------------------------
+        window.onYouTubeIframeAPIReady = function () {
+            mainPlayer = new YT.Player('player', {
+                videoId: '',
+                playerVars: {
+                    autoplay: 0,
+                    controls: 0,
+                    disablekb: 1,
+                    fs: 0,
+                    iv_load_policy: 3,
+                    modestbranding: 1,
+                    rel: 0
+                },
+                events: {
+                    onReady: onMainReady,
+                    onStateChange: onMainStateChange,
+                    onError: onMainError
+                }
+            });
+
+            probePlayer = new YT.Player('probe-player', {
+                videoId: '',
+                playerVars: { autoplay: 0, controls: 0 },
+                events: {
+                    onStateChange: onProbeStateChange,
+                    onError: () => finishProbe(false)
+                }
+            });
+        };
+
+        function onMainReady() {
+            mainPlayer.setVolume(volume);
+            if (pendingVideoId) {
+                const id = pendingVideoId;
+                pendingVideoId = null;
+                mainPlayer.loadVideoById(id); // autoplay
+                mainPlayer.setVolume(volume);
+            }
+        }
+
+        function onMainStateChange(event) {
+            const YTState = window.YT ? YT.PlayerState : null;
+            if (!YTState) return;
+
+            if (event.data === YTState.ENDED) {
+                reportPlayed(currentVideoId);
+                return;
+            }
+
+            if (event.data === YTState.PLAYING || event.data === YTState.BUFFERING) {
+                unblockBtn.hidden = true; // audio is going out
+                if (currentVideoId) maybeReportCurrentTitle(currentVideoId);
+                return;
+            }
+
+            // CUED/UNSTARTED after we asked for a song = autoplay was blocked
+            // (plain browsers; OBS sources allow autoplay). Offer a click.
+            if (currentVideoId &&
+                (event.data === YTState.CUED || event.data === YTState.UNSTARTED)) {
+                setTimeout(() => {
+                    try {
+                        if (currentVideoId && mainPlayer.getPlayerState() !== YTState.PLAYING) {
+                            unblockBtn.hidden = false;
+                        }
+                    } catch (e) { /* not ready */ }
+                }, 1500);
+            }
+        }
+
+        function onMainError() {
+            // 2 (bad param), 5 (HTML5), 100 (removed), 101/150 (embedding
+            // disabled): none of these can play - advance the queue.
+            updateStatus('Video unavailable - skipping', 'disconnected');
+            reportPlayed(currentVideoId);
+        }
+
+        function onProbeStateChange(event) {
+            const YTState = window.YT ? YT.PlayerState : null;
+            if (!YTState || !probe.active || !probe.id) return;
+
+            if (event.data === YTState.CUED) {
+                try {
+                    const data = probePlayer.getVideoData();
+                    const duration = probePlayer.getDuration();
+                    if (data && data.title) {
+                        postTitle(probe.id, data.title, isFinite(duration) ? duration : null);
+                    } else {
+                        probe.failed.add(probe.id);
+                    }
+                } catch (e) {
+                    probe.failed.add(probe.id);
+                }
+                finishProbe(true);
+            } else if (event.data === YTState.PLAYING) {
+                // Cue should never play audio; if it does, stop it and move on.
+                try { probePlayer.pauseVideo(); } catch (e) { /* ignore */ }
+            }
+        }
+
+        unblockBtn.addEventListener('click', () => {
+            unblockBtn.hidden = true;
+            try {
+                mainPlayer.setVolume(volume);
+                mainPlayer.playVideo();
+            } catch (e) { /* ignore */ }
+        });
+
+        // ------------------------------------------------------------------
+        // Status badge (audio.html conventions)
+        // ------------------------------------------------------------------
+        function updateStatus(text, statusClass) {
+            statusDiv.textContent = text;
+            statusDiv.className = statusClass;
+            if (statusClass !== 'connected' && statusHideTimeout) {
+                clearTimeout(statusHideTimeout);
+                statusHideTimeout = null;
+            }
+        }
+
+        function hideStatusAfterDelay() {
+            if (statusHideTimeout) clearTimeout(statusHideTimeout);
+            statusHideTimeout = setTimeout(() => {
+                statusDiv.classList.add('hidden');
+            }, STATUS_HIDE_DELAY);
+        }
+    </script>
+    <!-- The one allowed external script: official YouTube IFrame Player API. -->
+    <script src="https://www.youtube.com/iframe_api" async></script>
+</body>
+</html>

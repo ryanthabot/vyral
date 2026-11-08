@@ -384,6 +384,24 @@ public interface IDataService
     /// <summary>Total quote count (header + !quotecount).</summary>
     Task<int> GetQuoteCountAsync();
 
+    // Song requests (chat-driven song queue, "!sr" family)
+    /// <summary>Inserts a song request and returns it with the autoassigned <see cref="SongRequest.Id"/> set.</summary>
+    Task<SongRequest> AddSongRequestAsync(SongRequest request);
+    /// <summary>Queued requests in queue order (Id ASC) — the "!sr" queue.</summary>
+    Task<IEnumerable<SongRequest>> GetSongQueueAsync();
+    /// <summary>The oldest request with Status='Playing', or null when nothing is playing.</summary>
+    Task<SongRequest?> GetCurrentSongRequestAsync();
+    /// <summary>Sets one request's status (Queued/Playing/Played/Skipped); true when a row changed.</summary>
+    Task<bool> SetSongRequestStatusAsync(int id, string status);
+    /// <summary>Total queued count — enforces the total queue cap.</summary>
+    Task<int> GetQueuedSongRequestCountAsync();
+    /// <summary>Queued count for one user — enforces the per-user queue cap.</summary>
+    Task<int> GetQueuedSongRequestCountByUserAsync(string requestedBy);
+    /// <summary>Deletes every song request row (mod "!srclear"); returns rows removed.</summary>
+    Task<int> ClearSongRequestsAsync();
+    /// <summary>Updates Title/DurationSeconds for all rows with a YoutubeId (player callback); returns rows updated.</summary>
+    Task<int> UpdateSongRequestTitleAsync(string youtubeId, string title, int? durationSeconds);
+
     // Auto-Reply Rules
     Task<IEnumerable<AutoReplyRule>> GetAutoReplyRulesAsync();
     Task<IEnumerable<AutoReplyRule>> GetAutoReplyRulesByPlatformAndEventAsync(string platform, string eventType);

@@ -108,7 +108,7 @@ Consumers — all wired in `ChatViewModel.OnYouTubeSuperChatAsync`:
 
 - **Chat line** — the 💎 line ("💎 {user} super chat $5.00! - {comment}") is rendered by the synthetic chat message the publisher sends alongside; the event handler deliberately does not add a second line.
 - **Alert** — "Super Chat!" alert with the amount display string and comment; gated by the alerts-side cheer toggle (`AlertSettings.CheerAlertsEnabled`).
-- **Sound** — plays the **cheer** sound mapping for YouTube (`PlayEventSoundAsync("cheer", "YouTube")`). Note the [Sounds page](../stream-tools/sounds.md) has no YouTube rows yet, so this only plays if the underlying config key is set — the alert itself always fires.
+- **Sound** — plays the YouTube **Super Chat** row on the [Sounds page](../stream-tools/sounds.md) (`PlayEventSoundAsync("cheer", "YouTube")` — the row labeled "YouTube - Super Chat"), with its own per-event volume.
 - **Currency** — awards the cheer bonus with `cents = AmountMicros / 10 000` (1 bit ≈ 1 cent on Twitch, so $5.00 → 500) — exactly the "awards points like bits" rule.
 - **Statistics** — a `YouTube / Cheer` statistics row with `username`, `amount`, `currency`, `message`, `platform` variables.
 

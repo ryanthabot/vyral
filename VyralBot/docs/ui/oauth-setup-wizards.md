@@ -63,13 +63,6 @@ Browser-based OAuth setup ViewModels and views for platform authentication.
   webhook tunnel is never torn down by the wizard. Distinct error states for
   "not installed" vs "port in use" vs "bad token"; public URL has a copy button.
 
-### DemoSetupViewModel
-- **File:** `src/VyralBot.UI/ViewModels/DemoSetupViewModel.cs` (~75 lines)
-- **Class:** `DemoSetupViewModel : BaseWebSetupViewModel`
-- **View:** `src/VyralBot.UI/Views/DemoSetupView.xaml(.cs)`
-- **Demo safety:** the Client ID modal discards its input (nothing persisted,
-  nothing logged) — component demo only, not reachable from the sidebar
-
 ### GenericWebSetupView
 - **View:** `src/VyralBot.UI/Views/GenericWebSetupView.xaml(.cs)`
 - **Purpose:** Shared web setup UI template
@@ -83,4 +76,3 @@ Browser-based OAuth setup ViewModels and views for platform authentication.
 | `src/VyralBot.UI/ViewModels/KickWebSetupViewModel.cs` | Kick OAuth setup (975 lines) |
 | `src/VyralBot.UI/ViewModels/GoogleDemoSetupViewModel.cs` | Google demo setup (113 lines) |
 | `src/VyralBot.UI/ViewModels/NgrokSetupWizardViewModel.cs` | Ngrok wizard (416 lines) |
-| `src/VyralBot.UI/ViewModels/DemoSetupViewModel.cs` | Demo setup (75 lines) |

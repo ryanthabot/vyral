@@ -109,7 +109,6 @@ Custom Twitch integration using LightweightTwitchIrc (custom WebSocket IRC clien
   - `TwitchGiftSubEvent` — GifterUsername, RecipientUsername, Tier, Total
   - `TwitchRaidEvent` — FromUsername, ViewerCount
   - `TwitchCheerEvent` — Username, Bits, Message
-  - `TwitchChannelPointsEvent` — Username, RewardTitle, RewardCost, UserInput
   - `TwitchChannelPointsRedeemEvent` — Username, RewardTitle, RewardId, UserInput, Status
 
 ### Connection UI
