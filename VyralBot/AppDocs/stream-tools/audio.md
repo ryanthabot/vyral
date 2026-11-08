@@ -9,7 +9,7 @@ The Audio Settings page is a small page with an outsized job: it decides **where
 - **Streamer Sounds** — play locally inside the Vyral app, so *you* hear them (every supported format — fixed 2026-11-07, see below).
 - **Stream Sounds** — push the sound to the OBS browser source, so *viewers* hear it in the stream. This path works: the broadcast is the camelCase shape the page understands and the volume is honored (fixed 2026-08-15 — see [Browser Sources](browser-sources.md)).
 
-Everything else on the page is a master volume slider, a server status panel with a **live** connected-browser-source count (the port is fixed at 5000), and the browser-source URL panel with OBS setup steps. There is no audio device selection, no per-app routing, and no ducking — the page is only about *where* sounds play and *how loud*.
+Everything else on the page is a master volume slider, a server status panel with a **live** connected-browser-source count, and the browser-source URL panel with OBS setup steps. The browser source rides the **embedded web server**, so its port is whatever [Web Server & ngrok](../settings/web-server-ngrok.md) is configured to use (default 5000) — this page shows a read-only mirror of it. There is no audio device selection, no per-app routing, and no ducking — the page is only about *where* sounds play and *how loud*.
 
 Local playback plays every supported format through WPF `MediaPlayer` (fixed 2026-11-07 — the old Windows `.wav`-only player is gone), and the volume sliders apply to it.
 
@@ -27,30 +27,30 @@ At least one of the two toggles must be on for any sound to play at all; if both
 ### Volume card
 
 - **Master Volume** slider, 0–100 in steps of 10, shown as a percentage. This scales *all* event sounds. The final volume of an event sound is `MasterVolume% × per-event volume` — so a 50% master with a 100% event volume plays at half volume.
-- Changes here are not live-saved: press **Save Settings** (bottom right) to persist. The next sound played after saving uses the new values — the settings are re-read from the database on every play.
+- The volume saves itself: about 600 ms after the slider settles, the value is persisted into the `AudioSettings` blob (read-modify-write, so the other fields survive). No Save press needed — the next sound played uses the new value because the settings are re-read from the database on every play.
 
 ### WebSocket Server card
 
 - **Status / Connected Clients** — shows "Running" with a green dot and a **live** count of connected browser-source pages. The count polls `AudioWebSocketBroadcaster.ConnectedClientCount` every 2 seconds, so you can tell at a glance whether OBS (or any other open copy of the page) is attached.
-- **Port** — the box is labeled "Port (fixed at 5000)" and any value other than 5000 is reverted with a warning logged ("Audio browser source port is fixed at 5000", AudioSettingsViewModel.cs:195-204). The underlying server port lives in [Web Server & ngrok](../settings/web-server-ngrok.md) settings; the browser-source page itself is port-agnostic (it derives its URLs from `window.location`), but the audio setup is pinned to 5000 for now.
-- **Restart Server** button — vestigial. It only shows a message box and restarts nothing (AudioSettingsViewModel.cs:169-179).
+- **Port** — a **read-only mirror** of the embedded web server's port, labeled "Managed in Web Server settings". The audio-ws endpoint and the browser-source page ride the same Kestrel server as the webhooks, so the port is owned by [Web Server & ngrok](../settings/web-server-ngrok.md) (default 5000). Change it there; a new port reaches the audio side after an app restart.
+- **Restart Server** button — real. It stops and restarts the embedded web server (the webhook coordinator), reports success or a port-in-use failure, and refreshes the port mirror and browser-source URL from the port the server actually came up on (which is the port loaded at startup — a port changed in Web Server settings mid-session still needs the restart to be an app restart).
 
 ### Browser Source (OBS) card
 
-- Shows the read-only URL `http://localhost:5000/audio.html` with a **Copy URL** button (copies to clipboard and confirms with a dialog).
+- Shows the read-only URL `http://localhost:<web-server-port>/audio.html` (port 5000 unless you changed Web Server settings) with a **Copy URL** button (copies to clipboard and confirms with a dialog).
 - Lists the four OBS setup steps (add a Browser Source, paste the URL, set 1920x1080, sounds play automatically). The full walkthrough — including prerequisites and troubleshooting — is in [Browser Sources](browser-sources.md).
 
 ### Test Sound and Save
 
-- **Test Sound** — plays the *first* file (alphabetically) from your sound library at the current master volume, through the same pipeline as real events (so it respects both output toggles). If your library is empty it tells you to upload sounds first on the [Sounds Management](sounds.md) page.
-- **Save Settings** — persists the two toggles, master volume, and (always-5000) port as a single JSON blob, then confirms with a "saved successfully" dialog.
+- **Test Sound** — plays the *first* file (alphabetically) from your sound library at the current master volume, through the same pipeline as real events: `SoundService.PlaySoundFileAsync` re-reads the persisted `AudioSettings` blob on every play, so the Streamer/Stream output toggles gate the test exactly like real events. If your library is empty it tells you to upload sounds first on the [Sounds Management](sounds.md) page.
+- **Save Settings** — persists the two output toggles and the master volume (read-modify-write so nothing else in the shared blob is clobbered; the volume itself already auto-persisted), plus the port mirror as an informational value, then confirms with a "saved successfully" dialog.
 
 ## How It Works (Developer)
 
 All state lives in one `AudioSettings` JSON blob stored under the Configs key `AudioSettings` in the per-profile database. The settings page and the playback engine each read/write that same blob:
 
-- **Load** — `AudioSettingsViewModel.InitializeAsync` deserializes the blob into its observable properties, force-sets `WebSocketPort = 5000` and `BrowserSourceUrl`, and starts the 2-second client-count polling timer (AudioSettingsViewModel.cs:48-75).
-- **Save** — `SaveSettingsAsync` serializes the properties back with `SetConfigValueAsync("AudioSettings", json)` (AudioSettingsViewModel.cs:77-111).
+- **Load** — `AudioSettingsViewModel.InitializeAsync` deserializes the blob into its observable properties, then resolves the port from `GetWebServerSettingsAsync()` (5000 fallback) to set `WebSocketPort` and `BrowserSourceUrl`, and starts the 2-second client-count polling timer (AudioSettingsViewModel.cs:95-129).
+- **Save** — `SaveSettingsAsync` is a read-modify-write of the shared blob (the Sounds page and SoundService defaults share it): only `StreamerSoundsEnabled`, `StreamSoundsEnabled`, and `MasterVolume` are overwritten, plus the port mirror for information (`settings.WebSocketPort = _serverPort` — no runtime reader). It persists via `SetConfigValueAsync("AudioSettings", json)` (AudioSettingsViewModel.cs:140-176).
 - **Consume** — `SoundService.GetAudioSettingsAsync` reads the same Configs key *on every play* (SoundService.cs:237-272), so there is no caching and no in-memory sync problem; unsaved UI edits simply have no effect until saved.
 - **Client count** — a `DispatcherTimer` polls `AudioWebSocketBroadcaster.ConnectedClientCount` (the Kestrel `/audio-ws` client set) every 2 seconds and updates `ConnectedClients` (AudioSettingsViewModel.cs:217-228). Because the VM is a DI singleton, the timer is created once and disposed only at shutdown — negligible cost, but it ticks even while the page is not visible (KI-32).
 
@@ -67,16 +67,16 @@ The page has no `IAudioWebSocketServer` dependency anymore — the commented-out
 
 | File | Role |
 |---|---|
-| [AudioSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/AudioSettingsViewModel.cs) | Page logic: load/save the `AudioSettings` blob, clamp volume, pin port to 5000, live client-count poll, test sound, copy URL |
+| [AudioSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/AudioSettingsViewModel.cs) | Page logic: load/save the `AudioSettings` blob, mirror the web-server port, live client-count poll, real server restart, test sound, copy URL |
 | [AudioSettingsView.xaml](../../src/VyralBot.UI/Views/AudioSettingsView.xaml) | The page: Sound Output toggles, Volume card, WebSocket Server card, Browser Source (OBS) card, Test/Save buttons |
 | [SoundService.cs](../../src/VyralBot.Core/Services/Audio/SoundService.cs) | Reads the blob on every play; gates local vs browser output; defines the `AudioSettings` DTO (SoundService.cs:321-327) |
 | [ISoundService.cs](../../src/VyralBot.Core/Services/Audio/ISoundService.cs) | Service interface consumed by the page's Test Sound and by event triggers |
 | [AudioWebSocketBroadcaster.cs](../../src/VyralBot.Core/Services/Audio/AudioWebSocketBroadcaster.cs) | Static delegate bridging SoundService broadcasts to the Kestrel server's WebSocket clients |
-| [WebServerService.cs](../../src/VyralBot.Api/Services/WebServerService.cs) | The embedded Kestrel server (localhost:5000) that serves the browser-source page and `/audio-ws` |
+| [WebServerService.cs](../../src/VyralBot.Api/Services/WebServerService.cs) | The embedded Kestrel server (localhost, default port 5000) that serves the browser-source page and `/audio-ws` |
 
 ### The settings blob
 
-The DTO is defined alongside SoundService (SoundService.cs:321-327) — note the DTO's port default of 8080, a leftover that never surfaces because the ViewModel pins 5000 on every init and save:
+The DTO is defined alongside SoundService (SoundService.cs:321-327) — note the DTO's port default of 8080, a leftover that never surfaces because the ViewModel always writes the resolved web-server port into it:
 
 ```csharp
 public class AudioSettings
@@ -88,17 +88,15 @@ public class AudioSettings
 }
 ```
 
-Saved as:
+Saved as a read-modify-write (AudioSettingsViewModel.cs:145-156):
 
 ```csharp
-// AudioSettingsViewModel.cs:82-91 (excerpt)
-var settings = new AudioSettings
-{
-    StreamerSoundsEnabled = StreamerSoundsEnabled,
-    StreamSoundsEnabled = StreamSoundsEnabled,
-    MasterVolume = MasterVolume,
-    WebSocketPort = WebSocketPort // always 5000 by the time it gets here
-};
+// AudioSettingsViewModel.cs (excerpt) — only this page's fields are overwritten
+var settings = await ReadAudioSettingsAsync();
+settings.StreamerSoundsEnabled = StreamerSoundsEnabled;
+settings.StreamSoundsEnabled = StreamSoundsEnabled;
+settings.MasterVolume = MasterVolume;
+settings.WebSocketPort = _serverPort; // informational mirror; no runtime reader
 var settingsJson = JsonSerializer.Serialize(settings);
 await _dataService.SetConfigValueAsync("AudioSettings", settingsJson);
 ```
@@ -128,21 +126,22 @@ if (settings.StreamSoundsEnabled)
 }
 ```
 
-### The port pin
+### The port mirror
 
 ```csharp
-// AudioSettingsViewModel.cs:195-204 — the port box is editable but not changeable
+// AudioSettingsViewModel.cs:429-440 — the port box is read-only, but the
+// property still guards against programmatic drift: the port belongs to the
+// embedded web server (Web Server settings), and the browser-source page
+// derives its WebSocket and sound URLs from window.location, so it follows
+// whatever port serves it.
 partial void OnWebSocketPortChanged(int value)
 {
-    // The port is fixed at 5000. The browser-source page derives its WebSocket
-    // URL from window.location, so it follows whatever port serves it — but
-    // the audio setup stays pinned to 5000 for now.
-    if (value != 5000)
+    if (value != _serverPort)
     {
-        _logger.LogWarning("Audio browser source port is fixed at 5000. Ignoring user port change ({Port}).", value);
-        WebSocketPort = 5000;
+        _logger.LogWarning("Audio browser source port is managed by Web Server settings ({Port}). Reverting change ({Value}).", _serverPort, value);
+        WebSocketPort = _serverPort;
     }
-    BrowserSourceUrl = "http://localhost:5000/audio.html";
+    BrowserSourceUrl = $"http://localhost:{_serverPort}/audio.html";
 }
 ```
 
@@ -150,7 +149,7 @@ partial void OnWebSocketPortChanged(int value)
 
 | Key | Store | Type | Meaning |
 |---|---|---|---|
-| `AudioSettings` | Configs table (per-profile SQLite) | JSON string | The whole page's state: `StreamerSoundsEnabled`, `StreamSoundsEnabled` (bool, default true), `MasterVolume` (0–100, default 100), `WebSocketPort` (int; DTO default 8080, effectively always 5000) |
+| `AudioSettings` | Configs table (per-profile SQLite) | JSON string | The whole page's state: `StreamerSoundsEnabled`, `StreamSoundsEnabled` (bool, default true), `MasterVolume` (0–100, default 100), `WebSocketPort` (int; informational mirror of the web-server port — DTO default 8080 never surfaces) |
 
 Related settings that this page depends on but does not own:
 
@@ -163,9 +162,9 @@ Every item below is verified against the current code. See the [known issues led
 
 1. **Stream Sounds (viewer-side) works** — the broadcast is the camelCase `{"type":"play",...}` shape with volume honored. Full analysis in [Browser Sources](browser-sources.md). [known issues ledger](../reference/known-issues.md) (KI-4 resolved)
 2. **Local playback supports every format** — fixed 2026-11-07: all formats (`.wav`, `.mp3`, `.ogg`, `.m4a`) play through WPF `MediaPlayer` on a short-lived STA thread, so the volume sliders apply locally too; the old wav-only `System.Media.SoundPlayer` path is gone (SoundService.cs:402-407). [known issues ledger](../reference/known-issues.md)
-3. **The port is pinned to 5000** — edits to the port box revert instantly (AudioSettingsViewModel.cs:195-204), and the DTO's 8080 default never surfaces; the browser-source page is port-agnostic now, but making the server port configurable for audio is future work. [known issues ledger](../reference/known-issues.md)
-4. **"Connected Clients" is live** — a 2-second poll of `AudioWebSocketBroadcaster.ConnectedClientCount` (AudioSettingsViewModel.cs:217-228); you can see whether OBS is attached from this page. [known issues ledger](../reference/known-issues.md)
+3. **The port follows Web Server settings** — the audio browser source and `/audio-ws` ride the embedded Kestrel server, so the port is whatever Web Server settings says (default 5000); this page mirrors it read-only, and a mid-session port change takes effect after an app restart (KI-16 resolved). [known issues ledger](../reference/known-issues.md)
+4. **"Connected Clients" is live** — a 2-second poll of `AudioWebSocketBroadcaster.ConnectedClientCount` (AudioSettingsViewModel.cs:309-332); you can see whether OBS is attached from this page. [known issues ledger](../reference/known-issues.md)
 5. **The client-count timer only stops at shutdown** — the VM is a DI singleton, so its polling timer runs for the whole process lifetime, visible page or not (negligible cost — KI-32). [known issues ledger](../reference/known-issues.md)
-6. **"Restart Server" is vestigial** — it only shows an informational message box and restarts nothing (AudioSettingsViewModel.cs:169-179). [known issues ledger](../reference/known-issues.md)
+6. **"Restart Server" genuinely restarts the server** — it stops/starts the embedded web server via the webhook coordinator, reports the outcome, and refreshes the port mirror + browser-source URL (AudioSettingsViewModel.cs:237-283; KI-16 resolved). [known issues ledger](../reference/known-issues.md)
 7. **No device selection, routing, or ducking** — "Audio" here means output destination and volume only; you cannot pick an output device (e.g. a VB-Cable) or duck music. Tracked as KI-50. [known issues ledger](../reference/known-issues.md)
 8. **Test Sound depends on library contents** — it plays the alphabetically first file, whatever that is; it is not a dedicated test tone (AudioSettingsViewModel.cs:120-136). [known issues ledger](../reference/known-issues.md)

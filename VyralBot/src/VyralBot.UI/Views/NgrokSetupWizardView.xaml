@@ -306,55 +306,28 @@
                              HorizontalAlignment="Center"
                              Margin="0,0,0,16"/>
                     
-                    <TextBlock Text="Your demo credentials have been saved securely." 
+                    <TextBlock Text="Your ngrok auth token has been saved to your profile credentials."
                              FontSize="16"
+                             TextWrapping="Wrap"
                              Foreground="{DynamicResource TextSecondaryBrush}"
                              HorizontalAlignment="Center"
                              Margin="0,0,0,32"/>
-                    
-                    <materialDesign:Card Padding="24" 
+
+                    <materialDesign:Card Padding="24"
                                         Background="{DynamicResource CardBackgroundBrush}"
                                         Margin="0,0,0,32">
                         <StackPanel>
-                            <TextBlock Text="Saved Credentials" 
+                            <TextBlock Text="Auth Token"
                                      FontSize="18"
                                      FontWeight="SemiBold"
                                      Foreground="{DynamicResource TextPrimaryBrush}"
                                      Margin="0,0,0,16"/>
-                            
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                
-                                <TextBlock Grid.Row="0" Grid.Column="0"
-                                         Text="Client ID:" 
-                                         FontSize="14"
-                                         Foreground="{DynamicResource TextSecondaryBrush}"
-                                         Margin="0,0,16,8"/>
-                                <TextBlock Grid.Row="0" Grid.Column="1"
-                                         Text="{Binding MaskedClientId}" 
-                                         FontSize="14"
-                                         Foreground="{DynamicResource TextPrimaryBrush}"
-                                         FontFamily="Consolas"
-                                         Margin="0,0,0,8"/>
-                                
-                                <TextBlock Grid.Row="1" Grid.Column="0"
-                                         Text="Client Secret:" 
-                                         FontSize="14"
-                                         Foreground="{DynamicResource TextSecondaryBrush}"
-                                         Margin="0,0,16,0"/>
-                                <TextBlock Grid.Row="1" Grid.Column="1"
-                                         Text="••••••••••••••••" 
-                                         FontSize="14"
-                                         Foreground="{DynamicResource TextPrimaryBrush}"
-                                         FontFamily="Consolas"/>
-                            </Grid>
+
+                            <TextBlock Text="•••••••••••••••• (stored in ngrok_credentials.json — value never displayed or logged)"
+                                     FontSize="14"
+                                     TextWrapping="Wrap"
+                                     Foreground="{DynamicResource TextPrimaryBrush}"
+                                     FontFamily="Consolas"/>
                         </StackPanel>
                     </materialDesign:Card>
                     
@@ -700,6 +673,24 @@
                                           HorizontalAlignment="Center"
                                           Foreground="{DynamicResource PrimaryBrush}"
                                           Visibility="{Binding PublicUrl, Converter={StaticResource NullToVisibilityConverter}}"/>
+
+                                <Button Content="📋 COPY PUBLIC URL"
+                                        Command="{Binding CopyPublicUrlCommand}"
+                                        Height="36"
+                                        FontSize="12"
+                                        HorizontalAlignment="Center"
+                                        Margin="0,4,0,8">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignOutlinedButton}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding PublicUrl, Converter={StaticResource NullOrEmptyToVisibilityConverter}}" Value="Visible">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                             </StackPanel>
                         </materialDesign:Card>
                     </StackPanel>
@@ -921,15 +912,18 @@
                              TextWrapping="Wrap"
                              Margin="0,0,0,24"/>
                     
-                    <TextBox Text="{Binding ModalInput, UpdateSourceTrigger=PropertyChanged}"
-                           materialDesign:HintAssist.Hint="Paste here..."
-                           FontFamily="Consolas"
-                           FontSize="14"
-                           Padding="12"
-                           Margin="0,0,0,24"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           x:Name="ModalInputTextBox"/>
-                    
+                    <!-- PasswordBox: the modal is only used for the ngrok auth
+                         token, so entry is masked (secrets rule). PasswordChanged
+                         feeds ModalInput on the VM; the code-behind clears the
+                         box when the modal closes. -->
+                    <PasswordBox x:Name="ModalInputBox"
+                                 PasswordChanged="ModalInputBox_PasswordChanged"
+                                 materialDesign:HintAssist.Hint="Paste auth token here..."
+                                 FontFamily="Consolas"
+                                 FontSize="14"
+                                 Padding="12"
+                                 Margin="0,0,0,24"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="CANCEL"
                               Command="{Binding CloseModalCommand}"

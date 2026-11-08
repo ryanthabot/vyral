@@ -88,6 +88,17 @@ public partial class KickChatSettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _showStreamStatusInChat = true;
 
+    // Display preferences (badges/timestamps/compact) shared with the
+    // YouTube/TikTok/Twitch/Discord quick-settings cards
+    [ObservableProperty]
+    private bool _showBadges = true;
+
+    [ObservableProperty]
+    private bool _showTimestamps;
+
+    [ObservableProperty]
+    private bool _compactMode;
+
     public KickChatSettingsViewModel(
         ILogger<KickChatSettingsViewModel> logger,
         IChatEventSettingsService eventSettingsService,
@@ -137,6 +148,12 @@ public partial class KickChatSettingsViewModel : ViewModelBase
                 _isInitialized = false;
                 var storedAutoReplies = await _dataService.GetConfigValueAsync(AutoRepliesEnabledKey);
                 AutoRepliesEnabled = !bool.TryParse(storedAutoReplies, out var autoRepliesEnabled) || autoRepliesEnabled;
+                var storedShowBadges = await _dataService.GetConfigValueAsync(ShowBadgesKey);
+                ShowBadges = !bool.TryParse(storedShowBadges, out var showBadges) || showBadges;
+                var storedShowTimestamps = await _dataService.GetConfigValueAsync(ShowTimestampsKey);
+                ShowTimestamps = bool.TryParse(storedShowTimestamps, out var showTimestamps) && showTimestamps;
+                var storedCompactMode = await _dataService.GetConfigValueAsync(CompactModeKey);
+                CompactMode = bool.TryParse(storedCompactMode, out var compactMode) && compactMode;
                 _isInitialized = true;
             }
 
@@ -234,8 +251,49 @@ public partial class KickChatSettingsViewModel : ViewModelBase
         }
     }
 
+    partial void OnShowBadgesChanged(bool value)
+    {
+        if (_isInitialized && _dataService != null)
+        {
+            _ = PersistDisplayFlagAsync(ShowBadgesKey, value);
+        }
+    }
+
+    partial void OnShowTimestampsChanged(bool value)
+    {
+        if (_isInitialized && _dataService != null)
+        {
+            _ = PersistDisplayFlagAsync(ShowTimestampsKey, value);
+        }
+    }
+
+    partial void OnCompactModeChanged(bool value)
+    {
+        if (_isInitialized && _dataService != null)
+        {
+            _ = PersistDisplayFlagAsync(CompactModeKey, value);
+        }
+    }
+
+    /// <summary>Persists a chat display preference (badges/timestamps/compact) to config.</summary>
+    private async Task PersistDisplayFlagAsync(string key, bool value)
+    {
+        try
+        {
+            await _dataService!.SetConfigValueAsync(key, value.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error persisting Kick chat display flag {Key}", key);
+        }
+    }
+
     /// <summary>Config key backing the auto-replies master toggle (read by ChatViewModel's Kick event handlers). Shared with KickSettingsViewModel.</summary>
     private const string AutoRepliesEnabledKey = "Kick.AutoRepliesEnabled";
+
+    private const string ShowBadgesKey = "Kick.ShowBadges";
+    private const string ShowTimestampsKey = "Kick.ShowTimestamps";
+    private const string CompactModeKey = "Kick.CompactMode";
 
     /// <summary>Persists the auto-replies master toggle to config.</summary>
     private async Task PersistAutoRepliesEnabledAsync(bool value)
@@ -311,10 +369,14 @@ public partial class KickChatSettingsViewModel : ViewModelBase
         {
             _logger.LogInformation("Saving Kick chat event settings...");
 
-            // Save the auto-replies master toggle (mirrors the toggle's own persist path)
+            // Save the auto-replies master toggle + display prefs (mirrors the
+            // toggles' own persist paths)
             if (_dataService != null)
             {
                 await PersistAutoRepliesEnabledAsync(AutoRepliesEnabled);
+                await PersistDisplayFlagAsync(ShowBadgesKey, ShowBadges);
+                await PersistDisplayFlagAsync(ShowTimestampsKey, ShowTimestamps);
+                await PersistDisplayFlagAsync(CompactModeKey, CompactMode);
             }
 
             // Save Follow settings
@@ -355,6 +417,7 @@ public partial class KickChatSettingsViewModel : ViewModelBase
             kicksGiftedSetting.AutoReplyEnabled = KicksGiftedAutoReplyEnabled;
             kicksGiftedSetting.AutoReplyMessage = KicksGiftedAutoReplyMessage;
             await _eventSettingsService.SaveSettingAsync(kicksGiftedSetting);
+            await PersistEventSoundConfigAsync("kicks_gifted", kicksGiftedSetting);
 
             // Save Reward Redeemed settings
             var rewardSetting = await _eventSettingsService.GetSettingAsync("Kick", "RewardRedeemed") ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "Kick", EventType = "RewardRedeemed" };
@@ -362,6 +425,7 @@ public partial class KickChatSettingsViewModel : ViewModelBase
             rewardSetting.AutoReplyEnabled = RewardAutoReplyEnabled;
             rewardSetting.AutoReplyMessage = RewardAutoReplyMessage;
             await _eventSettingsService.SaveSettingAsync(rewardSetting);
+            await PersistEventSoundConfigAsync("redemption", rewardSetting);
 
             // Save Stream Status settings
             var streamStatusSetting = await _eventSettingsService.GetSettingAsync("Kick", "StreamStatus") ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "Kick", EventType = "StreamStatus" };

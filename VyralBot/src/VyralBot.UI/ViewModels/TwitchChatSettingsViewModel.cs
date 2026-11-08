@@ -89,6 +89,28 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _cheerAutoReplyMessage = "Thanks for the {bits} bits {username}!";
 
+    // Channel Point Redemption Event Settings (consumed by ChatViewModel's
+    // Twitch RewardRedeemed handler — same row vocabulary as the popup view)
+    [ObservableProperty]
+    private bool _showRewardsInChat = true;
+
+    [ObservableProperty]
+    private bool _rewardAutoReplyEnabled = false;
+
+    [ObservableProperty]
+    private string _rewardAutoReplyMessage = "{username} redeemed {reward}!";
+
+    // Display preferences (badges/timestamps/compact) shared with the
+    // YouTube/TikTok/Discord quick-settings cards
+    [ObservableProperty]
+    private bool _showBadges = true;
+
+    [ObservableProperty]
+    private bool _showTimestamps;
+
+    [ObservableProperty]
+    private bool _compactMode;
+
     public TwitchChatSettingsViewModel(
         ILogger<TwitchChatSettingsViewModel> logger,
         IChatEventSettingsService eventSettingsService,
@@ -143,6 +165,12 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
             _isInitialized = false;
             var storedAutoReplies = await _dataService.GetConfigValueAsync(AutoRepliesEnabledKey);
             AutoRepliesEnabled = !bool.TryParse(storedAutoReplies, out var autoRepliesEnabled) || autoRepliesEnabled;
+            var storedShowBadges = await _dataService.GetConfigValueAsync(ShowBadgesKey);
+            ShowBadges = !bool.TryParse(storedShowBadges, out var showBadges) || showBadges;
+            var storedShowTimestamps = await _dataService.GetConfigValueAsync(ShowTimestampsKey);
+            ShowTimestamps = bool.TryParse(storedShowTimestamps, out var showTimestamps) && showTimestamps;
+            var storedCompactMode = await _dataService.GetConfigValueAsync(CompactModeKey);
+            CompactMode = bool.TryParse(storedCompactMode, out var compactMode) && compactMode;
             _isInitialized = true;
 
             // Load Follow settings
@@ -199,6 +227,15 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
                 CheerAutoReplyMessage = cheerSettings.AutoReplyMessage ?? "Thanks for the {bits} bits {username}!";
             }
 
+            // Load Channel Point Redemption settings
+            var rewardSettings = await _eventSettingsService.GetSettingAsync("Twitch", "RewardRedeemed");
+            if (rewardSettings != null)
+            {
+                ShowRewardsInChat = rewardSettings.ShowInChat;
+                RewardAutoReplyEnabled = rewardSettings.AutoReplyEnabled;
+                RewardAutoReplyMessage = rewardSettings.AutoReplyMessage ?? "{username} redeemed {reward}!";
+            }
+
             _logger.LogInformation("Twitch chat event settings loaded successfully");
         }
         catch (Exception ex)
@@ -232,8 +269,49 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
         }
     }
 
+    partial void OnShowBadgesChanged(bool value)
+    {
+        if (_isInitialized)
+        {
+            _ = PersistDisplayFlagAsync(ShowBadgesKey, value);
+        }
+    }
+
+    partial void OnShowTimestampsChanged(bool value)
+    {
+        if (_isInitialized)
+        {
+            _ = PersistDisplayFlagAsync(ShowTimestampsKey, value);
+        }
+    }
+
+    partial void OnCompactModeChanged(bool value)
+    {
+        if (_isInitialized)
+        {
+            _ = PersistDisplayFlagAsync(CompactModeKey, value);
+        }
+    }
+
+    /// <summary>Persists a chat display preference (badges/timestamps/compact) to config.</summary>
+    private async Task PersistDisplayFlagAsync(string key, bool value)
+    {
+        try
+        {
+            await _dataService.SetConfigValueAsync(key, value.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error persisting Twitch chat display flag {Key}", key);
+        }
+    }
+
     /// <summary>Config key backing the auto-replies master toggle (read by ChatViewModel's Twitch event handlers).</summary>
     private const string AutoRepliesEnabledKey = "Chat.Twitch.AutoRepliesEnabled";
+
+    private const string ShowBadgesKey = "Chat.Twitch.ShowBadges";
+    private const string ShowTimestampsKey = "Chat.Twitch.ShowTimestamps";
+    private const string CompactModeKey = "Chat.Twitch.CompactMode";
 
     /// <summary>
     /// Persists the auto-replies master toggle to config and publishes the
@@ -337,6 +415,21 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
         {
             _logger.LogInformation("Saving Twitch chat event settings...");
 
+            // Persist the general toggles + display prefs via the same paths the
+            // toggles use, so Save covers every visible control.
+            var platformRow = await _dataService.GetPlatformByNameAsync("Twitch");
+            if (platformRow != null)
+            {
+                platformRow.TwitchChatEnabled = IsChatEnabled;
+                platformRow.TwitchChatAutoStart = AutoStartChat;
+                platformRow.UpdatedAt = DateTime.UtcNow;
+                await _dataService.SavePlatformAsync(platformRow);
+            }
+            await _dataService.SetConfigValueAsync(AutoRepliesEnabledKey, AutoRepliesEnabled.ToString());
+            await PersistDisplayFlagAsync(ShowBadgesKey, ShowBadges);
+            await PersistDisplayFlagAsync(ShowTimestampsKey, ShowTimestamps);
+            await PersistDisplayFlagAsync(CompactModeKey, CompactMode);
+
             // Save Follow settings
             var followSetting = await _eventSettingsService.GetSettingAsync("Twitch", "Follow") ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "Twitch", EventType = "Follow" };
             followSetting.ShowInChat = ShowFollowsInChat;
@@ -384,6 +477,15 @@ public partial class TwitchChatSettingsViewModel : ViewModelBase
             cheerSetting.AutoReplyMessage = CheerAutoReplyMessage;
             await _eventSettingsService.SaveSettingAsync(cheerSetting);
             await PersistEventSoundConfigAsync("cheer", cheerSetting);
+
+            // Save Channel Point Redemption settings (playback event key is
+            // "redemption" — the key ChatViewModel's SoundService call uses)
+            var rewardSetting = await _eventSettingsService.GetSettingAsync("Twitch", "RewardRedeemed") ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "Twitch", EventType = "RewardRedeemed" };
+            rewardSetting.ShowInChat = ShowRewardsInChat;
+            rewardSetting.AutoReplyEnabled = RewardAutoReplyEnabled;
+            rewardSetting.AutoReplyMessage = RewardAutoReplyMessage;
+            await _eventSettingsService.SaveSettingAsync(rewardSetting);
+            await PersistEventSoundConfigAsync("redemption", rewardSetting);
 
             _logger.LogInformation("Twitch chat event settings saved successfully");
             Status = "Settings saved!";

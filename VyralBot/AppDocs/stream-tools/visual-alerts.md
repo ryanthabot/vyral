@@ -9,7 +9,7 @@ When a stream event fires, Vyral shows an alert: a borderless, always-on-top win
 Two things make this feature unusual compared to tools like Stream Elements or Alertbox:
 
 - **It is an in-app WPF window, not a browser source.** There is no overlay URL to add to OBS ([Browser Sources](browser-sources.md) covers the one HTML page that does exist — audio only). The alert appears over the streamer's own screen, so viewers see it only if your OBS setup captures that screen (display capture).
-- **The Alert Settings page is real.** Since the 2026-08-15 fix it persists to the `AlertSettings` Configs key, and `AlertService` applies the saved master toggle, duration, animation, position, and per-event switches to real alerts (`applySettings = true` by default). The page's **Test Alert** button previews your *unsaved* selections, which is handy for trying animations before committing.
+- **The Alert Settings page is real.** Since the 2026-08-15 fix it persists to the `AlertSettings` Configs key, and `AlertService` applies the saved master toggle, duration, animation, position, and per-event switches to real alerts (`applySettings = true` by default). Since 1.1.0 the page previews two ways: **Preview Current Settings** shows your *unsaved* general selections, and each event row's **TEST** button fires the exact live title for that event (suppressed + explained when the row's toggle is off).
 
 ## User Guide
 
@@ -17,7 +17,10 @@ Open **Stream Tools → Visual Alerts** in the sidebar. (The "Events & Alerts" c
 
 ### Trying it out
 
-Click **Test Alert**. An overlay window appears with "Test Alert!" for user "TestUser123", using whatever animation, position, and duration are currently selected on the page — a preview of unsaved selections. This is the best way to try the four animations and nine positions before pressing Save.
+Two ways to preview (1.1.0):
+
+- **Preview Current Settings** (General Settings card) — an overlay with "Test Alert!" for user "TestUser123", using the duration, animation and position currently selected on the page. It previews unsaved selections, and the caption under the button says so: changes apply to the preview immediately, before saving. Best way to try the four animations and nine positions before pressing Save.
+- **TEST buttons on each Alert Events row** (follow, subscribe, gift sub, raid, host, cheer) — fires the alert with the **exact title the live event uses** (e.g. "Bits!"), so the popup matches what viewers see on stream. If that row's toggle is off, the preview is suppressed and a status line above the Notes explains why — mirroring the real per-event gate.
 
 ### The General Settings card
 
@@ -107,12 +110,12 @@ private async Task ShowEventAlertAsync(string title, string username, string? me
 }
 ```
 
-Note it still passes `imageUrl: null` — even the (supported) image slot is unused by real events. The only caller that bypasses the saved settings is the settings page's own **Test Alert** command, which parses the dropdown strings into the enums and passes them straight to the service with `applySettings: false` so you preview unsaved selections (AlertSettingsViewModel.cs:87-110).
+Note it still passes `imageUrl: null` — even the (supported) image slot is unused by real events. The callers that bypass the saved settings are the settings page's own preview commands: **Preview Current Settings** parses the dropdown strings into the enums and passes them straight to the service with `applySettings: false` so you preview unsaved selections, and the per-event **TEST** buttons send the live title through the normal settings path (title→toggle routing included) so a disabled row is suppressed exactly like a real event (AlertSettingsViewModel.cs, `TestAlertCommand`/`TestEventAlertCommand`).
 
 ### What does not exist
 
 - No text-to-speech, GIF/video support, or customizable templates/themes — the alert layout is fixed XAML.
-- No per-event alert customization (text, image, sound pairing) — the title/message strings are hard-coded at each call site.
+- No per-event alert asset customization (image/GIF/sound pairing per event) — the title/message strings are hard-coded at each call site, and the page's Notes say so plainly: `{variables}` like `{username}` are not substituted in alert text (they apply to commands, auto-replies and chat responses), and per-event *sounds* live on the [Sounds](sounds.md) page, not here.
 - `src/VyralBot.Core/Services/Alerts/` exists in the tree but is an **empty folder** — no files. All alert logic lives in the UI project; the folder is presumably reserved for a future Core-level alert service.
 - No browser-source/overlay HTML for alerts (see [Browser Sources](browser-sources.md)).
 
@@ -124,7 +127,7 @@ Note it still passes `imageUrl: null` — even the (supported) image slot is unu
 | [AlertOverlayWindow.xaml](../../src/VyralBot.UI/Views/AlertOverlayWindow.xaml) | The overlay window: transparent/topless window chrome, alert layout, the 4 in-animations + FadeOut storyboards |
 | [AlertOverlayWindow.xaml.cs](../../src/VyralBot.UI/Views/AlertOverlayWindow.xaml.cs) | Show/hide logic, storyboard selection, 9-position screen math, auto-close DispatcherTimer, `AlertAnimation`/`AlertPosition` enums |
 | [AlertSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/AlertSettingsViewModel.cs) | The settings page state: load/save/reset against the `AlertSettings` Configs key, the Test Alert previewer |
-| [AlertSettingsView.xaml](../../src/VyralBot.UI/Views/AlertSettingsView.xaml) | The settings page: General Settings card, six per-event toggles, Test/Save/Reset buttons |
+| [AlertSettingsView.xaml](../../src/VyralBot.UI/Views/AlertSettingsView.xaml) | The settings page: General Settings card (Preview Current Settings), six per-event toggles each with a TEST button, scope Notes, Save/Reset |
 | [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) | The 12 real-event call sites and the `ShowEventAlertAsync` funnel |
 | [App.xaml.cs](../../src/VyralBot.UI/App.xaml.cs) | DI registration of `IAlertService → AlertService` (:180) |
 | [MainWindow.xaml](../../src/VyralBot.UI/MainWindow.xaml) | The "Visual Alerts" sidebar entry (:373-384) |

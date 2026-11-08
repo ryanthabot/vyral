@@ -7,7 +7,8 @@
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:converters="clr-namespace:VyralBot.UI.Converters"
              mc:Ignorable="d" 
-             d:DesignHeight="600" d:DesignWidth="900">
+             d:DesignHeight="600" d:DesignWidth="900"
+             PreviewKeyDown="OnPreviewKeyDown">
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -22,6 +23,14 @@
             <TextBlock Text="Upload sound files and assign them to chat events"
                        Style="{StaticResource MaterialDesignBody2TextBlock}"
                        Foreground="{DynamicResource MaterialDesignBodyLight}"/>
+            <!-- Global hotkey constraints (KI-55): hotkeys are OS-global, so they
+                 fire while the game has focus too — combos the game/OS owns will
+                 collide. Documented in-UI right where hotkeys get assigned. -->
+            <TextBlock Text="Global hotkeys fire while any app has focus (including games). Avoid combos your game or Windows already uses (Alt+Tab, Win+G, ...). Up to 10 hotkeys."
+                       Style="{StaticResource MaterialDesignCaptionTextBlock}"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,6,0,0"/>
             <!-- Master volume: global multiplier applied on top of every per-event
                  volume (same AudioSettings value SoundService and the Audio Settings
                  page use). Persisted debounced on drag-release. -->
@@ -47,12 +56,38 @@
                            MinWidth="42"
                            Margin="12,0,0,0"/>
             </StackPanel>
+            <!-- Hotkey capture banner: shown while a row waits for a combo -->
+            <Border Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource PrimaryBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="10,6"
+                    Margin="0,12,0,0"
+                    Visibility="{Binding IsCapturing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="Keyboard"
+                                             Width="18"
+                                             Height="18"
+                                             VerticalAlignment="Center"
+                                             Foreground="{DynamicResource PrimaryBrush}"/>
+                    <TextBlock Text="{Binding CaptureHint}"
+                               Style="{StaticResource MaterialDesignBody2TextBlock}"
+                               VerticalAlignment="Center"
+                               Margin="8,0,12,0"/>
+                    <Button Content="Cancel"
+                            Command="{Binding CancelHotkeyCaptureCommand}"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            Height="24"
+                            Padding="8,0"
+                            VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
         </StackPanel>
 
         <!-- Main Content -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="350"/>
+                <ColumnDefinition Width="430"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
@@ -94,6 +129,8 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <!-- Per-file test play (previews at master volume) -->
                                     <Button Grid.Column="0"
@@ -132,6 +169,60 @@
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
+                                    <!-- Global hotkey (KI-55): click to capture a modifier+key
+                                         combo; shows the assigned gesture ("Ctrl+Alt+1"). The
+                                         click focuses the button so key events reach the page's
+                                         PreviewKeyDown capture handler. -->
+                                    <Button Grid.Column="3"
+                                            Command="{Binding DataContext.BeginCaptureHotkeyCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}"
+                                            Height="26"
+                                            MinWidth="72"
+                                            Padding="6,0"
+                                            Margin="8,0,0,0"
+                                            VerticalAlignment="Center"
+                                            FontSize="11"
+                                            Focusable="True"
+                                            ToolTip="Assign a global hotkey (fires even while a game has focus)">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignFlatButton}">
+                                                <Setter Property="Content" Value="Set Hotkey"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasHotkey}" Value="True">
+                                                        <Setter Property="Content" Value="{Binding Hotkey}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsCapturingHotkey}" Value="True">
+                                                        <Setter Property="Content" Value="Press combo..."/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <!-- Clear the assigned hotkey -->
+                                    <Button Grid.Column="4"
+                                            Command="{Binding DataContext.ClearHotkeyCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}"
+                                            Height="26"
+                                            MinWidth="22"
+                                            Padding="2,0"
+                                            Margin="2,0,0,0"
+                                            VerticalAlignment="Center"
+                                            FontSize="11"
+                                            ToolTip="Clear hotkey">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignFlatButton}">
+                                                <Setter Property="Content" Value="✕"/>
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasHotkey}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>

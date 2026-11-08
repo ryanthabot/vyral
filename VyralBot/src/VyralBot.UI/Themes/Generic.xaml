@@ -1,0 +1,93 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:charts="clr-namespace:VyralBot.UI.Controls.Charts">
+    <!-- Default theme for the dependency-free bar chart (KI-54).
+         All colors resolve through DynamicResource so a theme switch re-colors
+         the chart without rebuilding items. -->
+    <charts:BarWidthConverter x:Key="BarWidthConverter"/>
+    <Style TargetType="{x:Type charts:SimpleBarChart}">
+        <Setter Property="ItemsPanel">
+            <Setter.Value>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Vertical"/>
+                </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="ItemTemplate">
+            <Setter.Value>
+                <DataTemplate DataType="{x:Type charts:BarChartItem}">
+                    <DockPanel Margin="0,0,0,6" ToolTip="{Binding ToolTipText}">
+                        <TextBlock DockPanel.Dock="Left"
+                                   Text="{Binding Label}"
+                                   Width="{Binding LabelWidth, RelativeSource={RelativeSource AncestorType={x:Type charts:SimpleBarChart}}}"
+                                   TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        <TextBlock DockPanel.Dock="Right"
+                                   Text="{Binding ValueText}"
+                                   Margin="10,0,0,0"
+                                   MinWidth="52"
+                                   TextAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   FontWeight="Bold"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        <Border x:Name="Track"
+                                Height="14"
+                                VerticalAlignment="Center"
+                                CornerRadius="3"
+                                Background="{DynamicResource BorderLightBrush}">
+                            <Border x:Name="Bar"
+                                    Height="14"
+                                    CornerRadius="3"
+                                    HorizontalAlignment="Left">
+                                <Border.Width>
+                                    <MultiBinding Converter="{StaticResource BarWidthConverter}">
+                                        <Binding Path="Fraction"/>
+                                        <Binding Path="ActualWidth" ElementName="Track"/>
+                                    </MultiBinding>
+                                </Border.Width>
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Platform}" Value="Twitch">
+                                                <Setter Property="Background" Value="{DynamicResource TwitchBrush}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Platform}" Value="Kick">
+                                                <Setter Property="Background" Value="{DynamicResource KickBrush}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Platform}" Value="YouTube">
+                                                <Setter Property="Background" Value="{DynamicResource YouTubeBrush}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Platform}" Value="Discord">
+                                                <Setter Property="Background" Value="{DynamicResource DiscordBrush}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Platform}" Value="TikTok">
+                                                <Setter Property="Background" Value="{DynamicResource TikTokBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+                        </Border>
+                    </DockPanel>
+                </DataTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type charts:SimpleBarChart}">
+                    <Grid>
+                        <TextBlock x:Name="PART_EmptyText"
+                                   Text="{TemplateBinding EmptyText}"
+                                   Visibility="Collapsed"
+                                   Margin="0,4,0,8"
+                                   FontStyle="Italic"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        <ItemsPresenter x:Name="PART_ItemsHost"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,7 @@ public partial class NgrokSetupWizardView : UserControl
         {
             viewModel.WebView2InitializeRequested += OnWebView2InitializeRequested;
             viewModel.WebView2DisposeRequested += OnWebView2DisposeRequested;
+            viewModel.PropertyChanged += OnViewModelPropertyChanged;
         }
     }
 
@@ -78,6 +80,33 @@ public partial class NgrokSetupWizardView : UserControl
         {
             viewModel.WebView2InitializeRequested -= OnWebView2InitializeRequested;
             viewModel.WebView2DisposeRequested -= OnWebView2DisposeRequested;
+            viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        }
+    }
+
+    /// <summary>
+    /// Named handler (unsubscribed in OnUnloaded, per the zero-orphan pattern):
+    /// when the modal closes (save/cancel), clear the masked token box so a
+    /// reopened modal never shows the previous token.
+    /// </summary>
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(NgrokSetupWizardViewModel.ShowModal)
+            && sender is NgrokSetupWizardViewModel { ShowModal: false })
+        {
+            ModalInputBox.Password = "";
+        }
+    }
+
+    /// <summary>
+    /// Feeds the masked PasswordBox into the VM's ModalInput (Password is not
+    /// bindable by design). The value is never logged anywhere.
+    /// </summary>
+    private void ModalInputBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is NgrokSetupWizardViewModel viewModel && sender is PasswordBox passwordBox)
+        {
+            viewModel.ModalInput = passwordBox.Password;
         }
     }
 
@@ -87,14 +116,6 @@ public partial class NgrokSetupWizardView : UserControl
         if (DataContext is NgrokSetupWizardViewModel viewModel)
         {
             viewModel.FinishSetupCommand.Execute(null);
-        }
-    }
-
-    private void ClientSecretBox_PasswordChanged(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is NgrokSetupWizardViewModel viewModel && sender is PasswordBox passwordBox)
-        {
-            viewModel.ClientSecretInput = passwordBox.Password;
         }
     }
 }

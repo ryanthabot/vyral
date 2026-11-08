@@ -22,10 +22,11 @@ public partial class DiscordChatSettingsView : UserControl
         }
         else
         {
-            DataContext = new DiscordChatSettingsViewModel(
-                provider?.GetService<ILogger<DiscordChatSettingsViewModel>>()!,
-                provider?.GetService<IDataService>()!,
-                provider?.GetService<VyralBot.Core.Services.EventBus.IEventBus>()!);
+                DataContext = new DiscordChatSettingsViewModel(
+                    provider?.GetService<ILogger<DiscordChatSettingsViewModel>>()!,
+                    provider?.GetService<IDataService>()!,
+                    provider?.GetService<VyralBot.Core.Services.EventBus.IEventBus>()!,
+                    provider?.GetService<VyralBot.Core.Services.Chat.IChatEventSettingsService>()!);
         }
     }
 }

@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
 using VyralBot.Data;
 using VyralBot.Api.Services;
+using VyralBot.Core.Services.ProcessManagement;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -49,6 +51,7 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
 
     private readonly NgrokService _ngrokService;
     private readonly WebServerService _webServerService;
+    private readonly IProcessManager _processManager;
     private readonly IServiceProvider _serviceProvider;
 
     public NgrokSetupWizardViewModel(
@@ -56,24 +59,27 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
         IDataService dataService,
         NgrokService ngrokService,
         WebServerService webServerService,
+        IProcessManager processManager,
         IServiceProvider serviceProvider)
         : base(logger, dataService)
     {
         _ngrokService = ngrokService;
         _webServerService = webServerService;
+        _processManager = processManager;
         _serviceProvider = serviceProvider;
         _ = CheckInstallationAsync();
         _ = RestoreSavedTokenAsync();
     }
 
-    // Ngrok Step 1 Commands
+    // Ngrok Step 1 Commands — store deep link goes through the tracked
+    // ProcessManager like every other external process (zero-orphans rule).
     [RelayCommand]
-    private void OpenStep1External()
+    private async Task OpenStep1ExternalAsync()
     {
         try
         {
             _logger.LogInformation("Opening Microsoft Store for ngrok download");
-            Process.Start(new ProcessStartInfo
+            await _processManager.StartProcessAsync(new ProcessStartInfo
             {
                 FileName = "ms-windows-store://pdp/?productid=9MVS1J51GMK6",
                 UseShellExecute = true
@@ -90,7 +96,11 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
     {
         try
         {
-            var process = Process.Start(new ProcessStartInfo
+            // Same tracked-process + bounded-5s pattern as
+            // WebServerSettingsViewModel.IsNgrokInstalledAsync; output is read
+            // via a task started BEFORE WaitForExitAsync because the
+            // ProcessManager disposes exited processes (OnProcessExited).
+            var process = await _processManager.StartProcessAsync(new ProcessStartInfo
             {
                 FileName = "ngrok",
                 Arguments = "version",
@@ -100,21 +110,30 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
                 RedirectStandardError = true
             });
 
-            if (process != null)
+            var outputTask = process.StandardOutput.ReadToEndAsync();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
             {
-                await process.WaitForExitAsync();
-                if (process.ExitCode == 0)
-                {
-                    var output = await process.StandardOutput.ReadToEndAsync();
-                    IsNgrokInstalled = true;
-                    StatusMessage = $"✓ Ngrok is installed: {output.Trim()}";
-                    _logger.LogInformation("Ngrok installation verified");
-                }
-                else
-                {
-                    IsNgrokInstalled = false;
-                    StatusMessage = "Ngrok is not installed or not in PATH";
-                }
+                await process.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                IsNgrokInstalled = false;
+                StatusMessage = "Ngrok version check timed out — is ngrok responding?";
+                return;
+            }
+
+            if (process.ExitCode == 0)
+            {
+                var output = await outputTask;
+                IsNgrokInstalled = true;
+                StatusMessage = $"✓ Ngrok is installed: {output.Trim()}";
+                _logger.LogInformation("Ngrok installation verified");
+            }
+            else
+            {
+                IsNgrokInstalled = false;
+                StatusMessage = "Ngrok is not installed or not in PATH";
             }
         }
         catch (Exception ex)
@@ -227,39 +246,18 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
     protected override async Task OnCompleteSetupAsync()
     {
         _logger.LogInformation("Saving ngrok auth token to JSON file after successful test");
-        
+
         if (!string.IsNullOrEmpty(_savedNgrokAuth))
         {
             try
             {
-                // Save to JSON file via NgrokService
+                // Save to JSON file via NgrokService. Deliberately NOT running
+                // `ngrok config add-authtoken <token>`: the token would sit on a
+                // machine-readable command line (Task Manager / WMI) and be
+                // duplicated into a second config file. NgrokService is the
+                // single source of truth and passes --authtoken at tunnel start.
                 await _ngrokService.SaveAuthTokenAsync(_savedNgrokAuth);
-
-                // Run ngrok config add-authtoken command
-                var process = Process.Start(new ProcessStartInfo
-                {
-                    FileName = "ngrok",
-                    Arguments = $"config add-authtoken {_savedNgrokAuth}",
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                });
-
-                if (process != null)
-                {
-                    await process.WaitForExitAsync();
-
-                    if (process.ExitCode == 0)
-                    {
-                        _logger.LogInformation("Ngrok auth token saved successfully to JSON file and ngrok config");
-                    }
-                    else
-                    {
-                        var error = await process.StandardError.ReadToEndAsync();
-                        _logger.LogError("Ngrok authentication failed: {Error}", error);
-                    }
-                }
+                _logger.LogInformation("Ngrok auth token saved to the per-profile credentials file");
             }
             catch (Exception ex)
             {
@@ -323,13 +321,36 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
         IsTesting = false;
     }
 
+    [RelayCommand]
+    private void CopyPublicUrl()
+    {
+        if (string.IsNullOrWhiteSpace(PublicUrl))
+            return;
+
+        try
+        {
+            System.Windows.Clipboard.SetText(PublicUrl);
+            _logger.LogInformation("Ngrok public URL copied to clipboard");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to copy ngrok public URL to clipboard");
+        }
+    }
+
     protected override async Task SendTestMessageAsync()
     {
         _logger.LogInformation("Testing ngrok connection");
-        
+
         StatusMessage = "⏳ Validating auth token...";
         TestMessageStatus = StatusMessage;
-        
+
+        // Both services are singletons that may already be serving live
+        // webhooks; remember what was running before the test so cleanup
+        // (success AND error paths) only stops what THIS test started.
+        var serverWasAlreadyRunning = _webServerService.IsRunning;
+        var tunnelWasAlreadyRunning = _ngrokService.IsConnected;
+
         try
         {
             // Validate auth token from memory
@@ -339,7 +360,7 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
                 TestMessageStatus = StatusMessage;
                 return;
             }
-            
+
             // Check if token looks valid (ngrok tokens are typically 2-part strings)
             if (_savedNgrokAuth.Length < 20 || !_savedNgrokAuth.Contains("_"))
             {
@@ -349,10 +370,18 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
                 _logger.LogWarning("Saved auth token appears invalid (length {Length})", _savedNgrokAuth.Length);
                 return;
             }
-            
+
+            // Distinct error state for a missing binary (Step 1 not completed)
+            if (!IsNgrokInstalled)
+            {
+                StatusMessage = "✗ ngrok is not installed - complete Step 1 (install + CHECK INSTALLATION) first";
+                TestMessageStatus = StatusMessage;
+                return;
+            }
+
             StatusMessage = "⏳ Starting web server...";
             TestMessageStatus = StatusMessage;
-            
+
             // Tunnel/web-server port comes from the persisted web-server settings (5000 fallback)
             var settings = await _dataService.GetWebServerSettingsAsync();
             var port = settings.Port > 0 ? settings.Port : 5000;
@@ -366,10 +395,12 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
                 return;
             }
 
-            StatusMessage = "⏳ Starting ngrok tunnel...";
+            StatusMessage = tunnelWasAlreadyRunning
+                ? "⏳ Using the already-running ngrok tunnel..."
+                : "⏳ Starting ngrok tunnel...";
             TestMessageStatus = StatusMessage;
             await Task.Delay(500);
-            
+
             // Start ngrok tunnel using memory token
             var ngrokStarted = await _ngrokService.StartTunnelAsync(
                 port,
@@ -380,7 +411,10 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
             {
                 StatusMessage = "✗ Failed to start ngrok tunnel - Check authentication token is correct";
                 TestMessageStatus = StatusMessage;
-                await _webServerService.StopAsync();
+                if (!serverWasAlreadyRunning)
+                {
+                    await _webServerService.StopAsync();
+                }
                 return;
             }
 
@@ -392,11 +426,11 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
             // Test health endpoint
             await Task.Delay(1000);
 
-            using var httpClient = new System.Net.Http.HttpClient 
-            { 
-                Timeout = TimeSpan.FromSeconds(10) 
+            using var httpClient = new System.Net.Http.HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(10)
             };
-            
+
             var response = await httpClient.GetAsync($"{publicUrl}/webhooks/health");
 
             if (response.IsSuccessStatusCode)
@@ -413,10 +447,17 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
                 TestPassed = false;
             }
 
-            // Clean up
+            // Clean up — only what this test started; a tunnel/web server that
+            // was already live before the test must keep serving webhooks.
             await Task.Delay(2000);
-            await _ngrokService.StopTunnelAsync();
-            await _webServerService.StopAsync();
+            if (!tunnelWasAlreadyRunning)
+            {
+                await _ngrokService.StopTunnelAsync();
+            }
+            if (!serverWasAlreadyRunning)
+            {
+                await _webServerService.StopAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -425,11 +466,17 @@ public partial class NgrokSetupWizardViewModel : BaseOAuthSetupViewModel
             TestMessageStatus = StatusMessage;
             TestPassed = false;
 
-            // Clean up on error
+            // Clean up on error (best effort, same pre-state rule)
             try
             {
-                await _ngrokService.StopTunnelAsync();
-                await _webServerService.StopAsync();
+                if (!tunnelWasAlreadyRunning)
+                {
+                    await _ngrokService.StopTunnelAsync();
+                }
+                if (!serverWasAlreadyRunning)
+                {
+                    await _webServerService.StopAsync();
+                }
             }
             catch { }
         }

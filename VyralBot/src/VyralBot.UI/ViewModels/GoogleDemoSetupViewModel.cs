@@ -69,14 +69,27 @@ public partial class GoogleDemoSetupViewModel : BaseOAuthSetupViewModel
     {
         if (string.IsNullOrEmpty(_savedClientId))
             return "";
-        
-        return $"https://accounts.google.com/o/oauth2/v2/auth?client_id={_savedClientId}&redirect_uri=http://localhost:3000&response_type=code&scope=openid%20email%20profile";
+
+        // Read-only identity scopes (openid email profile); client id is encoded
+        // so special characters cannot corrupt the query string.
+        return $"https://accounts.google.com/o/oauth2/v2/auth?client_id={Uri.EscapeDataString(_savedClientId)}&redirect_uri=http://localhost:3000&response_type=code&scope=openid%20email%20profile";
     }
 
     protected override async Task<(string AccessToken, string RefreshToken, string Username)?> HandleOAuthCallbackAsync(string url)
     {
         await Task.CompletedTask;
-        // Demo implementation - just return dummy values
+
+        // Truthful error path: a callback without an authorization code is a
+        // failed/cancelled flow — the base then reports "Authorization cancelled
+        // or failed" instead of a fake success. Only dummy token values are
+        // ever produced here; no real Google token is exchanged or stored.
+        if (string.IsNullOrWhiteSpace(url) || !url.Contains("code="))
+        {
+            _logger.LogWarning("Demo OAuth callback rejected: no authorization code present");
+            return null;
+        }
+
+        // Demo implementation - dummy values only, nothing real is stored
         return ("demo_access_token", "demo_refresh_token", "DemoUser");
     }
 

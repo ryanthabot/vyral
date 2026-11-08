@@ -284,6 +284,10 @@ public class ChatViewModel : ViewModelBase
 
 	private bool _kickAutoRepliesEnabled = true;
 
+	private bool _youtubeAutoRepliesEnabled = true;
+
+	private bool _discordAutoRepliesEnabled = true;
+
 	private readonly Dictionary<string, (bool IsFollower, DateTime ExpiresAt)> _followerCache = new Dictionary<string, (bool, DateTime)>();
 
 	private readonly object _followerCacheLock = new object();
@@ -2319,6 +2323,8 @@ public class ChatViewModel : ViewModelBase
 		await ReloadEventDisplayToggleAsync();
 		await ReloadTwitchAutoRepliesToggleAsync();
 		await ReloadKickAutoRepliesToggleAsync();
+		await ReloadYouTubeAutoRepliesToggleAsync();
+		await ReloadDiscordAutoRepliesToggleAsync();
 		_isInitialized = true;
 		_logger.LogInformation("\ud83c\udfaf ChatViewModel initialization complete - all event handlers active!");
 		_logger.LogInformation("\ud83d\udcbe Chat history available but not loaded yet (saves memory - load on-demand if needed)");
@@ -4363,12 +4369,14 @@ public class ChatViewModel : ViewModelBase
 			break;
 		case "YouTube":
 			YoutubeFilterEnabled = evt.Enabled;
+			ReloadYouTubeAutoRepliesToggleAsync();
 			break;
 		case "TikTok":
 			TiktokFilterEnabled = evt.Enabled;
 			break;
 		case "Discord":
 			DiscordFilterEnabled = evt.Enabled;
+			ReloadDiscordAutoRepliesToggleAsync();
 			break;
 		}
 		_logger.LogInformation("Platform routing changed: {Platform} -> {Enabled}", evt.Platform, evt.Enabled);
@@ -4410,6 +4418,38 @@ public class ChatViewModel : ViewModelBase
 			Exception ex3 = ex2;
 			Exception ex4 = ex3;
 			_logger.LogWarning(ex4, "Failed to load the Kick auto-replies master toggle");
+		}
+	}
+
+	private async Task ReloadYouTubeAutoRepliesToggleAsync()
+	{
+		try
+		{
+			if (_dataService != null)
+			{
+				_youtubeAutoRepliesEnabled = !bool.TryParse(await _dataService.GetConfigValueAsync("Chat.YouTube.AutoRepliesEnabled"), out var enabled) || enabled;
+				_logger.LogInformation("YouTube auto-replies master toggle: {Enabled}", _youtubeAutoRepliesEnabled);
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.LogWarning(ex, "Failed to load the YouTube auto-replies master toggle");
+		}
+	}
+
+	private async Task ReloadDiscordAutoRepliesToggleAsync()
+	{
+		try
+		{
+			if (_dataService != null)
+			{
+				_discordAutoRepliesEnabled = !bool.TryParse(await _dataService.GetConfigValueAsync("Chat.Discord.AutoRepliesEnabled"), out var enabled) || enabled;
+				_logger.LogInformation("Discord auto-replies master toggle: {Enabled}", _discordAutoRepliesEnabled);
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.LogWarning(ex, "Failed to load the Discord auto-replies master toggle");
 		}
 	}
 
@@ -4647,7 +4687,36 @@ public class ChatViewModel : ViewModelBase
 			{ "tier", evt.Level },
 			{ "platform", "YouTube" }
 		};
-		await SaveEventStatisticAsync("YouTube", evt.IsMilestone ? "Resub" : "Subscribe", evt.Username, variables, wasAutoReplied: false);
+		bool wasAutoReplied = false;
+		// Membership auto-replies (Chat Hub → YouTube tab). The ChatEventSetting
+		// row uses the shared "Subscribe" vocabulary so conditional rules match
+		// across platforms; the chat line itself already comes from the synthetic
+		// message the publisher fires alongside this event, so none is added here.
+		ChatEventSetting membershipSettings = (await _eventSettingsService.GetSettingAsync("YouTube", "Subscribe")) ?? new ChatEventSetting
+		{
+			Platform = "YouTube",
+			EventType = "Subscribe",
+			ShowInChat = true,
+			AutoReplyEnabled = false,
+			SoundEnabled = false
+		};
+		if (_youtubeAutoRepliesEnabled && _youtubeService.IsConnected)
+		{
+			string reply = await BuildAutoReplyTextAsync("YouTube", "Subscribe", evt.Username, membershipSettings.AutoReplyEnabled && !string.IsNullOrEmpty(membershipSettings.AutoReplyMessage) ? membershipSettings.AutoReplyMessage : "", variables);
+			if (!string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.Username, "YouTube", "Subscribe"))
+			{
+				try
+				{
+					await _youtubeService.SendMessageAsync(reply);
+					wasAutoReplied = true;
+				}
+				catch (Exception ex)
+				{
+					_logger.LogWarning(ex, "Failed to send YouTube membership auto-reply for {Username}", evt.Username);
+				}
+			}
+		}
+		await SaveEventStatisticAsync("YouTube", evt.IsMilestone ? "Resub" : "Subscribe", evt.Username, variables, wasAutoReplied);
 	}
 
 	private async Task OnAccountsLinkedAsync(AccountsLinkedEvent evt)
@@ -7122,7 +7191,36 @@ public class ChatViewModel : ViewModelBase
 			{ "message", evt.Message ?? (evt.StickerDisplayText ?? "") },
 			{ "platform", "YouTube" }
 		};
-		await SaveEventStatisticAsync("YouTube", "Cheer", evt.Username, variables, wasAutoReplied: false);
+		bool wasAutoReplied = false;
+		// Super Chat auto-replies (Chat Hub → YouTube tab). The row uses the
+		// shared "Cheer" vocabulary (a Super Chat is YouTube's cheer equivalent);
+		// conditional rules can still supply the reply when the per-event default
+		// template is off, mirroring the Twitch cheer handler.
+		ChatEventSetting superChatSettings = (await _eventSettingsService.GetSettingAsync("YouTube", "Cheer")) ?? new ChatEventSetting
+		{
+			Platform = "YouTube",
+			EventType = "Cheer",
+			ShowInChat = true,
+			AutoReplyEnabled = false,
+			SoundEnabled = false
+		};
+		if (_youtubeAutoRepliesEnabled && _youtubeService.IsConnected)
+		{
+			string reply = await BuildAutoReplyTextAsync("YouTube", "Cheer", evt.Username, superChatSettings.AutoReplyEnabled && !string.IsNullOrEmpty(superChatSettings.AutoReplyMessage) ? superChatSettings.AutoReplyMessage : "", variables);
+			if (!string.IsNullOrEmpty(reply) && _autoReplyService.ShouldSendReply(evt.Username, "YouTube", "Cheer"))
+			{
+				try
+				{
+					await _youtubeService.SendMessageAsync(reply);
+					wasAutoReplied = true;
+				}
+				catch (Exception ex)
+				{
+					_logger.LogWarning(ex, "Failed to send YouTube super chat auto-reply for {Username}", evt.Username);
+				}
+			}
+		}
+		await SaveEventStatisticAsync("YouTube", "Cheer", evt.Username, variables, wasAutoReplied);
 	}
 
 	// Discord guild join = the platform's "new follower" moment. Mirrors the
@@ -7134,6 +7232,22 @@ public class ChatViewModel : ViewModelBase
 		if (!DiscordFilterEnabled)
 		{
 			return;
+		}
+		// Chat Hub → Discord tab backs this event with the ChatEventSetting row
+		// "Discord"/"Follow" (a guild join is Discord's follow moment): ShowInChat
+		// gates the system line, AutoReplyEnabled/Message supply the default
+		// template on top of the conditional-rules path.
+		ChatEventSetting settings = (await _eventSettingsService.GetSettingAsync("Discord", "Follow")) ?? new ChatEventSetting
+		{
+			Platform = "Discord",
+			EventType = "Follow",
+			ShowInChat = true,
+			AutoReplyEnabled = false,
+			SoundEnabled = false
+		};
+		if (_showEventsInChat && settings.ShowInChat)
+		{
+			await AddSystemMessageAsync("Discord", "\ud83c\udf89 " + (evt.DisplayName ?? evt.Username) + " joined the server!");
 		}
 		if (_soundService != null)
 		{
@@ -7158,11 +7272,10 @@ public class ChatViewModel : ViewModelBase
 		// Conditional rules DO apply to Discord (the rules UI offers Platform
 		// "Discord" and "All"; the store query ORs them in). A guild join is
 		// Discord's "Follow" moment, so rules are looked up with that shared
-		// event vocabulary. No ChatEventSetting default message exists for
-		// Discord, so the reply is non-empty only when a rule matched.
-		if (_discordService.IsConnected)
+		// event vocabulary; the Chat Hub default template layers on top.
+		if (_discordAutoRepliesEnabled && _discordService.IsConnected)
 		{
-			string rulesReply = await BuildAutoReplyTextAsync("Discord", "Follow", evt.Username, "", variables);
+			string rulesReply = await BuildAutoReplyTextAsync("Discord", "Follow", evt.Username, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
 			if (!string.IsNullOrEmpty(rulesReply) && _autoReplyService.ShouldSendReply(evt.Username, "Discord", "Follow"))
 			{
 				try
@@ -7188,6 +7301,22 @@ public class ChatViewModel : ViewModelBase
 		{
 			return;
 		}
+		// Chat Hub → Discord tab backs this event with the ChatEventSetting row
+		// "Discord"/"Subscribe" (a boost is Discord's subscribe counterpart):
+		// ShowInChat gates the system line, AutoReplyEnabled/Message supply the
+		// default template on top of the conditional-rules path.
+		ChatEventSetting settings = (await _eventSettingsService.GetSettingAsync("Discord", "Subscribe")) ?? new ChatEventSetting
+		{
+			Platform = "Discord",
+			EventType = "Subscribe",
+			ShowInChat = true,
+			AutoReplyEnabled = false,
+			SoundEnabled = false
+		};
+		if (_showEventsInChat && settings.ShowInChat)
+		{
+			await AddSystemMessageAsync("Discord", "\ud83d\ude80 " + (evt.DisplayName ?? evt.Username) + " boosted the server!");
+		}
 		if (_soundService != null)
 		{
 			try
@@ -7210,10 +7339,11 @@ public class ChatViewModel : ViewModelBase
 		bool wasAutoReplied = false;
 		// Same conditional-rules hookup as MemberJoined: a boost is Discord's
 		// counterpart of a subscribe, so rules fire on the shared "Subscribe"
-		// event type (Platform "Discord" and "All" both match in the store).
-		if (_discordService.IsConnected)
+		// event type (Platform "Discord" and "All" both match in the store);
+		// the Chat Hub default template layers on top.
+		if (_discordAutoRepliesEnabled && _discordService.IsConnected)
 		{
-			string rulesReply = await BuildAutoReplyTextAsync("Discord", "Subscribe", evt.Username, "", variables);
+			string rulesReply = await BuildAutoReplyTextAsync("Discord", "Subscribe", evt.Username, settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage) ? settings.AutoReplyMessage : "", variables);
 			if (!string.IsNullOrEmpty(rulesReply) && _autoReplyService.ShouldSendReply(evt.Username, "Discord", "Subscribe"))
 			{
 				try

@@ -10,7 +10,7 @@ Where variables are actually resolved differs by feature, and the differences ma
 
 - **Command responses** get the full engine — DB variables (socials, platform stats) *and* per-command context (`{username}`, `{balance}`, ...) all resolve.
 - **Manually sent chat messages** also get the full engine whenever the text contains a `{`.
-- **Auto-reply templates** do *not* use this engine — they go through a simple string-replace over just the keys the event handler supplies, so `{twitter}` and other DB variables never resolve there. See [Auto-Replies](auto-replies.md).
+- **Auto-reply templates** get the engine too (since 1.1.0) — after the handler's context keys are substituted, the reply passes through this same engine, so `{twitter}` and other DB variables resolve there as well. See [Auto-Replies](auto-replies.md).
 
 The full variable list is also catalogued in the [Variables Catalog](../reference/variables-catalog.md).
 
@@ -71,7 +71,7 @@ The placeholder grammar is the regex `\{([a-z0-9]+(-[a-z0-9]+)*)\}` (case-insens
 |---|---|---|
 | Command responses ([Commands](commands.md)) | Full service (sync-over-async from `CommandService.ParseVariables`) | `username`, `platform`, `channel`, `balance`, `role` + custom per-command variables |
 | Manual chat sends ([Sending Messages](../chat/sending-messages.md)) | Full service, only when the typed text contains `{` | `BuildContextVariables`: `bot-username`, `channel`, `platform` |
-| Auto-reply templates ([Auto-Replies](auto-replies.md)) | **Simple `string.Replace`** (`AutoReplyService.ProcessTemplate`) — DB/social variables do NOT resolve | Only the keys the event handler passes (`{username}`, `{platform}`, event fields) |
+| Auto-reply templates ([Auto-Replies](auto-replies.md)) | Two passes: context-key `string.Replace` (`ProcessTemplate`), then the **full service** via `BuildAutoReplyTextAsync` (since 1.1.0) | The keys the event handler passes (`{username}`, `{platform}`, event fields) as the merge context |
 
 ### The app-wide picker
 
@@ -128,7 +128,7 @@ if (contextVariables != null)
 
 ## Status & Known Issues
 
-- **Auto-reply templates bypass this engine.** `AutoReplyService.ProcessTemplate` is a simple string replace over handler-supplied keys, so `{twitter}`, `{full-socials}`, and the auto-updating platform variables never resolve in auto-replies — only command responses and manual sends get the full catalog. See [Auto-Replies](auto-replies.md). — [known issues ledger](../reference/known-issues.md)
+- **Auto-reply templates use this engine too** (since 1.1.0, KI-12/KI-28 resolved) — `ProcessTemplate` substitutes the handler keys first, then `BuildAutoReplyTextAsync` runs the full service, so `{twitter}`, `{full-socials}`, and the auto-updating platform variables resolve in auto-replies. See [Auto-Replies](auto-replies.md). — [known issues ledger](../reference/known-issues.md)
 - The **VariablePicker only shows variables with values**, so system/context variables (`{username}`, `{balance}`, ...) never appear in it even though they work in command responses. The five command variables are instead documented on the Commands page Help tab.
 - The Variables manager has **no sidebar entry** — it is reachable only via Settings → Variables. (It is fully wired there: category button, hosted panel, working CRUD.)
 - The cache is 5 minutes; edits through the manager invalidate it immediately, but **external edits** to the database (e.g. by hand) take up to 5 minutes to surface.

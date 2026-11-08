@@ -109,7 +109,7 @@
                                        MinWidth="50"/>
                         </Grid>
 
-                        <TextBlock Text="Master volume affects all event sounds" 
+                        <TextBlock Text="Master volume affects all event sounds; changes apply automatically (no save needed)" 
                                    Foreground="{DynamicResource MaterialDesignBodyLight}" 
                                    Margin="0,5,0,0"/>
                     </StackPanel>
@@ -185,13 +185,21 @@
                                        VerticalAlignment="Center" 
                                        Margin="0,0,10,0"/>
 
+                            <!-- Read-only mirror: the audio-ws endpoint rides the embedded
+                                 web server, so the port is owned by Web Server settings. -->
                             <TextBox Grid.Column="1" 
-                                     Text="{Binding WebSocketPort, UpdateSourceTrigger=PropertyChanged}" 
+                                     Text="{Binding WebSocketPort, Mode=OneWay}" 
+                                     IsReadOnly="True"
                                      Style="{StaticResource MaterialDesignOutlinedTextBox}"
-                                     materialDesign:HintAssist.Hint="Port (fixed at 5000)"
+                                     materialDesign:HintAssist.Hint="Managed in Web Server settings"
                                      Width="150"
                                      HorizontalAlignment="Left"/>
                         </Grid>
+
+                        <TextBlock Text="The audio browser source shares the embedded web server's port. Change it in Web Server settings; a new port takes effect after an app restart (Restart Server below reuses the port loaded at startup)."
+                                   Foreground="{DynamicResource MaterialDesignBodyLight}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,5,0,0"/>
 
                         <Button Content="Restart Server" 
                                 Command="{Binding RestartServerCommand}" 

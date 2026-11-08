@@ -91,13 +91,13 @@ The seeded `!socials` and `!discord` built-in commands reference `{twitter}`, `{
 
 ## Where variables resolve (and where they do not)
 
-Three replacement paths exist in the app, and they do **not** behave the same:
+Three replacement paths exist in the app, and since 1.1.0 they converge on the same engine:
 
 1. **Command responses** (full engine): `CommandService.ParseVariables` → `VariableReplacementService.ReplaceVariablesAsync`. DB variables, auto-updating variables, and social variables all resolve, merged under the command context keys. Note this call is sync-over-async (`.GetAwaiter().GetResult()`).
 2. **Manual chat sends** (full engine): in `ChatViewModel`, when the typed message contains `{`, a context (`bot-username`, `channel`, `platform`) is built and the full engine runs before sending — to one platform or the fan-out "send to all". See [Sending Messages](../chat/sending-messages.md).
-3. **Event auto-reply templates** (simple replace — the big difference): `AutoReplyService.ProcessTemplate` (`AutoReplyService.cs:37-51`) is a plain case-insensitive `string.Replace` over the keys the event handler passes in — typically `{username}`, `{platform}`, and event fields (`{months}`, `{count}`, `{gifter}`, `{raider}`, `{viewers}`, `{bits}`, `{reward}`, `{amount}`, ...).
+3. **Event auto-reply templates** (two passes): `AutoReplyService.ProcessTemplate` (`AutoReplyService.cs:37-51`) first substitutes the handler-supplied context keys — `{username}`, `{platform}`, and event fields (`{months}`, `{count}`, `{gifter}`, `{raider}`, `{viewers}`, `{bits}`, `{reward}`, `{amount}`, ...) — then `ChatViewModel.BuildAutoReplyTextAsync` runs the result through the full `VariableReplacementService` (ChatViewModel.cs:4334-4348).
 
-> **Auto-reply templates do NOT resolve database or social variables.** `{twitter}` or `{followercount}`-style placeholders in an auto-reply are sent literally. Only the context keys above are replaced. (The stray-`@` half of the old issue is fixed — seeds and defaults now use plain `{username}` tokens.) This limitation is tracked as [Known Issues](known-issues.md) KI-12/KI-28. Details: [Auto-Replies](../chat-features/auto-replies.md).
+> **Auto-reply templates resolve database and social variables** (since 1.1.0 — KI-12/KI-28 resolved): after the context-key pass, `{twitter}` or `{followercount}`-style placeholders resolve through the same engine commands use. Keys neither pass knows are left verbatim, and a `@` you write in front of an unsupplied variable is still sent literally (the shipped defaults no longer do this). Details: [Auto-Replies](../chat-features/auto-replies.md).
 
 Alerts/overlays are fed from event properties directly, not through this engine. The condition/rule engine (`RuleEvaluator`) does not resolve variables at all.
 
@@ -114,6 +114,6 @@ The **VariablePicker** is attached to every TextBox application-wide (global sty
 ## See also
 
 - [Command Catalog](command-catalog.md) — which templates use which variables
-- [Auto-Replies](../chat-features/auto-replies.md) — the simple-replace path and its limitations
+- [Auto-Replies](../chat-features/auto-replies.md) — the two-pass template path
 - [Database Reference](database-reference.md) — the `Variables` table schema
-- [Known Issues Ledger](known-issues.md) — KI-12/KI-28 (auto-reply variable limitations)
+- [Known Issues Ledger](known-issues.md) — KI-12/KI-28 (auto-reply variable resolution — resolved 1.1.0)

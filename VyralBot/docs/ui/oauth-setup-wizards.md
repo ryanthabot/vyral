@@ -10,6 +10,9 @@ Browser-based OAuth setup ViewModels and views for platform authentication.
 - **Class:** `BaseOAuthSetupViewModel : ViewModelBase` (abstract)
 - **Constructor:** `ILogger`, `IDataService`
 - **Purpose:** Shared OAuth setup logic with WebView2 integration
+- **Secrets policy:** client IDs/secrets, modal inputs (e.g. the ngrok auth
+  token) and OAuth callback URLs (they carry the authorization code) are never
+  logged — log statements record the outcome only
 
 ### BaseWebSetupViewModel
 - **File:** `src/VyralBot.UI/ViewModels/BaseWebSetupViewModel.cs` (~228 lines)
@@ -33,23 +36,39 @@ Browser-based OAuth setup ViewModels and views for platform authentication.
 - **View:** `src/VyralBot.UI/Views/KickWebSetupView.xaml(.cs)`
 
 ### GoogleDemoSetupViewModel
-- **File:** `src/VyralBot.UI/ViewModels/GoogleDemoSetupViewModel.cs` (~113 lines)
+- **File:** `src/VyralBot.UI/ViewModels/GoogleDemoSetupViewModel.cs` (~125 lines)
 - **Class:** `GoogleDemoSetupViewModel : BaseOAuthSetupViewModel`
 - **View:** `src/VyralBot.UI/Views/GoogleDemoSetupView.xaml(.cs)`
+- **Demo safety:** credentials are kept in process-scoped environment variables
+  (session memory only, never persisted); the OAuth callback returns dummy
+  tokens only and rejects callbacks without an authorization code (truthful
+  error path); scopes are read-only identity (`openid email profile`)
 
 ### NgrokSetupWizardViewModel
-- **File:** `src/VyralBot.UI/ViewModels/NgrokSetupWizardViewModel.cs` (~416 lines)
+- **File:** `src/VyralBot.UI/ViewModels/NgrokSetupWizardViewModel.cs` (~470 lines)
 - **Class:** `NgrokSetupWizardViewModel : BaseOAuthSetupViewModel`
 - **View:** `src/VyralBot.UI/Views/NgrokSetupWizardView.xaml(.cs)`
 - **Token persistence:** the auth token is saved to `ngrok_credentials.json` in
   the profile credentials folder via `NgrokService.SaveAuthTokenAsync` and is
   restored on wizard open / `LoadCredentialsAsync` via `NgrokService.LoadAuthTokenAsync`
-  (masked in UI and logs — never logged in clear)
+  (masked in UI and logs — never logged in clear). The token is NOT passed to
+  `ngrok config add-authtoken` — that would expose it on a machine-readable
+  command line; `NgrokService.StartTunnelAsync` passes `--authtoken` instead.
+- **Token entry:** masked PasswordBox in the modal (code-behind feeds
+  `ModalInput`, clears the box when the modal closes).
+- **Process handling:** all external processes (store deep link, `ngrok version`
+  check) go through `IProcessManager` — no raw `Process.Start` in the wizard.
+- **Test lifecycle:** the Step 4 test captures whether the web server / ngrok
+  tunnel were already running and only stops what it started itself, so a live
+  webhook tunnel is never torn down by the wizard. Distinct error states for
+  "not installed" vs "port in use" vs "bad token"; public URL has a copy button.
 
 ### DemoSetupViewModel
 - **File:** `src/VyralBot.UI/ViewModels/DemoSetupViewModel.cs` (~75 lines)
 - **Class:** `DemoSetupViewModel : BaseWebSetupViewModel`
 - **View:** `src/VyralBot.UI/Views/DemoSetupView.xaml(.cs)`
+- **Demo safety:** the Client ID modal discards its input (nothing persisted,
+  nothing logged) — component demo only, not reachable from the sidebar
 
 ### GenericWebSetupView
 - **View:** `src/VyralBot.UI/Views/GenericWebSetupView.xaml(.cs)`

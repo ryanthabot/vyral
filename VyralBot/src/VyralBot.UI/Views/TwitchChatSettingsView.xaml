@@ -200,10 +200,50 @@
                                 FontSize="11" Margin="0,0,0,4" TextWrapping="Wrap"
                                 materialDesign:HintAssist.Hint="Message template"
                                 IsEnabled="{Binding CheerAutoReplyEnabled}"/>
-                        <TextBlock Text="Variables: {username}, {bits}" FontSize="10" 
+                        <TextBlock Text="Variables: {username}, {bits}" FontSize="10"
                                 Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                     </StackPanel>
                 </Expander>
+
+                <!-- Channel Point Redemption Events -->
+                <Expander Header="🎯 Channel Point Redemption Events" Margin="0,0,0,8">
+                    <StackPanel Margin="8,8,0,0">
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center"/>
+                            <ToggleButton Grid.Column="1" IsChecked="{Binding ShowRewardsInChat, Mode=TwoWay}"
+                                        Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center"/>
+                            <ToggleButton Grid.Column="1" IsChecked="{Binding RewardAutoReplyEnabled, Mode=TwoWay}"
+                                        Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
+                        </Grid>
+
+                        <TextBox Text="{Binding RewardAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                FontSize="11" Margin="0,0,0,4" TextWrapping="Wrap"
+                                materialDesign:HintAssist.Hint="Message template"
+                                IsEnabled="{Binding RewardAutoReplyEnabled}"/>
+                        <TextBlock Text="Variables: {username}, {reward}, {cost}, {input}" FontSize="10"
+                                Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                    </StackPanel>
+                </Expander>
+
+                <!-- Display preferences (same keys as the Chat Hub Display Options) -->
+                <Separator Margin="0,8"/>
+                <StackPanel Orientation="Vertical" Margin="0,0,0,4">
+                    <CheckBox Content="Show Badges" FontSize="12" IsChecked="{Binding ShowBadges, Mode=TwoWay}" Margin="0,0,0,4"/>
+                    <CheckBox Content="Show Timestamps" FontSize="12" IsChecked="{Binding ShowTimestamps, Mode=TwoWay}" Margin="0,0,0,4"/>
+                    <CheckBox Content="Compact Mode" FontSize="12" IsChecked="{Binding CompactMode, Mode=TwoWay}"/>
+                </StackPanel>
 
                 <!-- Save Button -->
                 <Button Content="Save Settings" Command="{Binding SaveSettingsCommand}"

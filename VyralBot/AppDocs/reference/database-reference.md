@@ -113,7 +113,7 @@ Key families actually used in the `Configs` table (grep of `Get/SetConfigValueAs
 
 | Key | Contents | Written by |
 |---|---|---|
-| `AudioSettings` | JSON blob: `StreamerSoundsEnabled`, `StreamSoundsEnabled`, `MasterVolume`, `WebSocketPort` (port is pinned to 5000 by the VM — KI-16) | [AudioSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/AudioSettingsViewModel.cs) |
+| `AudioSettings` | JSON blob: `StreamerSoundsEnabled`, `StreamSoundsEnabled`, `MasterVolume`, `WebSocketPort` (informational mirror of the web-server port — KI-16 resolved) | [AudioSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/AudioSettingsViewModel.cs) |
 | `AlertSettings` | JSON blob: `AlertsEnabled`, `DurationSeconds` (1–15), `Animation` (SlideInFromTop/SlideInFromBottom/FadeIn/Bounce), `Position` (9-grid), `FollowAlertsEnabled`, `SubscribeAlertsEnabled`, `GiftSubAlertsEnabled`, `RaidAlertsEnabled`, `HostAlertsEnabled`, `CheerAlertsEnabled` | [AlertSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/AlertSettingsViewModel.cs); read by [AlertService.cs](../../src/VyralBot.UI/Services/AlertService.cs) when real alerts fire |
 | `Kick.AutoRepliesEnabled` | Kick auto-replies toggle ("True"/"False") | [KickSettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/KickSettingsViewModel.cs) |
 | `Support.DiscordUrl` | Discord invite URL opened by the Home page's Discord support row (category "Support") | Settings → Profile → **Support Links** card ([SettingsViewModel.cs](../../src/VyralBot.UI/ViewModels/SettingsViewModel.cs)); read by `MainViewModel.OpenDiscordLinkCommand` |

@@ -4,7 +4,7 @@
 
 ## Overview
 
-The Statistics page aggregates past stream events (follows, subs, raids, cheers, and so on) into an event-count grid, per-event top-contributor leaderboards, and an all-time top-users list, with a date range, platform, and event-type filter plus CSV export.
+The Statistics page aggregates past stream events (follows, subs, raids, cheers, and so on) into **bar charts**, an event-count grid, per-event top-contributor leaderboards, and an all-time top-users list, with a date range, platform, and event-type filter plus CSV export. The charts (added 1.1.0) are drawn by a dependency-free `SimpleBarChart` control with bars colored per platform.
 
 Since the 2026-08-15 fix pass, the event handlers in `ChatViewModel` persist an `EventStatistic` row after reacting to an event (`EventData` = the handler's variable dictionary as JSON; `WasAutoReplied` accurate), so the page fills with real traffic and the CSV export produces real rows. The handler family has since grown: Twitch **Reward Redeemed** (Channel Points), YouTube **Super Chat** (recorded under `YouTube / Cheer`), and the intent-gated Discord member-join/boost handlers all write rows too. One caveat: the six handlers whose whole chain is gated on Show-in-chat (Kick GiftSub/Host/KicksGifted/RewardRedeemed/StreamStatus + Twitch GiftSub) skip recording when "Show in chat" is off, so those event types are missing from statistics in that case — KI-26 in the [known issues ledger](../reference/known-issues.md). The [Event History](../chat-features/event-history.md) page reads the same table.
 
@@ -17,15 +17,17 @@ Open **Stream Tools → Statistics** in the sidebar (or the Statistics card on t
 | Filter | Values | Notes |
 |---|---|---|
 | **Start Date / End Date** | Any dates | Defaults to today minus 30 days through today. Applied to every section. |
-| **Platform** | All (blank) / Kick / Twitch | Applies to the **Top Contributors** table and — since the 2026-08-15 fix — to the **event-count grid and Top Users** list too. |
+| **Platform** | All (blank) / Kick / Twitch / YouTube / Discord / TikTok | Applies to the **Top Contributors** table and — since the 2026-08-15 fix — to the **event-count grid and Top Users** list too. |
 | **Event Type** | All / follow / subscribe / giftsub / raid / cheer / host | Switching away from "All" loads the Top Contributors table for that event type. |
 
 Press **Refresh** (or change the platform filter) to reload everything with the current settings.
 
 ### What the page shows
 
+- **Events by type (selected range)** — a horizontal **bar chart** above the event-count grid: the top 8 event types in the range, sums across platforms when "All" is selected, each bar colored by the platform that contributed the most (Twitch purple, Kick green, YouTube red, Discord blue, TikTok — anything else uses the theme primary). Hover a bar for the platform and count; an italic empty-state line appears when the range has no events.
 - **Event Counts** — a grid of Platform × Event Type rows with a Count each, plus a Total Events figure. In practice this is where you would see "Kick / follow / 214" style rows.
-- **Top Contributors** (top 20) — for the selected event type, which users triggered it and how often (`Count`), plus a `TotalValue` summed from the event's data JSON (gift-sub counts, raid viewers, bits, and similar). Hidden while Event Type is "All".
+- **Top contributors (selected event type)** — a second **bar chart**: the top 8 users for the selected event type, one bar per user colored by their platform, width normalized to the leader.
+- **Top Contributors** (top 20) — the full grid under the chart: which users triggered the event and how often (`Count`), plus a `TotalValue` summed from the event's data JSON (gift-sub counts, raid viewers, bits, and similar). Loaded only when a specific event type is selected (the chart shows a hint to that effect while Event Type is "All").
 - **Top Users** (top 20) — the users with the most events of any type in the date range, ordered by event count.
 
 ### Export to CSV
@@ -57,7 +59,8 @@ The `EventData` JSON matters for contributor ranking: the keys `count`, `amount`
 - `GetTopContributorsAsync` (`StatisticsService.cs:83-105`) groups by (username, platform), counts rows, and sums a numeric value extracted from each row's `EventData` JSON by `ExtractValueFromEventData` (`StatisticsService.cs:210-242`), which probes the keys `count`, `amount`, `viewers`, `bits`, then `value`. Rows sort by `TotalValue` when any is non-zero, otherwise by `Count`.
 - `GetTopUsersAsync` (`StatisticsService.cs:107-128`) — same grouping across all event types, sorted by count; the platform filter is applied here too (fixed 2026-08-15).
 - `ExportToCsvAsync` (`StatisticsService.cs:130-152`) — pulls up to 100,000 rows, filters by date, and emits quoted CSV.
-- `GetUserStatisticsAsync` and `GetEventCountsByDateAsync` (chart-ready per-day buckets) exist on the interface but are not surfaced by any UI.
+- `GetUserStatisticsAsync` and `GetEventCountsByDateAsync` (chart-ready per-day buckets) remain without UI consumers — the shipped charts are built client-side from the grid collections instead.
+- The charts themselves are pure UI aggregation: `StatisticsChartBuilder` (in [StatisticsViewModel.cs](../../src/VyralBot.UI/ViewModels/StatisticsViewModel.cs)) groups the loaded event-count rows by type (top 8, deterministic ties) and maps contributors to bars, all in testable static code with no data access. [SimpleBarChart.cs](../../src/VyralBot.UI/Controls/Charts/SimpleBarChart.cs) is a dependency-free `ItemsControl` whose default theme in [Themes/Generic.xaml](../../src/VyralBot.UI/Themes/Generic.xaml) colors each bar via `Platform` DataTriggers against `TwitchBrush`/`KickBrush`/`YouTubeBrush`/`DiscordBrush`/`TikTokBrush` (falling back to `PrimaryBrush`), all through `DynamicResource` so a theme switch re-colors live.
 
 **The write side.** `IDataService.SaveEventStatisticAsync` (`IDataService.cs:62`), implemented in `DapperDataService.cs:264` and forwarded by `ProfileAwareDataService.cs:110`, is called by all 13 per-event handlers in `ChatViewModel` (the same handlers that drive sounds, alerts, currency, and auto-replies — see [Event Reactions](../chat/event-reactions.md)), with the handler's variable dictionary serialized into `EventData` and `WasAutoReplied` set from the auto-reply outcome. The six ShowInChat-gated handlers skip the write when "Show in chat" is off (KI-26).
 
@@ -82,8 +85,10 @@ var userStats = stats
 
 | File | Role |
 |---|---|
-| [StatisticsView.xaml](../../src/VyralBot.UI/Views/StatisticsView.xaml) | The Statistics page — filter bar, event-count grid, contributor and top-user tables, export button. |
-| [StatisticsViewModel.cs](../../src/VyralBot.UI/ViewModels/StatisticsViewModel.cs) | Page logic: filters (defaults at `StatisticsViewModel.cs:60-63`), loading, CSV save dialog. |
+| [StatisticsView.xaml](../../src/VyralBot.UI/Views/StatisticsView.xaml) | The Statistics page — filter bar, overview + contributor bar charts, event-count grid, contributor and top-user tables, export button. |
+| [StatisticsViewModel.cs](../../src/VyralBot.UI/ViewModels/StatisticsViewModel.cs) | Page logic: filters (defaults at `StatisticsViewModel.cs:60-63`), loading, chart item building (`StatisticsChartBuilder`), CSV save dialog. |
+| [SimpleBarChart.cs](../../src/VyralBot.UI/Controls/Charts/SimpleBarChart.cs) | Dependency-free bar chart control (`BarChartItem` rows: label, platform, value, normalized fraction). |
+| [Themes/Generic.xaml](../../src/VyralBot.UI/Themes/Generic.xaml) | Default chart theme incl. the per-platform bar colors. |
 | [StatisticsService.cs](../../src/VyralBot.Core/Services/Statistics/StatisticsService.cs) | Aggregation engine + `IStatisticsService` + `UserStatistic`/`UserStatisticDetail` models. |
 | [EventStatistic.cs](../../src/VyralBot.Data/Entities/EventStatistic.cs) | `EventStatistic` entity — the row shape the whole page depends on. |
 | [DapperDataService.cs](../../src/VyralBot.Data/DapperDataService.cs) | SQLite: table creation (`:2397`), reads (`GetEventStatisticsAsync`), and `SaveEventStatisticAsync` (`:264`, called by the event handlers). |
@@ -94,7 +99,7 @@ var userStats = stats
 
 ## Data & Settings
 
-- **EventStatistics** — one row per event occurrence: `Platform` ("Kick"/"Twitch"), `EventType` (lowercase strings like "follow", "raid"), `Username`, `EventData` (JSON blob; `count`/`amount`/`viewers`/`bits`/`value` keys are what contributor ranking reads), `Timestamp`, `WasAutoReplied`, `CreatedAt`. Created at `DapperDataService.cs:2397`.
+- **EventStatistics** — one row per event occurrence: `Platform` ("Kick"/"Twitch"/"YouTube"/"Discord"), `EventType` (lowercase strings like "follow", "raid"), `Username`, `EventData` (JSON blob; `count`/`amount`/`viewers`/`bits`/`value` keys are what contributor ranking reads), `Timestamp`, `WasAutoReplied`, `CreatedAt`. Created at `DapperDataService.cs:2397`.
 
 There are no statistics-specific settings. The same table backs the [Event History](../chat-features/event-history.md) page.
 
@@ -105,4 +110,4 @@ There are no statistics-specific settings. The same table backs the [Event Histo
 - **The Platform filter applies to every section** — event-count grid, Top Contributors, and Top Users (fixed 2026-08-15).
 - **Event-type filter offers a fixed list** — All, follow, subscribe, giftsub, raid, cheer, host (`StatisticsViewModel.cs:48`); other event types (resub, reward redeems, stream status) are recorded but not selectable in the filter.
 - **Aggregation is client-side** — up to 10,000 rows (100,000 for export) are pulled and grouped in memory rather than aggregated in SQL; fine for realistic volumes, worth knowing for very large datasets.
-- **Per-day chart data is implemented but unreachable** — `GetEventCountsByDateAsync` has no UI consumer; the page renders DataGrids only, with no chart visualizations (KI-54). [known issues ledger](../reference/known-issues.md)
+- **Bar charts ship (KI-54 resolved, 1.1.0)** — overview (events by type) and top-contributor charts render above their grids, platform-colored. The per-day trend API `GetEventCountsByDateAsync` still has no UI consumer — a time-axis chart remains future work. [known issues ledger](../reference/known-issues.md)

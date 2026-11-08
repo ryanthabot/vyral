@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:converters="clr-namespace:VyralBot.UI.Converters"
+             xmlns:charts="clr-namespace:VyralBot.UI.Controls.Charts"
              mc:Ignorable="d" 
              d:DesignHeight="700" d:DesignWidth="1000">
     <UserControl.Resources>
@@ -107,32 +108,52 @@
             <TabControl Grid.Row="1" materialDesign:ColorZoneAssist.Mode="PrimaryMid">
                 <!-- Event Counts Tab -->
                 <TabItem Header="Event Counts">
-                    <materialDesign:Card Margin="10">
-                        <DataGrid ItemsSource="{Binding EventCounts}" 
-                                  AutoGenerateColumns="False"
-                                  CanUserAddRows="False"
-                                  IsReadOnly="True"
-                                  Margin="10">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Platform" Binding="{Binding Platform}" Width="150"/>
-                                <DataGridTextColumn Header="Event Type" Binding="{Binding EventType}" Width="200"/>
-                                <DataGridTextColumn Header="Count" Binding="{Binding Count}" Width="*">
-                                    <DataGridTextColumn.ElementStyle>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="FontWeight" Value="Bold"/>
-                                            <Setter Property="HorizontalAlignment" Value="Right"/>
-                                        </Style>
-                                    </DataGridTextColumn.ElementStyle>
-                                </DataGridTextColumn>
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </materialDesign:Card>
+                    <Grid Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Overview chart: top event types in the selected range -->
+                        <materialDesign:Card Grid.Row="0" Padding="15" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Events by type (selected range)"
+                                           Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                                           Margin="0,0,0,10"/>
+                                <charts:SimpleBarChart ItemsSource="{Binding EventTypeChartItems}"
+                                                       LabelWidth="140"
+                                                       EmptyText="No events in the selected range"/>
+                            </StackPanel>
+                        </materialDesign:Card>
+
+                        <materialDesign:Card Grid.Row="1">
+                            <DataGrid ItemsSource="{Binding EventCounts}"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      IsReadOnly="True"
+                                      Margin="10">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Platform" Binding="{Binding Platform}" Width="150"/>
+                                    <DataGridTextColumn Header="Event Type" Binding="{Binding EventType}" Width="200"/>
+                                    <DataGridTextColumn Header="Count" Binding="{Binding Count}" Width="*">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="FontWeight" Value="Bold"/>
+                                                <Setter Property="HorizontalAlignment" Value="Right"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </materialDesign:Card>
+                    </Grid>
                 </TabItem>
 
                 <!-- Top Contributors Tab -->
                 <TabItem Header="Top Contributors">
                     <Grid Margin="10">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
@@ -141,19 +162,31 @@
                         <materialDesign:Card Grid.Row="0" Padding="15" Margin="0,0,0,10">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Event Type:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                <ComboBox ItemsSource="{Binding AvailableEventTypes}" 
+                                <ComboBox ItemsSource="{Binding AvailableEventTypes}"
                                           SelectedItem="{Binding SelectedEventType}"
                                           MinWidth="150"/>
-                                <TextBlock Text="(Shows users with most contributions for selected event)" 
-                                           VerticalAlignment="Center" 
+                                <TextBlock Text="(Shows users with most contributions for selected event)"
+                                           VerticalAlignment="Center"
                                            Margin="15,0,0,0"
                                            Foreground="{DynamicResource MaterialDesignBodyLight}"
                                            FontStyle="Italic"/>
                             </StackPanel>
                         </materialDesign:Card>
 
+                        <!-- Top contributors chart: top-8 bars for the selected event type -->
+                        <materialDesign:Card Grid.Row="1" Padding="15" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Top contributors (selected event type)"
+                                           Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                                           Margin="0,0,0,10"/>
+                                <charts:SimpleBarChart ItemsSource="{Binding ContributorChartItems}"
+                                                       LabelWidth="140"
+                                                       EmptyText="No contributors yet — pick a specific event type and refresh"/>
+                            </StackPanel>
+                        </materialDesign:Card>
+
                         <!-- Top Contributors List -->
-                        <materialDesign:Card Grid.Row="1">
+                        <materialDesign:Card Grid.Row="2">
                             <DataGrid ItemsSource="{Binding TopContributors}" 
                                       AutoGenerateColumns="False"
                                       CanUserAddRows="False"

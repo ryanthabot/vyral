@@ -362,6 +362,20 @@ public partial class MainViewModel : ViewModelBase
         var soundService = _serviceProvider.GetRequiredService<Core.Services.Audio.ISoundService>();
         await soundService.InitializeDefaultSoundsAsync();
 
+        // Global soundboard hotkeys (KI-55): re-register this profile's saved
+        // hotkeys now that the profile data store is live. Runs on every profile
+        // (re)load; the service unregisters the previous profile's slots first
+        // and skips entries whose sound file is gone.
+        try
+        {
+            var hotkeyService = _serviceProvider.GetRequiredService<Services.Hotkey.GlobalHotkeyService>();
+            await hotkeyService.RestoreSavedHotkeysAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error restoring saved sound hotkeys");
+        }
+
         // ========================================================================
         // CREATE ESSENTIAL VIEWMODELS ONLY (lazy-load Platforms/Settings on demand)
         // ========================================================================

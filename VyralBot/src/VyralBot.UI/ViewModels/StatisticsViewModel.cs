@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using VyralBot.Core.Services.Statistics;
+using VyralBot.UI.Controls.Charts;
 
 namespace VyralBot.UI.ViewModels;
 
@@ -26,6 +27,14 @@ public partial class StatisticsViewModel : ViewModelBase
 
     [ObservableProperty]
     private ObservableCollection<UserStatistic> _topUsers = new();
+
+    /// <summary>Overview chart bars: top event types in the selected range (main tab).</summary>
+    [ObservableProperty]
+    private ObservableCollection<BarChartItem> _eventTypeChartItems = new();
+
+    /// <summary>Top-contributor chart bars (Top Contributors tab).</summary>
+    [ObservableProperty]
+    private ObservableCollection<BarChartItem> _contributorChartItems = new();
 
     [ObservableProperty]
     private string _selectedEventType = "All";
@@ -132,6 +141,14 @@ public partial class StatisticsViewModel : ViewModelBase
                 }
             }
 
+            // Overview chart: top-8 event types by aggregated count (same rows as
+            // the grid above — no extra query).
+            EventTypeChartItems.Clear();
+            foreach (var bar in StatisticsChartBuilder.BuildEventTypeChartItems(EventCounts))
+            {
+                EventTypeChartItems.Add(bar);
+            }
+
             // Load top contributors for selected event type
             await LoadTopContributorsAsync();
 
@@ -178,6 +195,7 @@ public partial class StatisticsViewModel : ViewModelBase
         if (SelectedEventType == "All")
         {
             TopContributors.Clear();
+            ContributorChartItems.Clear();
             return;
         }
 
@@ -186,6 +204,13 @@ public partial class StatisticsViewModel : ViewModelBase
         foreach (var contributor in contributors)
         {
             TopContributors.Add(contributor);
+        }
+
+        // Contributor chart reuses the rows just loaded into the grid.
+        ContributorChartItems.Clear();
+        foreach (var bar in StatisticsChartBuilder.BuildContributorChartItems(TopContributors))
+        {
+            ContributorChartItems.Add(bar);
         }
     }
 
@@ -327,4 +352,83 @@ public class EventCountSummary
     public string Platform { get; set; } = string.Empty;
     public string EventType { get; set; } = string.Empty;
     public int Count { get; set; }
+}
+
+/// <summary>
+/// Pure aggregation/normalization for the statistics bar charts (KI-54).
+/// No data access — builds <see cref="BarChartItem"/> rows from collections
+/// the view model has already loaded, so it is directly unit-testable.
+/// </summary>
+public static class StatisticsChartBuilder
+{
+    /// <summary>
+    /// Overview chart: group the event-count grid rows by event type (summing
+    /// counts across platforms when "All" is selected); each bar is colored by
+    /// the platform that contributed the most rows for that type. Top-N by
+    /// total count, bar width normalized to the largest total.
+    /// </summary>
+    public static IReadOnlyList<BarChartItem> BuildEventTypeChartItems(IEnumerable<EventCountSummary> rows, int maxItems = 8)
+    {
+        var grouped = rows
+            .GroupBy(r => r.EventType, StringComparer.OrdinalIgnoreCase)
+            .Select(g => (Label: g.Key,
+                          Platform: g.OrderByDescending(r => r.Count)
+                                     .ThenBy(r => r.Platform, StringComparer.Ordinal)
+                                     .First().Platform,
+                          Value: g.Sum(r => r.Count)));
+
+        return ToBars(grouped, maxItems);
+    }
+
+    /// <summary>
+    /// Top-contributor chart: one bar per user (label = username, color =
+    /// platform), top-N by contribution count, width normalized to the leader.
+    /// </summary>
+    public static IReadOnlyList<BarChartItem> BuildContributorChartItems(IEnumerable<UserStatistic> contributors, int maxItems = 8)
+        => ToBars(contributors.Select(c => (c.Username, c.Platform, c.Count)), maxItems);
+
+    /// <summary>
+    /// Shared bar math: drop zero-count rows, order by value descending with an
+    /// ordinal label tie-break (deterministic), cap at <paramref name="maxItems"/>,
+    /// then normalize widths to the largest remaining value (0..1, 0 when empty).
+    /// </summary>
+    private static IReadOnlyList<BarChartItem> ToBars(IEnumerable<(string Label, string Platform, int Value)> rows, int maxItems)
+    {
+        var ordered = rows
+            .Where(r => r.Value > 0)
+            .OrderByDescending(r => r.Value)
+            .ThenBy(r => r.Label, StringComparer.Ordinal)
+            .Take(Math.Max(0, maxItems))
+            .ToList();
+
+        var max = ordered.Count > 0 ? ordered[0].Value : 0;
+
+        return ordered
+            .Select(r => new BarChartItem
+            {
+                Label = r.Label,
+                Platform = StatisticsChartBuilder.CanonicalPlatform(r.Platform),
+                Value = r.Value,
+                Fraction = max > 0 ? (double)r.Value / max : 0d
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// Normalize platform casing for the chart's DataTriggers (case-sensitive
+    /// matches on Twitch/Kick/YouTube/Discord/TikTok); unknown platforms pass
+    /// through unchanged and fall back to PrimaryBrush.
+    /// </summary>
+    public static string CanonicalPlatform(string? platform)
+    {
+        return platform?.ToLowerInvariant() switch
+        {
+            "twitch" => "Twitch",
+            "kick" => "Kick",
+            "youtube" => "YouTube",
+            "discord" => "Discord",
+            "tiktok" => "TikTok",
+            _ => platform ?? string.Empty
+        };
+    }
 }

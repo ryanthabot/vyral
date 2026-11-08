@@ -375,7 +375,8 @@ public abstract partial class BaseOAuthSetupViewModel : ViewModelBase
     {
         if (e.Uri.StartsWith("http://localhost:3000"))
         {
-            _logger.LogInformation("OAuth callback detected: {Uri}", e.Uri);
+            // The callback URL carries the authorization code — never logged (secrets rule).
+            _logger.LogInformation("OAuth callback detected (URL not logged)");
             
             e.Cancel = true;
             
@@ -402,7 +403,8 @@ public abstract partial class BaseOAuthSetupViewModel : ViewModelBase
             return;
         }
 
-        _logger.LogInformation("Manual callback URL submitted: {Url}", CallbackUrlInput);
+        // Manual callback URLs contain the authorization code — never logged.
+        _logger.LogInformation("Manual callback URL submitted (value not logged)");
         await HandleCallbackAsync(CallbackUrlInput);
     }
 
@@ -413,7 +415,8 @@ public abstract partial class BaseOAuthSetupViewModel : ViewModelBase
 
     private async Task HandleCallbackAsync(string url)
     {
-        _logger.LogInformation("OAuth callback received: {Url}", url);
+        // Full callback URL (with authorization code) is never logged.
+        _logger.LogInformation("OAuth callback received (URL not logged)");
         
         try
         {
@@ -496,7 +499,8 @@ public abstract partial class BaseOAuthSetupViewModel : ViewModelBase
             MaskedClientId = value.Substring(0, Math.Min(10, value.Length)) + "...";
             ClientIdSaved = true;
             OnPropertyChanged(nameof(ClientIdSaved));
-            _logger.LogInformation("Client ID saved: {ClientId}", value.Substring(0, Math.Min(10, value.Length)) + "...");
+            // Client IDs are credentials — log the outcome, never a fragment.
+            _logger.LogInformation("Client ID saved (value not logged)");
             
             if (!string.IsNullOrEmpty(_savedClientId) && !string.IsNullOrEmpty(_savedClientSecret))
             {
@@ -521,7 +525,8 @@ public abstract partial class BaseOAuthSetupViewModel : ViewModelBase
             MaskedClientSecret = value.Substring(0, Math.Min(10, value.Length)) + "...";
             ClientSecretSaved = true;
             OnPropertyChanged(nameof(ClientSecretSaved));
-            _logger.LogInformation("Client Secret saved: {Secret}", value.Substring(0, Math.Min(10, value.Length)) + "...");
+            // Secrets are never logged, not even a prefix fragment.
+            _logger.LogInformation("Client Secret saved (value not logged)");
             
             if (!string.IsNullOrEmpty(_savedClientId) && !string.IsNullOrEmpty(_savedClientSecret))
             {
@@ -544,7 +549,8 @@ public abstract partial class BaseOAuthSetupViewModel : ViewModelBase
     [RelayCommand]
     private async Task SaveModalAsync()
     {
-        _logger.LogInformation("SaveModal called with input: {Input}", ModalInput?.Substring(0, Math.Min(10, ModalInput?.Length ?? 0)));
+        // Modal input may be a secret (ngrok auth token) — the value is never logged.
+        _logger.LogInformation("SaveModal called (input value not logged)");
         if (!string.IsNullOrWhiteSpace(ModalInput) && _modalSaveAction != null)
         {
             await _modalSaveAction(ModalInput);

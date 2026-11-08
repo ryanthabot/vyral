@@ -1,10 +1,10 @@
 # Browser Sources
 
-> The single OBS browser-source page (`audio.html`) that Vyral serves on `http://localhost:5000` so stream sounds can play on the stream — working end to end, with volume honored, since the 2026-08-15 JSON-contract fix.
+> The single OBS browser-source page (`audio.html`) that Vyral serves on `http://localhost:5000` (the web-server port, 5000 by default) so stream sounds can play on the stream — working end to end, with volume honored, since the 2026-08-15 JSON-contract fix.
 
 ## Overview
 
-Vyral ships exactly **one** browser-source page: `audio.html`. It is served by the app's embedded web server (Kestrel, localhost port 5000) and is meant to be added to OBS as a **Browser Source**. When a stream event fires (follow, sub, raid, and so on), Vyral pushes a WebSocket message to every open copy of the page, and the page plays the matching sound file at the sent volume — which OBS captures as part of your stream audio, so **viewers** hear it.
+Vyral ships exactly **one** browser-source page: `audio.html`. It is served by the app's embedded web server (Kestrel, localhost — the configured web-server port, 5000 by default) and is meant to be added to OBS as a **Browser Source**. When a stream event fires (follow, sub, raid, and so on), Vyral pushes a WebSocket message to every open copy of the page, and the page plays the matching sound file at the sent volume — which OBS captures as part of your stream audio, so **viewers** hear it.
 
 Things worth knowing up front:
 
@@ -49,7 +49,7 @@ You can force the pill to reappear at any time by right-clicking the source in O
 
 ### Troubleshooting
 
-- **The pill never turns green** — Vyral's web server is not running on port 5000. Start it from [Web Server & ngrok](../settings/web-server-ngrok.md). The port is fixed at 5000 for audio; it cannot be changed from the Audio Settings page.
+- **The pill never turns green** — Vyral's web server is not running. Start it from [Web Server & ngrok](../settings/web-server-ngrok.md). The port comes from Web Server settings (default 5000); the Audio Settings page only mirrors it read-only, so change it there and restart the app.
 - **The pill is green but no sounds play on stream** — check that an event sound is assigned on [Sounds Management](sounds.md) and the **Stream Sounds** toggle is on; if OBS shows the page as muted in the audio mixer, unmute it.
 - **Sounds play for you but not viewers** — check that the OBS browser source is not muted in the OBS audio mixer.
 - **You run OBS on a different machine than Vyral** — the page connects back to the host it was loaded from (`window.location`), which is `localhost:5000` as configured — so OBS must run on the same computer as Vyral unless you rewrite the URL.

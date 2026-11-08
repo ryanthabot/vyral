@@ -33,11 +33,35 @@ misreads it), every field RFC-4180 quoted/escaped. Result is shown in
 
 ## Rendering
 
-All three tabs are DataGrids (Event Counts / Top Contributors / Top Users) —
-no chart control. Column sorting is the DataGrid default (`CanUserSortColumns`
-is true; the Rank column binds via `RowIndexConverter` on the row so its
-header is not sortable — intended). Charts would need a charting library; a
-gap noted in the wave-8 audit, not a defect.
+Event Counts / Top Contributors / Top Users tabs are DataGrids (column sorting
+is the DataGrid default; the Rank column binds via `RowIndexConverter` on the
+row so its header is not sortable — intended). Since wave 12 (KI-54) the first
+two tabs also render a dependency-free bar chart above each grid.
+
+## Bar charts (KI-54, wave 12)
+
+`Controls/Charts/SimpleBarChart.cs` — an `ItemsControl` subclass whose default
+style lives in `Themes/Generic.xaml` (picked up automatically via
+`ThemeInfo`; no App.xaml merge needed). Items are immutable
+`BarChartItem`s (`Label`, `Platform`, `Value`, pre-normalized `Fraction`,
+formatted `ValueText`/`ToolTipText`). Each row is label + proportional bar +
+value; bar width = `Fraction × track width` (`BarWidthConverter`
+MultiBinding), bar color per platform via `DynamicResource` DataTriggers
+(TwitchBrush/KickBrush/YouTubeBrush/DiscordBrush/TikTokBrush, PrimaryBrush
+fallback), text via TextPrimary/TextSecondaryBrush — theme switches re-color
+without rebuilding items. When `Items` is empty the items host collapses and
+the `EmptyText` hint shows instead. `LabelWidth` (default 140) keeps labels
+column-aligned across rows.
+
+The pure math is `StatisticsChartBuilder` (bottom of
+`StatisticsViewModel.cs`, unit-tested in
+`tests/VyralBot.UI.Tests/Wave12StatisticsBarChartTests.cs`): drops zero-count
+rows, orders value-desc with ordinal label tie-break, caps at 8 bars and
+normalizes widths to the largest value. The overview chart aggregates
+`EventCounts` rows by event type across platforms (dominant platform — count
+desc, then ordinal platform — picks the bar color); the contributor chart
+reuses `TopContributors` as-is. No new SQL — both charts are rebuilt from
+collections the page already loaded.
 
 ## Service behavior (`StatisticsService`)
 

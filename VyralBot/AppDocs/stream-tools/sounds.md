@@ -6,7 +6,7 @@
 
 Sounds Management is two panels side by side:
 
-- **Sound Library** (left) — upload sound files, preview them, delete them. Files live in the **current profile's `sounds` folder** (migrated there automatically from the old app-global location), and the embedded server serves them to OBS at `/sounds/<file>`.
+- **Sound Library** (left) — upload sound files, preview them, delete them, and (since 1.1.0) assign each one a **global hotkey** that fires it from anywhere — including while a game has focus. Files live in the **current profile's `sounds` folder** (migrated there automatically from the old app-global location), and the embedded server serves them to OBS at `/sounds/<file>`.
 - **Event Sound Assignments** (right) — a fixed table of fourteen platform events. For each one you can assign a sound from your library, set a per-event volume, and test it.
 
 The page only manages the *mappings*. The actual "when" is elsewhere: sounds fire from the chat event handlers in [ChatViewModel](#files--code) when a real (or [tested](../chat-features/event-testing.md)) follow/sub/raid/cheer/host/redemption arrives. Where the sound physically plays — locally for you, in the browser source for viewers — is controlled by the two toggles on [Audio Settings](audio.md).
@@ -71,13 +71,29 @@ Assignments save to the database immediately — there is no Save button on this
 
 Each row has a **Volume** slider from 0% to 100% (steps of 10%). The final loudness of an event sound is this slider times the **Master Volume** from [Audio Settings](audio.md) — e.g. 100% event volume with 50% master plays at half volume — and since the MediaPlayer rework it applies to **every format including `.wav`**, both locally and in the browser source (the broadcast carries the final clamped 0..1 loudness). Slider changes save immediately, like assignments, and the saved value applies to real events as well as the **Test** button.
 
+### Global hotkeys (fire sounds from anywhere)
+
+Each Sound Library row has a **Set Hotkey** button in its Hotkey column. A hotkey is an OS-global keyboard shortcut (Win32 `RegisterHotKey`) that plays that sound **no matter which app has focus — including a fullscreen game**:
+
+1. Click **Set Hotkey** on the sound's row. The button becomes "Press combo...".
+2. Press a key combination — one or more modifiers (**Ctrl, Alt, Shift, Win**) plus exactly one key (e.g. `Ctrl+Alt+1`). `Esc` cancels.
+3. The button now shows the gesture (e.g. "Ctrl+Alt+1"). A small ✕ button next to it clears the assignment.
+
+Ground rules, also shown in the banner at the top of the page:
+
+- **At most 10 hotkeys** at once; assigning an 11th is rejected with a message.
+- **One gesture per sound, one sound per gesture** — assigning a combo another sound already uses is rejected and names the conflict.
+- Hotkeys are OS-global: avoid combos your game or Windows already owns (Alt+Tab, Win+G, …).
+- Registration is per-session on the main window; assignments persist as the `Sounds.Hotkeys` config key (JSON `{ "file name": "Ctrl+Alt+1" }`) and are re-registered on startup and every profile switch. Deleting a sound releases its slot automatically.
+- A fired hotkey plays through the normal pipeline — master volume, both output toggles, browser source included — with no auto-repeat while held.
+
 ### What plays where
 
 - **You hear it** when the Streamer Sounds toggle is on — in any supported format (`.wav`, `.mp3`, `.ogg`, `.m4a`).
 - **Viewers hear it** through the OBS browser source when the Stream Sounds toggle is on — same formats, volume honored (the broadcast is the camelCase shape the page understands). See [Browser Sources](browser-sources.md).
 - If both toggles are off, nothing plays even with assignments configured.
 
-There are no soundboard/hotkey sounds and no YouTube/TikTok/Discord event rows in the UI — but since 1.1.0, sounds **can** be fired on demand from workflows: the **Play Sound** block (`play_sound`) plays any file in this library by name at a chosen volume, so a command, timer or event flow can trigger a sound cue ([Automation](../chat-features/automation.md)). Event-row sounds trigger from the fourteen events above and from this page's test buttons. (YouTube Super Chats do call the cheer sound key — `PlayEventSoundAsync("cheer", "YouTube")` — but with no YouTube row here there is no way to map it from the UI yet; see [YouTube](../platforms/youtube.md#super-chats--super-stickers).)
+There are still no YouTube/TikTok/Discord event rows in the UI (YouTube Super Chats do call the cheer sound key — `PlayEventSoundAsync("cheer", "YouTube")` — but with no YouTube row here there is no way to map it from the UI yet; see [YouTube](../platforms/youtube.md#super-chats--super-stickers)). On-demand playback now exists two ways: **global hotkeys** (below — one keypress from any app) and, since 1.1.0, the workflow **Play Sound** block (`play_sound`), which plays any file in this library by name at a chosen volume from a command, timer or event flow ([Automation](../chat-features/automation.md)). Event-row sounds trigger from the fourteen events above and from this page's test buttons.
 
 ## How It Works (Developer)
 
@@ -155,8 +171,9 @@ No audio files ship with the app; nothing is ever auto-assigned. If you want tho
 
 | File | Role |
 |---|---|
-| [SoundsViewModel.cs](../../src/VyralBot.UI/ViewModels/SoundsViewModel.cs) | Page logic: library list, upload/delete/preview, the fixed 14-event mapping table, assign/unassign, per-event volume saves |
-| [SoundsView.xaml](../../src/VyralBot.UI/Views/SoundsView.xaml) | The two-panel layout: Sound Library (list + Upload/Play/Delete buttons) and the Event Sound Assignments DataGrid |
+| [SoundsViewModel.cs](../../src/VyralBot.UI/ViewModels/SoundsViewModel.cs) | Page logic: library list, upload/delete/preview, hotkey capture per row, the fixed 14-event mapping table, assign/unassign, per-event volume saves |
+| [SoundsView.xaml](../../src/VyralBot.UI/Views/SoundsView.xaml) | The two-panel layout: Sound Library (list + Upload/Play/Delete buttons, Hotkey column, capture banner) and the Event Sound Assignments DataGrid |
+| [GlobalHotkeyService.cs](../../src/VyralBot.UI/Services/Hotkey/GlobalHotkeyService.cs) | Global soundboard hotkeys (KI-55): Win32 `RegisterHotKey` slots on the main window, WM_HOTKEY dispatch → playback, `Sounds.Hotkeys` persistence, conflict + 10-slot limits. `HotkeyGesture` (same file) is the pure parse/format layer. |
 | [SoundService.cs](../../src/VyralBot.Core/Services/Audio/SoundService.cs) | Per-profile sounds directory + one-time legacy migration, file storage (upload/delete/list), `PlayEventSoundAsync` / `PlaySoundFileAsync` pipeline (MediaPlayer local playback), config-key lookups, default-sound check |
 | [ISoundService.cs](../../src/VyralBot.Core/Services/Audio/ISoundService.cs) | Service interface used by the page and by ChatViewModel (incl. `GetSoundsDirectory`) |
 | ~~IAudioWebSocketServer.cs~~ | Deleted with the legacy 8080 server — broadcasts now use an inline camelCase payload from SoundService (see [Browser Sources](browser-sources.md)) |
@@ -228,7 +245,7 @@ Every item below is verified against the current code. See the [known issues led
 2. **Viewer-side playback works** — the broadcast is camelCase `{"type":"play","sound":...,"volume":0..1}` and the page honors the volume field. [known issues ledger](../reference/known-issues.md) (KI-4 resolved)
 3. **Local playback honors volume for every format** — fixed 2026-11-07: all formats (wav included) play through WPF `MediaPlayer` per playback on its own STA thread; the old `System.Media.SoundPlayer` wav path (which ignored volume and left non-wav files silent locally) is gone.
 4. **Per-event volume applies to real events** — `GetEventVolumeAsync` parses the saved invariant string with `double.TryParse` (normalizing legacy whole-percent rows and clamping to 0..1), so the slider is honored everywhere, not just Test.
-5. **Only Kick and Twitch rows exist** — no YouTube/TikTok/Discord rows (YouTube Super Chats call the cheer key programmatically but it is not mappable from this page). No soundboard or global hotkeys — but workflow-triggered sounds **do** exist now: the `play_sound` block (1.1.0) plays library files from any command/timer/event flow (KI-55, partially resolved). [known issues ledger](../reference/known-issues.md)
+5. **Only Kick and Twitch event rows exist** — no YouTube/TikTok/Discord rows (YouTube Super Chats call the cheer key programmatically but it is not mappable from this page). On-demand playback is fully covered now: **global hotkeys** fire any library sound from any app (incl. games, KI-55 resolved 1.1.0), the **Test** buttons preview event rows, and the `play_sound` workflow block plays library files from any command/timer/event flow. [known issues ledger](../reference/known-issues.md)
 6. **Delete clears assignments but not volumes** — deleting a file nulls out `EventSound_` keys that referenced it (SoundsViewModel.cs:191-197), while the orphaned `EventVolume_` keys are left behind (harmless, but they persist). [known issues ledger](../reference/known-issues.md)
 7. **Sound triggers depend on the wider event pipeline** — Twitch events arrive once EventSub is connected (it is, after the 2026-08-15 auth fix — see [Twitch](../platforms/twitch.md)). [known issues ledger](../reference/known-issues.md)
 8. **No output-device selection** — local playback always uses the system default output device; there is no picker or per-device routing for the streamer-side feed (KI-50 in the [known issues ledger](../reference/known-issues.md)).

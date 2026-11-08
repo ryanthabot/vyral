@@ -40,8 +40,9 @@ public partial class DemoSetupViewModel : BaseWebSetupViewModel
             "Enter your application's Client ID from the developer console",
             (input) =>
             {
-                _logger.LogInformation("Client ID saved (value not logged)");
-                // In real implementation, save to database
+                // Demo only: the value is deliberately discarded — nothing is
+                // persisted and nothing is logged (secrets rule).
+                _logger.LogInformation("Demo Client ID captured (demo only — value not persisted, not logged)");
             });
     }
 

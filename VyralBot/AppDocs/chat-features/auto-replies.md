@@ -27,7 +27,7 @@ Every platform tab also has a General-card **Auto-Replies** master toggle, and a
 
 ### Writing a template
 
-Type any text and insert placeholders. **Only the variables listed for that event work** — this path does a simple text substitution of exactly those keys, so database variables like `{twitter}` or `{twitch-followercount}` will *not* be replaced here (they work in [commands](commands.md) and manual sends instead — see [Variables](variables.md)). That limitation is tracked as KI-28 in the [known issues ledger](../reference/known-issues.md).
+Type any text and insert placeholders. The event's context keys are substituted first, then the reply passes through the full [variables](variables.md) engine — so database variables like `{twitter}` or `{twitch-followercount}` resolve in auto-replies too (since 1.1.0; previously only the listed context keys worked — KI-28 resolved).
 
 A note on the `@` character: earlier builds shipped default templates like `Thanks for the follow @{username}!`, which produced a stray `@` because the substitution replaces only the `{...}` part. The seeds and the Twitch/Kick default templates were fixed on 2026-08-15 to use plain `{username}` — but if you wrote your own template with an `@` in front of a variable that the event does not supply, the literal `@{...}` text is still sent to chat. Prefer `@{username}` only where the event's hint lists `username`, or write the template without the `@`.
 
@@ -49,7 +49,7 @@ Auto-replies are limited to one per user + event + platform per 30 seconds. If t
 4. `CurrencyService.AwardEventBonusAsync` (see [Currency](../stream-tools/currency.md)).
 5. If `AutoReplyEnabled` and a message exists: rate-limit check via `AutoReplyService.ShouldSendReply`, then `ProcessTemplate` with the event's variable dictionary, then send through the platform chat service.
 
-**Template processing** — `AutoReplyService.ProcessTemplate` ([AutoReplyService.cs:37](../../src/VyralBot.Core/Services/Chat/AutoReplyService.cs)) is a plain case-insensitive `string.Replace` of `{key}` for each supplied key. It deliberately does **not** use the [VariableReplacementService](../../src/VyralBot.Core/Services/Variables/VariableReplacementService.cs), so database/social variables never resolve here (KI-28), and unknown keys are left verbatim.
+**Template processing** — the reply is built in two passes. `AutoReplyService.ProcessTemplate` ([AutoReplyService.cs:37](../../src/VyralBot.Core/Services/Chat/AutoReplyService.cs)) is a plain case-insensitive `string.Replace` of `{key}` for each handler-supplied key; the pipeline that wraps it (`ChatViewModel.BuildAutoReplyTextAsync`, ChatViewModel.cs:4334-4348) then runs the result through the [VariableReplacementService](../../src/VyralBot.Core/Services/Variables/VariableReplacementService.cs), so database/social variables resolve in auto-replies as well (wired 1.1.0 — KI-28 resolved). Unknown keys that neither pass knows are left verbatim.
 
 **Rate limiting** — [AutoReplyRateLimiter.cs](../../src/VyralBot.Core/Services/Chat/AutoReplyRateLimiter.cs): a `ConcurrentDictionary` keyed `"{platform}:{eventType}:{username}"`, 30 s minimum delay (constructed at `AutoReplyService.cs:26`). `CleanupExpired()` prunes entries older than 10 minutes, but the periodic `CleanupExpiredEntries` call it was written for is never scheduled — stale keys accumulate for the session (they still expire functionally because timestamps are compared).
 
@@ -73,7 +73,7 @@ Auto-replies are limited to one per user + event + platform per 30 seconds. If t
 
 ### The conditional path
 
-`AutoReplyService.GetAutoReplyAsync` (`AutoReplyService.cs:63`) is the conditional engine: load `AutoReplyRule` rows for the platform/event ordered by `Priority ASC, Id ASC` (`Platform = @Platform OR Platform = 'All'`) → deserialize each rule's `ConditionJson` → evaluate through `IRuleEvaluator` → on first match increment `TriggerCount` and return the processed `ReplyTemplate`. Its production caller is `ChatViewModel.BuildAutoReplyTextAsync` (ChatViewModel.cs:4260): every Kick and Twitch event handler builds its reply through it, so a matching rule's template **replaces** the event's default message (the rule reply then passes through full variable replacement). Boundary: the handlers only call it when auto-reply is enabled **and the default message is non-empty**, and there is no Discord call site — the full story is on the [Conditional Rules](conditional-rules.md) page.
+`AutoReplyService.GetAutoReplyAsync` (`AutoReplyService.cs:63`) is the conditional engine: load `AutoReplyRule` rows for the platform/event ordered by `Priority ASC, Id ASC` (`Platform = @Platform OR Platform = 'All'`) → deserialize each rule's `ConditionJson` → evaluate through `IRuleEvaluator` → on first match increment `TriggerCount` and return the processed `ReplyTemplate`. Its production caller is `ChatViewModel.BuildAutoReplyTextAsync` (ChatViewModel.cs:4315): every Kick and Twitch event handler builds its reply through it, so a matching rule's template **replaces** the event's default message (the rule reply then passes through full variable replacement). Since 1.1.0 there is **no default-message gate** — the rules lookup runs even when the default message is empty (a matching rule fires standalone), and Discord member joins/boosts evaluate rules too (`Follow`/`Subscribe` vocabulary) — the full story is on the [Conditional Rules](conditional-rules.md) page.
 
 ## Files & Code
 
@@ -137,11 +137,11 @@ if (settings.AutoReplyEnabled && !string.IsNullOrEmpty(settings.AutoReplyMessage
 ## Status & Known Issues
 
 - **Auto-replies work today** — this is one of the live event-driven paths (alongside sounds, alerts, and currency bonuses). Test it safely with [Event Testing](event-testing.md).
-- **DB/social variables never resolve in auto-replies** — `ProcessTemplate` is a simple replace, unlike command responses which use the full [Variables](variables.md) engine (KI-28).
+- **DB/social variables resolve in auto-replies** — since 1.1.0 the reply passes through the full [Variables](variables.md) engine after the context-key substitution (KI-28 resolved; `ProcessTemplate` itself is still the simple first pass).
 - **Twitch Gift Sub now has an auto-reply step** — the handler gained a full auto-reply block on 2026-08-15 (it previously only did message/sound/alert/currency).
 - **`{raider}` is now supplied by the Twitch Raid handler** — templates using `{raider}` resolve correctly (fixed 2026-08-15); older documentation claiming otherwise is stale.
 - **User-written stray-`@` templates** — the processor replaces only `{key}`, so an `@` in front of a variable the event does not supply is still sent verbatim; the shipped defaults no longer do this. — [known issues ledger](../reference/known-issues.md)
 - **Rate-limiter cleanup is never scheduled** — `CleanupExpiredEntries` exists but no timer calls it; stale keys accumulate for the session (functionally harmless).
-- Conditional rules **are consulted** on the Kick/Twitch reply path — a matching rule replaces the default message — but only when a default message exists, and never on Discord (KI-57); see [Conditional Rules](conditional-rules.md) for the full story.
+- Conditional rules **are consulted** on the Kick/Twitch reply path — a matching rule replaces the default message — and since 1.1.0 they fire with **no default message required** and on Discord join/boost events too (KI-57 resolved); see [Conditional Rules](conditional-rules.md) for the full story.
 - Auto-replies only send to **Twitch and Kick**; there are no YouTube/TikTok/Discord auto-replies.
 - Twitch events depend on EventSub connecting — `Platform.UserId` is now set on authorization (fixed 2026-08-15), so Twitch auto-replies fire once the broadcaster has (re)authorized. See [Twitch](../platforms/twitch.md).

@@ -50,6 +50,31 @@ public partial class AlertSettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _showCheerAlerts = true;
 
+    /// <summary>
+    /// Feedback line under the Alert Events card: set when a per-event test
+    /// preview was suppressed by a toggle on this page (so the user connects
+    /// the toggle to the missing popup), or after a preview fires.
+    /// </summary>
+    [ObservableProperty]
+    private string _statusMessage = string.Empty;
+
+    /// <summary>
+    /// Per-event preview payloads. The titles are the EXACT titles ChatViewModel
+    /// passes to <see cref="AlertService.ShowAlertAsync"/> for real events, so
+    /// AlertService.TitleToEventMap routes a preview the same way it routes a
+    /// live event — the popup text users see here is what they see on stream.
+    /// </summary>
+    private static readonly Dictionary<string, (string Title, string Message, string DisplayName)> EventTestPayloads =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["follow"] = ("New Follower!", "Thanks for the follow!", "New Followers"),
+            ["subscribe"] = ("New Subscriber!", "Thanks for subscribing!", "New Subscribers"),
+            ["giftsub"] = ("Gift Subs!", "5 subscription(s) gifted!", "Gifted Subscriptions"),
+            ["raid"] = ("Raid!", "200 viewers!", "Raids"),
+            ["host"] = ("New Host!", "150 viewers!", "Hosts"),
+            ["cheer"] = ("Bits!", "100 bits!", "Bits/Cheers")
+        };
+
     public ObservableCollection<string> Animations { get; } = new()
     {
         "SlideInFromTop",
@@ -127,12 +152,87 @@ public partial class AlertSettingsViewModel : ViewModelBase
                 position: position,
                 durationSeconds: AlertDuration,
                 applySettings: false);
+
+            StatusMessage = string.Empty;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error testing alert");
         }
     }
+
+    /// <summary>
+    /// Per-event TEST buttons: fires the alert with the real pipeline title for
+    /// that event (same string ChatViewModel passes live, so AlertService's
+    /// TitleToEventMap gating and popup text match production). Gated by the
+    /// CURRENT page toggles — flipping a toggle off and pressing TEST shows the
+    /// suppression message instead of the popup, demonstrating exactly what the
+    /// toggle controls, without requiring a save first.
+    /// </summary>
+    [RelayCommand]
+    private async Task TestEventAlertAsync(string? eventType)
+    {
+        if (string.IsNullOrWhiteSpace(eventType) ||
+            !EventTestPayloads.TryGetValue(eventType, out var payload))
+        {
+            _logger.LogWarning("Unknown event type for per-event alert test: {EventType}", eventType);
+            return;
+        }
+
+        try
+        {
+            if (!AlertsEnabled)
+            {
+                StatusMessage = "Preview suppressed — visual alerts are disabled (master toggle above).";
+                return;
+            }
+
+            if (!IsEventEnabledOnPage(eventType))
+            {
+                StatusMessage = $"Preview suppressed — {payload.DisplayName} alerts are toggled off.";
+                return;
+            }
+
+            if (!Enum.TryParse<AlertAnimation>(SelectedAnimation, true, out var animation) ||
+                !Enum.TryParse<AlertPosition>(SelectedPosition, true, out var position))
+            {
+                _logger.LogWarning("Invalid animation/position selection: {Animation} / {Position}",
+                    SelectedAnimation, SelectedPosition);
+                return;
+            }
+
+            _logger.LogInformation("Testing {EventType} alert with pipeline title '{Title}'",
+                eventType, payload.Title);
+
+            await _alertService.ShowAlertAsync(
+                title: payload.Title,
+                username: "TestUser123",
+                message: payload.Message,
+                imageUrl: null,
+                animation: animation,
+                position: position,
+                durationSeconds: AlertDuration,
+                applySettings: false);
+
+            StatusMessage = $"{payload.DisplayName} preview shown — on stream this appears with the title \"{payload.Title}\".";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error testing {EventType} alert", eventType);
+        }
+    }
+
+    /// <summary>Page-state mirror of AlertService.IsEventAlertEnabled for the six toggled event types.</summary>
+    private bool IsEventEnabledOnPage(string eventType) => eventType switch
+    {
+        "follow" => ShowFollowAlerts,
+        "subscribe" => ShowSubscribeAlerts,
+        "giftsub" => ShowGiftSubAlerts,
+        "raid" => ShowRaidAlerts,
+        "host" => ShowHostAlerts,
+        "cheer" => ShowCheerAlerts,
+        _ => true
+    };
 
     [RelayCommand]
     private async Task SaveSettingsAsync()

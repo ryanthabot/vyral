@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 using VyralBot.Data;
+using VyralBot.Core.Services.Chat;
 using VyralBot.Core.Services.EventBus;
 
 namespace VyralBot.UI.ViewModels;
@@ -12,6 +13,7 @@ public partial class YoutubeChatSettingsViewModel : ViewModelBase
     private readonly ILogger<YoutubeChatSettingsViewModel> _logger;
     private readonly IDataService _dataService;
     private readonly IEventBus _eventBus;
+    private readonly IChatEventSettingsService _eventSettingsService;
     private bool _isInitialized;
 
     [ObservableProperty]
@@ -33,6 +35,26 @@ public partial class YoutubeChatSettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _compactMode;
 
+    // Membership Event Settings — membership is YouTube's subscribe equivalent.
+    // The ChatEventSetting row uses the shared "Subscribe" event vocabulary so
+    // conditional auto-reply rules match across platforms. There is no
+    // "Show in chat" toggle: membership lines are always rendered by the
+    // synthetic chat message YouTubeChatService publishes with the event.
+    [ObservableProperty]
+    private bool _membershipAutoReplyEnabled = false;
+
+    [ObservableProperty]
+    private string _membershipAutoReplyMessage = "Thanks for the membership {username}! 🎉";
+
+    // Super Chat Event Settings — Super Chat/Sticker is YouTube's cheer
+    // equivalent (shared "Cheer" event vocabulary). Same as membership, the
+    // chat line comes from the synthetic message, so no "Show in chat" toggle.
+    [ObservableProperty]
+    private bool _superChatAutoReplyEnabled = false;
+
+    [ObservableProperty]
+    private string _superChatAutoReplyMessage = "Thanks for the {amount} Super Chat {username}! 💎";
+
     [ObservableProperty]
     private string _status = "";
 
@@ -43,11 +65,16 @@ public partial class YoutubeChatSettingsViewModel : ViewModelBase
     private const string ShowTimestampsKey = "Chat.YouTube.ShowTimestamps";
     private const string CompactModeKey = "Chat.YouTube.CompactMode";
 
-    public YoutubeChatSettingsViewModel(ILogger<YoutubeChatSettingsViewModel> logger, IDataService dataService, IEventBus eventBus)
+    public YoutubeChatSettingsViewModel(
+        ILogger<YoutubeChatSettingsViewModel> logger,
+        IDataService dataService,
+        IEventBus eventBus,
+        IChatEventSettingsService eventSettingsService)
     {
         _logger = logger;
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
+        _eventSettingsService = eventSettingsService ?? throw new ArgumentNullException(nameof(eventSettingsService));
     }
 
     public async Task InitializeAsync()
@@ -82,6 +109,23 @@ public partial class YoutubeChatSettingsViewModel : ViewModelBase
             var storedCompactMode = await _dataService.GetConfigValueAsync(CompactModeKey);
             CompactMode = bool.TryParse(storedCompactMode, out var compactMode) && compactMode;
             _isInitialized = true;
+
+            // Load Membership settings (row "YouTube"/"Subscribe" — membership is
+            // YouTube's subscribe equivalent)
+            var membershipSettings = await _eventSettingsService.GetSettingAsync("YouTube", "Subscribe");
+            if (membershipSettings != null)
+            {
+                MembershipAutoReplyEnabled = membershipSettings.AutoReplyEnabled;
+                MembershipAutoReplyMessage = membershipSettings.AutoReplyMessage ?? "Thanks for the membership {username}! 🎉";
+            }
+
+            // Load Super Chat settings (row "YouTube"/"Cheer")
+            var superChatSettings = await _eventSettingsService.GetSettingAsync("YouTube", "Cheer");
+            if (superChatSettings != null)
+            {
+                SuperChatAutoReplyEnabled = superChatSettings.AutoReplyEnabled;
+                SuperChatAutoReplyMessage = superChatSettings.AutoReplyMessage ?? "Thanks for the {amount} Super Chat {username}! 💎";
+            }
         }
         catch (Exception ex)
         {
@@ -102,6 +146,24 @@ public partial class YoutubeChatSettingsViewModel : ViewModelBase
             await PersistDisplayFlagAsync(ShowBadgesKey, ShowBadges);
             await PersistDisplayFlagAsync(ShowTimestampsKey, ShowTimestamps);
             await PersistDisplayFlagAsync(CompactModeKey, CompactMode);
+
+            // Save Membership settings (row "YouTube"/"Subscribe"). ShowInChat is
+            // forced true: the synthetic chat line from YouTubeChatService always
+            // renders, so persisting a false value would be a dead flag.
+            var membershipSetting = await _eventSettingsService.GetSettingAsync("YouTube", "Subscribe")
+                ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "YouTube", EventType = "Subscribe" };
+            membershipSetting.ShowInChat = true;
+            membershipSetting.AutoReplyEnabled = MembershipAutoReplyEnabled;
+            membershipSetting.AutoReplyMessage = MembershipAutoReplyMessage;
+            await _eventSettingsService.SaveSettingAsync(membershipSetting);
+
+            // Save Super Chat settings (row "YouTube"/"Cheer")
+            var superChatSetting = await _eventSettingsService.GetSettingAsync("YouTube", "Cheer")
+                ?? new VyralBot.Data.Entities.ChatEventSetting { Platform = "YouTube", EventType = "Cheer" };
+            superChatSetting.ShowInChat = true;
+            superChatSetting.AutoReplyEnabled = SuperChatAutoReplyEnabled;
+            superChatSetting.AutoReplyMessage = SuperChatAutoReplyMessage;
+            await _eventSettingsService.SaveSettingAsync(superChatSetting);
 
             Status = "Saved";
         }

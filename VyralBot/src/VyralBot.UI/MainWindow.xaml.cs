@@ -17,14 +17,17 @@ public partial class MainWindow : Window
     private readonly MainViewModel _viewModel;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MainWindow> _logger;
+    private readonly Services.Hotkey.GlobalHotkeyService _hotkeyService;
 
-    public MainWindow(MainViewModel viewModel, IServiceProvider serviceProvider, ILogger<MainWindow> logger)
+    public MainWindow(MainViewModel viewModel, IServiceProvider serviceProvider, ILogger<MainWindow> logger,
+        Services.Hotkey.GlobalHotkeyService hotkeyService)
     {
         InitializeComponent();
         DataContext = viewModel;
         _viewModel = viewModel;
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _hotkeyService = hotkeyService;
 
         // Per-theme logo color variant as the window/taskbar icon, live with theme switches
         Services.ThemeManager.Instance.ThemeChanged += OnThemeChanged;
@@ -41,10 +44,31 @@ public partial class MainWindow : Window
     {
         base.OnSourceInitialized(e);
         ((HwndSource?)PresentationSource.FromVisual(this))?.AddHook(WndProc);
+
+        // Global soundboard hotkeys (KI-55): bind the RegisterHotKey slots to
+        // this window's HWND. The window is created once per run and never
+        // recreated, so the HWND is stable; WM_HOTKEY arrives in WndProc below.
+        try
+        {
+            _hotkeyService.AttachToWindow(this);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to attach the global hotkey service to the main window");
+        }
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        // Global hotkey sink (KI-55): RegisterHotKey posts WM_HOTKEY here with
+        // the slot id in wParam. The service owns the table + playback.
+        const int WM_HOTKEY = 0x0312;
+        if (msg == WM_HOTKEY)
+        {
+            handled = _hotkeyService.HandleWmHotkey(wParam);
+            return IntPtr.Zero;
+        }
+
         const int WM_GETMINMAXINFO = 0x0024;
         if (msg != WM_GETMINMAXINFO)
         {

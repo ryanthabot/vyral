@@ -305,6 +305,8 @@ public partial class App : Application
                 // Audio services
                 // AudioWebSocketServer removed; now handled by Kestrel server
                 services.AddSingleton<Core.Services.Audio.ISoundService, Core.Services.Audio.SoundService>();
+                // Global soundboard hotkeys (KI-55): RegisterHotKey slots on the main window HWND
+                services.AddSingleton<UI.Services.Hotkey.GlobalHotkeyService>();
 
                 // Statistics service
                 services.AddSingleton<Core.Services.Statistics.IStatisticsService, Core.Services.Statistics.StatisticsService>();
@@ -1336,6 +1338,24 @@ public partial class App : Application
                 catch (Exception ex)
                 {
                     Log.Warning(ex, "Error stopping the restream engine on exit");
+                }
+            }
+
+            // Global soundboard hotkeys (KI-55): release every RegisterHotKey slot
+            // before teardown. Unregistering on a dead window is harmless, but doing
+            // it while the window is alive keeps the combos from leaking into other
+            // apps if shutdown hangs and the watchdog force-kills.
+            var hotkeyService = _host.Services.GetService<UI.Services.Hotkey.GlobalHotkeyService>();
+            if (hotkeyService != null)
+            {
+                try
+                {
+                    hotkeyService.Dispose();
+                    Log.Information("Global hotkeys unregistered for exit");
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Error releasing global hotkeys on exit");
                 }
             }
 

@@ -519,6 +519,29 @@
                                         <TextBlock Text="Variables: {username}, {bits}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Expander>
+
+                                <!-- Channel Point Redemption -->
+                                <Expander Margin="0,0,0,6">
+                                    <Expander.Header>
+                                        <TextBlock Text="Channel Point Redemption Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    </Expander.Header>
+                                    <StackPanel Margin="12,8,0,0">
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <ToggleButton Grid.Column="1" IsChecked="{Binding TwitchSettings.ShowRewardsInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
+                                        </Grid>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <ToggleButton Grid.Column="1" IsChecked="{Binding TwitchSettings.RewardAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
+                                        </Grid>
+                                        <TextBox Text="{Binding TwitchSettings.RewardAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding TwitchSettings.RewardAutoReplyEnabled}"
+                                                 materialDesign:HintAssist.Hint="Auto-reply message"/>
+                                        <TextBlock Text="Variables: {username}, {reward}, {cost}, {input}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </Expander>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -722,16 +745,61 @@
                                 CornerRadius="8" Padding="20" Margin="0,0,0,8"
                                 BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="1">
                             <StackPanel>
-                                <TextBlock Text="YouTube Live Chat display settings. Event-based auto-replies will be added in a future update."
+                                <TextBlock Text="YouTube Live Chat display preferences."
                                            FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,12" TextWrapping="Wrap"/>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <TextBlock Text="Show messages" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="Show YouTube messages in the unified chat" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
+                                <StackPanel Orientation="Vertical">
+                                    <CheckBox Content="Show Badges" FontSize="12" IsChecked="{Binding YoutubeSettings.ShowBadges, Mode=TwoWay}" Margin="0,0,0,4"/>
+                                    <CheckBox Content="Show Timestamps" FontSize="12" IsChecked="{Binding YoutubeSettings.ShowTimestamps, Mode=TwoWay}" Margin="0,0,0,4"/>
+                                    <CheckBox Content="Compact Mode" FontSize="12" IsChecked="{Binding YoutubeSettings.CompactMode, Mode=TwoWay}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="Event Notifications &amp; Auto-Replies" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,16,0,10"/>
+
+                        <Border Background="{DynamicResource CardBackgroundBrush}"
+                                CornerRadius="8" Padding="20" Margin="0,0,0,8"
+                                BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Membership and Super Chat events are live: their chat lines always appear in the unified chat; alerts and sounds are configured on the Alerts and Sounds pages. The toggles below control auto-replies sent back to YouTube chat."
+                                           FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,12" TextWrapping="Wrap"/>
+
+                                <!-- Membership -->
+                                <Expander Margin="0,0,0,6">
+                                    <Expander.Header>
+                                        <TextBlock Text="Membership Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    </Expander.Header>
+                                    <StackPanel Margin="12,8,0,0">
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <ToggleButton Grid.Column="1" IsChecked="{Binding YoutubeSettings.MembershipAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
+                                        </Grid>
+                                        <TextBox Text="{Binding YoutubeSettings.MembershipAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding YoutubeSettings.MembershipAutoReplyEnabled}"
+                                                 materialDesign:HintAssist.Hint="Auto-reply message"/>
+                                        <TextBlock Text="Variables: {username}, {tier}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
-                                    <ToggleButton Grid.Column="1" IsChecked="{Binding YoutubeSettings.IsChatEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}" VerticalAlignment="Center"/>
-                                </Grid>
+                                </Expander>
+
+                                <!-- Super Chat -->
+                                <Expander Margin="0,0,0,6">
+                                    <Expander.Header>
+                                        <TextBlock Text="Super Chat Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    </Expander.Header>
+                                    <StackPanel Margin="12,8,0,0">
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <ToggleButton Grid.Column="1" IsChecked="{Binding YoutubeSettings.SuperChatAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
+                                        </Grid>
+                                        <TextBox Text="{Binding YoutubeSettings.SuperChatAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding YoutubeSettings.SuperChatAutoReplyEnabled}"
+                                                 materialDesign:HintAssist.Hint="Auto-reply message"/>
+                                        <TextBlock Text="Variables: {username}, {amount}, {message}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </Expander>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -758,17 +826,15 @@
                                 CornerRadius="8" Padding="20" Margin="0,0,0,8"
                                 BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="1">
                             <StackPanel>
-                                <TextBlock Text="TikTok chat is coming soon — VyralBot cannot display TikTok LIVE messages in this version. These settings take effect once TikTok chat support ships."
+                                <TextBlock Text="TikTok chat is coming soon — VyralBot cannot display TikTok LIVE messages in this version. These preferences are stored now and take effect once TikTok chat support ships."
                                            FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,12" TextWrapping="Wrap"/>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <TextBlock Text="Show messages" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="Show TikTok messages in the unified chat (coming soon)" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
-                                    </StackPanel>
-                                    <!-- Disabled: no TikTok chat pipeline exists — the toggle must not promise live behavior. -->
-                                    <ToggleButton Grid.Column="1" IsChecked="{Binding TiktokSettings.IsChatEnabled, Mode=TwoWay}" IsEnabled="False" Style="{StaticResource MaterialDesignSwitchToggleButton}" VerticalAlignment="Center"/>
-                                </Grid>
+                                <!-- No dead toggles here: the whole card is disabled by the
+                                     coming-soon gate above, so these checkboxes only store prefs. -->
+                                <StackPanel Orientation="Vertical">
+                                    <CheckBox Content="Show Badges" FontSize="12" IsChecked="{Binding TiktokSettings.ShowBadges, Mode=TwoWay}" Margin="0,0,0,4"/>
+                                    <CheckBox Content="Show Timestamps" FontSize="12" IsChecked="{Binding TiktokSettings.ShowTimestamps, Mode=TwoWay}" Margin="0,0,0,4"/>
+                                    <CheckBox Content="Compact Mode" FontSize="12" IsChecked="{Binding TiktokSettings.CompactMode, Mode=TwoWay}"/>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -795,16 +861,71 @@
                                 CornerRadius="8" Padding="20" Margin="0,0,0,8"
                                 BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="1">
                             <StackPanel>
-                                <TextBlock Text="Discord chat relay display settings. Event-based auto-replies will be added in a future update."
+                                <TextBlock Text="Discord chat relay display preferences."
                                            FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,12" TextWrapping="Wrap"/>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <TextBlock Text="Show messages" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="Show Discord messages in the unified chat" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
+                                <StackPanel Orientation="Vertical">
+                                    <CheckBox Content="Show Badges" FontSize="12" IsChecked="{Binding DiscordSettings.ShowBadges, Mode=TwoWay}" Margin="0,0,0,4"/>
+                                    <CheckBox Content="Show Timestamps" FontSize="12" IsChecked="{Binding DiscordSettings.ShowTimestamps, Mode=TwoWay}" Margin="0,0,0,4"/>
+                                    <CheckBox Content="Compact Mode" FontSize="12" IsChecked="{Binding DiscordSettings.CompactMode, Mode=TwoWay}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="Event Notifications &amp; Auto-Replies" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,16,0,10"/>
+
+                        <Border Background="{DynamicResource CardBackgroundBrush}"
+                                CornerRadius="8" Padding="20" Margin="0,0,0,8"
+                                BorderBrush="{DynamicResource BorderSecondaryBrush}" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="VyralBot raises member-join and server-boost events for Discord: alerts and sounds are configured on the Alerts and Sounds pages; the toggles below control the chat notification line and auto-replies."
+                                           FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,12" TextWrapping="Wrap"/>
+
+                                <!-- Member Join -->
+                                <Expander Margin="0,0,0,6">
+                                    <Expander.Header>
+                                        <TextBlock Text="Member Join Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    </Expander.Header>
+                                    <StackPanel Margin="12,8,0,0">
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <ToggleButton Grid.Column="1" IsChecked="{Binding DiscordSettings.ShowMemberJoinsInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
+                                        </Grid>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <ToggleButton Grid.Column="1" IsChecked="{Binding DiscordSettings.MemberJoinAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
+                                        </Grid>
+                                        <TextBox Text="{Binding DiscordSettings.MemberJoinAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding DiscordSettings.MemberJoinAutoReplyEnabled}"
+                                                 materialDesign:HintAssist.Hint="Auto-reply message"/>
+                                        <TextBlock Text="Variables: {username}, {guild}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
-                                    <ToggleButton Grid.Column="1" IsChecked="{Binding DiscordSettings.IsChatEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}" VerticalAlignment="Center"/>
-                                </Grid>
+                                </Expander>
+
+                                <!-- Server Boost -->
+                                <Expander Margin="0,0,0,6">
+                                    <Expander.Header>
+                                        <TextBlock Text="Server Boost Events" FontSize="13" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    </Expander.Header>
+                                    <StackPanel Margin="12,8,0,0">
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <TextBlock Text="Show in chat" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <ToggleButton Grid.Column="1" IsChecked="{Binding DiscordSettings.ShowBoostsInChat, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
+                                        </Grid>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <TextBlock Text="Auto-reply" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <ToggleButton Grid.Column="1" IsChecked="{Binding DiscordSettings.BoostAutoReplyEnabled, Mode=TwoWay}" Style="{StaticResource MaterialDesignSwitchToggleButton}"/>
+                                        </Grid>
+                                        <TextBox Text="{Binding DiscordSettings.BoostAutoReplyMessage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 FontSize="12" TextWrapping="Wrap" IsEnabled="{Binding DiscordSettings.BoostAutoReplyEnabled}"
+                                                 materialDesign:HintAssist.Hint="Auto-reply message"/>
+                                        <TextBlock Text="Variables: {username}, {guild}" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </Expander>
                             </StackPanel>
                         </Border>
                     </StackPanel>

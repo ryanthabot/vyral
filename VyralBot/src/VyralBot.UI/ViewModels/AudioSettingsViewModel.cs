@@ -21,6 +21,13 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
     private readonly VyralBot.Api.Services.WebhookCoordinatorService? _webhookCoordinator;
     private DispatcherTimer? _clientCountTimer;
 
+    // Debounces slider drags before the volume is written to the AudioSettings blob
+    // (mirrors SoundsViewModel's master-volume slider, which shares the same blob).
+    private CancellationTokenSource? _masterVolumePersistCts;
+    // True while InitializeAsync loads persisted values into the properties so the
+    // load itself does not schedule a write.
+    private bool _suppressMasterVolumePersist;
+
     // Port of the embedded web server (source of the browser-source URL); 5000 fallback
     private int _serverPort = 5000;
 
@@ -77,6 +84,10 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
     {
         try
         {
+            // Loading persisted values would look like user edits to the change
+            // handlers - suppress the debounced volume persist while hydrating.
+            _suppressMasterVolumePersist = true;
+
             // Load settings from database
             var settingsJson = await _dataService.GetConfigValueAsync("AudioSettings");
             if (!string.IsNullOrEmpty(settingsJson))
@@ -120,6 +131,10 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
         {
             _logger.LogError(ex, "Error initializing AudioSettingsViewModel");
         }
+        finally
+        {
+            _suppressMasterVolumePersist = false;
+        }
     }
 
     [RelayCommand]
@@ -127,13 +142,15 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            var settings = new AudioSettings
-            {
-                StreamerSoundsEnabled = StreamerSoundsEnabled,
-                StreamSoundsEnabled = StreamSoundsEnabled,
-                MasterVolume = MasterVolume,
-                WebSocketPort = WebSocketPort
-            };
+            // Read-modify-write: the AudioSettings blob is shared with the Sounds
+            // page (master-volume slider) and SoundService defaults, so only the
+            // fields this page owns are overwritten.
+            var settings = await ReadAudioSettingsAsync();
+            settings.StreamerSoundsEnabled = StreamerSoundsEnabled;
+            settings.StreamSoundsEnabled = StreamSoundsEnabled;
+            settings.MasterVolume = MasterVolume;
+            // Informational mirror of the web-server port; no runtime reader.
+            settings.WebSocketPort = _serverPort;
 
             var settingsJson = JsonSerializer.Serialize(settings);
             await _dataService.SetConfigValueAsync("AudioSettings", settingsJson);
@@ -326,6 +343,12 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
             _clientCountTimer = null;
         }
 
+        // Cancel any in-flight debounced volume write; the last settled value is
+        // already persisted by PersistMasterVolumeAsync itself.
+        _masterVolumePersistCts?.Cancel();
+        _masterVolumePersistCts?.Dispose();
+        _masterVolumePersistCts = null;
+
         if (_webhookCoordinator != null)
         {
             _webhookCoordinator.StatusChanged -= OnWebhookStatusChanged;
@@ -334,9 +357,73 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
 
     partial void OnMasterVolumeChanged(int value)
     {
-        // Clamp volume between 0 and 100
-        if (value < 0) MasterVolume = 0;
-        if (value > 100) MasterVolume = 100;
+        // Clamp volume between 0 and 100 (re-enters once with the clamped value)
+        var clamped = Math.Clamp(value, 0, 100);
+        if (clamped != value)
+        {
+            MasterVolume = clamped;
+            return;
+        }
+
+        if (_suppressMasterVolumePersist)
+        {
+            return;
+        }
+
+        // SoundService re-reads the AudioSettings blob on every playback, so a
+        // persisted value takes effect on the next sound without a restart.
+        _masterVolumePersistCts?.Cancel();
+        _masterVolumePersistCts?.Dispose();
+        _masterVolumePersistCts = new CancellationTokenSource();
+        _ = PersistMasterVolumeAsync(_masterVolumePersistCts.Token);
+    }
+
+    /// <summary>
+    /// Writes MasterVolume into the persisted AudioSettings JSON after the slider
+    /// settles (600ms), read-modify-write so other audio settings are preserved.
+    /// Same pattern as SoundsViewModel's master-volume slider (same blob).
+    /// </summary>
+    private async Task PersistMasterVolumeAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(600, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return; // superseded by a newer slider value
+        }
+
+        try
+        {
+            var settings = await ReadAudioSettingsAsync();
+            settings.MasterVolume = Math.Clamp(MasterVolume, 0, 100);
+            var json = JsonSerializer.Serialize(settings);
+            await _dataService.SetConfigValueAsync("AudioSettings", json);
+
+            _logger.LogInformation("Master volume set to {Volume}% (AudioSettings)", settings.MasterVolume);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error persisting master volume");
+        }
+    }
+
+    /// <summary>
+    /// Reads the persisted AudioSettings blob, falling back to defaults when it is
+    /// missing or malformed (never throws).
+    /// </summary>
+    private async Task<AudioSettings> ReadAudioSettingsAsync()
+    {
+        var settingsJson = await _dataService.GetConfigValueAsync("AudioSettings");
+        try
+        {
+            return JsonSerializer.Deserialize<AudioSettings>(settingsJson ?? string.Empty) ?? new AudioSettings();
+        }
+        catch (JsonException)
+        {
+            return new AudioSettings();
+        }
     }
 
     partial void OnWebSocketPortChanged(int value)

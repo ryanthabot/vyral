@@ -13,11 +13,33 @@ ViewModels for specific settings areas: web server, audio, sounds, alerts, varia
 
 ## Audio Settings
 ### AudioSettingsViewModel
-- **File:** `src/VyralBot.UI/ViewModels/AudioSettingsViewModel.cs` (~206 lines)
-- **Class:** `AudioSettingsViewModel : ViewModelBase`
-- **Constructor:** `ILogger`, `IDataService`, `ISoundService`
-- **Observable properties:** `_streamerSoundsEnabled`, `_streamSoundsEnabled`, `_masterVolume`, `_webSocketPort`, `_connectedClients`
+- **File:** `src/VyralBot.UI/ViewModels/AudioSettingsViewModel.cs` (~441 lines)
+- **Class:** `AudioSettingsViewModel : ViewModelBase, IDisposable`
+- **Constructor:** `ILogger`, `IDataService`, `ISoundService`, `WebhookCoordinatorService?`
+- **Observable properties:** `_streamerSoundsEnabled`, `_streamSoundsEnabled`, `_masterVolume`, `_webSocketPort`, `_connectedClients`, `_isServerRunning`, `_browserSourceUrl`
 - **View:** `src/VyralBot.UI/Views/AudioSettingsView.xaml(.cs)`
+- **Persistence:** the `AudioSettings` config blob (shared with the Sounds page
+  master-volume slider). Toggles apply on **Save Settings**; the master-volume
+  slider auto-persists (600 ms debounce, read-modify-write) exactly like
+  `SoundsViewModel`, because `SoundService` re-reads the blob on every playback.
+  `SaveSettingsAsync` is also read-modify-write so it never clobbers concurrent
+  Sounds-page edits.
+- **Port row is read-only:** the `/audio-ws` endpoint rides the embedded web
+  server, so the port is owned by Web Server settings; the TextBox is a OneWay
+  mirror (`OnWebSocketPortChanged` still reverts any programmatic drift) and the
+  view states that a changed port requires an app restart — the page's Restart
+  Server button reuses the port cached in `WebhookCoordinatorService` at startup.
+  `AudioSettings.WebSocketPort` in the blob is informational only (no runtime
+  reader).
+- **Test Sound** plays the first library sound through the real pipeline
+  (`PlaySoundFileAsync` honors the persisted toggles and the current slider
+  volume); with an empty library it shows guidance instead.
+- **Live status:** `IsServerRunning` from `WebhookCoordinatorService.StatusChanged`
+  (unsubscribed on `Dispose`), `ConnectedClients` polled every 2 s from
+  `AudioWebSocketBroadcaster.ConnectedClientCount`.
+- **No output-device selection:** local playback goes through WPF `MediaPlayer`,
+  which has no device API. Adding per-device output requires referencing
+  `NAudio.Wasapi` — a maintainer-level dependency decision (not added).
 
 ## Sounds Management
 ### SoundsViewModel

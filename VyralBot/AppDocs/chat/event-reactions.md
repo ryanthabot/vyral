@@ -23,8 +23,8 @@ YouTube and Discord have no event ingestion (chat messages only), and TikTok has
 |---|---|
 | **Twitch** | Follow, Subscribe, Resub, Gift Sub, Raid, Cheer, **Reward Redeemed** (Channel Points — live since 2026-11-07) |
 | **Kick** | Follow, Subscribe, Gift Sub, Host, Kicks Gifted, Reward Redeemed, Stream Status (chat message only) |
-| **YouTube** | Membership (subscriber alert family) + **Super Chat / Super Sticker** (alert, cheer sound family, currency like bits, statistics) — see [YouTube](../platforms/youtube.md#super-chats--super-stickers) |
-| **Discord** | Member join (follow-style: sound, alert, statistics) — but dormant until the Server Members intent is enabled ([Discord](../platforms/discord.md#member-joins--boosts-intent-gated)) |
+| **YouTube** | Membership (subscriber alert family) + **Super Chat / Super Sticker** (alert, cheer sound family, currency like bits, statistics) — and since 1.1.0, **auto-replies** with per-event templates on the Chat Hub's YouTube tab (`YouTube/Subscribe` and `YouTube/Cheer` rows; variables: Membership `{username}`, `{tier}`; Super Chat `{username}`, `{amount}`, `{message}`) — see [YouTube](../platforms/youtube.md#super-chats--super-stickers) |
+| **Discord** | Member join + server boost (sound, alert, statistics) with Chat Hub editors since 1.1.0 — show-in-chat toggles and auto-reply templates on the Discord tab (`Discord/Follow`, `Discord/Subscribe`; variables `{username}`, `{guild}`) — but dormant until the Server Members intent is enabled ([Discord](../platforms/discord.md#member-joins--boosts-intent-gated)) |
 | **TikTok** | None (no integration) |
 
 ### Where to configure each effect
@@ -44,7 +44,7 @@ The five effects are configured in *different* places — that is the most confu
 1. Open the Chat Hub (Home → Chat card) or the platform's popup in the chat window header.
 2. Expand the event you want (for example **Raid**).
 3. Turn on **Show in chat** if you also want the gold system message, and **Auto-reply** for the reply.
-4. Write the template. Only the variables listed below resolve — anything else in braces is left untouched. Note that DB variables like `{twitter}` do **not** resolve in auto-replies.
+4. Write the template. The variables listed below substitute first; the reply then passes through the full [Variables](variables.md) engine, so DB/social variables like `{twitter}` resolve in auto-replies too (since 1.1.0). Anything neither pass knows in braces is left untouched.
 5. Click **Save Settings**.
 
 Available variables per event (exactly what the handler passes):
@@ -117,16 +117,16 @@ Two gating variants exist in the wild: most handlers use `if (settings == null) 
 
 ### Template processing and rate limiting
 
-- `ProcessTemplate` ([AutoReplyService.cs](../../src/VyralBot.Core/Services/Chat/AutoReplyService.cs):37) is a plain case-insensitive `string.Replace` of `{key}` placeholders from the handler's variable dictionary. It does **not** use `IVariableReplacementService`, so DB/social variables never resolve in auto-replies.
+- `ProcessTemplate` ([AutoReplyService.cs](../../src/VyralBot.Core/Services/Chat/AutoReplyService.cs):37) is a plain case-insensitive `string.Replace` of `{key}` placeholders from the handler's variable dictionary — the **first pass**. The pipeline that wraps it (`ChatViewModel.BuildAutoReplyTextAsync`, ChatViewModel.cs:4334-4348) then runs the result through `IVariableReplacementService`, so DB/social variables resolve in auto-replies too (since 1.1.0 — KI-12/KI-28 resolved).
 - `ShouldSendReply` (:136) delegates to [AutoReplyRateLimiter.cs](../../src/VyralBot.Core/Services/Chat/AutoReplyRateLimiter.cs) — a `ConcurrentDictionary` keyed `"{platform}:{eventType}:{username-lowercase}"` with a 30-second cooldown (constructed at AutoReplyService.cs:26). Expired-entry cleanup exists (`CleanupExpired`, 10 minutes) but no timer schedules it.
-- A richer conditional-rules engine (`AutoReplyService.GetAutoReplyAsync` — loads `AutoReplyRule` rows, evaluates `RuleCondition` JSON) is fully implemented but has **no production caller**; the live path is the simple one above. See [Auto-Replies](../chat-features/auto-replies.md).
+- The conditional-rules engine (`AutoReplyService.GetAutoReplyAsync` — loads `AutoReplyRule` rows, evaluates `RuleCondition` JSON) is called from the same `BuildAutoReplyTextAsync` on **every** event auto-reply: a matching rule replaces the default template, rules fire with no default message required, and Discord join/boost events evaluate rules too (KI-57 resolved). See [Auto-Replies](../chat-features/auto-replies.md).
 
 ## Files & Code
 
 | File | Role |
 |---|---|
 | [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) | The 13 event handlers, `AddSystemMessageAsync` (:2481), `ShowEventAlertAsync` (:2628), subscriptions (:207-270) |
-| [AutoReplyService.cs](../../src/VyralBot.Core/Services/Chat/AutoReplyService.cs) | `ProcessTemplate`, `ShouldSendReply`, dormant rules engine `GetAutoReplyAsync` |
+| [AutoReplyService.cs](../../src/VyralBot.Core/Services/Chat/AutoReplyService.cs) | `ProcessTemplate` (first pass), `ShouldSendReply`, the live conditional-rules engine `GetAutoReplyAsync` |
 | [AutoReplyRateLimiter.cs](../../src/VyralBot.Core/Services/Chat/AutoReplyRateLimiter.cs) | 30 s per-user/event/platform cooldown |
 | [ChatEventSettingsService.cs](../../src/VyralBot.Core/Services/Chat/ChatEventSettingsService.cs) | Cached `ChatEventSetting` access |
 | [ChatEventSetting.cs](../../src/VyralBot.Data/Entities/ChatEventSetting.cs) | Per-event settings entity |
@@ -220,8 +220,8 @@ public string ProcessTemplate(string template, Dictionary<string, string> variab
 - **Browser-source sounds work** — the WebSocket broadcast now sends the camelCase shape the page understands, with volume honored (fixed 2026-08-15). [Known issues](../reference/known-issues.md).
 - **`{raider}` is supplied** by the Twitch Raid handler; **Twitch Gift Sub has a full auto-reply block** (both fixed 2026-08-15).
 - **Show-in-chat gating is inconsistent**: for six events, turning off "Show in chat" also silences sound, alert, currency, auto-reply, *and* the statistics write; for most it only hides the message. [Known issues](../reference/known-issues.md) (KI-26).
-- **DB/social variables still do not resolve in auto-reply templates** — see [Auto-Replies](../chat-features/auto-replies.md) (KI-28).
+- **DB/social variables resolve in auto-replies** — the reply passes through the full variable engine after the context-key pass (since 1.1.0; KI-12/KI-28 resolved). See [Auto-Replies](../chat-features/auto-replies.md).
 - **Kick Pusher follow events carry `Username="Unknown"`**; the webhook path is the one that knows the real name. [Known issues](../reference/known-issues.md).
-- **The dormant rules engine**: conditional auto-reply rules ([Conditional Rules](../chat-features/conditional-rules.md)) are stored but never fire — `GetAutoReplyAsync` has no callers. [Known issues](../reference/known-issues.md).
-- **YouTube/Discord event reactions are newer than the rest** — YouTube memberships + Super Chats and (intent-gated) Discord member joins fire sound/alert/currency/statistics, but they have no per-event Chat Settings rows or auto-reply templates the way Twitch/Kick events do; TikTok has no integration at all. [Known issues](../reference/known-issues.md).
+- **The conditional-rules engine is live** — every event auto-reply consults it (`GetAutoReplyAsync` from `BuildAutoReplyTextAsync`): a matching rule replaces the default message, no default message is required, and Discord join/boost events evaluate rules (KI-57 resolved). See [Conditional Rules](../chat-features/conditional-rules.md).
+- **YouTube/Discord event reactions have settings parity now (1.1.0)** — YouTube Membership/Super Chat and Discord join/boost all have per-event Chat Settings rows with auto-reply templates on their Chat Hub tabs (Discord's ride the Server Members intent gate, KI-52); TikTok remains identity-only. [Known issues](../reference/known-issues.md).
 - The legacy `USER_GUIDE_CHAT_EVENTS.md` "Channel Points" entry is finally true: the Twitch redemption handler exists and is live (2026-11-07) — seven Twitch event handlers now.

@@ -14,6 +14,9 @@ files) plus per-platform event-sound mappings. Backed by
 - `AudioSettings` — shared JSON blob (also written by the Audio Settings page):
   master volume, streamer/stream sound toggles, web port. The Sounds page
   read-modify-writes it so it never clobbers the other fields.
+- `Sounds.Hotkeys` (category `Sounds`) — JSON map
+  `{ "sound file name": "Ctrl+Alt+1" }` of global soundboard hotkeys (KI-55),
+  owned by `GlobalHotkeyService` (`docs/services/global-hotkey-service.md`).
 
 ## Master volume
 
@@ -36,6 +39,16 @@ Sound-file assignment uses the selected library item (Assign/Clear/Test).
 - Files live in the profile sounds dir (`ISoundService.GetSoundsDirectory()`);
   supported: .wav, .mp3, .ogg, .m4a.
 - Per-row play button previews at master volume (`PlayFileCommand`).
+- Per-row **Hotkey** column (KI-55): "Set Hotkey" starts click-to-capture; the
+  next modifier+key press registers the combo immediately via
+  `GlobalHotkeyService.SetSoundHotkeyAsync` (conflicts with another sound and
+  combos claimed by other applications are rejected with a message; Esc
+  cancels; modifier-only or bare keys keep the capture alive with a hint).
+  The chip shows the assigned gesture ("Ctrl+Alt+1"); a "✕" button clears it.
+  Key capture tunnels through the page's `PreviewKeyDown` (Alt combos arrive
+  as `Key.System` and are resolved to `SystemKey`). Deleting a sound releases
+  its hotkey slot. The header documents the constraints: hotkeys are OS-global
+  (fire in-game), avoid game/Windows combos, max 10 slots.
 - Duration is shown for .wav only — parsed from the RIFF header
   (`TryGetWavDuration`: fmt byte-rate + data chunk size) on a background
   thread. Other formats would need a decoder; they show no duration.
@@ -56,5 +69,7 @@ loudness (master x per-event) — see `docs/services/embedded-web-server.md`.
 
 ## Disposal
 
-`IDisposable` cancels the two debounce CTSs; `MainViewModel` scope disposal
-invokes it on page switch.
+`IDisposable` cancels the two debounce CTSs and aborts any in-progress hotkey
+capture; live hotkey registrations are owned by the `GlobalHotkeyService`
+singleton and keep firing. `MainViewModel` scope disposal invokes it on page
+switch.

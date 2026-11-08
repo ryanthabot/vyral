@@ -107,13 +107,19 @@
 
                     <Separator Margin="0,10,0,15"/>
 
-                    <!-- Test Button -->
-                    <Button Content="Test Alert"
+                    <!-- Live preview of duration/animation/position (no save needed) -->
+                    <Button Content="Preview Current Settings"
                            Command="{Binding TestAlertCommand}"
                            Style="{StaticResource MaterialDesignRaisedButton}"
                            Background="{DynamicResource PrimaryBrush}"
                            HorizontalAlignment="Left"
                            Padding="30,10"/>
+
+                    <TextBlock Text="Preview shows the duration, animation and position selected above — changes apply to the preview immediately, before saving."
+                              FontSize="12"
+                              Foreground="{StaticResource MaterialDesignBodyLight}"
+                              Margin="0,8,0,0"
+                              TextWrapping="Wrap"/>
                 </StackPanel>
             </materialDesign:Card>
 
@@ -134,10 +140,20 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        
+
                         <TextBlock Grid.Column="0" Text="New Followers" VerticalAlignment="Center"/>
-                        <ToggleButton Grid.Column="1"
+                        <Button Grid.Column="1"
+                                Content="TEST"
+                                Command="{Binding TestEventAlertCommand}"
+                                CommandParameter="follow"
+                                Style="{StaticResource MaterialDesignOutlinedButton}"
+                                FontSize="11"
+                                Padding="15,4"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"/>
+                        <ToggleButton Grid.Column="2"
                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
                                      IsChecked="{Binding ShowFollowAlerts}"/>
                     </Grid>
@@ -147,10 +163,20 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        
+
                         <TextBlock Grid.Column="0" Text="New Subscribers" VerticalAlignment="Center"/>
-                        <ToggleButton Grid.Column="1"
+                        <Button Grid.Column="1"
+                                Content="TEST"
+                                Command="{Binding TestEventAlertCommand}"
+                                CommandParameter="subscribe"
+                                Style="{StaticResource MaterialDesignOutlinedButton}"
+                                FontSize="11"
+                                Padding="15,4"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"/>
+                        <ToggleButton Grid.Column="2"
                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
                                      IsChecked="{Binding ShowSubscribeAlerts}"/>
                     </Grid>
@@ -160,10 +186,20 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        
+
                         <TextBlock Grid.Column="0" Text="Gifted Subscriptions" VerticalAlignment="Center"/>
-                        <ToggleButton Grid.Column="1"
+                        <Button Grid.Column="1"
+                                Content="TEST"
+                                Command="{Binding TestEventAlertCommand}"
+                                CommandParameter="giftsub"
+                                Style="{StaticResource MaterialDesignOutlinedButton}"
+                                FontSize="11"
+                                Padding="15,4"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"/>
+                        <ToggleButton Grid.Column="2"
                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
                                      IsChecked="{Binding ShowGiftSubAlerts}"/>
                     </Grid>
@@ -173,10 +209,20 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        
+
                         <TextBlock Grid.Column="0" Text="Raids" VerticalAlignment="Center"/>
-                        <ToggleButton Grid.Column="1"
+                        <Button Grid.Column="1"
+                                Content="TEST"
+                                Command="{Binding TestEventAlertCommand}"
+                                CommandParameter="raid"
+                                Style="{StaticResource MaterialDesignOutlinedButton}"
+                                FontSize="11"
+                                Padding="15,4"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"/>
+                        <ToggleButton Grid.Column="2"
                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
                                      IsChecked="{Binding ShowRaidAlerts}"/>
                     </Grid>
@@ -186,10 +232,20 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        
+
                         <TextBlock Grid.Column="0" Text="Hosts" VerticalAlignment="Center"/>
-                        <ToggleButton Grid.Column="1"
+                        <Button Grid.Column="1"
+                                Content="TEST"
+                                Command="{Binding TestEventAlertCommand}"
+                                CommandParameter="host"
+                                Style="{StaticResource MaterialDesignOutlinedButton}"
+                                FontSize="11"
+                                Padding="15,4"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"/>
+                        <ToggleButton Grid.Column="2"
                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
                                      IsChecked="{Binding ShowHostAlerts}"/>
                     </Grid>
@@ -199,13 +255,67 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        
+
                         <TextBlock Grid.Column="0" Text="Bits/Cheers" VerticalAlignment="Center"/>
-                        <ToggleButton Grid.Column="1"
+                        <Button Grid.Column="1"
+                                Content="TEST"
+                                Command="{Binding TestEventAlertCommand}"
+                                CommandParameter="cheer"
+                                Style="{StaticResource MaterialDesignOutlinedButton}"
+                                FontSize="11"
+                                Padding="15,4"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"/>
+                        <ToggleButton Grid.Column="2"
                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
                                      IsChecked="{Binding ShowCheerAlerts}"/>
                     </Grid>
+
+                    <!-- Per-event test feedback (suppression explanations) -->
+                    <TextBlock Text="{Binding StatusMessage}"
+                              FontSize="12"
+                              Foreground="{DynamicResource PrimaryBrush}"
+                              Margin="0,5,0,0"
+                              TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <Separator Margin="0,15,0,15"/>
+
+                    <!-- Scope notes: what this page does NOT control -->
+                    <TextBlock Text="Notes"
+                              FontWeight="SemiBold"
+                              Margin="0,0,0,8"/>
+                    <TextBlock Text="• Each TEST fires the alert with the exact title the live event uses (e.g. &quot;Bits!&quot;), so the popup matches what viewers see on stream. If the row's toggle is off, the preview is suppressed and explained above."
+                              FontSize="12"
+                              Foreground="{StaticResource MaterialDesignBodyLight}"
+                              Margin="0,0,0,5"
+                              TextWrapping="Wrap"/>
+                    <TextBlock Text="• Alert text is fixed per event (title + username + detail). {variables} like {username} are not substituted in alert text — they apply to commands, auto-replies and chat responses."
+                              FontSize="12"
+                              Foreground="{StaticResource MaterialDesignBodyLight}"
+                              Margin="0,0,0,5"
+                              TextWrapping="Wrap"/>
+                    <TextBlock Text="• Per-event sounds and per-event volumes are configured on the Sounds page, not here."
+                              FontSize="12"
+                              Foreground="{StaticResource MaterialDesignBodyLight}"
+                              Margin="0,0,0,5"
+                              TextWrapping="Wrap"/>
+                    <TextBlock Text="• Kicks gifting (&quot;Kicks Gifted!&quot;) and reward redemptions (&quot;Reward Redeemed!&quot;) always show alerts while visual alerts are enabled — they have no per-event toggle."
+                              FontSize="12"
+                              Foreground="{StaticResource MaterialDesignBodyLight}"
+                              Margin="0,0,0,0"
+                              TextWrapping="Wrap"/>
                 </StackPanel>
             </materialDesign:Card>
 

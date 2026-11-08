@@ -25,7 +25,8 @@ public partial class YoutubeChatSettingsView : UserControl
                 DataContext = new YoutubeChatSettingsViewModel(
                     provider?.GetService<ILogger<YoutubeChatSettingsViewModel>>()!,
                     provider?.GetService<IDataService>()!,
-                    provider?.GetService<VyralBot.Core.Services.EventBus.IEventBus>()!);
+                    provider?.GetService<VyralBot.Core.Services.EventBus.IEventBus>()!,
+                    provider?.GetService<VyralBot.Core.Services.Chat.IChatEventSettingsService>()!);
             }
     }
 }

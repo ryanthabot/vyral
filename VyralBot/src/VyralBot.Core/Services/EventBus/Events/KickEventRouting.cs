@@ -26,24 +26,40 @@ public static class KickEventRouting
     // by message id in KickWebhookValidationMiddleware.
     private static readonly ConcurrentDictionary<string, DateTime> RecentEventKeys = new();
     private const int MaxTrackedKeys = 2000;
-    private static readonly TimeSpan DedupWindow = TimeSpan.FromSeconds(60);
 
     /// <summary>
-    /// Attempts to claim an event key. Returns true for the first caller within
-    /// the dedup window (publish), false for any later caller (skip duplicate).
+    /// Cross-transport duplicates of the SAME event arrive within seconds (the
+    /// webhook retry path is additionally deduped by message id upstream), so a
+    /// short window suppresses them without swallowing DISTINCT events by the
+    /// same actor — a gifter's second batch 20s later must still count.
+    /// </summary>
+    private static readonly TimeSpan DedupWindow = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// Attempts to claim an event key atomically: the first caller within the
+    /// dedup window wins (publish); later callers lose (skip duplicate). Uses
+    /// remove-then-TryAdd so webhook/Pusher threads racing one key can never
+    /// both claim it.
     /// </summary>
     public static bool TryBeginEvent(string dedupKey)
     {
         var nowUtc = DateTime.UtcNow;
 
-        if (RecentEventKeys.TryGetValue(dedupKey, out var seenAt) && nowUtc - seenAt < DedupWindow)
+        if (RecentEventKeys.TryGetValue(dedupKey, out var seenAt))
         {
-            return false;
+            if (nowUtc - seenAt < DedupWindow)
+            {
+                return false;
+            }
+            RecentEventKeys.TryRemove(new KeyValuePair<string, DateTime>(dedupKey, seenAt));
         }
 
-        RecentEventKeys[dedupKey] = nowUtc;
-        PruneExpired(nowUtc);
-        return true;
+        var claimed = RecentEventKeys.TryAdd(dedupKey, nowUtc);
+        if (claimed)
+        {
+            PruneExpired(nowUtc);
+        }
+        return claimed;
     }
 
     /// <summary>

@@ -306,8 +306,9 @@
                              HorizontalAlignment="Center"
                              Margin="0,0,0,16"/>
                     
-                    <TextBlock Text="Your demo credentials have been saved securely." 
+                    <TextBlock Text="Demo only: your credentials were kept in memory for this session (nothing is persisted)."
                              FontSize="16"
+                             TextWrapping="Wrap"
                              Foreground="{DynamicResource TextSecondaryBrush}"
                              HorizontalAlignment="Center"
                              Margin="0,0,0,32"/>

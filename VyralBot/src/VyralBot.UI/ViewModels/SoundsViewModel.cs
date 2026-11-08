@@ -2,12 +2,14 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using VyralBot.Core.Services.Audio;
 using VyralBot.Data;
+using VyralBot.UI.Services.Hotkey;
 
 namespace VyralBot.UI.ViewModels;
 
@@ -19,6 +21,7 @@ public partial class SoundsViewModel : ViewModelBase, IDisposable
     private readonly ILogger<SoundsViewModel> _logger;
     private readonly ISoundService _soundService;
     private readonly IDataService _dataService;
+    private readonly GlobalHotkeyService _hotkeyService;
 
     // Master volume multiplier (0..1) derived from MasterVolumePercent; previews
     // multiply by it so they match live playback loudness (live: master * per-event).
@@ -58,14 +61,35 @@ public partial class SoundsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private int _masterVolumePercent = 100;
 
+    /// <summary>
+    /// Name of the sound whose hotkey is being captured right now (null = not
+    /// capturing). Click-to-capture state for the library's Hotkey column.
+    /// </summary>
+    [ObservableProperty]
+    private string? _capturingSoundName;
+
+    /// <summary>Status line shown next to the capture banner (Esc cancels, etc.).</summary>
+    [ObservableProperty]
+    private string? _captureHint;
+
+    /// <summary>True while a hotkey capture is in progress (banner visibility).</summary>
+    public bool IsCapturing => CapturingSoundName != null;
+
+    partial void OnCapturingSoundNameChanged(string? value)
+    {
+        OnPropertyChanged(nameof(IsCapturing));
+    }
+
     public SoundsViewModel(
         ILogger<SoundsViewModel> logger,
         ISoundService soundService,
-        IDataService dataService)
+        IDataService dataService,
+        GlobalHotkeyService hotkeyService)
     {
         _logger = logger;
         _soundService = soundService;
         _dataService = dataService;
+        _hotkeyService = hotkeyService;
     }
 
     /// <summary>
@@ -232,6 +256,9 @@ public partial class SoundsViewModel : ViewModelBase, IDisposable
                 Duration = durations.TryGetValue(file, out var duration) ? duration : null
             });
         }
+
+        // Rows are rebuilt from scratch — re-apply the saved hotkey assignments.
+        await ApplyHotkeysToItemsAsync();
 
         _logger.LogInformation("Loaded {Count} sound files", SoundFiles.Count);
     }
@@ -512,6 +539,9 @@ public partial class SoundsViewModel : ViewModelBase, IDisposable
 
             await _soundService.DeleteSoundAsync(fileToDelete);
 
+            // Release the deleted sound's global hotkey slot too (zero-orphans).
+            await _hotkeyService.ClearSoundHotkeyAsync(fileToDelete);
+
             // Remove assignments that used this sound
             foreach (var mapping in EventMappings.Where(m => m.SoundFile == fileToDelete).ToList())
             {
@@ -577,6 +607,180 @@ public partial class SoundsViewModel : ViewModelBase, IDisposable
             _logger.LogError(ex, "Error playing sound file");
             MessageBox.Show($"Error playing sound: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Global hotkeys (KI-55): the Hotkey column on each library row. The
+    // GlobalHotkeyService singleton owns the actual RegisterHotKey slots and
+    // playback; this VM only drives capture UX and reflects assignments.
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Copies the persisted {sound: gesture} map onto the library rows. Called
+    /// after every list rebuild (init, upload, drag-drop import, delete).
+    /// </summary>
+    private async Task ApplyHotkeysToItemsAsync()
+    {
+        try
+        {
+            var map = await _hotkeyService.GetSoundHotkeyMapAsync();
+            foreach (var item in SoundFiles)
+            {
+                item.Hotkey = map.TryGetValue(item.Name, out var gesture) ? gesture : null;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error applying saved hotkeys to the sound list");
+        }
+    }
+
+    /// <summary>
+    /// Starts click-to-capture for a row: the next modifier+key press becomes
+    /// that sound's global hotkey (registered and persisted immediately).
+    /// </summary>
+    [RelayCommand]
+    private void BeginCaptureHotkey(SoundFileItem? item)
+    {
+        if (item == null) return;
+
+        EndCapture(); // only one row captures at a time
+        item.IsCapturingHotkey = true;
+        CapturingSoundName = item.Name;
+        CaptureHint = "Press a modifier + key combo (Esc cancels)";
+        _logger.LogInformation("Hotkey capture started for '{Sound}'", item.Name);
+    }
+
+    /// <summary>Aborts the in-progress capture without changing anything.</summary>
+    [RelayCommand]
+    private void CancelHotkeyCapture()
+    {
+        EndCapture();
+    }
+
+    /// <summary>
+    /// Key sink for capture mode — wired from SoundsView's PreviewKeyDown
+    /// (Alt combos arrive as Key.System, the view resolves SystemKey first).
+    /// Returns true when the key was consumed (capture active).
+    /// </summary>
+    public async Task<bool> HandleCaptureKeyDownAsync(Key key, ModifierKeys modifiers)
+    {
+        if (CapturingSoundName == null)
+        {
+            return false;
+        }
+
+        var item = SoundFiles.FirstOrDefault(f =>
+            string.Equals(f.Name, CapturingSoundName, StringComparison.OrdinalIgnoreCase));
+        if (item == null)
+        {
+            EndCapture();
+            return false;
+        }
+
+        // Modifier-only presses keep the capture alive while the combo is built.
+        if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt
+            or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin)
+        {
+            CaptureHint = "Now press a regular key (Esc cancels)";
+            return true;
+        }
+
+        if (key == Key.Escape && modifiers == ModifierKeys.None)
+        {
+            EndCapture();
+            return true;
+        }
+
+        if (!HotkeyGesture.FromWpfKey(key, modifiers, out var gesture))
+        {
+            CaptureHint = modifiers == ModifierKeys.None
+                ? "Add Ctrl, Alt, Shift or Win to the combo (Esc cancels)"
+                : "That key can't be used in a global hotkey (Esc cancels)";
+            return true;
+        }
+
+        var display = HotkeyGesture.Format(gesture);
+        var result = await _hotkeyService.SetSoundHotkeyAsync(item.Name, display);
+        switch (result.Outcome)
+        {
+            case SoundHotkeyOutcome.Registered:
+            case SoundHotkeyOutcome.ReplacedExisting:
+                item.Hotkey = display;
+                EndCapture();
+                _logger.LogInformation("Hotkey {Gesture} assigned to '{Sound}'", display, item.Name);
+                break;
+
+            case SoundHotkeyOutcome.ConflictOtherSound:
+                EndCapture();
+                MessageBox.Show(
+                    $"{display} is already assigned to '{result.ConflictSound}'. Pick a different combo.",
+                    "Hotkey in use", MessageBoxButton.OK, MessageBoxImage.Warning);
+                break;
+
+            case SoundHotkeyOutcome.OsRejected:
+                EndCapture();
+                MessageBox.Show(
+                    $"{display} is already claimed by another application (or the OS). Pick a different combo.",
+                    "Hotkey unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
+                break;
+
+            case SoundHotkeyOutcome.LimitReached:
+                EndCapture();
+                MessageBox.Show(
+                    $"All {GlobalHotkeyService.MaxSlots} hotkey slots are in use. Clear one first.",
+                    "Hotkey limit", MessageBoxButton.OK, MessageBoxImage.Warning);
+                break;
+
+            case SoundHotkeyOutcome.NoWindowAttached:
+                EndCapture();
+                MessageBox.Show(
+                    "Global hotkeys are unavailable (main window not ready).",
+                    "Hotkeys unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
+                break;
+
+            default:
+                EndCapture();
+                MessageBox.Show(
+                    "That combination is not valid for a global hotkey.",
+                    "Invalid hotkey", MessageBoxButton.OK, MessageBoxImage.Warning);
+                break;
+        }
+
+        return true;
+    }
+
+    /// <summary>Clears a row's hotkey: unregisters the OS slot and unpersists it.</summary>
+    [RelayCommand]
+    private async Task ClearHotkeyAsync(SoundFileItem? item)
+    {
+        if (item == null || string.IsNullOrEmpty(item.Hotkey)) return;
+
+        try
+        {
+            await _hotkeyService.ClearSoundHotkeyAsync(item.Name);
+            item.Hotkey = null;
+            _logger.LogInformation("Cleared hotkey for '{Sound}'", item.Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error clearing hotkey for '{Sound}'", item.Name);
+            MessageBox.Show($"Error clearing hotkey: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>Resets capture state (row flag + banner) without touching registrations.</summary>
+    private void EndCapture()
+    {
+        var item = SoundFiles.FirstOrDefault(f =>
+            string.Equals(f.Name, CapturingSoundName, StringComparison.OrdinalIgnoreCase));
+        if (item != null)
+        {
+            item.IsCapturingHotkey = false;
+        }
+
+        CapturingSoundName = null;
+        CaptureHint = null;
     }
 
     /// <summary>
@@ -729,10 +933,14 @@ public partial class SoundsViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// Cancels any pending debounced volume persists when the page is navigated away.
+    /// Cancels any pending debounced volume persists and hotkey capture when the
+    /// page is navigated away. Live hotkey registrations are owned by the
+    /// GlobalHotkeyService singleton and keep firing.
     /// </summary>
     public void Dispose()
     {
+        EndCapture();
+
         _volumePersistCts?.Cancel();
         _volumePersistCts?.Dispose();
         _volumePersistCts = null;
@@ -745,7 +953,7 @@ public partial class SoundsViewModel : ViewModelBase, IDisposable
 
 /// <summary>
 /// One row of the sound library list: file name plus (for .wav, where the header
-/// makes it cheap) the duration.
+/// makes it cheap) the duration, and its global hotkey assignment.
 /// </summary>
 public partial class SoundFileItem : ObservableObject
 {
@@ -755,11 +963,26 @@ public partial class SoundFileItem : ObservableObject
     [ObservableProperty]
     private string? _duration;
 
+    /// <summary>Assigned global hotkey ("Ctrl+Alt+1") or null when unset.</summary>
+    [ObservableProperty]
+    private string? _hotkey;
+
+    /// <summary>True while this row is waiting for a key combo (capture mode).</summary>
+    [ObservableProperty]
+    private bool _isCapturingHotkey;
+
     public bool HasDuration => !string.IsNullOrEmpty(Duration);
+
+    public bool HasHotkey => !string.IsNullOrEmpty(Hotkey);
 
     partial void OnDurationChanged(string? value)
     {
         OnPropertyChanged(nameof(HasDuration));
+    }
+
+    partial void OnHotkeyChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasHotkey));
     }
 }
 
