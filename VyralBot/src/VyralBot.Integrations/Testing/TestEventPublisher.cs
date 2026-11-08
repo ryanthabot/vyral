@@ -38,6 +38,8 @@ public sealed class TestEventPublisher
     public const string DiscordMemberJoined = "discord.memberjoined";
     public const string DiscordBoost = "discord.boost";
     public const string FirstMessage = "firstmessage.fire";
+    public const string StreamLive = "streamlive.fire";
+    public const string StreamOffline = "streamoffline.fire";
 
     /// <summary>All event type ids accepted by <see cref="PublishTestEventAsync"/>.</summary>
     public static readonly IReadOnlyList<string> SupportedEventTypes = new[]
@@ -45,7 +47,7 @@ public sealed class TestEventPublisher
         KickFollow, KickSubscribe, KickGiftSub, KickHost, KickKicksGifted, KickRewardRedeemed,
         TwitchFollow, TwitchSubscribe, TwitchResub, TwitchGiftSub, TwitchRaid, TwitchCheer,
         TwitchChannelPointsRedeem, YouTubeSuperChat, YouTubeMembership,
-        DiscordMemberJoined, DiscordBoost, FirstMessage
+        DiscordMemberJoined, DiscordBoost, FirstMessage, StreamLive, StreamOffline
     };
 
     public const string DefaultUsername = "TestUser123";
@@ -315,6 +317,31 @@ public sealed class TestEventPublisher
                     Username = user,
                     Message = msg,
                     DisplayName = user
+                });
+
+            // Stream live/offline transitions (StreamLiveRegistry →
+            // StreamLiveChangedEvent). Published directly with IsLive set per
+            // direction, bypassing the registry's transition detection, so the
+            // "streamlive" / "streamoffline" workflow keys (Discord
+            // auto-announce on go-live etc.) fire regardless of the current
+            // live state. Twitch-shaped example payload, like every other
+            // test event; the username/message parameters are not part of the
+            // transition payload (the workflow's username variable comes from
+            // the platform's channel name).
+            case StreamLive:
+                return _eventBus.PublishAsync(new StreamLiveChangedEvent
+                {
+                    Source = "Twitch",
+                    Platform = "Twitch",
+                    IsLive = true
+                });
+
+            case StreamOffline:
+                return _eventBus.PublishAsync(new StreamLiveChangedEvent
+                {
+                    Source = "Twitch",
+                    Platform = "Twitch",
+                    IsLive = false
                 });
 
             default:

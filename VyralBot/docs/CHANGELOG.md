@@ -42,9 +42,9 @@ strip on Home and twelve starter workflow templates.
   minimum interval (up to 25 per bot).
 - **Discord command channels** — limit a bot's commands to the channels you
   pick; messages anywhere else are ignored (moderators are never restricted).
-- **Event Testing page** — fire any of 18 test events (follow, sub, raid,
-  Super Chat, redemption, first message and more) to try out alerts, sounds
-  and workflows.
+- **Event Testing page** — fire any of 20 test events (follow, sub, raid,
+  Super Chat, redemption, first message, stream live/offline and more) to try
+  out alerts, sounds and workflows.
 - **Get started strip** — a dismissible three-step guide on Home (connect a
   platform → set up alerts → import a workflow template) that hides itself
   once any platform connects.
@@ -75,6 +75,12 @@ strip on Home and twelve starter workflow templates.
   the platforms you choose.
 - **Crash reports** — if VyralBot crashes, it now writes a report (with
   secrets removed), shows a clear error dialog, and keeps logs size-capped.
+- **Song requests** — viewers queue YouTube songs with `!sr <link>`
+  (per-user and queue-size caps), mods skip or clear from chat
+  (`!srskip` / `!srclear`) or from the Sounds page's Song Requests card,
+  and an OBS browser source (`songplayer.html`) plays the queue on
+  stream, auto-advancing when a video ends and reporting real titles and
+  durations back to the queue.
 - **Mod & stream tools** — the classic mod commands in chat: `!so <user>`
   (all platforms), `!clip`, `!raid`/`!raid cancel`, `!title`, `!game`,
   `!commercial`, `!followage` (Twitch), and a Helix-backed `!uptime` (all
@@ -150,6 +156,24 @@ strip on Home and twelve starter workflow templates.
   raids and viewers brought, cheers and bits, chat messages, currency
   awarded, top chatters and a per-event breakdown (last 20 sessions kept;
   chat counts cover what the running app saw — KI-64).
+- **Fun commands** — a zero-state community fun pack on every platform:
+  `!8ball <question>` (20 classic answers), `!dice`/`!roll [1-10]` (d6 rolls
+  with a total), `!coinflip`/`!flip`, `!lurk`, `!hug <user>` (target
+  sanitized like `!so`) and `!rng <min> <max>` (inclusive bounds). Available
+  to everyone, guarded by a per-user 5-second spam slot; a custom command
+  with the same name still wins.
+- **Stream live/offline workflow triggers** — `streamlive` and
+  `streamoffline` event workflows fire exactly once per actual go-live /
+  stream-end transition (per platform; YouTube's "Listening" chat state
+  counts as live), never on repeat status pings — the building block for
+  "announce on Discord when I go live". Variables: the channel as
+  `{username}`, `{platform}` and `{isLive}`; Event Testing gained Stream
+  Live / Stream Offline buttons to exercise them safely.
+- **Home Quick Actions** — a one-click power bar on Home: create a Twitch
+  clip (URL copied to clipboard), save the OBS replay buffer, run a 30 s ad
+  break, start/stop the saved restream session, and mute/unmute TTS.
+  Buttons disable honestly when their backend is offline (tooltip says why)
+  and results fade out after 2 s.
 
 ### Fixed
 

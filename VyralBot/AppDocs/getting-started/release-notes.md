@@ -1,6 +1,6 @@
 # What's new in Vyral 1.1.0
 
-> Released 2026-11-07. A big stability, security and feature update — auto-moderation that actually enforces, Channel Points and Super Chats, quotes, Discord welcome messages, and your secrets encrypted on disk. This page distills the user-facing highlights; the full engineering changelog lives in `VyralBot/docs/CHANGELOG.md`.
+> Released 2026-11-07. A big stability, security and feature update — auto-moderation that actually enforces, Channel Points and Super Chats, song requests, quotes, seven OBS overlays, and your secrets encrypted on disk. This page distills the user-facing highlights; the full engineering changelog lives in `VyralBot/docs/CHANGELOG.md`.
 
 ## New features
 
@@ -8,25 +8,26 @@
 - **Quotes** — `!quote`, `!quote add/del/search/count` on Twitch, Kick, YouTube and Discord (moderator-gated), plus a Quotes page with search and management. See [Quotes](../chat-features/quotes.md).
 - **Twitch Channel Points** — custom reward redemptions trigger alerts, stats, auto-replies, chat lines and workflows.
 - **YouTube Super Chats** — amounts show in chat cheer-style, fire alerts and sounds, count toward stats and currency, and can start workflows.
-- **Discord welcome & auto-role** — greet new members by name (`{user}` variables) and hand them a role automatically.
-- **Discord dashboard** — live servers, commands, moderation actions and workflow runs for every bot you run, refreshed automatically.
+- **Discord welcome, auto-role & dashboards** — greet new members by name (`{user}` variables), hand them a role automatically, and watch live servers, commands, moderation actions and workflow runs for every bot you run on the Discord dashboard.
 - **Timers & scheduled messages** — recurring commands (optionally only while chat is active) and per-bot Discord announcements on a schedule with `{time}`/`{date}` variables.
-- **Event Testing page** — fire any of 18 test events (follow, sub, raid, Super Chat, redemption, first message…) to try alerts, sounds and workflows before going live. See [Event Testing](../chat-features/event-testing.md).
+- **Event Testing page** — fire any of 20 test events (follow, sub, raid, Super Chat, redemption, first message, stream live/offline…) to try alerts, sounds and workflows before going live. See [Event Testing](../chat-features/event-testing.md).
 - **Easier first run** — a dismissible three-step "Get started" strip on Home and twelve ready-made workflow templates (each imports disabled so you can edit first). See [Quick Start](quick-start.md) and [Automation](../chat-features/automation.md).
 - **Command import** — switching from Nightbot or StreamElements? The Commands page's IMPORT button reads their exports (or a plain text list), previews everything with skips and variable translation, and creates only what you approve. See [Commands](../chat-features/commands.md#command-import).
 - **Loyalty seasons** — start a season on the Currency page, snapshot the closing top-20, optionally zero balances for a fresh race (history kept), and let viewers check `!season`. See [Currency & Rewards](../stream-tools/currency.md#seasons).
 - **First-time chatter welcome** — a viewer's first-ever message fires a "First Message!" alert, an optional welcome reply, and a `firstmessage` workflow trigger. See [Event Reactions](../chat/event-reactions.md#first-time-chatters).
 - **Mod & stream tools** — `!so` shoutouts on every platform, plus `!clip`, `!raid`, `!title`, `!game`, `!commercial` and `!followage` on Twitch — driven from chat by you or your mods. See the [Command Catalog](../reference/command-catalog.md#mod--stream-tools-commands).
+- **Song requests** — viewers queue YouTube songs with `!sr <link>` (per-user and queue caps), you skip or clear from the Sounds page or chat (`!srskip` / `!srclear`), and an OBS browser source plays the queue live, auto-advancing and showing real titles. See [Sounds](../stream-tools/sounds.md#song-requests).
 - **Text-to-speech** — Vyral speaks: alert popups can say "New Follower, Bob", viewers get a `!tts` command (rate-limited, optional mods-only), and the voice/rate/volume are configured on the Alert Settings page. See [Visual Alerts](../stream-tools/visual-alerts.md#text-to-speech-card).
 - **Death counter** — a big counter card on the Tools page, the `!death` chat family, and a matching OBS overlay widget — one number, three surfaces. See [Tools Hub](../home/tools-hub.md).
-- **Leaderboard overlay** — show your top viewers on stream: an OBS browser-source widget for the points leaderboard, URL built for you on the Currency page. See [Currency & Rewards](../stream-tools/currency.md#leaderboard-overlay).
+- **Seven OBS browser sources** — everything Vyral serves for your stream in one embedded web server: stream-sounds audio, the song-request player, and five overlay widgets — the death counter, the [points leaderboard](../stream-tools/currency.md#leaderboard-overlay) (URL built on the Currency page), face-cam [chat captions](../stream-tools/browser-sources.md#chat-feed-chatfeedhtml), one animated bar per [Vyral goal](../stream-tools/vyral-goals.md), and [live poll results](../stream-tools/polls.md) with a countdown and winner bars. See [Browser Sources](../stream-tools/browser-sources.md).
 - **Streaming workflow blocks** — flows can switch OBS scenes, start/stop the OBS stream, save replay-buffer highlights, and clip the Twitch stream. See [Automation](../chat-features/automation.md).
-- **VyralDeck status chips** — the phone app now shows now-playing, stream uptime and the death count alongside the live dots. See [StreamDeck & VyralDeck](../stream-tools/vyraldeck.md).
 - **Chat-mode commands** — `!emoteonly`, `!subonly`, `!followers` and `!slow` flip Twitch's chat protections from chat, each auto-reverting after a window (default 10 minutes) so a shielded chat always opens up again. See the [Command Catalog](../reference/command-catalog.md#chat-mode-commands-twitch).
-- **Three new OBS overlays** — chat captions for your face cam ([chat feed](../stream-tools/browser-sources.md#chat-feed-chatfeedhtml)), one progress bar per [Vyral goal](../stream-tools/vyral-goals.md), and [live poll results](../stream-tools/polls.md) with a countdown and winner bars.
 - **Polls from chat** — `!poll start 5m Question | Option A | Option B` creates and starts a poll without touching the UI (timed ones auto-end and announce everywhere), and viewers get a short `!vote <n>`. See [Polls](../stream-tools/polls.md).
 - **Manual warnings** — `!warn`/`!warnings`/`!clearwarn` add moderator strikes that climb the same escalation ladder as auto-mod (a warn can tip a viewer straight into a timeout or ban). See the [Command Catalog](../reference/command-catalog.md#warning-commands).
 - **Session summaries** — a post-stream report on the Statistics page's Sessions tab: duration, follows/subs/raids/cheers, chat messages, currency awarded and top chatters, per stream. See [Statistics](../stream-tools/statistics.md#session-summaries-sessions-tab).
+- **Fun commands** — `!8ball`, `!dice`/`!roll`, `!coinflip`, `!lurk`, `!hug` and `!rng` for everyone on every platform (5-second per-user spam guard; your custom command with the same name still wins). See the [Command Catalog](../reference/command-catalog.md#fun-commands).
+- **Go-live & stream-end triggers** — `streamlive`/`streamoffline` workflows fire exactly once per real transition ("auto-announce to Discord on stream start" is one flow), with Stream Live/Offline buttons in Event Testing. See [Automation](../chat-features/automation.md#recipe-auto-announce-to-discord-on-stream-start).
+- **Home quick actions** — one-click Twitch clip (URL copied), OBS replay save, 30 s ad break, restream start/stop and TTS mute, each disabled honestly with the reason when its backend is offline. See [Dashboard](../home/dashboard.md#the-quick-actions-bar).
 
 ## Improvements
 
@@ -36,6 +37,7 @@
 - **Commands page** — duplicate a command, search, per-platform columns and sortable usage / last-used.
 - **CSV export** — Statistics and Event History export the current filtered view to an Excel-friendly file.
 - **Restream guardrail** — warns when your destinations' combined bitrate tops 80% of your uplink budget, plus a dropped-frames column per destination. See [Restream](../stream-tools/restream.md).
+- **VyralDeck status chips** — the phone app now shows now-playing, stream uptime and the death count alongside the live dots. See [StreamDeck & VyralDeck](../stream-tools/vyraldeck.md).
 - **One consistent theme** — every page follows the same dark palette (custom themes apply app-wide), and startup is 1–3 seconds faster.
 
 ## Fixes worth knowing

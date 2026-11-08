@@ -1,6 +1,6 @@
 # Event Testing
 
-> A diagnostic console with **18 test-fires grouped by platform** (Twitch, Kick, YouTube, Discord) that publish the real event objects onto the live event bus — the full pipeline (chat line, sound, alert, currency bonus, auto-reply, statistics row, **and workflows**) runs exactly as for a live viewer. The page wears its own warning: **FIRES REAL EVENTS — WORKFLOWS REALLY EXECUTE.**
+> A diagnostic console with **20 test-fires grouped by platform** (Twitch, Kick, YouTube, Discord, Stream Events) that publish the real event objects onto the live event bus — the full pipeline (chat line, sound, alert, currency bonus, auto-reply, statistics row, **and workflows**) runs exactly as for a live viewer. The page wears its own warning: **FIRES REAL EVENTS — WORKFLOWS REALLY EXECUTE.**
 
 ## Overview
 
@@ -25,9 +25,9 @@ Open **Event Testing** in the sidebar — it is a **standalone entry below Setti
 - **Status line** — under the warning banner; updated on every fire: `FIRED Twitch Cheer (100 bits) for TestUser123 at 14:32:07 - alert, sound, statistics, currency and workflow handlers ran for real.` A failed publish turns the line into `FAILED <platform> <event> ...: <error>`.
 - **Recent fires** — a newest-first log of the **last 10 fires** (platform, event, username, time); failed rows render in the error color. **CLEAR LOG** wipes both the list and the status line.
 
-### The 18 test-fires
+### The 20 test-fires
 
-The buttons sit in **four platform-grouped cards**, each with the platform's icon and accent color. Payloads are fixed and realistic; the Test Username / Test Message inputs feed the user-carried fields.
+The buttons sit in **five platform-grouped cards**, each with the platform's icon and accent color. Payloads are fixed and realistic; the Test Username / Test Message inputs feed the user-carried fields.
 
 **Twitch** (8 fires):
 
@@ -67,7 +67,16 @@ The buttons sit in **four platform-grouped cards**, each with the platform's ico
 | **Member Joined** | `GuildName` = "Vyral Test Server", member = test username |
 | **Server Boost** | `GuildName` = "Vyral Test Server", booster = test username |
 
-### What the five newer fires run downstream
+### Stream Events (2 fires)
+
+| Button | Event payload |
+|---|---|
+| **Stream Live** (1.1.0) | A `StreamLiveChangedEvent` (`Twitch`, live) published **directly** — the `StreamLiveRegistry`'s transition detection is bypassed, so the **`streamlive`** workflow key fires regardless of registry state (see [Automation → stream live/offline triggers](automation.md#recipe-auto-announce-to-discord-on-stream-start)) |
+| **Stream Offline** (1.1.0) | The mirror transition (`Twitch`, offline) → the **`streamoffline`** workflow key |
+
+These two publish the exact transition event the registry broadcasts on a real go-live/stream-end, making them the safe way to test an auto-announce flow before going live. No chat line, sound, alert or statistics row is attached to the transition itself — only workflow triggers consume it.
+
+### What the newer fires run downstream
 
 - **Twitch Channel Points Redeem** — the "Reward Redeemed!" alert with the redemption sound, a `Twitch/RewardRedeemed` statistics row, and the **`rewardredeemed`** workflow key (the same key Kick redemptions dispatch, so one flow covers both platforms).
 - **YouTube Super Chat** — the "cheer" sound key, a currency bonus of **500** (cents, from `amountMicros`), a `YouTube/Cheer` statistics row, and the dedicated **`superchat`** workflow key (separate from Twitch bits' `cheer`).
@@ -114,9 +123,9 @@ Because every button runs the full pipeline, any of them exercises all enabled r
 
 ## How It Works (Developer)
 
-[EventTestingViewModel.cs](../../src/VyralBot.UI/ViewModels/EventTestingViewModel.cs) injects one dependency: the shared **`TestEventPublisher`** ([VyralBot.Integrations/Testing](../../src/VyralBot.Integrations/Testing/TestEventPublisher.cs)). Each of the 18 buttons is a `[RelayCommand]` that calls `TriggerAsync(platform, eventType, eventName)`, which awaits `TestEventPublisher.PublishTestEventAsync(type, TestUsername, TestMessage)`, then records the fire into the status line and the 10-entry `RecentFires` collection (`FiredEventEntry` rows render failed fires in the error brush).
+[EventTestingViewModel.cs](../../src/VyralBot.UI/ViewModels/EventTestingViewModel.cs) injects one dependency: the shared **`TestEventPublisher`** ([VyralBot.Integrations/Testing](../../src/VyralBot.Integrations/Testing/TestEventPublisher.cs)). Each of the 20 buttons is a `[RelayCommand]` that calls `TriggerAsync(platform, eventType, eventName)`, which awaits `TestEventPublisher.PublishTestEventAsync(type, TestUsername, TestMessage)`, then records the fire into the status line and the 10-entry `RecentFires` collection (`FiredEventEntry` rows render failed fires in the error brush).
 
-`TestEventPublisher` — extracted from the ViewModel precisely so the page and the HTTP **control API** fire byte-identical payloads — constructs the real integration event class (`TwitchFollowEvent`, `YouTubeSuperChatEvent`, `DiscordBoostEvent`, ... from `VyralBot.Integrations.{Twitch,Kick,YouTube,Discord}.Events`), fills the fixed realistic payload plus the two input fields, and `await _eventBus.PublishAsync(evt)`. `SupportedEventTypes` is the canonical list of the 18 type ids (`twitch.follow`, `youtube.superchat`, `discord.boost`, `firstmessage.fire`, ...), and unknown ids throw `ArgumentException` — which is also what `POST /api/events/test` reports back (see [API, Web Server & ngrok](../settings/web-server-ngrok.md#the-control-api)).
+`TestEventPublisher` — extracted from the ViewModel precisely so the page and the HTTP **control API** fire byte-identical payloads — constructs the real integration event class (`TwitchFollowEvent`, `YouTubeSuperChatEvent`, `DiscordBoostEvent`, ... from `VyralBot.Integrations.{Twitch,Kick,YouTube,Discord}.Events`), fills the fixed realistic payload plus the two input fields, and `await _eventBus.PublishAsync(evt)`. `SupportedEventTypes` is the canonical list of the 20 type ids (`twitch.follow`, `youtube.superchat`, `discord.boost`, `firstmessage.fire`, `streamlive.fire`, ...), and unknown ids throw `ArgumentException` — which is also what `POST /api/events/test` reports back (see [API, Web Server & ngrok](../settings/web-server-ngrok.md#the-control-api)).
 
 Because the bus routes by exact CLR type, the published test events are indistinguishable from live ones: the same `ChatViewModel` handlers run the full [Event Reactions](../chat/event-reactions.md) pipeline, including the 30-second `AutoReplyRateLimiter` (keyed on `{platform}:{eventType}:{username}`). The five newer events ride the same bus: the channel-points redeem mirrors the `TwitchEventSubService` payload shape, the Super Chat carries `amountMicros` = 5,000,000, and the two Discord events are published directly — which is why they exercise reactions even though **live** join/boost delivery needs the Server Members Intent (KI-52).
 
@@ -130,7 +139,7 @@ Two downstream notes:
 | File | Role |
 |---|---|
 | [EventTestingViewModel.cs](../../src/VyralBot.UI/ViewModels/EventTestingViewModel.cs) | The 17 trigger commands, status line, 10-entry recent-fires log |
-| [TestEventPublisher.cs](../../src/VyralBot.Integrations/Testing/TestEventPublisher.cs) | One source of truth for test-event payloads — shared with `POST /api/events/test`; the 18 type ids in `SupportedEventTypes` (incl. `firstmessage.fire`) |
+| [TestEventPublisher.cs](../../src/VyralBot.Integrations/Testing/TestEventPublisher.cs) | One source of truth for test-event payloads — shared with `POST /api/events/test`; the 20 type ids in `SupportedEventTypes` (incl. `firstmessage.fire`, `streamlive.fire`/`streamoffline.fire`) |
 | [EventTestingView.xaml](../../src/VyralBot.UI/Views/EventTestingView.xaml) | Page layout: warning banner, inputs, the four platform-grouped button cards, status line + log |
 | [EventTestingView.xaml.cs](../../src/VyralBot.UI/Views/EventTestingView.xaml.cs) | Code-behind |
 | [ChatViewModel.cs](../../src/VyralBot.UI/ViewModels/ChatViewModel.cs) | The handlers these events wake (sounds, alerts, statistics, currency) |

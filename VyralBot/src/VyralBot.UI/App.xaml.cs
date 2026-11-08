@@ -226,6 +226,9 @@ public partial class App : Application
                     (VyralBot.Core.Services.Commands.ITwitchChatModeApplier)sp.GetRequiredService<VyralBot.Integrations.Twitch.ITwitchService>());
                 services.AddSingleton<VyralBot.Core.Services.Commands.IChatModeCommandService, VyralBot.Core.Services.Commands.ChatModeCommandService>();
                 services.AddSingleton<VyralBot.Core.Services.Moderation.IWarningCommandService, VyralBot.Core.Services.Moderation.WarningCommandService>();
+                // Fun pack (!8ball/!dice/!roll/!coinflip/!flip/!lurk/!hug/!rng):
+                // everyone, all platforms, stateless + in-memory 5s spam guard.
+                services.AddSingleton<VyralBot.Core.Services.Commands.IFunCommandService, VyralBot.Core.Services.Commands.FunCommandService>();
 
                 // Song requests (chat-driven song queue — !sr family; titles arrive
                 // from the song player via UpdateTitleAsync, NullTitleResolver by default)

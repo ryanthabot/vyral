@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using VyralBot.Core.Services.EventBus;
+using VyralBot.Core.Services.EventBus.Events;
 using VyralBot.Core.Services.StreamStatus;
 using VyralBot.Integrations.Kick.Events;
 using VyralBot.Integrations.Twitch.Events;
@@ -22,6 +23,11 @@ namespace VyralBot.Integrations.StreamStatus;
 ///
 /// Discord is never registered: IsLive("Discord") is always false; the watchtime gate
 /// excludes Discord separately.
+///
+/// TRANSITIONS are also broadcast on the EventBus as
+/// <see cref="StreamLiveChangedEvent"/> (see <see cref="SetLive"/>), so bus
+/// consumers — workflow triggers ("streamlive"/"streamoffline"), overlays,
+/// notifications — need neither the .NET event nor IsLive polling.
 /// </summary>
 public class StreamLiveRegistry : IStreamLiveRegistry
 {
@@ -98,6 +104,38 @@ public class StreamLiveRegistry : IStreamLiveRegistry
         catch (Exception ex)
         {
             _logger?.LogWarning(ex, "StreamLiveChanged subscriber threw for {Platform}", platform);
+        }
+
+        // Broadcast the transition on the EventBus too (a non-blocking channel
+        // write). Fire-and-forget: a bus failure is logged, never thrown — the
+        // .NET event above already fired and SetLive must stay sync-safe for
+        // its platform-event callers. No-op on the parameterless test ctor.
+        _ = PublishTransitionAsync(platform, isLive);
+    }
+
+    /// <summary>
+    /// Best-effort EventBus broadcast of one live/offline transition
+    /// (<see cref="StreamLiveChangedEvent"/>); never throws.
+    /// </summary>
+    private async Task PublishTransitionAsync(string platform, bool isLive)
+    {
+        if (_eventBus is null)
+        {
+            return; // parameterless test ctor — no bus wired
+        }
+
+        try
+        {
+            await _eventBus.PublishAsync(new StreamLiveChangedEvent
+            {
+                Source = platform,
+                Platform = platform,
+                IsLive = isLive
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Failed to publish StreamLiveChangedEvent for {Platform}", platform);
         }
     }
 

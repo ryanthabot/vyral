@@ -43,6 +43,8 @@ WorkflowTriggerService triggers, dashboards) runs for real.
 | `discord.memberjoined` | `DiscordMemberJoinedEvent` | follow sound, "New Member!" alert, Discord/MemberJoined stats | `discordmemberjoined` |
 | `discord.boost` | `DiscordBoostEvent` | subscribe sound, "Server Boosted!" alert, Discord/Boost stats | `discordboost` |
 | `firstmessage.fire` | `FirstTimeChatterEvent` (Twitch-shaped example) | welcome handling per ChatViewModel wiring | `firstmessage` (Twitch) |
+| `streamlive.fire` | `StreamLiveChangedEvent` (IsLive=true, Twitch-shaped) | — (registry transition detection bypassed) | `streamlive` (Twitch) |
+| `streamoffline.fire` | `StreamLiveChangedEvent` (IsLive=false, Twitch-shaped) | — (registry transition detection bypassed) | `streamoffline` (Twitch) |
 
 Sound rows play only when a mapping exists (`SoundService.PlayEventSoundAsync`
 resolves `EventSound_{platform}_{event}` config). Statistics rows are visible

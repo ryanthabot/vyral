@@ -168,6 +168,23 @@ public partial class EventTestingViewModel : ViewModelBase
 
     #endregion
 
+    #region Stream Event Commands
+
+    // Live-state transitions (StreamLiveRegistry → StreamLiveChangedEvent).
+    // Published directly with IsLive set per direction, bypassing the
+    // registry's transition detection, so "streamlive"/"streamoffline"
+    // workflows (Discord auto-announce on go-live etc.) fire regardless of
+    // the current live state.
+    [RelayCommand]
+    private Task TriggerStreamLive() =>
+        TriggerAsync("Twitch", TestEventPublisher.StreamLive, "Stream Live");
+
+    [RelayCommand]
+    private Task TriggerStreamOffline() =>
+        TriggerAsync("Twitch", TestEventPublisher.StreamOffline, "Stream Offline");
+
+    #endregion
+
     [RelayCommand]
     private void ClearLog()
     {

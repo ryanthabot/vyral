@@ -63,7 +63,9 @@ namespace VyralBot.UI.Services;
 ///    records. Workflow EventType values are normalized case-insensitively
 ///    with a few aliases ("sub"→subscribe, "bits"→cheer, "gift"/"gifted"
 ///    →giftsub, "hosted"→host, "raided"→raid, "join"/"memberjoined"
-///    →discordmemberjoined, "boost"→discordboost). YouTube Super Chats
+///    →discordmemberjoined, "boost"→discordboost,
+///    "streamstart"/"online"/"golive"→streamlive,
+///    "streamend"/"offline"→streamoffline). YouTube Super Chats
 ///    dispatch their OWN "superchat" key — NOT "cheer", which already carries
 ///    Twitch bits via the "bits" alias — so workflows can target Twitch bits
 ///    or YouTube Super Chats precisely (the Platform filter separates them
@@ -1708,6 +1710,23 @@ public class WorkflowTriggerService
             return Task.CompletedTask;
         });
 
+        // --- Stream live/offline transitions (auto-announce when the stream
+        // starts, e.g. a Discord go-live post). StreamLiveRegistry publishes
+        // StreamLiveChangedEvent on ACTUAL transitions only, so a "streamlive"
+        // workflow fires exactly once per go-live and a "streamoffline"
+        // workflow exactly once per stream end — repeat status pings never
+        // re-fire either. Variables: platform (context) + username seeded as
+        // the platform's CHANNEL name when known (falls back to the platform
+        // name) and isLive ("True"/"False") for condition guards.
+        await Subscribe<StreamLiveChangedEvent>(e =>
+        {
+            var channel = ChannelFor(e.Platform);
+            DispatchEvent(e.IsLive ? "streamlive" : "streamoffline", e.Platform,
+                channel.Length > 0 ? channel : e.Platform, null, e,
+                Vars(("isLive", e.IsLive)));
+            return Task.CompletedTask;
+        });
+
         _logger.LogInformation("WorkflowTriggerService subscribed to {Count} event types", _subscriptionIds.Count);
     }
 
@@ -2517,6 +2536,12 @@ public class WorkflowTriggerService
             // strip maps them); the compressed "firstchatter" /
             // "firsttimechatter" spellings map explicitly.
             "firstmessage" or "firstchatter" or "firsttimechatter" => "firstmessage",
+            // Stream live/offline transitions: canonical keys "streamlive" /
+            // "streamoffline" (authored "Stream Live" / "stream offline" need
+            // no case — the default separator strip maps them); the compressed
+            // aliases map explicitly.
+            "streamstart" or "online" or "golive" => "streamlive",
+            "streamend" or "offline" => "streamoffline",
             _ => t.Replace("-", string.Empty).Replace("_", string.Empty).Replace(" ", string.Empty)
         };
     }

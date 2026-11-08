@@ -1,6 +1,6 @@
 # Dashboard (Home)
 
-> The Home page is a static launcher — four big navigation cards plus a Support section — with no live data, because its ViewModel is an unfinished stub.
+> The Home page is your launch pad: a first-run **Get started** strip and a **Quick actions** bar (one-click streamer power tools) sit above the four big navigation cards and the Support section.
 
 ## Overview
 
@@ -8,7 +8,7 @@ Home is the page you land on when the app starts and the page you are returned t
 
 Two things to know up front, so the page does not confuse you:
 
-- **It shows no statistics.** There are no counters, statuses, or live widgets on this page. If you want to know what is connected, look at the [sidebar](app-shell.md) — Twitch and Kick entries appear there only while connected.
+- **Live state lives in the Quick actions bar, not in widgets.** The bar's buttons enable/disable with their backends (Twitch connected, OBS engine ready) and the restream/TTS toggles reflect real engine state — but there are no follower/chat counters here. If you want to know what is connected, look at the [sidebar](app-shell.md) — Twitch and Kick entries appear there only while connected.
 - **All three Support rows work.** "Documentation" opens the in-app documentation browser for these `AppDocs/` pages; "Discord" and "Ideas & Suggestions" open the URLs configured under Settings → Profile → **Support Links** (until you set them, clicking either shows a pointer to that settings card).
 
 ## User Guide
@@ -18,6 +18,24 @@ Two things to know up front, so the page does not confuse you:
 - Launch the app — Home is the initial page, shown even before you pick a profile.
 - Click **Home** in the sidebar at any time.
 - Any [profile switch](../getting-started/profiles.md) returns you to Home automatically.
+
+### The Get started strip (first run)
+
+A dismissible three-step guide that appears above the cards on a fresh install: **Connect a platform** (→ Platforms), **Set up alerts** (→ Events & Alerts), **Import a workflow template** (→ Automation's TEMPLATES panel). It hides itself permanently once you dismiss it (the × button — the choice persists in `ui-settings.json`) or as soon as any platform connects (Twitch, Kick, YouTube or Discord), and reappears never — every page it points to stays available in the sidebar.
+
+### The Quick actions bar
+
+One-click streamer power tools, added in 1.1.0:
+
+| Button | What it does | Needs |
+|---|---|---|
+| **✂️ Clip** | Creates a Twitch clip of the current stream and copies its URL to your clipboard (falls back to showing the URL if the clipboard is locked). | Twitch connected |
+| **⏺️ Save Replay** | Saves the OBS replay buffer's current contents as a highlight (the buffer must be active). | Embedded OBS engine ready |
+| **💰 Ad Break 30s** | Runs a 30-second commercial. | Twitch connected |
+| **📡 Start/Stop restream** | Starts or stops the FFmpeg restream fan-out using exactly the destinations and settings you saved on the [Restream page](../stream-tools/restream.md). | Restream stack (FFmpeg + saved destinations) |
+| **🔊 TTS: on/off** | Mutes or unmutes text-to-speech (`!tts` and alert speech); muting also cancels current speech. | TTS service |
+
+Buttons disable honestly when their backend is offline, and the tooltip on a disabled button says why. The result of each action (or its failure, in red) appears on a line under the row and fades out after 2 seconds. Nothing here is configurable on the page itself — the restream toggle reads the Restream page's saved session, and the TTS toggle writes the same `Tts.Enabled` setting the [Alert Settings page](../stream-tools/visual-alerts.md#text-to-speech-card) manages.
 
 ### The four cards
 
@@ -44,7 +62,7 @@ Three rows under a "Support" heading, all functional:
 
 ### The Home UI lives inside MainWindow.xaml
 
-There is **no `DashboardView.xaml`**. The entire Home page is an inline `DataTemplate` keyed on `DashboardViewModel` inside the content host's resources — `MainWindow.xaml:522-792`. This is the same DataTemplate-mapping mechanism every page uses (see [App Shell & Navigation](app-shell.md)); Home is just the one case where the template contains a full page layout instead of a single `<local:SomeView/>`.
+There is **no `DashboardView.xaml`**. The entire Home page is an inline `DataTemplate` keyed on `DashboardViewModel` inside the content host's resources — `MainWindow.xaml:613-1297`. This is the same DataTemplate-mapping mechanism every page uses (see [App Shell & Navigation](app-shell.md)); Home is just the one case where the template contains a full page layout instead of a single `<local:SomeView/>`. The Get started strip and the Quick actions bar are cards at the top of that template (with the strip auto-collapsing via a `MultiBinding` on the dismiss flag + the four platform-connection flags).
 
 The cards are `materialDesign:Card` elements with `Cursor="Hand"` and a `MouseBinding` on `LeftClick` that binds to the **Window's** DataContext (i.e. `MainViewModel`) via `RelativeSource AncestorType=Window`:
 
@@ -58,17 +76,26 @@ The cards are `materialDesign:Card` elements with `Cursor="Hand"` and a `MouseBi
 
 Both support-row commands read their URL from the `Configs` table at click time; when the key is unset the helper shows a MessageBox directing the user to Settings → Profile → **Support Links**.
 
-### DashboardViewModel is a stub
+### DashboardViewModel owns the strip + Quick actions state
 
-[DashboardViewModel.cs](../../src/VyralBot.UI/ViewModels/DashboardViewModel.cs) declares four observable properties — `ActiveTriggerCount`, `TotalActionCount`, `ConnectedPlatformCount`, `Status` — and a `LoadDashboard()` that hard-zeros all of them under a `// TODO: Load actual data from services` comment. **None of these properties is bound anywhere in XAML.** The Home page renders zero live data by construction; it is purely a static navigation launcher.
+[DashboardViewModel.cs](../../src/VyralBot.UI/ViewModels/DashboardViewModel.cs) carries the old counter placeholders (`ActiveTriggerCount` / `TotalActionCount` / `ConnectedPlatformCount` / `Status` — still unbound) plus everything the strip and bar need:
 
-The VM is registered as a DI singleton (`App.xaml.cs:186`) and injected into `MainViewModel`, which sets `CurrentViewModel = dashboardViewModel` in its constructor (`MainViewModel.cs:149`) — so Home is always the initial page state, even before a profile is chosen.
+- **Get started state** — `IsGettingStartedDismissed`, loaded from `ui-settings.json` in the constructor and persisted by `DismissGettingStartedCommand` (which reloads preferences fresh before saving so a dismiss never clobbers theme prefs saved elsewhere in the session).
+- **Quick-action availability** — `CanQuickTwitch`, `CanQuickReplay`, `CanQuickRestream`, `CanQuickTts`. Every quick-action service dependency is **nullable in the constructor**: a missing DI registration disables the matching button instead of breaking Home. `CanQuickReplay` needs *both* `ObsOutputService` and `ObsEngine`; `CanQuickRestream` needs *all four* of `RestreamEngine` + `RestreamFfmpegLocator` + `IDataService` + `IProfileService`; clip/ad-break ride `CanQuickTwitch`; the TTS toggle rides `CanQuickTts`.
+- **Live engine state** — `IsObsEngineReady` and `IsRestreamRunning` mirror the embedded OBS engine and the restream session through their `StatusChanged` events (each handler hops back to the captured UI dispatcher); `RestreamActionLabel` swaps Start/Stop with engine state; `IsTtsEnabled` + `TtsActionLabel` track the persisted `Tts.Enabled`.
+- **Result feedback** — `QuickActionStatus` / `IsQuickActionStatusVisible` / `IsQuickActionStatusError`, driven by `ShowQuickStatus` with a 2-second `DispatcherTimer` auto-hide (the fade itself is a XAML storyboard).
+
+The commands: `ClipCommand` (`CreateClipUrlAsync` + clipboard), `SaveReplayCommand` (`SaveReplayAsync`), `StartAdBreakCommand` (a 30 s commercial), `ToggleRestreamCommand` (stop goes straight to `StopAsync`; start rebuilds the Restream page's saved session — FFmpeg via the locator, destinations from `restream_destinations.json` in the profile credentials folder, source settings from the `Restream.Settings` config row — and starts it), and `ToggleTtsMuteCommand` (flips `Tts.Enabled`, cancels speech on mute).
+
+The engine event subscriptions use named handlers, and the VM is an app-lifetime singleton that is never disposed on navigation, so its subscriptions intentionally live as long as the engine singletons — no orphaned-handler buildup. Destination stream keys are never logged.
+
+The VM is registered as a DI singleton (`App.xaml.cs:382`) and injected into `MainViewModel`, so Home is always the initial page state, even before a profile is chosen.
 
 ### Navigation behavior around Home
 
-- `NavigateToHome` (`MainViewModel.cs:696-732`) is a no-op if already Home; otherwise it runs the standard navigation pipeline (setup-wizard guard, null the current VM, dispose others, GC), additionally resets the Platforms page's sub-view flags so the next visit starts at platform selection, and sets the title to `"Vyral - Home"`.
-- Home is **never disposed** on navigation away — `DisposeNonEssentialViewModelsAsync` explicitly keeps Dashboard and Chat alive for performance (`MainViewModel.cs:1642-1644`).
-- After a profile switch, if any other page is showing, `MainViewModel` fire-and-forget navigates back to Home to avoid stale cross-profile data (`MainViewModel.cs:198-207`).
+- `NavigateToHome` (`MainViewModel.cs:1131`) is a no-op if already Home; otherwise it runs the standard navigation pipeline (setup-wizard guard, null the current VM, dispose others, GC), additionally resets the Platforms page's sub-view flags so the next visit starts at platform selection, and sets the title to `"Vyral - Home"`.
+- Home is **never disposed** on navigation away — `DisposeNonEssentialViewModelsAsync` is called with `excludeViewModel: _dashboardViewModel` (`MainViewModel.cs:1163`), keeping Dashboard (and Chat) alive for performance.
+- After a profile switch, if any other page is showing, `MainViewModel` fire-and-forget navigates back to Home to avoid stale cross-profile data (`MainViewModel.cs:262`).
 
 ### The hub destinations
 
@@ -80,10 +107,12 @@ The VM is registered as a DI singleton (`App.xaml.cs:186`) and injected into `Ma
 ## Files & Code
 
 | File | Role |
-|---|---|
-| [MainWindow.xaml](../../src/VyralBot.UI/MainWindow.xaml) | The entire Home page UI — inline `DataTemplate` at `MainWindow.xaml:522-792` (cards) and `641-766` (Support rows) |
+|------|-------------|
+| [MainWindow.xaml](../../src/VyralBot.UI/MainWindow.xaml) | The entire Home page UI — inline `DataTemplate` at `MainWindow.xaml:613-1297` (Get started strip, Quick actions bar, cards, Support rows) |
 | [MainViewModel.cs](../../src/VyralBot.UI/ViewModels/MainViewModel.cs) | All card commands, `NavigateToHome`, Home lifecycle |
-| [DashboardViewModel.cs](../../src/VyralBot.UI/ViewModels/DashboardViewModel.cs) | Stub ViewModel — zeroed counters, never bound |
+| [DashboardViewModel.cs](../../src/VyralBot.UI/ViewModels/DashboardViewModel.cs) | Get started + Quick actions state and commands |
+| [UiPreferencesService.cs](../../src/VyralBot.UI/Services/UiPreferencesService.cs) | Persists the strip's dismiss in `ui-settings.json` |
+| [RestreamEngine.cs](../../src/VyralBot.Integrations/Restream/RestreamEngine.cs) | Quick-action restream toggle target |
 | [ToolsViewModel.cs](../../src/VyralBot.UI/ViewModels/ToolsViewModel.cs) | Empty VM used as a navigation key for the Tools hub |
 | [ToolsView.xaml](../../src/VyralBot.UI/Views/ToolsView.xaml) | Tools hub — static card grid bound to `MainViewModel` commands |
 | [IntegrationsViewModel.cs](../../src/VyralBot.UI/ViewModels/IntegrationsViewModel.cs) | Empty VM for the Integrations hub |
@@ -92,39 +121,7 @@ The VM is registered as a DI singleton (`App.xaml.cs:186`) and injected into `Ma
 | [DocumentationViewModel.cs](../../src/VyralBot.UI/ViewModels/DocumentationViewModel.cs) | The in-app docs browser's ViewModel (tree, search, history, code viewer) |
 | [DocumentationView.xaml](../../src/VyralBot.UI/Views/DocumentationView.xaml) | The Documentation page — browser for these `AppDocs/` markdown files |
 
-The whole ViewModel — this is genuinely all of it:
-
-```csharp
-public partial class DashboardViewModel : ViewModelBase
-{
-    [ObservableProperty]
-    private int _activeTriggerCount;
-
-    [ObservableProperty]
-    private int _totalActionCount;
-
-    [ObservableProperty]
-    private int _connectedPlatformCount;
-
-    [ObservableProperty]
-    private string _status = "Ready";
-
-    public DashboardViewModel()
-    {
-        LoadDashboard();
-    }
-
-    private void LoadDashboard()
-    {
-        // TODO: Load actual data from services
-        ActiveTriggerCount = 0;
-        TotalActionCount = 0;
-        ConnectedPlatformCount = 0;
-    }
-}
-```
-
-How a card routes a click to the window's ViewModel (`MainWindow.xaml:520-527`):
+How a card routes a click to the window's ViewModel (`MainWindow.xaml:956-963`):
 
 ```xml
 <!-- Connections Card -->
@@ -142,14 +139,14 @@ How a card routes a click to the window's ViewModel (`MainWindow.xaml:520-527`):
 
 ## Data & Settings
 
-The Dashboard persists **nothing** and reads nothing. Its only state is `MainViewModel.CurrentViewModel` (which page is showing) and the window `Title` string — both transient, both owned by the [app shell](app-shell.md). Everything the cards navigate *to* has its own persistence, described on those pages (e.g. [Database Reference](../reference/database-reference.md)).
+The page itself persists **one thing**: the Get started strip's dismissal (`HomeGettingStartedDismissed` in `ui-settings.json`, via `UiPreferencesService`). The Quick actions bar reads and writes other features' existing state rather than owning any: the restream toggle uses the [Restream page's](../stream-tools/restream.md) saved session (`Restream.Settings` config row + `restream_destinations.json` in the profile credentials folder), and the TTS toggle flips the same `Tts.Enabled` key the Alert Settings page manages. Everything the cards navigate *to* has its own persistence, described on those pages (e.g. [Database Reference](../reference/database-reference.md)).
 
 ## Status & Known Issues
 
-**Works**: all four cards navigate correctly; all three Support rows act (Documentation opens the docs browser; Discord and Ideas open the configured links); Home is restored after profile switches and never leaks memory (it is kept alive deliberately as a lightweight singleton).
+**Works**: the Get started strip (auto-hide on connect, persisted dismiss), all five quick actions against their live backends, all four cards navigate correctly; all three Support rows act (Documentation opens the docs browser; Discord and Ideas open the configured links); Home is restored after profile switches and never leaks memory (it is kept alive deliberately as a lightweight singleton).
 
 **Dead or stubbed** — full list in the [known issues ledger](../reference/known-issues.md):
 
-- **DashboardViewModel is a stub** — its counter properties are hard-zeroed by a TODO and bound nowhere; Home can never show live data until this is implemented.
+- **The old counter placeholders remain unbound** — `ActiveTriggerCount`/`TotalActionCount`/`ConnectedPlatformCount`/`Status` are still zeroed placeholders; a future overview widget would bind them.
 - **Integrations page is a placeholder** — every third-party bot listed is "Coming soon".
 - The "Chat" card goes to the **Chat Hub** (settings), not the chat feed — arguably surprising naming, though the behavior is intentional.

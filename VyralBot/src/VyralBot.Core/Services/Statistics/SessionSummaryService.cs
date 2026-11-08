@@ -449,9 +449,12 @@ public sealed class SessionSummaryService : ISessionSummaryService, IHostedServi
                 return null;
             }
 
-            var platforms = string.Join(", ", _livePlatforms.Values.OrderBy(p => p, StringComparer.Ordinal));
+            // Session-wide union (a platform that left mid-session still
+            // belongs in the report), matching the offline-close path.
+            var platforms = string.Join(", ", _sessionPlatforms.Values.OrderBy(p => p, StringComparer.Ordinal));
             var started = _sessionStartedUtc;
             _sessionStartedUtc = default;
+            _sessionPlatforms.Clear();
 
             if (forceClose)
             {

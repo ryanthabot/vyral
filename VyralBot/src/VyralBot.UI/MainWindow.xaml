@@ -639,6 +639,39 @@
                                     <Setter Property="BorderBrush" Value="{DynamicResource BorderLightBrush}"/>
                                     <Setter Property="BorderThickness" Value="0,0,0,1"/>
                                 </Style>
+                                <!-- Quick Actions bar: raised action buttons; tooltips stay visible
+                                     while disabled (ShowOnDisabled) so the offline reason is readable -->
+                                <Style x:Key="QuickActionButton"
+                                       TargetType="Button"
+                                       BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                                    <Setter Property="Margin" Value="0,0,8,8"/>
+                                    <Setter Property="Padding" Value="14,8"/>
+                                    <Setter Property="FontSize" Value="12"/>
+                                    <Setter Property="Cursor" Value="Hand"/>
+                                    <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+                                </Style>
+                                <!-- Twitch-gated variants (clip + ad break): enabled state follows the
+                                     live MainViewModel.IsTwitchConnected flag the strip already binds -->
+                                <Style x:Key="QuickClipButton"
+                                       TargetType="Button"
+                                       BasedOn="{StaticResource QuickActionButton}">
+                                    <Setter Property="ToolTip" Value="Create a Twitch clip of the current stream and copy its URL to the clipboard."/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DataContext.IsTwitchConnected, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
+                                            <Setter Property="ToolTip" Value="Twitch is not connected — link it on the Platforms page."/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                                <Style x:Key="QuickReplayButton"
+                                       TargetType="Button"
+                                       BasedOn="{StaticResource QuickActionButton}">
+                                    <Setter Property="ToolTip" Value="Save the OBS replay buffer's current contents as a replay (buffer must be active)."/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsObsEngineReady}" Value="False">
+                                            <Setter Property="ToolTip" Value="OBS engine is not running — initialize it on the OBS page first."/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
                             </DataTemplate.Resources>
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
@@ -788,6 +821,120 @@
                                             </Button>
                                         </UniformGrid>
                                     </Grid>
+                                </materialDesign:Card>
+
+                                <!-- Quick Actions bar (one-click streamer power tools).
+                                     Buttons disable honestly when their service is offline;
+                                     the result line under the row fades out after 2 s. -->
+                                <materialDesign:Card Margin="32,16,32,0"
+                                                     Padding="16,14"
+                                                     Background="{DynamicResource CardBackgroundBrush}">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon Kind="Bolt"
+                                                                     Width="18"
+                                                                     Height="18"
+                                                                     VerticalAlignment="Center"
+                                                                     Foreground="{DynamicResource PrimaryBrush}"/>
+                                            <TextBlock Text="Quick actions"
+                                                       FontSize="15"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       Margin="8,0,0,0"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Text="One-click tools for going live"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       Margin="12,0,0,0"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+
+                                        <WrapPanel Margin="0,12,0,0">
+                                            <Button Style="{StaticResource QuickClipButton}"
+                                                    Command="{Binding ClipCommand}"
+                                                    IsEnabled="{Binding DataContext.IsTwitchConnected, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    AutomationProperties.Name="Quick action: create Twitch clip">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="✂️" FontSize="14" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Clip" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+
+                                            <Button Style="{StaticResource QuickReplayButton}"
+                                                    Command="{Binding SaveReplayCommand}"
+                                                    IsEnabled="{Binding IsObsEngineReady}"
+                                                    AutomationProperties.Name="Quick action: save OBS replay">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="⏺️" FontSize="14" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Save Replay" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+
+                                            <Button Style="{StaticResource QuickClipButton}"
+                                                    Command="{Binding StartAdBreakCommand}"
+                                                    IsEnabled="{Binding DataContext.IsTwitchConnected, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    AutomationProperties.Name="Quick action: start 30 second ad break">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="💰" FontSize="14" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Ad Break 30s" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+
+                                            <Button Style="{StaticResource QuickActionButton}"
+                                                    Command="{Binding ToggleRestreamCommand}"
+                                                    ToolTip="Start or stop the FFmpeg restream fan-out using your saved destinations (Restream page)."
+                                                    AutomationProperties.Name="Quick action: toggle restream session"
+                                                    Content="{Binding RestreamActionLabel}"/>
+
+                                            <Button Style="{StaticResource QuickActionButton}"
+                                                    Command="{Binding ToggleTtsMuteCommand}"
+                                                    ToolTip="Mute or unmute text-to-speech (!tts commands and alert speech)."
+                                                    AutomationProperties.Name="Quick action: toggle TTS mute"
+                                                    Content="{Binding TtsActionLabel}"/>
+                                        </WrapPanel>
+
+                                        <!-- Result feedback: fades in on IsQuickActionStatusVisible,
+                                             VM hides it again after 2 s (fade-out storyboard) -->
+                                        <TextBlock Text="{Binding QuickActionStatus}"
+                                                   FontSize="11"
+                                                   Margin="0,4,0,0"
+                                                   TextWrapping="Wrap"
+                                                   Opacity="0"
+                                                   AutomationProperties.Name="Quick action result">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsQuickActionStatusError}" Value="True">
+                                                            <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsQuickActionStatusVisible}" Value="True">
+                                                            <DataTrigger.EnterActions>
+                                                                <BeginStoryboard>
+                                                                    <Storyboard>
+                                                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                         From="0" To="1"
+                                                                                         Duration="0:0:0.2"/>
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </DataTrigger.EnterActions>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsQuickActionStatusVisible}" Value="False">
+                                                            <DataTrigger.EnterActions>
+                                                                <BeginStoryboard>
+                                                                    <Storyboard>
+                                                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                         From="1" To="0"
+                                                                                         Duration="0:0:0.5"/>
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </DataTrigger.EnterActions>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
                                 </materialDesign:Card>
 
                                 <!-- Main Content Cards -->

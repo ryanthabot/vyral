@@ -2041,7 +2041,8 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     /// <summary>
     /// Event types WorkflowTriggerService actually dispatches (Twitch, Kick,
     /// Discord and YouTube subscriptions use exactly these keys — "membership"
-    /// is YouTube memberships, kept separate from Twitch/Kick "subscribe") —
+    /// is YouTube memberships, kept separate from Twitch/Kick "subscribe";
+    /// "streamlive"/"streamoffline" fire on registry live-state transitions) —
     /// offered by the editable event-type ComboBox. Free text still binds so
     /// legacy/aliased values keep loading.
     /// </summary>
@@ -2049,7 +2050,7 @@ public partial class FlowEditorViewModel : CommunityToolkit.Mvvm.ComponentModel.
     {
         "follow", "subscribe", "resub", "giftsub", "raid", "cheer", "host",
         "discordmemberjoined", "discordboost", "superchat", "membership",
-        "firstmessage"
+        "firstmessage", "streamlive", "streamoffline"
     };
 
     public bool IsTriggerCommand => SelectedTriggerType?.Key == WorkflowTriggerTypes.Command;

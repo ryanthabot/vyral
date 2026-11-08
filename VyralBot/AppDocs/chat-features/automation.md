@@ -239,7 +239,7 @@ The **Automation** page (sidebar, Chat Features group) is Vyral's workflow engin
 1. **Create**: Automation → New Workflow. Name it, pick a **trigger**:
    - *Command* — a `!name` chat command on any connected platform (works alongside existing commands; only exact registered names are intercepted).
    - *Timer* — fires every N minutes.
-   - *Event* — platform events: follow, subscribe, resub, giftsub, raid, cheer, host (Twitch/Kick), optionally filtered by platform.
+   - *Event* — platform events: follow, subscribe, resub, giftsub, raid, cheer, host, reward redemption, Super Chat, membership, first message (Twitch/Kick/YouTube/Discord), plus **stream live/offline** (`streamlive` / `streamoffline` — see the recipe below), optionally filtered by platform.
    - *Manual* — runs only when you press RUN.
 2. **Build steps**: ordered nodes — Send Message (with `{variables}`), Wait, **If** (expression like `{coins} > 100` or `{message} contains 'hello'`) with true/false branches, Set Variable, Random Number, Add/Remove Currency, Log. Add, reorder, remove; the live path preview shows the whole chain.
 3. **Run & debug**: RUN executes immediately (even on disabled drafts). HISTORY shows the last runs: status, duration, the exact node path, and errors per run.
@@ -252,6 +252,18 @@ The **Automation** page (sidebar, Chat Features group) is Vyral's workflow engin
 The workflow list's header carries a **TEMPLATES** button that expands a **STARTER TEMPLATES** panel of one-click starter workflows — **twelve** embedded, schema-validated flows (`WorkflowTemplates.cs`, covered by tests that parse each template and confirm its node types exist in the block catalog). The original eight community-onboarding hits: New Follower Thanks, Sub Appreciation (**Play Sound** + thanks — the template uses the `play_sound` block added in 1.1.0), Raid Welcome, First-Time Chatter Greeting (`!hello` stand-in), Daily Schedule Announcement (hourly timer), Channel Points Reward Thanks, Super Chat Shoutout (YouTube), and a Mod-only `!warn` command. Four more arrived later in 1.1.0: **Clip The Sub** (Twitch sub → `twitch_clip` + cheer sound + thanks; error branch wired so a failed clip still celebrates), **Raid Mode** (raid → `obs_scene` switch to your "Raid Mode" scene + hype message — edit the scene name to match your OBS collection), **Commercial Break Reminder** (30-minute timer that posts a public break reminder), and **Welcome First-Time Chatter** (the real **`firstmessage`** event trigger — see [Workflow Engine → triggers](workflows.md#triggers) and [Event Reactions → First-time chatters](../chat/event-reactions.md#first-time-chatters)).
 
 Each row shows the name, description, and a platform chip; **IMPORT** creates a real workflow named "Template: {name}" — deliberately **imported disabled**, so nothing goes live until you edit it and flip Enabled. The row then marks itself imported for the session (importing again creates another copy), and a parse failure (should never happen — the JSON is embedded, not downloaded) imports nothing and says so.
+
+### Recipe: auto-announce to Discord on stream start
+
+The **`streamlive`** event trigger fires the moment your stream actually goes live — and only then. Vyral's `StreamLiveRegistry` tracks per-platform live status (Twitch and Kick stream events; YouTube counts "Listening" — an active live chat — as live) and broadcasts a transition **only on the actual offline↔live flip**, so repeat status pings never re-announce. `streamoffline` is the mirror trigger for stream end. Both seed `{username}` with the platform's channel name (or the platform name when no channel is known), `{platform}` with the transitioning platform, and `{isLive}` (`True`/`False`) for condition guards. Authored spellings fold onto the same keys: "Stream Live", "stream start", "online", "go live" → `streamlive`; "Stream Offline", "stream end", "offline" → `streamoffline`.
+
+To post a go-live announcement into your Discord server:
+
+1. Automation → **New Workflow** → trigger type **Event**, event `streamlive`, platform filter **Twitch** (or leave Any to announce every platform's go-live).
+2. Add a **Send Embed** block (Discord category) — set the embed title/description (variables work: `{username} just went live on {platform}!`) and use the **Channel override** to pick your announce channel. Discord blocks route through your connected Discord bot regardless of which platform triggered the run, so a Twitch go-live still posts in Discord. A plain **Send Message** without an override would go to the *origin* chat (Twitch) instead — to redirect it, the `send_message` block also accepts a JSON `platform: "Discord"` override (no editor field for it yet; set it via import/export).
+3. Enable the workflow. Test it safely from the [Event Testing page](event-testing.md) — its **Stream Live** / **Stream Offline** buttons publish the same transition event the registry does.
+
+A `streamoffline` twin with its own embed makes the pair complete ("stream ended — thanks for watching").
 
 ## How It Works (Developer)
 

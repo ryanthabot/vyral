@@ -25,7 +25,8 @@ When the pipeline is alive, every incoming chat message flows through `OnChatMes
 11. **TTS**: messages starting with `!tts` go to `TtsService.ProcessCommandAsync` (`ChatViewModel.cs:3717`).
 12. **Chat modes**: any `!` message falls through to `ChatModeCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3761`) — `!emoteonly`, `!subonly`, `!followers`, `!slow` (Twitch-only).
 13. **Warnings**: any `!` message falls through to `WarningCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3795`) — `!warn`, `!warnings`, `!clearwarn`.
-14. Finally, watchtime activity is recorded and chat-activity currency is awarded (for non-command messages).
+14. **Fun commands**: any `!` message falls through to `FunCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3834`) — `!8ball`, `!dice`/`!roll`, `!coinflip`/`!flip`, `!lurk`, `!hug`, `!rng`.
+15. Finally, watchtime activity is recorded and chat-activity currency is awarded (for non-command messages).
 
 Notes that apply across the whole catalog:
 
@@ -337,6 +338,25 @@ Implemented in [TextToSpeechService.cs](../../src/VyralBot.Core/Services/Audio/T
 | `!tts <message>` | the text to speak | Everyone (or mods only — see `Tts.AllowViewers`) | Speaks the message through the configured SAPI voice and replies "🔊 {user} says: {text}". Bare `!tts` replies "Usage: !tts <message>". | `TextToSpeechService.cs` |
 
 Rules, in order: the master toggle (`Tts.Enabled`) must be on (disabled = silently ignored, like other disabled commands); if `Tts.AllowViewers` is off, only moderators pass (silently for viewers); **Do Not Disturb** (`Notifications.DoNotDisturb` — the same key Sounds and Alerts respect) mutes TTS entirely; non-mods are rate-limited to one use per 30 seconds ("⏳ {user}, you can use !tts again in {n}s."); text longer than `Tts.MaxLength` is truncated to that length. Speech is queued on a single-consumer bounded queue (10 max, drop-oldest) — see [Visual Alerts → Text-to-Speech](../stream-tools/visual-alerts.md#text-to-speech-card) for the full settings reference.
+
+---
+
+---
+
+## Fun commands
+
+Implemented in [FunCommandService.cs](../../src/VyralBot.Core/Services/Commands/FunCommandService.cs) (`ProcessCommandAsync`). Any `!` message falls through to this service (after warnings, before watchtime activity); the reply is sent on the **originating** platform. Zero-state: nothing is stored, nobody is gated — the only memory is a per-user 5-second spam slot (a second fun command from the same user inside the window is silently dropped, so the bot never amplifies spam; usage errors consume the slot, unrelated `!commands` do not). A custom command table row with the same trigger answers FIRST, so a streamer's own `!dice` shadows the built-in. Added in 1.1.0.
+
+| Command | Arguments | Permission | What it does | Source |
+|---|---|---|---|---|
+| `!8ball <question>` | any text | Everyone | "🔮 " + one of the 20 classic Magic 8-Ball answers. Bare `!8ball` replies "Usage: !8ball <question>". | `FunCommandService.cs` |
+| `!dice [1-10]` (alias `!roll`) | optional dice count | Everyone | Rolls that many d6: "🎲 5" for one, "🎲 4, 2, 6 = 12" (rolls + total) for several. Count outside 1–10 replies "Usage: !dice [1-10]". | `FunCommandService.cs` |
+| `!coinflip` (alias `!flip`) | none | Everyone | "🪙 Heads!" or "🪙 Tails!". | `FunCommandService.cs` |
+| `!lurk` | none | Everyone | "{user} slips into the shadows… 👋 (welcome back anytime)". | `FunCommandService.cs` |
+| `!hug <user>` | a username | Everyone | "{user} gives {target} a big hug! 🤗" — the target is sanitized like `!so` (strip `@`/`#`, keep letters/digits/`_`/`.`/`-`). Bare `!hug` (or a target that sanitizes to nothing) replies "Usage: !hug <user>". | `FunCommandService.cs` |
+| `!rng <min> <max>` | two integers | Everyone | "🎯 {n}" with both bounds inclusive. Wrong shape replies usage; min > max replies "Min can't be greater than max."; a span of a billion or more replies "Keep the range under a billion." | `FunCommandService.cs` |
+
+The spam-guard registry is a lock-guarded dictionary capped at 256 entries (past the cap it prunes expired timestamps, then evicts the oldest), so a raid-sized chat cannot grow it. Commands are info-logged by name only — never the reply text. Covered by tests in `tests/VyralBot.UI.Tests/Wave17FunCommandTests.cs` and `Wave17bFunCommandTests.cs` (seeded-`Random` determinism, the exact 5 s window, capacity pruning).
 
 ---
 
