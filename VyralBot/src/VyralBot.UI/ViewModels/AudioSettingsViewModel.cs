@@ -52,6 +52,11 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _browserSourceUrl = "http://localhost:5000/audio.html";
 
+    // Chat feed overlay (chatfeed.html) — face-cam captions browser source;
+    // rebuilt from the same embedded web-server port as the audio source.
+    [ObservableProperty]
+    private string _chatFeedOverlayUrl = "http://localhost:5000/chatfeed.html?count=5";
+
     public AudioSettingsViewModel(
         ILogger<AudioSettingsViewModel> logger,
         IDataService dataService,
@@ -119,6 +124,7 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
             _serverPort = port;
             WebSocketPort = port;
             BrowserSourceUrl = $"http://localhost:{port}/audio.html";
+            ChatFeedOverlayUrl = $"http://localhost:{port}/chatfeed.html?count=5";
             IsServerRunning = _webhookCoordinator?.IsRunning ?? false;
 
             // Poll the live browser-source client count while the page is open.
@@ -235,6 +241,26 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
+    private void CopyChatFeedOverlayUrl()
+    {
+        try
+        {
+            System.Windows.Clipboard.SetText(ChatFeedOverlayUrl);
+            _logger.LogInformation("Chat feed overlay URL copied to clipboard: {Url}", ChatFeedOverlayUrl);
+
+            System.Windows.MessageBox.Show(
+                $"Chat feed overlay URL copied to clipboard:\n\n{ChatFeedOverlayUrl}\n\nAdd this as a Browser Source in OBS (face-cam captions).",
+                "URL Copied",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error copying chat feed URL to clipboard");
+        }
+    }
+
+    [RelayCommand]
     private async Task RestartServerAsync()
     {
         if (_webhookCoordinator == null)
@@ -262,6 +288,7 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
                     _serverPort = _webhookCoordinator.Port;
                     WebSocketPort = _serverPort;
                     BrowserSourceUrl = $"http://localhost:{_serverPort}/audio.html";
+                    ChatFeedOverlayUrl = $"http://localhost:{_serverPort}/chatfeed.html?count=5";
                 }
 
                 _logger.LogInformation("Web server restarted successfully on port {Port}", _serverPort);
@@ -437,5 +464,6 @@ public partial class AudioSettingsViewModel : ViewModelBase, IDisposable
             WebSocketPort = _serverPort;
         }
         BrowserSourceUrl = $"http://localhost:{_serverPort}/audio.html";
+        ChatFeedOverlayUrl = $"http://localhost:{_serverPort}/chatfeed.html?count=5";
     }
 }

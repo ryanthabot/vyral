@@ -335,6 +335,6 @@ public class StreamToolsCommandService : IStreamToolsCommandService
         var trimmed = raw?.Trim().TrimStart('@', '#').Trim() ?? string.Empty;
         // Keep only platform-legal username characters so a crafted target
         // can't smuggle path separators or query strings into a profile URL.
-        return new string(trimmed.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
+        return new string(trimmed.Where(c => char.IsLetterOrDigit(c) || c == '_' || c == '.' || c == '-').ToArray());
     }
 }

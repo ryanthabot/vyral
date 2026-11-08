@@ -1,8 +1,33 @@
 # StatisticsViewModel + StatisticsView
 
-Event statistics page (`Views/StatisticsView.xaml`): aggregated event counts,
-top contributors per event type, and all-time top users. Backed by
-`IStatisticsService` (`VyralBot.Core/Services/Statistics/StatisticsService.cs`).
+Event statistics page (`Views/StatisticsView.xaml`): stream session summaries
+(Sessions tab), aggregated event counts, top contributors per event type, and
+all-time top users. Backed by `IStatisticsService`
+(`VyralBot.Core/Services/Statistics/StatisticsService.cs`) and
+`ISessionSummaryService`
+(`VyralBot.Core/Services/Statistics/SessionSummaryService.cs`).
+
+## Sessions tab (wave 16)
+
+The first tab renders the post-stream reports `SessionSummaryService` compiles
+when a stream ends (see `services/session-summary-service.md`):
+
+- **Last session card**: platforms + duration (`DurationText`), six headline
+  numbers (new followers, new subs, raids, cheers, chat messages, currency
+  awarded) and the top-3 breakdown — top chatters (from the summary's
+  `TopChatters`) plus top event types (`LastSessionTopEvents`, "Follow × 12"
+  rows computed in the VM with the chart-builder ordering: value desc, ordinal
+  label tie-break).
+- **Recent sessions list**: DataGrid of the persisted summaries — started
+  (local time), platforms, duration, headline numbers (`HeadlineText` =
+  follows · subs · messages).
+- Both cards have empty states (`InvertBooleanToVisibilityConverter`) shown
+  until the first tracked stream ends.
+
+`LoadSessionsAsync()` runs inside `LoadStatisticsAsync()` (so Refresh and
+every navigation reload it) and reads
+`ISessionSummaryService.GetRecentSummariesAsync()`; failures are logged only —
+the analytics grids keep working when the summary store is unreadable.
 
 ## Data flow
 

@@ -134,7 +134,7 @@ public partial class CommandsView : UserControl
 
         try
         {
-            var content = await File.ReadAllTextAsync(dialog.FileName);
+            var content = await ImportWithSizeCapAsync(dialog.FileName);
             await viewModel.RunImportPreviewAsync(content);
         }
         catch (Exception ex)
@@ -311,4 +311,18 @@ public partial class CommandsView : UserControl
             _marketplaceViewModel = null;
         }
     }
+    /// <summary>Reads an import file with a 2 MB cap — hostile exports can't
+    /// balloon memory or the parser before the preview even shows.</summary>
+    private static async Task<string> ImportWithSizeCapAsync(string path)
+    {
+        const long maxBytes = 2 * 1024 * 1024;
+        var info = new FileInfo(path);
+        if (info.Exists && info.Length > maxBytes)
+        {
+            throw new InvalidOperationException("Import file is larger than 2 MB — split the export and try again.");
+        }
+
+        return await File.ReadAllTextAsync(path);
+    }
+
 }

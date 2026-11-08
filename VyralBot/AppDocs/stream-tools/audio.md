@@ -39,6 +39,7 @@ At least one of the two toggles must be on for any sound to play at all; if both
 
 - Shows the read-only URL `http://localhost:<web-server-port>/audio.html` (port 5000 unless you changed Web Server settings) with a **Copy URL** button (copies to clipboard and confirms with a dialog).
 - Lists the four OBS setup steps (add a Browser Source, paste the URL, set 1920x1080, sounds play automatically). The full walkthrough — including prerequisites and troubleshooting — is in [Browser Sources](browser-sources.md).
+- **Chat Feed overlay card** (1.1.0 wave 16) — the page also carries the URL for the chat-feed captions browser source (`http://localhost:<web-server-port>/chatfeed.html?count=5`, rebuilt from the same live port) with its own **Copy** button. Params and endpoint contract: [Browser Sources → Chat feed](browser-sources.md#chat-feed-chatfeedhtml).
 
 ### Test Sound and Save
 

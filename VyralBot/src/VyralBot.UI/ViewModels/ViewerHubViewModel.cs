@@ -159,6 +159,13 @@ public partial class ViewerHubViewModel : ViewModelBase
     [ObservableProperty]
     private bool _goalsEnabled = true;
 
+    /// <summary>Web-server port backing the goals overlay URL (5000 fallback).</summary>
+    private int _serverPort = 5000;
+
+    /// <summary>Goals-overlay URL to paste into an OBS browser source.</summary>
+    [ObservableProperty]
+    private string _goalsOverlayUrl = "http://localhost:5000/goals.html";
+
     /// <summary>Exact GoalType strings consumed by GoalEvaluator.</summary>
     public static IReadOnlyList<string> GoalTypeOptions { get; } = new[]
     {
@@ -227,6 +234,7 @@ public partial class ViewerHubViewModel : ViewModelBase
             PlatformCap = await GetIntAsync("Odds.LinkedPlatformBonusCap", 3);
 
             GoalsEnabled = await GetBoolAsync("Goals.Enabled", true);
+            await LoadOverlayPortAsync();
 
             _isLoaded = true;
 
@@ -498,6 +506,52 @@ public partial class ViewerHubViewModel : ViewModelBase
 
     [RelayCommand]
     private async Task RefreshGoalsAsync() => await LoadGoalsAsync();
+
+    /// <summary>
+    /// The overlay URL must point at the embedded web server, whose port is
+    /// owned by the Web Server settings — read it once per navigation (5000
+    /// fallback) and rebuild the URL (same convention as the Currency page's
+    /// leaderboard overlay URL).
+    /// </summary>
+    private async Task LoadOverlayPortAsync()
+    {
+        try
+        {
+            var webSettings = await _dataService.GetWebServerSettingsAsync();
+            if (webSettings is not null && webSettings.Port > 0)
+            {
+                _serverPort = webSettings.Port;
+            }
+        }
+        catch (Exception portEx)
+        {
+            _logger.LogWarning(portEx, "Could not load web-server settings - using default port 5000 for the goals overlay URL");
+        }
+
+        UpdateGoalsOverlayUrl();
+    }
+
+    private void UpdateGoalsOverlayUrl()
+    {
+        GoalsOverlayUrl = $"http://localhost:{_serverPort}/goals.html";
+    }
+
+    [RelayCommand]
+    private void CopyGoalsOverlayUrl()
+    {
+        try
+        {
+            System.Windows.Clipboard.SetText(GoalsOverlayUrl);
+            StatusMessage = "Goals overlay URL copied - add it as a Browser Source in OBS.";
+            _logger.LogInformation("Goals overlay URL copied to clipboard");
+        }
+        catch (Exception ex)
+        {
+            // Clipboard can be locked by another process - non-fatal.
+            _logger.LogWarning(ex, "Could not copy goals overlay URL to clipboard");
+            StatusMessage = "Could not copy - the clipboard is busy.";
+        }
+    }
 
     // ======================================================================
     // Linked viewers (demand-load only)

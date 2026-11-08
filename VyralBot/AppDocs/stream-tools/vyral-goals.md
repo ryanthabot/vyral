@@ -1,6 +1,6 @@
 # Vyral Goals
 
-> Broadcaster-defined goals that reward viewers for linking platforms, following, and subscribing — with seeded defaults, chat announcements on completion, and a multi-platform earnings bonus that grows with every linked platform.
+> Broadcaster-defined goals that reward viewers for linking platforms, following, and subscribing — with seeded defaults, chat announcements on completion, a multi-platform earnings bonus that grows with every linked platform, and (since 1.1.0 wave 16) an on-stream progress-bar overlay.
 
 ## Overview
 
@@ -58,6 +58,16 @@ Goals are managed under **Settings → Viewer Hub → Vyral Goals**: each goal h
 
 Completions are **announced in chat on all connected platforms**: `🏆 {username} completed '{goal}'! 500 points` (or "a new badge" / "1.25x earnings multiplier"). A completion can only happen once per viewer per goal.
 
+### The goals overlay (1.1.0 wave 16)
+
+Every **enabled** goal renders on the **`goals.html`** browser source — one animated progress bar per goal (title, kind chip, description, completions/target), refreshed every 15 seconds from the same `SocialGoalService` the editor uses. The **Vyral Goals card** in the Viewer Hub has an **Overlay URL** row that shows the port-correct URL and copies it for pasting into an OBS Browser Source:
+
+```
+http://localhost:5000/goals.html?style=dark&size=m
+```
+
+URL params: `style=dark|light` and `size=m|l`. Honest semantics: the bar's numerator is **how many viewers completed the goal** while the target is the per-viewer threshold — the display reads "completions / target" as a community-progress bar ([KI-63](../reference/known-issues.md)). Full param reference and endpoint contract: [Browser Sources → Goals progress](browser-sources.md#goals-progress-goalshtml).
+
 ## How It Works (Developer)
 
 ### SocialGoalService
@@ -84,6 +94,9 @@ Completions are **announced in chat on all connected platforms**: `🏆 {usernam
 | File | Role |
 |---|---|
 | [SocialGoalService.cs](../../src/VyralBot.Core/Services/Linking/SocialGoalService.cs) | Goal seeding, evaluation (`GoalEvaluator`), completions, reward granting, `ViewerGoalCompletedEvent`. |
+| [GoalsController.cs](../../src/VyralBot.Api/Controllers/GoalsController.cs) | `GET /goals/data` — the loopback, read-only overlay endpoint (aggregate counts only, no PII). |
+| [goals.html](../../src/VyralBot.Api/wwwroot/goals.html) | The goals overlay widget (15 s polling, animated bars). |
+| [ViewerHubViewModel.cs](../../src/VyralBot.UI/ViewModels/ViewerHubViewModel.cs) | Goal editor + the overlay URL builder/copy command. |
 | [MultiPlatformBonusService.cs](../../src/VyralBot.Core/Services/Linking/MultiPlatformBonusService.cs) | Mode/opt-in/ladder resolution + goal multipliers; `MultiPlatformBonusLadder`. |
 | [ViewerStatusService.cs](../../src/VyralBot.Core/Services/Linking/ViewerStatusService.cs) | Per-viewer aggregates: linked count, follower-anywhere, best sub tier. |
 | [CurrencyCommandService.cs](../../src/VyralBot.Core/Services/Currency/CurrencyCommandService.cs) | `!goals` / `!mystatus` / `!mp` handlers. |
@@ -110,6 +123,7 @@ Tables: **SocialGoals** (one row per goal), **ViewerGoalCompletions** (unique pe
 ## Status & Known Issues
 
 - **Seeding is once-only** — the defaults are written only while the `SocialGoals` table is empty; afterwards the broadcaster owns the list entirely (deleting a default does not resurrect it).
+- **The overlay refreshes every 15 seconds** — a fresh completion can take up to 15 s to move the bar, and the bar shows completions/target (aggregate numerator over per-viewer threshold) by design ([KI-63](../reference/known-issues.md)).
 - **Multiplier-goal rewards are not hydrated on startup** — a viewer who completed a Multiplier goal before the last app restart only benefits from it again after a new goal completion event (in-memory map; see [MultiPlatformBonusService](../../src/VyralBot.Core/Services/Linking/MultiPlatformBonusService.cs)).
 - **Badge rewards are declarative** — completions are recorded and announced, but no badge UI exists yet.
 - **The bonus mode defaults to Off** — out of the box `!mystatus` will always show `1x` until the streamer picks OptIn or Auto under Settings → Viewer Hub.

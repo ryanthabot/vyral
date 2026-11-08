@@ -34,6 +34,35 @@ public interface IChatModerationEngine
 
     /// <summary>Clears ALL viewer state (dashboard "reset escalation" button).</summary>
     void ResetAll();
+
+    /// <summary>
+    /// Records a manual moderator warning (!warn) for the viewer and advances
+    /// the SAME escalation ladder as rule violations — the same strike store,
+    /// the same decay window, the same timeout/ban rungs. Returns the ladder's
+    /// answer for the new strike count: a Timeout/Ban action means the manual
+    /// warn tipped the viewer onto that rung and the caller should fire it
+    /// through the normal action pipeline immediately; a Warn action means the
+    /// next rule violation (or warn) escalates naturally. Works even while
+    /// <see cref="Evaluate"/> is master-switched off — a manual warn is a
+    /// moderator decision, not a detection. The engine stays I/O-free, so the
+    /// <paramref name="reason"/> is carried for the caller's audit log only.
+    /// </summary>
+    LadderAction RegisterManualWarning(string username, string platform, string reason);
+
+    /// <summary>
+    /// The viewer's live strike count: 0 for unknown viewers and for counts
+    /// fully decayed past the escalation window. Read-only (no mutation).
+    /// </summary>
+    int GetStrikeCount(string platform, string username);
+
+    /// <summary>
+    /// The action the escalation ladder prescribes when a viewer reaches
+    /// <paramref name="strikes"/> strikes. Manual warns enter the ladder with
+    /// a Warn base; rule violations with their rule's action — a rule action
+    /// already harsher than the rung is never downgraded by
+    /// <see cref="Evaluate"/>.
+    /// </summary>
+    LadderAction ResolveLadderAction(int strikes);
 }
 
 /// <summary>
@@ -213,6 +242,104 @@ public sealed class ChatModerationEngine : IChatModerationEngine
         {
             _viewers.Clear();
         }
+    }
+
+    // ------------------------------------------------------------------
+    // manual warnings (the !warn command surface — shares the ladder above)
+    // ------------------------------------------------------------------
+
+    public LadderAction RegisterManualWarning(string username, string platform, string reason)
+    {
+        // The engine is I/O-free by contract — the reason never touches state;
+        // the caller (WarningCommandService) logs + audits it.
+        _ = reason ?? "";
+
+        var escalation = _cache.Rules.Escalation;
+        int strikes;
+
+        lock (_stateGate)
+        {
+            var key = BuildKey(platform, username);
+            if (!_viewers.TryGetValue(key, out var state))
+            {
+                if (_viewers.Count >= MaxTrackedViewers)
+                {
+                    SweepStaleViewers(nowUtc: DateTime.UtcNow);
+                }
+
+                state = new ViewerState { LastSeenUtc = DateTime.UtcNow };
+                _viewers[key] = state;
+            }
+
+            // Identical decay + increment path as a rule-violation strike, so
+            // manual warns and auto-mod hits are indistinguishable downstream.
+            var now = DateTime.UtcNow;
+            var window = TimeSpan.FromMinutes(Math.Max(1, escalation.StrikeWindowMinutes));
+            if (state.Strikes > 0 && now - state.LastStrikeUtc > window)
+            {
+                state.Strikes = 0;
+            }
+
+            state.Strikes++;
+            state.LastStrikeUtc = now;
+            strikes = state.Strikes;
+        }
+
+        return ResolveLadder(escalation, strikes);
+    }
+
+    public int GetStrikeCount(string platform, string username)
+    {
+        var escalation = _cache.Rules.Escalation;
+        lock (_stateGate)
+        {
+            if (!_viewers.TryGetValue(BuildKey(platform, username), out var state))
+            {
+                return 0;
+            }
+
+            // Read-only decay view: expired counts read as 0 without mutating
+            // the stored state (the next strike decays it for real).
+            var window = TimeSpan.FromMinutes(Math.Max(1, escalation.StrikeWindowMinutes));
+            return state.Strikes > 0 && DateTime.UtcNow - state.LastStrikeUtc > window
+                ? 0
+                : state.Strikes;
+        }
+    }
+
+    public LadderAction ResolveLadderAction(int strikes)
+        => ResolveLadder(_cache.Rules.Escalation, Math.Max(0, strikes));
+
+    /// <summary>
+    /// The single ladder resolver shared by rule violations (<see cref="Strike"/>)
+    /// and manual warns (<see cref="RegisterManualWarning"/>): Warn base,
+    /// Timeout at <c>StrikesToTimeout</c> (base seconds doubling per extra
+    /// strike), Ban at <c>StrikesToBan</c>. Callers keep actions already
+    /// harsher than the rung.
+    /// </summary>
+    private static LadderAction ResolveLadder(ModerationEscalationConfig escalation, int strikes)
+    {
+        var action = ModerationActionKind.Warn;
+        var timeoutSeconds = Math.Clamp(escalation.BaseTimeoutSeconds, 1, MaxTimeoutSeconds);
+
+        if (escalation.Enabled)
+        {
+            if (strikes >= escalation.StrikesToBan)
+            {
+                action = ModerationActionKind.Ban;
+            }
+            else if (strikes >= escalation.StrikesToTimeout)
+            {
+                var doublings = Math.Min(strikes - escalation.StrikesToTimeout, MaxTimeoutDoublings);
+                timeoutSeconds = Math.Clamp(
+                    escalation.BaseTimeoutSeconds * (1 << doublings),
+                    1,
+                    MaxTimeoutSeconds);
+                action = ModerationActionKind.Timeout;
+            }
+        }
+
+        return new LadderAction(strikes, action, timeoutSeconds);
     }
 
     // ------------------------------------------------------------------
@@ -521,18 +648,18 @@ public sealed class ChatModerationEngine : IChatModerationEngine
 
         if (escalation.Enabled)
         {
-            if (strikes >= escalation.StrikesToBan)
+            // Same resolver the manual-warn path uses — one ladder, no drift.
+            // A rule action already harsher than the rung is kept (Ban stays
+            // Ban; a rule Timeout keeps Timeout, adopting the rung duration).
+            var ladder = ResolveLadder(escalation, strikes);
+            if (ladder.Action == ModerationActionKind.Ban)
             {
                 action = ModerationActionKind.Ban;
             }
-            else if (strikes >= escalation.StrikesToTimeout &&
+            else if (ladder.Action == ModerationActionKind.Timeout &&
                      action is not ModerationActionKind.Ban)
             {
-                var doublings = Math.Min(strikes - escalation.StrikesToTimeout, MaxTimeoutDoublings);
-                timeoutSeconds = Math.Clamp(
-                    escalation.BaseTimeoutSeconds * (1 << doublings),
-                    1,
-                    MaxTimeoutSeconds);
+                timeoutSeconds = ladder.TimeoutSeconds;
                 if (action is not ModerationActionKind.Timeout)
                 {
                     action = ModerationActionKind.Timeout;

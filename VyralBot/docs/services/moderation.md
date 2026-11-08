@@ -39,7 +39,14 @@ card and the mod_command workflows (visual Flow editor).
   for moderators / VIPs / subscribers; per-user exemption list.
 - **Escalation:** per viewer per platform strike count with decay window
   (default 15 min); Delete/Warn upgrade to Timeout at `StrikesToTimeout`
-  (doubling duration per extra strike), to Ban at `StrikesToBan`.
+  (doubling duration per extra strike), to Ban at `StrikesToBan`. One shared
+  resolver (`ResolveLadderAction`, returning a `LadderAction`) answers for
+  both rule violations and manual warns.
+- **Manual-warning surface (Wave 16):** `RegisterManualWarning(username,
+  platform, reason)` advances the SAME strike store/ladder as a rule strike
+  (works with the master switch off — a mod decision, not a detection) and
+  returns the ladder's answer for the new count; `GetStrikeCount(platform,
+  username)` is the read-only decay-aware count.
 - **Verdict:** `ModerationVerdict(Rule, Action, TimeoutSeconds, Reason, Strikes)`;
   `null` = clean.
 
@@ -97,6 +104,20 @@ card renders `ModerationPlatformParity.Snapshot` rows — platform name,
 enforcement-level badge (Full / Notice-only / None) and a detail line — so the
 display always mirrors the audit Table.
 
+## Manual warnings (!warn family, Wave 16)
+
+`WarningCommandService` (`IWarningCommandService`, see
+[warning-command-service.md](warning-command-service.md)) runs the mod-only
+`!warn <user> [reason]` / `!warnings <user>` / `!clearwarn <user>` chat
+commands on every platform from the ChatViewModel command chain. Manual warns
+feed the SAME escalation state as rule violations: the viewer's next violation
+escalates through the normal pipeline, and a manual warn that itself tips onto
+a Timeout/Ban rung fires that action immediately via
+`ModerationActionService.ExecuteAsync` (never double-punished). Warning counts
+are the engine's in-memory state — restarting the app clears them; the audit
+rows (warn/clearwarn by the issuing mod, escalated actions by AutoMod) persist
+in the ModActions log.
+
 ## Mod commands (!mod)
 
 - `ModCommandEngine` — gates the configured Discord mod channel, resolves the
@@ -111,7 +132,7 @@ display always mirrors the audit Table.
 - `IModTierResolver` — explicit assignment vs highest Discord role→tier
   mapping, whichever ranks higher.
 
-## Wiring status (Wave 9, 2026-11-07)
+## Wiring status (Wave 16, 2026-11-07)
 - Done: engine, action router + degradation, rule persistence, dashboard card
   (Wave 1); auto-mod evaluated on every platform in the ChatViewModel message
   handlers — Twitch/Kick/YouTube/Discord dedicated paths plus the generic
@@ -121,7 +142,9 @@ display always mirrors the audit Table.
   upgraded to full native enforcement via Kick API v1 (ban/timeout scope
   granted since launch, delete scope added to the wizard) and YouTube upgraded
   to delete-only via `liveChatMessages.delete` (Wave 9 — no public YouTube
-  ban/timeout API exists, those verdicts degrade to delete).
+  ban/timeout API exists, those verdicts degrade to delete); manual `!warn`
+  family (WarningCommandService) wired into the ChatViewModel command chain,
+  feeding manual warns into the same escalation ladder (Wave 16).
 - Remaining seams: parse IRC message ids in the Twitch pipeline so Delete
   verdicts call `DELETE /helix/moderation/chat` directly; Kick delete needs a
   one-time re-auth for tokens granted before the

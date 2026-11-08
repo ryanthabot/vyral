@@ -141,6 +141,7 @@ All registered as singletons. These power the local Kestrel web server, ngrok tu
 | Interface | Implementation |
 |-----------|---------------|
 | `Core.Services.Statistics.IStatisticsService` | `Core.Services.Statistics.StatisticsService` |
+| `Core.Services.Statistics.ISessionSummaryService` | `Core.Services.Statistics.SessionSummaryService` (also hosted: starts/stops with the app lifetime, FirstTimeChatterService precedent) |
 
 ### Alert Service
 

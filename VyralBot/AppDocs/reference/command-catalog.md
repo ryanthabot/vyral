@@ -16,14 +16,16 @@ When the pipeline is alive, every incoming chat message flows through `OnChatMes
 2. **Unified commands** (`CommandService`): if the message starts with `!`, `?`, or `.` (`CommandService.cs:23`), the message is looked up in the `Commands` table. If a row matches (and is enabled, platform-allowed, permission-passing, off-cooldown), its response is sent and processing **stops**.
 3. **Currency commands**: any `!` message falls through to `CurrencyCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3367`).
 4. **Giveaway commands**: any `!` message falls through to `GiveawayCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3428`) — includes custom entry keywords.
-5. **Poll commands**: messages starting with `!poll` go to `PollCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3462`).
+5. **Poll commands**: messages starting with `!poll` (or the `!vote` alias) go to `PollCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3462`).
 6. **Watchtime commands**: messages starting with `!watchtime` go to `WatchtimeCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3496`).
 7. **Quote commands**: messages starting with `!quote` go to `QuoteService.ProcessCommandAsync` (`ChatViewModel.cs:3530`).
 8. **Song requests**: messages starting with `!sr`/`!songrequest` go to `SongRequestService.ProcessCommandAsync` (`ChatViewModel.cs:3619`).
 9. **Mod & stream tools**: any `!` message falls through to `StreamToolsCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3653`) — `!so`, `!clip`, `!raid`, `!title`, `!game`, `!commercial`, `!uptime`, `!followage`.
 10. **Death counter**: messages starting with `!death` go to `DeathCounterService.ProcessCommandAsync` (`ChatViewModel.cs:3683`).
 11. **TTS**: messages starting with `!tts` go to `TtsService.ProcessCommandAsync` (`ChatViewModel.cs:3717`).
-12. Finally, watchtime activity is recorded and chat-activity currency is awarded (for non-command messages).
+12. **Chat modes**: any `!` message falls through to `ChatModeCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3761`) — `!emoteonly`, `!subonly`, `!followers`, `!slow` (Twitch-only).
+13. **Warnings**: any `!` message falls through to `WarningCommandService.ProcessCommandAsync` (`ChatViewModel.cs:3795`) — `!warn`, `!warnings`, `!clearwarn`.
+14. Finally, watchtime activity is recorded and chat-activity currency is awarded (for non-command messages).
 
 Notes that apply across the whole catalog:
 
@@ -163,14 +165,71 @@ Implemented in [PollCommandService.cs](../../src/VyralBot.Core/Services/PollComm
 
 | Command | Arguments | Permission | What it does | Source |
 |---|---|---|---|---|
-| `!poll start` | none | Moderator | Starts the first Pending poll (created in the UI) and posts the question with numbered options. Only one active poll at a time. | [PollCommandService.cs](../../src/VyralBot.Core/Services/PollCommandService.cs) |
-| `!poll vote` | `<option number>` | Everyone | Votes for an option. Eligibility checks mirror giveaways (platform/follower/sub/watchtime). When AllowMultipleVotes is on, a repeat vote **moves** rather than rejects. | [PollCommandService.cs](../../src/VyralBot.Core/Services/PollCommandService.cs) |
+| `!poll start` | none, or `[duration] question \| option A \| option B …` | Moderator | **Bare** `!poll start` starts the first Pending poll (created in the UI). **With arguments** it creates and starts an ad-hoc poll straight from chat: an optional duration token first (`5m`, `90s`, `1h30m`; 5 s – 24 h), then the question (≤ 200 chars) and 2–6 pipe-separated options (≤ 100 chars each). With a duration, the poll auto-ends at the scheduled time and announces results on every connected platform (the giveaway/poll scheduler). | [PollCommandService.cs](../../src/VyralBot.Core/Services/PollCommandService.cs) |
+| `!poll vote <n>` / `!vote <n>` | option number (1-based) | Everyone | Votes for an option — `!vote <n>` is the short everyone-usable alias (same exact vote path, so the spellings can never disagree). Eligibility checks mirror giveaways (platform/follower/sub/watchtime). When AllowMultipleVotes is on, a repeat vote **moves** rather than rejects. | [PollCommandService.cs](../../src/VyralBot.Core/Services/PollCommandService.cs) |
 | `!poll results` | none | Everyone | Per-option counts and percentages; falls back to the most recent completed poll when none is active. | [PollCommandService.cs](../../src/VyralBot.Core/Services/PollCommandService.cs) |
 | `!poll end` | none | Moderator | Ends the active poll: aggregates counts into `VoteResults` JSON, announces the winning option, sets status Completed. | [PollCommandService.cs](../../src/VyralBot.Core/Services/PollCommandService.cs) |
 | `!poll cancel` | none | Moderator | Cancels the active poll without results. | [PollCommandService.cs](../../src/VyralBot.Core/Services/PollCommandService.cs) |
 | `!poll status` | none | Everyone | Shows the active poll's question, options, and vote counts. | [PollCommandService.cs](../../src/VyralBot.Core/Services/PollCommandService.cs) |
 
-Same eligibility note as giveaways: real watchtime everywhere; real followers on Twitch only (scope caveat), `false` on Kick/YouTube. See [Known Issues](known-issues.md) KI-5, KI-31, KI-33.
+```
+!poll start 5m What game next? | Balatro | Elden Ring | Minecraft
+📊 Poll started: What game next? - Options: (1) Balatro (2) Elden Ring (3) Minecraft - ends in 5m - Vote with !poll vote <n> or !vote <n>
+```
+
+Same eligibility note as giveaways: real watchtime everywhere; real followers on Twitch only (scope caveat), `false` on Kick/YouTube. See [Known Issues](known-issues.md) KI-5, KI-31, KI-33. Live results also render on the [poll overlay](../stream-tools/browser-sources.md#poll-results-polloverlayhtml) browser source.
+
+---
+
+## Chat-mode commands (Twitch)
+
+Implemented in [ChatModeCommandService.cs](../../src/VyralBot.Core/Services/Commands/ChatModeCommandService.cs) (`ProcessCommandAsync`); Twitch is reached through the `ITwitchChatModeApplier` seam (implemented by the Integrations `TwitchService` — Helix chat-settings updates). Any `!` message reaches this service after the TTS handler; the reply is sent on the **originating** platform. Added in 1.1.0 (wave 16).
+
+Twitch chat-protection modes with **auto-revert**: enabling any mode arms a timed revert (default **10 minutes**, capped at 120) so a raid-shielded chat always opens up again. Re-issuing a command re-arms its timer; `<mode> off` disables immediately and cancels the pending revert.
+
+| Command | Arguments | Permission | What it does | Source |
+|---|---|---|---|---|
+| `!emoteonly [minutes]` / `!emoteonly off` | optional revert window (1–120, default 10) | **Moderator+** | Enables/disables emote-only chat. Enable reply carries the window ("Emote-only enabled for 10 minutes."); auto-reverts when it expires. | `HandleSimpleModeAsync` |
+| `!subonly [minutes]` / `!subonly off` | optional revert window | **Moderator+** | Enables/disables subscribers-only chat, same auto-revert shape. | `HandleSimpleModeAsync` |
+| `!followers [follow age] [minutes]` / `!followers off` | follow age (`30`, `2h` — max 90 days) + revert window | **Moderator+** | Enables/disables followers-only chat, optionally requiring a minimum follow age ("must have followed for 2 hours"). Bare `!followers` = any follower. | `HandleFollowersAsync` |
+| `!slow <seconds> [minutes]` / `!slow off` | seconds **required** (3–120, Helix bounds) + revert window | **Moderator+** | Enables/disables slow mode with the given per-message wait. | `HandleSlowAsync` |
+
+- **Twitch-only**: every command replies "`!slow` is Twitch-only." (and so on) on other platforms — Kick/YouTube/Discord have no equivalent API surface wired here. Non-mods get "That's a moderator-only command."
+- **Auto-revert accuracy**: the checker runs on a one-shot timer that ticks at most every 30 seconds, so a revert fires up to ~30 s late; a revert whose Twitch call fails is dropped after one attempt (a mod re-issues `<mode> off`); pending reverts are **in-memory** — restarting VyralBot leaves the modes as-is on Twitch ([Known Issues](known-issues.md) KI-62).
+- Scopes: the Helix chat-settings write needs `moderator:manage:chat_settings` on the stored broadcaster token — tokens issued before that scope was added to the authorization URL fail the update until the Twitch connection is re-run (same re-auth pattern as KI-33).
+
+```
+!emoteonly           → Emote-only enabled for 10 minutes.
+!followers 2h 30     → Followers-only enabled (must have followed for 2 hours) for 30 minutes.
+!slow 30 20          → Slow mode enabled (30s) for 20 minutes.
+!slow off            → Slow mode disabled.
+```
+
+---
+
+## Warning commands
+
+Implemented in [WarningCommandService.cs](../../src/VyralBot.Core/Services/Moderation/WarningCommandService.cs) (`ProcessCommandAsync`); strikes live in the auto-mod engine's shared escalation state ([ChatModerationEngine.cs](../../src/VyralBot.Core/Services/Moderation/ChatModerationEngine.cs) `RegisterManualWarning`). Any `!` message reaches this service last; the reply is sent on the **originating** platform. Added in 1.1.0 (wave 16).
+
+| Command | Arguments | Permission | What it does | Source |
+|---|---|---|---|---|
+| `!warn <user> [reason]` | target user (reason ≤ 200 chars, "no reason given" when empty) | **Moderator+** | Adds a manual strike that climbs the **same escalation ladder as auto-mod rule violations**. Warning-level strike: audit row + "⚠ {user} warned (n total) — next: …". When the warn itself tips the viewer onto the Timeout/Ban rung, that action fires **immediately** through the normal moderation pipeline (executed, degraded and audited like a rule violation). | `HandleWarnAsync` |
+| `!warnings <user>` | target user | **Moderator+** | Shows the viewer's live strike count, the next rung, and the ladder config (timeout/ban thresholds + decay window). | `HandleWarnings` |
+| `!clearwarn <user>` | target user | **Moderator+** | Resets the viewer's strikes to zero (audited). | `HandleClearWarnAsync` |
+
+How manual warns feed the auto-mod ladder:
+
+- One shared strike store — a manual `!warn` and a rule violation are indistinguishable downstream: identical decay window (`StrikeWindowMinutes`), identical rungs (Timeout at `StrikesToTimeout` with base seconds doubling per extra strike, Ban at `StrikesToBan`), and the viewer's *next* rule violation escalates from the warn-inflated count.
+- Manual warns work **even while auto-mod is master-switched off** — a warn is a moderator decision, not a detection.
+- Every warn/clearwarn writes an audit row (`ModActions`) with the issuing mod as actor, so the Moderator dashboard's Action Log shows the full history.
+- **Restart clears warnings**: strike counts are the engine's in-memory escalation state (5,000-viewer cap) — restarting VyralBot resets everyone to zero strikes. Only the audit rows survive ([Known Issues](known-issues.md) KI-64).
+
+```
+!warn @spammer flooding chat     → ⚠ spammer warned (1 total) — next: warning
+!warn @spammer again             → ⚠ spammer warned (2 total) — escalated: timeout 600s — next: ban
+!warnings @spammer               → ⚠ spammer: 2 warning(s) — next: ban (timeout at 2, ban at 3, 60m decay window)
+!clearwarn @spammer              → ✅ Warnings cleared for spammer (had 2).
+```
 
 ---
 

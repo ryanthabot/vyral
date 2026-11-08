@@ -18,6 +18,7 @@ public partial class StatisticsViewModel : ViewModelBase
 {
     private readonly ILogger<StatisticsViewModel> _logger;
     private readonly IStatisticsService _statisticsService;
+    private readonly ISessionSummaryService _sessionSummaryService;
 
     [ObservableProperty]
     private ObservableCollection<EventCountSummary> _eventCounts = new();
@@ -81,12 +82,34 @@ public partial class StatisticsViewModel : ViewModelBase
     [ObservableProperty]
     private ObservableCollection<string?> _availablePlatforms = new() { null, "Kick", "Twitch", "YouTube", "Discord", "TikTok" };
 
+    /// <summary>Most recent stream session summary (Sessions tab "Last session" card).</summary>
+    [ObservableProperty]
+    private StreamSessionSummary? _lastSessionSummary;
+
+    /// <summary>True when a persisted session summary exists (drives the card vs. empty state).</summary>
+    [ObservableProperty]
+    private bool _hasLastSession;
+
+    /// <summary>Recent session summaries, newest first (Sessions tab list).</summary>
+    [ObservableProperty]
+    private ObservableCollection<StreamSessionSummary> _recentSessions = new();
+
+    /// <summary>Formatted "Type ×N" rows for the last session's top-3 event types.</summary>
+    [ObservableProperty]
+    private ObservableCollection<string> _lastSessionTopEvents = new();
+
+    /// <summary>True when at least one persisted session summary exists.</summary>
+    [ObservableProperty]
+    private bool _hasRecentSessions;
+
     public StatisticsViewModel(
         ILogger<StatisticsViewModel> logger,
-        IStatisticsService statisticsService)
+        IStatisticsService statisticsService,
+        ISessionSummaryService sessionSummaryService)
     {
         _logger = logger;
         _statisticsService = statisticsService;
+        _sessionSummaryService = sessionSummaryService;
         
         // Default to last 30 days. EndDate must be midnight of TOMORROW (exclusive
         // upper bound in the SQL <= comparison) or everything after midnight today
@@ -175,6 +198,9 @@ public partial class StatisticsViewModel : ViewModelBase
             }
 
             _logger.LogInformation("Statistics loaded successfully: {TotalEvents} events", TotalEvents);
+
+            // Stream session summaries (Sessions tab): most recent + the list.
+            await LoadSessionsAsync();
         }
         catch (Exception ex)
         {
@@ -184,6 +210,51 @@ public partial class StatisticsViewModel : ViewModelBase
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Load the persisted stream session summaries (Statistics → Sessions tab).
+    /// Failures are logged only — the analytics grids must keep working when
+    /// the summary store is unreadable.
+    /// </summary>
+    private async Task LoadSessionsAsync()
+    {
+        try
+        {
+            var summaries = await _sessionSummaryService.GetRecentSummariesAsync(limit: 20);
+            RecentSessions.Clear();
+            foreach (var summary in summaries)
+            {
+                RecentSessions.Add(summary);
+            }
+
+            LastSessionSummary = summaries.Count > 0 ? summaries[0] : null;
+            HasLastSession = LastSessionSummary is not null;
+            HasRecentSessions = summaries.Count > 0;
+
+            // Top-3 event types of the last session ("Follow × 12"), value
+            // descending with an ordinal label tie-break (chart-builder rule).
+            LastSessionTopEvents.Clear();
+            if (LastSessionSummary is not null)
+            {
+                foreach (var row in LastSessionSummary.EventCounts
+                             .Where(kvp => kvp.Value > 0)
+                             .OrderByDescending(kvp => kvp.Value)
+                             .ThenBy(kvp => kvp.Key, StringComparer.Ordinal)
+                             .Take(3))
+                {
+                    LastSessionTopEvents.Add($"{row.Key} × {row.Value}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading stream session summaries");
+            LastSessionSummary = null;
+            HasLastSession = false;
+            HasRecentSessions = false;
+            LastSessionTopEvents.Clear();
         }
     }
 

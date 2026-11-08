@@ -217,6 +217,15 @@ public partial class App : Application
                 services.AddSingleton<VyralBot.Core.Services.Counters.IDeathCounterService, VyralBot.Core.Services.Counters.DeathCounterService>();
                 // Text-to-speech (!tts command + spoken alerts); SAPI engine lives in Core/Services/Audio
                 services.AddSingleton<VyralBot.Core.Services.Audio.ITtsService, VyralBot.Core.Services.Audio.TextToSpeechService>();
+                // Chat modes (!emoteonly/!subonly/!followers/!slow family) + warnings
+                // (!warn/!warnings/!clearwarn family): interface + class in Core.
+                // The Core chat-mode service reaches Twitch through the
+                // ITwitchChatModeApplier seam implemented by the TwitchService
+                // singleton (cast registration — same instance, one Helix client).
+                services.AddSingleton<VyralBot.Core.Services.Commands.ITwitchChatModeApplier>(sp =>
+                    (VyralBot.Core.Services.Commands.ITwitchChatModeApplier)sp.GetRequiredService<VyralBot.Integrations.Twitch.ITwitchService>());
+                services.AddSingleton<VyralBot.Core.Services.Commands.IChatModeCommandService, VyralBot.Core.Services.Commands.ChatModeCommandService>();
+                services.AddSingleton<VyralBot.Core.Services.Moderation.IWarningCommandService, VyralBot.Core.Services.Moderation.WarningCommandService>();
 
                 // Song requests (chat-driven song queue — !sr family; titles arrive
                 // from the song player via UpdateTitleAsync, NullTitleResolver by default)
@@ -347,6 +356,14 @@ public partial class App : Application
 
                 // Statistics service
                 services.AddSingleton<Core.Services.Statistics.IStatisticsService, Core.Services.Statistics.StatisticsService>();
+                // Stream session summaries (post-stream report): tracks live
+                // transitions via IStreamLiveRegistry, compiles + persists the
+                // summary when the stream ends and publishes SessionEndedEvent.
+                // App-lifetime hosted lifecycle (FirstTimeChatterService
+                // precedent) — no MainViewModel hook needed.
+                services.AddSingleton<Core.Services.Statistics.ISessionSummaryService, Core.Services.Statistics.SessionSummaryService>();
+                services.AddHostedService(sp =>
+                    (Core.Services.Statistics.SessionSummaryService)sp.GetRequiredService<Core.Services.Statistics.ISessionSummaryService>());
 
                 // Alert service
                 services.AddSingleton<UI.Services.IAlertService, UI.Services.AlertService>();

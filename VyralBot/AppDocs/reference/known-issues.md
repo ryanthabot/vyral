@@ -11,7 +11,7 @@ The numbered, severity-tagged inventory of every known defect, wiring gap, dead 
 - **Limitation** — an honest current-state boundary (an API that does not exist, a deliberate degradation), documented rather than promised.
 - **Doc drift** — shipped root documents that disagree with the code.
 
-Counts (as of 2026-11-07, after the wave-15 verification pass): 61 entries — **30 resolved**, **7 partially resolved** (KI-5, KI-18, KI-21, KI-24, KI-31, KI-36, KI-53), **2 intended behavior / documented behavior change** (KI-14, KI-30), and **22 open** (KI-26, KI-27, KI-32–KI-34, KI-37, KI-38, KI-40–KI-42, KI-44–KI-47, KI-50–KI-52, KI-56, KI-58–KI-61). Original severity split of the 25 pre-fix entries: 7 Critical, 9 Wiring gaps, 2 Dead surface, 6 Security, 1 Doc drift. Wave-6 features (quotes, event-testing upgrade, control API, timer activity gate, OBS auto-reconnect) were re-checked against code and contributed no new entries; the wave-9 pass added KI-54–KI-56 (statistics charts, soundboard hotkeys, TikTok chat) and moved KI-31 (Kick recorded-status follower fallback) and KI-53 (Wave-9 Kick/YouTube moderation adapters) to partially resolved; the wave-10/11 pass moved KI-55 to partially resolved (the `play_sound` workflow block adds command/timer/event-triggered sound playback — global hotkeys and a soundboard UI remain) and added KI-57 (conditional rules — since resolved). The wave-12 docs pass (which saw the wave-12 feature code land mid-verification — charts and hotkeys initially absent, then shipped) moved **six entries to resolved**: **KI-16** (the audio port now follows Web Server settings, and Restart Server genuinely restarts the embedded server), **KI-57** (detail body aligned with its resolved summary row — rules un-gated from the default message, Discord join/boost evaluate rules), **KI-12/KI-28** (event auto-replies now run the full variable-replacement engine after the context-key pass, so DB/social variables resolve — verified at `ChatViewModel.BuildAutoReplyTextAsync`, ChatViewModel.cs:4334-4348), and **KI-54/KI-55** (the wave-12 code landed mid-pass: Statistics gained platform-colored overview + contributor `SimpleBarChart`s, and `GlobalHotkeyService` + the Sounds page Hotkey column shipped global soundboard hotkeys — 10 slots, conflict-checked, persisted, fire while gaming). The wave-14 pass verified the mod/stream-tools, TTS, death-counter, leaderboard-overlay, Streaming-block and deck-chip features against code and added three honest-limitation entries: **KI-58** (stream-tools command degradations), **KI-59** (RESOLVED: the seeded built-in now defers (returns null) and the placeholder method was removed — StreamToolsCommandService answers), **KI-60** (the OBS/clip workflow blocks need the OBS remote bridge actually running). The wave-15 pass verified the command import, loyalty seasons, first-time-chatter and 12-template features against code as they landed (mid-pass, as in wave 12): all four shipped and are documented on their pages; the pass added **KI-61** (import translation scope + first-chatter detection semantics) and updated every template/test-event count.
+Counts (as of 2026-11-07, after the wave-16 verification pass): 64 entries — **30 resolved**, **7 partially resolved** (KI-5, KI-18, KI-21, KI-24, KI-31, KI-36, KI-53), **2 intended behavior / documented behavior change** (KI-14, KI-30), and **25 open** (KI-26, KI-27, KI-32–KI-34, KI-37, KI-38, KI-40–KI-42, KI-44–KI-47, KI-50–KI-52, KI-56, KI-58–KI-64). Original severity split of the 25 pre-fix entries: 7 Critical, 9 Wiring gaps, 2 Dead surface, 6 Security, 1 Doc drift. Wave-6 features (quotes, event-testing upgrade, control API, timer activity gate, OBS auto-reconnect) were re-checked against code and contributed no new entries; the wave-9 pass added KI-54–KI-56 (statistics charts, soundboard hotkeys, TikTok chat) and moved KI-31 (Kick recorded-status follower fallback) and KI-53 (Wave-9 Kick/YouTube moderation adapters) to partially resolved; the wave-10/11 pass moved KI-55 to partially resolved (the `play_sound` workflow block adds command/timer/event-triggered sound playback — global hotkeys and a soundboard UI remain) and added KI-57 (conditional rules — since resolved). The wave-12 docs pass (which saw the wave-12 feature code land mid-verification — charts and hotkeys initially absent, then shipped) moved **six entries to resolved**: **KI-16** (the audio port now follows Web Server settings, and Restart Server genuinely restarts the embedded server), **KI-57** (detail body aligned with its resolved summary row — rules un-gated from the default message, Discord join/boost evaluate rules), **KI-12/KI-28** (event auto-replies now run the full variable-replacement engine after the context-key pass, so DB/social variables resolve — verified at `ChatViewModel.BuildAutoReplyTextAsync`, ChatViewModel.cs:4334-4348), and **KI-54/KI-55** (the wave-12 code landed mid-pass: Statistics gained platform-colored overview + contributor `SimpleBarChart`s, and `GlobalHotkeyService` + the Sounds page Hotkey column shipped global soundboard hotkeys — 10 slots, conflict-checked, persisted, fire while gaming). The wave-14 pass verified the mod/stream-tools, TTS, death-counter, leaderboard-overlay, Streaming-block and deck-chip features against code and added three honest-limitation entries: **KI-58** (stream-tools command degradations), **KI-59** (RESOLVED: the seeded built-in now defers (returns null) and the placeholder method was removed — StreamToolsCommandService answers), **KI-60** (the OBS/clip workflow blocks need the OBS remote bridge actually running). The wave-15 pass verified the command import, loyalty seasons, first-time-chatter and 12-template features against code as they landed (mid-pass, as in wave 12): all four shipped and are documented on their pages; the pass added **KI-61** (import translation scope + first-chatter detection semantics) and updated every template/test-event count. The wave-16 pass verified the chat-mode commands, the chat-feed/goals/poll overlays, ad-hoc `!poll start`, the `!warn` family and session summaries against code as they landed: all five features shipped and are documented on their pages; the pass added three honest-limitation entries — **KI-62** (chat-mode auto-revert accuracy/restart), **KI-63** (overlay poll cadences + goals-bar semantics), **KI-64** (in-memory warning strikes and session chat counts).
 
 Resolved entries are kept below (never deleted) with a ✅ marker and a one-line description of the fix; partially resolved entries carry ◐ with what remains.
 
@@ -61,6 +61,9 @@ Resolved entries are kept below (never deleted) with a ✅ marker and a one-line
 | [KI-59](#ki-59-wiring-gap--the-seeded-uptime-built-in-shadows-the-new-helix-uptime) | Wiring gap | Commands / Stream tools | The seeded `!uptime` Commands-table row (config `Stream.StartedAtUtc`) answers first — the newer Helix-based `!uptime` only serves when the built-in is disabled or deleted | [Command Catalog](command-catalog.md) |
 | [KI-60](#ki-60-limitation--the-obstwitch-streaming-workflow-blocks-need-their-backends-running) | Limitation | Workflows / OBS / Twitch | `obs_scene`/`obs_stream`/`obs_replay` need OBS running with its websocket enabled (replay buffer active for `obs_replay`); `twitch_clip` needs Twitch connected and live — otherwise the node takes the error branch | [Automation](../chat-features/automation.md), [Workflow Engine](../chat-features/workflows.md) |
 | [KI-61](#ki-61-limitation--command-import-translates-common-variables-only-first-chatter-detection-uses-activity-records) | Limitation | Commands / Chat | Command import translates the common Nightbot/SE variables only (specials stay verbatim, flagged); first-time-chatter detection = "no watchtime/currency row", so pre-known silent viewers are never welcomed | [Commands](../chat-features/commands.md), [Event Reactions](../chat/event-reactions.md), [Workflow Engine](../chat-features/workflows.md) |
+| [KI-62](#ki-62-limitation--chat-mode-auto-revert-accuracy-and-restart-behavior) | Limitation | Mod & stream tools / Twitch | Chat-mode auto-reverts fire within ~30 s of due (one-shot timer), are attempted once (a failed Twitch call drops the revert), and pending reverts are in-memory — an app restart leaves the modes enabled on Twitch | [Command Catalog](command-catalog.md) |
+| [KI-63](#ki-63-limitation--overlay-widget-poll-cadences-and-the-goals-bar-semantics) | Limitation | Browser sources | The five overlay widgets poll (2–15 s) instead of pushing: goals lag up to 15 s and mix an aggregate completion count over the per-viewer target; the chat feed never shows TikTok (no chat service) | [Browser Sources](../stream-tools/browser-sources.md), [Vyral Goals](../stream-tools/vyral-goals.md) |
+| [KI-64](#ki-64-limitation--warning-strikes-and-session-chat-counts-are-in-memory) | Limitation | Moderation / Statistics | Warning strikes live in the auto-mod engine's in-memory state — restarting VyralBot clears every viewer's warnings (audit rows survive); session summaries' chat-message counts only cover messages the running instance saw | [Command Catalog](command-catalog.md), [Statistics](../stream-tools/statistics.md), [Moderator Guide](../architecture/moderator-guide.md) |
 
 ### Resolved (2026-08-15 fix pass; KI-35 on 2026-08-16, KI-39/KI-43 on 2026-08-29)
 
@@ -398,7 +401,8 @@ Which ledger entries affect which feature areas (✅ = resolved, ◐ = partially
 |---|---|
 | [Quick Start](../getting-started/quick-start.md) | none (router page — defers to the pages it links) |
 | [Commands](../chat-features/commands.md) | KI-1 ✅, KI-37, KI-38, KI-41, KI-42, KI-61 (import translation scope) |
-| [Command Catalog](command-catalog.md) | KI-1 ✅, KI-33 (scope caveat), KI-58, KI-59 |
+| [Command Catalog](command-catalog.md) | KI-1 ✅, KI-33 (scope caveat), KI-58, KI-59, KI-62 (auto-revert accuracy), KI-64 (warn strikes in-memory) |
+| [Vyral Goals](../stream-tools/vyral-goals.md) | KI-63 (overlay cadence + completions/target semantics) |
 | [Marketplace & Sharecodes](../chat-features/marketplace.md) | KI-45 (imported flows use the same block set) |
 | [Variables](../chat-features/variables.md) | KI-12 ✅, KI-28 ✅ |
 | [Auto-Replies](../chat-features/auto-replies.md) | KI-1 ✅, KI-12 ✅, KI-28 ✅, KI-49 ✅, KI-57 ✅ |
@@ -408,11 +412,11 @@ Which ledger entries affect which feature areas (✅ = resolved, ◐ = partially
 | [Automation](../chat-features/automation.md) | KI-39 ✅, KI-40, KI-41, KI-43 ✅, KI-44, KI-45, KI-46, KI-60 |
 | [Workflow Engine](../chat-features/workflows.md) | KI-60 (Streaming blocks need OBS/Twitch backends), KI-61 (`firstmessage` detection semantics) |
 | [Giveaways](../stream-tools/giveaways.md) | KI-1 ✅, KI-5 ◐, KI-31, KI-33 |
-| [Polls](../stream-tools/polls.md) | KI-1 ✅, KI-5 ◐, KI-31, KI-33 |
+| [Polls](../stream-tools/polls.md) | KI-1 ✅, KI-5 ◐, KI-31, KI-33, KI-63 (overlay cadence) |
 | [Watchtime](../stream-tools/watchtime.md) | KI-1 ✅, KI-30 |
 | [Currency & Rewards](../stream-tools/currency.md) | KI-1 ✅, KI-7 ✅, KI-29 ✅ (full-row save + Bank & Decay tab), KI-27, KI-30 |
-| [Statistics](../stream-tools/statistics.md) | KI-3 ✅, KI-26, KI-54 ✅ |
-| [Browser Sources](../stream-tools/browser-sources.md) | KI-4 ✅, KI-16 ✅ |
+| [Statistics](../stream-tools/statistics.md) | KI-3 ✅, KI-26, KI-54 ✅, KI-64 (session chat counts in-memory) |
+| [Browser Sources](../stream-tools/browser-sources.md) | KI-4 ✅, KI-16 ✅, KI-63 (widget cadences + goals semantics) |
 | [Sounds](../stream-tools/sounds.md) | KI-4 ✅, KI-50, KI-55 ✅ |
 | [Audio Settings](../stream-tools/audio.md) | KI-16 ✅ (port + restart), KI-32, KI-50 |
 | [Visual Alerts](../stream-tools/visual-alerts.md) | KI-6 ✅, KI-48 ✅ |
@@ -434,7 +438,7 @@ Which ledger entries affect which feature areas (✅ = resolved, ◐ = partially
 | [Web Server](../architecture/web-server.md) | KI-19 ✅ |
 | [Startup & Lifecycle](../architecture/startup-lifecycle.md) | KI-23 ✅ |
 | [Data Layer](../architecture/data-layer.md) | KI-3 ✅, KI-18 ◐ |
-| [Moderator Guide](../architecture/moderator-guide.md) | KI-51, KI-53 (auto-mod platform parity) |
+| [Moderator Guide](../architecture/moderator-guide.md) | KI-51, KI-53 (auto-mod platform parity), KI-64 (warn strikes in-memory) |
 
 ---
 
@@ -544,3 +548,39 @@ Both wave-15 headliners shipped; these are their honest boundaries, verified aga
 - **Cosmetic**: the *First-Time Chatter Greeting* (`!hello`) starter template's description still calls itself "a stand-in until a first-message trigger exists" — the trigger now ships (`firstmessage`), and the template keeps working regardless.
 
 Documented on [Commands → Import](../chat-features/commands.md#command-import), [Event Reactions → First-time chatters](../chat/event-reactions.md#first-time-chatters), and [Workflow Engine](../chat-features/workflows.md) (the `firstmessage` key).
+
+---
+
+## Newly-documented limitations (2026-11-07 wave-16 pass)
+
+All five wave-16 features shipped (chat-mode commands, the three overlays, ad-hoc chat polls, the `!warn` family, session summaries) and are documented on their pages. These are their honest boundaries, verified against code as it landed:
+
+### KI-62 (Limitation) — Chat-mode auto-revert accuracy and restart behavior
+
+The `!emoteonly`/`!subonly`/`!followers`/`!slow` auto-revert (`ChatModeCommandService`) is a background timer, not an exact alarm clock:
+
+- **Granularity** — the checker is a one-shot timer that ticks at most every 30 seconds, so a due revert fires up to ~30 s after its window expires. The enable reply's "for 10 minutes" is approximate on the revert side.
+- **Single attempt** — a revert whose Twitch Helix call fails (token scope dropped mid-stream, network blip) is dropped with an info log; it is not retried. A moderator re-issuing `!<mode> off` is the documented recovery.
+- **In-memory only** — pending reverts die with the process. Restarting VyralBot (or crashing) leaves whatever modes were enabled active on Twitch until a mod disables them; nothing resynchronizes on startup.
+- **Twitch-only by design** — the commands reply "is Twitch-only." on every other platform (Kick/YouTube/Discord equivalents do not exist in this family); and as with the other Twitch-scope features, tokens issued before `moderator:manage:chat_settings` joined the authorization URL fail the update until the Twitch connection is re-run.
+
+Documented on [Command Catalog → Chat-mode commands](command-catalog.md#chat-mode-commands-twitch).
+
+### KI-63 (Limitation) — Overlay widget poll cadences and the goals bar semantics
+
+The five visible overlay widgets are poll-based reads, not WebSocket pushes (only `audio.html` is pushed):
+
+- **Goals lag up to 15 s** — `goals.html` polls `/goals/data` every 15 seconds, so a fresh completion moves the bar up to 15 s late; the bar also mixes units by design: the numerator is the **aggregate count of viewers who completed the goal** while the target is the **per-viewer threshold** ("completions / target"), so the percentage is a community-progress reading, not any one viewer's progress.
+- **Chat feed reads the persisted table** — `chatfeed.html` shows the last N rows of the per-profile `ChatMessages` table, refreshed every 2 s: only Twitch, Kick, YouTube and Discord ever appear (TikTok has no chat service — KI-56), and messages older than the table's retention window are not replayable.
+- **Poll overlay polls every 3 s and lingers 5 min** — `polloverlay.html` reflects votes up to 3 s late, shows the final winner bars for exactly 5 minutes after the poll ends, then hides; a hand-crafted `count` on the chat feed and an unknown `platform` value behave as documented (clamp / 400) on the other widgets too.
+
+Documented on [Browser Sources](../stream-tools/browser-sources.md) (per-widget sections) and [Vyral Goals](../stream-tools/vyral-goals.md).
+
+### KI-64 (Limitation) — Warning strikes and session chat counts are in-memory
+
+Two wave-16 features deliberately trade durability for simplicity, and both reset on restart:
+
+- **`!warn` strikes** — manual warns climb the auto-mod escalation ladder through the engine's **in-memory** viewer state (5,000-viewer cap, strike-decay window). Restarting VyralBot clears every viewer's warning count to zero; `!warnings` then reads 0 even for viewers a mod warned minutes before. Only the `ModActions` audit rows survive (the Moderator dashboard's Action Log shows the full warn history), and ladder escalation after a restart starts from scratch. Decay behaves the same way: strikes older than the configured window read as 0.
+- **Session chat-message counts** — the Sessions tab's chat total and top-chatters are counted **in memory while the session is live**; messages sent before VyralBot started, or while it was restarted mid-stream, are not reconstructible (no durable per-message counter exists), so the number under-reports on restart-mid-stream days. Event and currency numbers in the same summary come from the database and are window-complete (minus KI-26's ShowInChat-off gap).
+
+Documented on [Command Catalog → Warning commands](command-catalog.md#warning-commands), [Statistics → Session summaries](../stream-tools/statistics.md#session-summaries-sessions-tab), and the [Moderator Guide](../architecture/moderator-guide.md).

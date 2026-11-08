@@ -108,6 +108,11 @@ public class ChatViewModel : ViewModelBase
 	private readonly IDeathCounterService? _deathCounterService;
 
 	private readonly ITtsService? _ttsService;
+	private readonly IFirstTimeChatterService? _firstTimeChatterService;
+
+	private readonly IChatModeCommandService? _chatModeCommandService;
+
+	private readonly IWarningCommandService? _warningCommandService;
 
 	private readonly IVariableReplacementService? _variableReplacementService;
 
@@ -2155,7 +2160,7 @@ public class ChatViewModel : ViewModelBase
 		return Task.CompletedTask;
 	}
 
-	public ChatViewModel(ILogger<ChatViewModel> logger, IEventBus eventBus, ITwitchService twitchService, IKickService kickService, IYouTubeService youtubeService, IDiscordService discordService, IDiscordBotManager discordBotManager, KickSettingsViewModel kickSettings, IChatMessageStore chatStore, IChatEventSettingsService eventSettingsService, IAutoReplyService autoReplyService, IDiscordCommandHandler? discordCommandHandler = null, ICurrencyService? currencyService = null, ICurrencyCommandService? currencyCommandService = null, ICommandService? commandService = null, ISoundService? soundService = null, IAlertService? alertService = null, GiveawayCommandService? giveawayCommandService = null, PollCommandService? pollCommandService = null, WatchtimeService? watchtimeService = null, WatchtimeCommandService? watchtimeCommandService = null, IVariableReplacementService? variableReplacementService = null, IDataService? dataService = null, CommandActionRunner? commandActionRunner = null, WorkflowTriggerService? workflowTriggerService = null, IResponseWaiterRegistry? responseWaiters = null, ILinkCodeService? linkCodeService = null, IViewerStatusService? viewerStatusService = null, ISocialGoalService? socialGoalService = null, StreamEffectCommandRouter? streamEffectRouter = null, IConnectedChannelService? connectedChannels = null, IChatModerationEngine? chatModerationEngine = null, ModerationActionService? moderationActionService = null, IQuoteService? quoteService = null, ISongRequestService? songRequestService = null, IStreamToolsCommandService? streamToolsCommandService = null, IDeathCounterService? deathCounterService = null, ITtsService? ttsService = null)
+	public ChatViewModel(ILogger<ChatViewModel> logger, IEventBus eventBus, ITwitchService twitchService, IKickService kickService, IYouTubeService youtubeService, IDiscordService discordService, IDiscordBotManager discordBotManager, KickSettingsViewModel kickSettings, IChatMessageStore chatStore, IChatEventSettingsService eventSettingsService, IAutoReplyService autoReplyService, IDiscordCommandHandler? discordCommandHandler = null, ICurrencyService? currencyService = null, ICurrencyCommandService? currencyCommandService = null, ICommandService? commandService = null, ISoundService? soundService = null, IAlertService? alertService = null, GiveawayCommandService? giveawayCommandService = null, PollCommandService? pollCommandService = null, WatchtimeService? watchtimeService = null, WatchtimeCommandService? watchtimeCommandService = null, IVariableReplacementService? variableReplacementService = null, IDataService? dataService = null, CommandActionRunner? commandActionRunner = null, WorkflowTriggerService? workflowTriggerService = null, IResponseWaiterRegistry? responseWaiters = null, ILinkCodeService? linkCodeService = null, IViewerStatusService? viewerStatusService = null, ISocialGoalService? socialGoalService = null, StreamEffectCommandRouter? streamEffectRouter = null, IConnectedChannelService? connectedChannels = null, IChatModerationEngine? chatModerationEngine = null, ModerationActionService? moderationActionService = null, IQuoteService? quoteService = null, ISongRequestService? songRequestService = null, IStreamToolsCommandService? streamToolsCommandService = null, IDeathCounterService? deathCounterService = null, ITtsService? ttsService = null, IChatModeCommandService? chatModeCommandService = null, IWarningCommandService? warningCommandService = null, IFirstTimeChatterService? firstTimeChatterService = null)
 	{
 		_logger = logger ?? throw new ArgumentNullException("logger");
 		_eventBus = eventBus ?? throw new ArgumentNullException("eventBus");
@@ -2195,6 +2200,9 @@ public class ChatViewModel : ViewModelBase
 		_streamToolsCommandService = streamToolsCommandService;
 		_deathCounterService = deathCounterService;
 		_ttsService = ttsService;
+		_chatModeCommandService = chatModeCommandService;
+		_warningCommandService = warningCommandService;
+		_firstTimeChatterService = firstTimeChatterService;
 		_currencyService = currencyService;
 		_currencyCommandService = currencyCommandService;
 		_commandService = commandService;
@@ -3514,7 +3522,7 @@ public class ChatViewModel : ViewModelBase
 				_logger.LogError(ex16, "Error processing giveaway command: {Command}", evt.Message);
 			}
 		}
-		if (_pollCommandService != null && evt.Message.StartsWith("!poll"))
+		if (_pollCommandService != null && (evt.Message.StartsWith("!poll") || evt.Message.StartsWith("!vote", StringComparison.OrdinalIgnoreCase)))
 		{
 			try
 			{
@@ -3752,10 +3760,86 @@ public class ChatViewModel : ViewModelBase
 					_logger.LogError(ex43, "Error processing tts command: {Command}", evt.Message);
 				}
 			}
-		if (_watchtimeService != null)
+			if (_chatModeCommandService != null && evt.Message.StartsWith("!"))
+				{
+					try
+					{
+						string response11 = await _chatModeCommandService.ProcessCommandAsync(evt.Username, evt.Platform, evt.IsModerator || evt.IsBroadcaster, evt.Message);
+						if (response11 != null)
+						{
+							if (string.Equals(evt.Platform, "Twitch", StringComparison.OrdinalIgnoreCase))
+							{
+								await _twitchService.SendMessageAsync(response11);
+							}
+							else if (string.Equals(evt.Platform, "Kick", StringComparison.OrdinalIgnoreCase))
+							{
+								await _kickService.SendMessageAsync(response11);
+							}
+							else if (string.Equals(evt.Platform, "YouTube", StringComparison.OrdinalIgnoreCase))
+							{
+								await _youtubeService.SendMessageAsync(response11);
+							}
+							else if (string.Equals(evt.Platform, "Discord", StringComparison.OrdinalIgnoreCase))
+							{
+								await SendDiscordReplyAsync(response11, discordBotId, discordDmChannelId, evt.Username);
+							}
+							_logger.LogDebug("Processed chat mode command: {Command} -> {Response}", evt.Message, response11);
+						}
+					}
+					catch (Exception ex)
+					{
+						Exception ex44 = ex;
+						Exception ex45 = ex44;
+						Exception ex46 = ex45;
+						_logger.LogError(ex46, "Error processing chat mode command: {Command}", evt.Message);
+					}
+				}
+			if (_warningCommandService != null && evt.Message.StartsWith("!"))
+				{
+					try
+					{
+						string response12 = await _warningCommandService.ProcessCommandAsync(evt.Username, evt.Platform, evt.IsModerator || evt.IsBroadcaster, evt.Message);
+						if (response12 != null)
+						{
+							if (string.Equals(evt.Platform, "Twitch", StringComparison.OrdinalIgnoreCase))
+							{
+								await _twitchService.SendMessageAsync(response12);
+							}
+							else if (string.Equals(evt.Platform, "Kick", StringComparison.OrdinalIgnoreCase))
+							{
+								await _kickService.SendMessageAsync(response12);
+							}
+							else if (string.Equals(evt.Platform, "YouTube", StringComparison.OrdinalIgnoreCase))
+							{
+								await _youtubeService.SendMessageAsync(response12);
+							}
+							else if (string.Equals(evt.Platform, "Discord", StringComparison.OrdinalIgnoreCase))
+							{
+								await SendDiscordReplyAsync(response12, discordBotId, discordDmChannelId, evt.Username);
+							}
+							_logger.LogDebug("Processed warning command: {Command} -> {Response}", evt.Message, response12);
+						}
+					}
+					catch (Exception ex)
+					{
+						Exception ex47 = ex;
+						Exception ex48 = ex47;
+						Exception ex49 = ex48;
+						_logger.LogError(ex49, "Error processing warning command: {Command}", evt.Message);
+					}
+				}
+			if (_watchtimeService != null)
 		{
 			try
 			{
+				// First-time-chatter check runs BEFORE the watchtime record so its
+				// "no prior activity" read can't race this row's creation.
+				if (_firstTimeChatterService != null)
+				{
+					try { await _firstTimeChatterService.CheckAndPublishAsync(evt); }
+					catch (Exception ftcEx) { _logger.LogWarning(ftcEx, "First-time chatter check failed"); }
+				}
+
 				await _watchtimeService.RecordUserActivityAsync(evt.Username, evt.Platform);
 			}
 			catch (Exception ex)

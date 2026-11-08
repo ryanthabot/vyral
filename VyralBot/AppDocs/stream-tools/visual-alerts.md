@@ -8,7 +8,7 @@ When a stream event fires, Vyral shows an alert: a borderless, always-on-top win
 
 Two things make this feature unusual compared to tools like Stream Elements or Alertbox:
 
-- **It is an in-app WPF window, not a browser source.** There is no overlay URL to add to OBS ([Browser Sources](browser-sources.md) covers the one HTML page that does exist — audio only). The alert appears over the streamer's own screen, so viewers see it only if your OBS setup captures that screen (display capture).
+- **It is an in-app WPF window, not a browser source.** There is no overlay URL to add to OBS ([Browser Sources](browser-sources.md) covers the HTML pages that do exist — audio, the song player and the five overlay widgets). The alert appears over the streamer's own screen, so viewers see it only if your OBS setup captures that screen (display capture).
 - **The Alert Settings page is real.** Since the 2026-08-15 fix it persists to the `AlertSettings` Configs key, and `AlertService` applies the saved master toggle, duration, animation, position, and per-event switches to real alerts (`applySettings = true` by default). Since 1.1.0 the page previews two ways: **Preview Current Settings** shows your *unsaved* general selections, and each event row's **TEST** button fires the exact live title for that event (suppressed + explained when the row's toggle is off).
 
 ## User Guide

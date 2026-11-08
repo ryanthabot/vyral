@@ -22,6 +22,11 @@
 - **Leaderboard overlay** — show your top viewers on stream: an OBS browser-source widget for the points leaderboard, URL built for you on the Currency page. See [Currency & Rewards](../stream-tools/currency.md#leaderboard-overlay).
 - **Streaming workflow blocks** — flows can switch OBS scenes, start/stop the OBS stream, save replay-buffer highlights, and clip the Twitch stream. See [Automation](../chat-features/automation.md).
 - **VyralDeck status chips** — the phone app now shows now-playing, stream uptime and the death count alongside the live dots. See [StreamDeck & VyralDeck](../stream-tools/vyraldeck.md).
+- **Chat-mode commands** — `!emoteonly`, `!subonly`, `!followers` and `!slow` flip Twitch's chat protections from chat, each auto-reverting after a window (default 10 minutes) so a shielded chat always opens up again. See the [Command Catalog](../reference/command-catalog.md#chat-mode-commands-twitch).
+- **Three new OBS overlays** — chat captions for your face cam ([chat feed](../stream-tools/browser-sources.md#chat-feed-chatfeedhtml)), one progress bar per [Vyral goal](../stream-tools/vyral-goals.md), and [live poll results](../stream-tools/polls.md) with a countdown and winner bars.
+- **Polls from chat** — `!poll start 5m Question | Option A | Option B` creates and starts a poll without touching the UI (timed ones auto-end and announce everywhere), and viewers get a short `!vote <n>`. See [Polls](../stream-tools/polls.md).
+- **Manual warnings** — `!warn`/`!warnings`/`!clearwarn` add moderator strikes that climb the same escalation ladder as auto-mod (a warn can tip a viewer straight into a timeout or ban). See the [Command Catalog](../reference/command-catalog.md#warning-commands).
+- **Session summaries** — a post-stream report on the Statistics page's Sessions tab: duration, follows/subs/raids/cheers, chat messages, currency awarded and top chatters, per stream. See [Statistics](../stream-tools/statistics.md#session-summaries-sessions-tab).
 
 ## Improvements
 

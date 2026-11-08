@@ -42,3 +42,12 @@ public sealed record ModerationVerdict(
     int TimeoutSeconds,
     string Reason,
     int Strikes);
+
+/// <summary>
+/// The escalation ladder's answer for one strike count. Rule violations and
+/// manual !warn strikes climb the SAME ladder, so both ask this question of
+/// the same rungs: which action the ladder prescribes at
+/// <see cref="Strikes"/> strikes, and the timeout length when that action is
+/// a Timeout (base seconds doubling per strike past the timeout rung).
+/// </summary>
+public sealed record LadderAction(int Strikes, ModerationActionKind Action, int TimeoutSeconds);

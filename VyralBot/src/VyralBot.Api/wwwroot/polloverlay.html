@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vyral Poll - Browser Source</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #wrap {
+            display: inline-block;
+            min-width: 320px;
+            max-width: 480px;
+            padding: 14px 16px;
+            border-radius: 10px;
+        }
+        /* dark (default): translucent night card like the app's dark theme */
+        #wrap.dark {
+            background: rgba(16, 18, 27, 0.78);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        /* light: translucent white card for bright stream layouts */
+        #wrap.light {
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(0, 0, 0, 0.10);
+        }
+        /* the card only exists while there is something to show */
+        #wrap.hidden { display: none; }
+        #question {
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            padding-left: 10px;
+            border-left: 4px solid #26A69A; /* Vyral teal accent */
+        }
+        .dark #question { color: #FFFFFF; }
+        .light #question { color: #1F2430; }
+        #meta {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.4px;
+            margin-bottom: 10px;
+            padding-left: 14px;
+            text-transform: uppercase;
+        }
+        .dark #meta { color: #9AA0B0; }
+        .light #meta { color: #6B7280; }
+        #options { display: flex; flex-direction: column; gap: 8px; }
+        .option {
+            position: relative;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1.5px solid transparent;
+        }
+        /* live vote bar fill: width animates so votes slide, never jump */
+        .fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 0%;
+            background: rgba(38, 166, 154, 0.25); /* teal at quarter opacity */
+            transition: width 0.6s ease;
+        }
+        .option.winner .fill { background: rgba(255, 215, 0, 0.22); }
+        .option-row {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 10px;
+        }
+        .dark .option-row { color: #E8EAF0; }
+        .light .option-row { color: #1F2430; }
+        .num {
+            flex: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 800;
+            background: rgba(255, 255, 255, 0.07);
+            color: #26A69A;
+            border: 1.5px solid rgba(38, 166, 154, 0.55);
+        }
+        .light .num {
+            background: rgba(0, 0, 0, 0.06);
+            color: #0F766E;
+            border-color: rgba(15, 118, 110, 0.45);
+        }
+        .text {
+            flex: 1;
+            font-size: 15px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .count {
+            flex: none;
+            font-size: 13px;
+            font-weight: 700;
+            color: #26A69A;
+        }
+        .light .count { color: #0F766E; }
+        /* winner: gold ring + chip, applied only after the poll ended */
+        .option.winner { border-color: #FFD700; }
+        .option.winner .num {
+            background: rgba(255, 215, 0, 0.18);
+            color: #FFD700;
+            border-color: #FFD700;
+        }
+        .chip {
+            flex: none;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.6px;
+            padding: 2px 7px;
+            border-radius: 4px;
+            background: rgba(255, 215, 0, 0.18);
+            color: #FFD700;
+            border: 1px solid #FFD700;
+        }
+        /* entries animate in when they first appear */
+        .option.enter { animation: slidein 0.5s ease both; }
+        @keyframes slidein {
+            from { opacity: 0; transform: translateY(-10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        /* status badge — audio.html conventions */
+        #status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: opacity 0.3s;
+            z-index: 9999;
+        }
+        .connected {
+            background: rgba(0, 255, 0, 0.2);
+            color: lime;
+            border: 2px solid lime;
+        }
+        .disconnected {
+            background: rgba(255, 0, 0, 0.2);
+            color: red;
+            border: 2px solid red;
+        }
+        .connecting {
+            background: rgba(255, 255, 0, 0.2);
+            color: yellow;
+            border: 2px solid yellow;
+        }
+        .status-hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="wrap" class="dark hidden">
+        <div id="question"></div>
+        <div id="meta"></div>
+        <div id="options"></div>
+    </div>
+    <div id="status" class="connecting">Connecting to Vyral...</div>
+    <script>
+        // Configuration — host/port derive from the URL the page is served
+        // from (window.location), so the same file works on any port the
+        // embedded web server listens on; the localhost fallback only
+        // applies when the file is opened directly from disk.
+        const HOST = window.location.host || 'localhost:5000';
+        const BASE_URL = window.location.protocol.indexOf('http') === 0
+            ? window.location.origin
+            : 'http://' + HOST;
+        const DATA_URL = BASE_URL + '/poll/data';
+        const POLL_MS = 3000;       // poll cadence
+        const STATUS_HIDE_DELAY = 5000;
+        const RECONNECT_NOTE = '(retrying every 3s)';
+
+        // Optional card title override; style=light mirrors leaderboard.html.
+        const params = new URLSearchParams(window.location.search);
+        const titleOverride = (params.get('title') || '').slice(0, 60);
+        if (params.get('style') === 'light') {
+            document.getElementById('wrap').className = 'light';
+        }
+
+        // State
+        let pollTimer = null;
+        let countdownTimer = null;
+        let refreshing = false;
+        let statusHideTimeout = null;
+        let endsAtUtc = null;       // active poll's scheduled end (ms epoch) or null
+        let metaTotals = 0;         // total votes of the rendered snapshot
+        const optionByKey = new Map(); // 'question|index' -> element (stable rows)
+
+        // DOM elements
+        const wrapEl = document.getElementById('wrap');
+        const questionEl = document.getElementById('question');
+        const metaEl = document.getElementById('meta');
+        const optionsEl = document.getElementById('options');
+        const statusDiv = document.getElementById('status');
+
+        // ------------------------------------------------------------------
+        // Polling (reconnects forever, 3s cadence, never overlaps requests)
+        // ------------------------------------------------------------------
+        refresh();
+        function refresh() {
+            if (refreshing) return;
+            refreshing = true;
+            fetch(DATA_URL, { cache: 'no-store' })
+                .then((res) => {
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.json();
+                })
+                .then((data) => {
+                    updateStatus('Connected to Vyral', 'connected');
+                    hideStatusAfterDelay();
+                    render(data || {});
+                })
+                .catch((err) => {
+                    console.warn('Poll overlay fetch failed:', err);
+                    updateStatus('Disconnected from VyralBot ' + RECONNECT_NOTE, 'disconnected');
+                })
+                .finally(() => {
+                    refreshing = false;
+                    pollTimer = setTimeout(refresh, POLL_MS);
+                });
+        }
+
+        // ------------------------------------------------------------------
+        // Rendering. The server sends either `active` (live poll, bars move)
+        // or `lastResults` (a poll that ended within the last 5 minutes —
+        // winner/tie highlight, frozen bars). While neither applies the
+        // whole card hides itself (transparent OBS source).
+        // ------------------------------------------------------------------
+        function render(data) {
+            const active = data.active;
+            const last = data.lastResults;
+
+            if (!active && !last) {
+                wrapEl.classList.add('hidden');
+                optionByKey.clear();
+                optionsEl.innerHTML = '';
+                stopCountdown();
+                endsAtUtc = null;
+                metaTotals = 0;
+                return;
+            }
+
+            const snapshot = active || last;
+            const isLive = !!active;
+            metaTotals = snapshot.totalVotes || 0;
+
+            wrapEl.classList.remove('hidden');
+            questionEl.textContent = titleOverride || snapshot.question || '';
+
+            endsAtUtc = isLive && snapshot.endsAt ? Date.parse(snapshot.endsAt) : null;
+            if (isLive) {
+                startCountdown(); // also paints the vote-count line immediately
+            } else {
+                stopCountdown();
+                metaEl.textContent = snapshot.winner
+                    ? formatTotal(metaTotals) + ' — final results'
+                    : formatTotal(metaTotals) + ' — no single winner';
+            }
+
+            // Rows are keyed by question+option count so the same poll
+            // re-renders in place (bar widths animate between fetches) while
+            // a different poll rebuilds the rows (slide-in animation).
+            const key = (snapshot.question || '') + '|' + (snapshot.options || []).length;
+            if (optionByKey.size && !optionByKey.keys().next().value.startsWith(key)) {
+                optionsEl.innerHTML = '';
+                optionByKey.clear();
+            }
+
+            (snapshot.options || []).forEach((opt) => {
+                const rowKey = key + '|' + opt.index;
+                let el = optionByKey.get(rowKey);
+                if (!el) {
+                    el = buildOptionRow(opt.index);
+                    optionByKey.set(rowKey, el);
+                    optionsEl.appendChild(el);
+                }
+                // percent is authoritative from the server; width follows it
+                el.querySelector('.fill').style.width = (opt.percent || 0) + '%';
+                el.querySelector('.text').textContent = opt.text || '';
+                el.querySelector('.count').textContent =
+                    opt.votes + ' · ' + (opt.percent || 0) + '%';
+                // Winner styling only applies to finished polls.
+                const isWinner = !isLive && !!snapshot.winner && opt.text === snapshot.winner;
+                el.classList.toggle('winner', isWinner);
+                el.querySelector('.chip').style.display = isWinner ? '' : 'none';
+            });
+        }
+
+        function buildOptionRow(index) {
+            const el = document.createElement('div');
+            el.className = 'option enter';
+            el.innerHTML =
+                '<div class="fill"></div>' +
+                '<div class="option-row">' +
+                    '<div class="num">' + index + '</div>' +
+                    '<div class="text"></div>' +
+                    '<span class="chip" style="display:none">WINNER</span>' +
+                    '<div class="count"></div>' +
+                '</div>';
+            return el;
+        }
+
+        // ------------------------------------------------------------------
+        // Countdown to the scheduled end ("3:24 left"), ticked locally every
+        // second between the 3s data fetches. Auto-ended polls swap to the
+        // frozen lastResults view on the next fetch.
+        // ------------------------------------------------------------------
+        function startCountdown() {
+            stopCountdown();
+            tickCountdown();
+            countdownTimer = setInterval(tickCountdown, 1000);
+        }
+
+        function stopCountdown() {
+            if (countdownTimer) {
+                clearInterval(countdownTimer);
+                countdownTimer = null;
+            }
+        }
+
+        function tickCountdown() {
+            if (endsAtUtc == null) {
+                metaEl.textContent = formatTotal(metaTotals) + ' — vote with !vote <n>';
+                return;
+            }
+            const left = Math.max(0, Math.floor((endsAtUtc - Date.now()) / 1000));
+            const m = Math.floor(left / 60);
+            const s = left % 60;
+            metaEl.textContent = formatTotal(metaTotals)
+                + ' — ' + m + ':' + (s < 10 ? '0' : '') + s + ' left'
+                + ' — vote with !vote <n>';
+        }
+
+        function formatTotal(total) {
+            return total + (total === 1 ? ' vote' : ' votes');
+        }
+
+        // ------------------------------------------------------------------
+        // Status badge — audio.html conventions (only the Connected badge
+        // auto-hides; a pending hide timer is cancelled when the badge turns
+        // Disconnected/Connecting again).
+        // ------------------------------------------------------------------
+        function updateStatus(text, statusClass) {
+            statusDiv.textContent = text;
+            statusDiv.className = statusClass;
+            if (statusClass !== 'connected' && statusHideTimeout) {
+                clearTimeout(statusHideTimeout);
+                statusHideTimeout = null;
+            }
+        }
+
+        function hideStatusAfterDelay() {
+            if (statusHideTimeout) clearTimeout(statusHideTimeout);
+            statusHideTimeout = setTimeout(() => {
+                statusDiv.classList.add('status-hidden');
+            }, STATUS_HIDE_DELAY);
+        }
+    </script>
+</body>
+</html>

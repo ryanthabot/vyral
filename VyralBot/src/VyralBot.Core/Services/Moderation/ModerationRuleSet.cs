@@ -26,7 +26,14 @@ public enum ModerationRuleType
     Caps = 2,
     Emojis = 3,
     RepeatedMessage = 4,
-    AsciiArt = 5
+    AsciiArt = 5,
+
+    /// <summary>
+    /// Not a detection rule: marks verdicts born from a manual !warn that
+    /// tipped the viewer onto a Timeout/Ban rung (see
+    /// <see cref="IChatModerationEngine.RegisterManualWarning"/>).
+    /// </summary>
+    ManualWarning = 6
 }
 
 /// <summary>

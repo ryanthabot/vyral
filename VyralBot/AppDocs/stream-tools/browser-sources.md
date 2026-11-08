@@ -1,19 +1,23 @@
 # Browser Sources
 
-> The OBS browser-source pages Vyral serves on `http://localhost:5000` (the web-server port, 5000 by default): **`audio.html`** (stream sounds — working end to end, volume honored, since the 2026-08-15 JSON-contract fix), plus the two 1.1.0 overlay widgets — **`deathcounter.html`** (the live death counter) and **`leaderboard.html`** (the points leaderboard).
+> The OBS browser-source pages Vyral serves on `http://localhost:5000` (the web-server port, 5000 by default): **`audio.html`** (stream sounds — working end to end, volume honored, since the 2026-08-15 JSON-contract fix), **`songplayer.html`** (song-request audio player), and the five 1.1.0 overlay widgets — **`deathcounter.html`** (live death counter), **`leaderboard.html`** (points leaderboard), **`chatfeed.html`** (face-cam chat captions), **`goals.html`** (Vyral-goals progress bars) and **`polloverlay.html`** (live poll results).
 
 ## Overview
 
-Vyral serves **three** browser-source pages from the app's embedded web server (Kestrel, localhost — the configured web-server port, 5000 by default), each meant to be added to OBS as a **Browser Source**:
+Vyral serves **seven** browser-source pages from the app's embedded web server (Kestrel, localhost — the configured web-server port, 5000 by default), each meant to be added to OBS as a **Browser Source**:
 
 - **`audio.html`** — invisible; when a stream event fires (follow, sub, raid, and so on), Vyral pushes a WebSocket message to every open copy of the page and it plays the matching sound file at the sent volume — OBS captures it as stream audio, so **viewers** hear it.
+- **`songplayer.html`** — invisible audio surface for [song requests](sounds.md): plays each queued song, auto-advances, and reports titles/durations back to the queue (added with song requests, 1.1.0).
 - **`deathcounter.html`** (1.1.0) — the big number overlay for the shared death counter (Tools page card + `!death` chat commands). Polls `GET /counters/death` every 3 s; styling via URL params.
 - **`leaderboard.html`** (1.1.0) — the top-points overlay. Polls `GET /leaderboard/data` every 10 s; rows, title, style and platform filter via URL params. The Currency page builds the URL for you.
+- **`chatfeed.html`** (1.1.0, wave 16) — face-cam chat captions: the last few chat messages with platform chips, sized for a corner near your face cam. Polls `GET /chatfeed/data` every 2 s; count, font size, truncation, platform filter and theme via URL params. The Audio Settings page builds the URL for you.
+- **`goals.html`** (1.1.0, wave 16) — one progress bar per enabled [Vyral goal](vyral-goals.md). Polls `GET /goals/data` every 15 s; theme and size via URL params. The Viewer Hub's Vyral Goals card builds the URL for you.
+- **`polloverlay.html`** (1.1.0, wave 16) — live poll results as growing bars with a countdown while a poll runs, and the winner bars for 5 minutes after it ends. Polls `GET /poll/data` every 3 s; title and theme via URL params.
 
 Things worth knowing up front:
 
-- The sidebar button labeled **Browser Sources** (under Stream Tools) navigates to the [Audio Settings](audio.md) page — that is where the audio browser-source setup lives (the tooltip says so). Wired on 2026-08-15.
-- **Alerts, giveaways, and polls have no overlay HTML** — visual alerts are an in-app WPF window ([Visual Alerts](visual-alerts.md)), and giveaway/poll winners are only posted to chat.
+- The sidebar button labeled **Browser Sources** (under Stream Tools) navigates to the [Audio Settings](audio.md) page — that is where the audio and chat-feed browser-source setup lives (the tooltip says so). Wired on 2026-08-15.
+- **Alerts and giveaways still have no overlay HTML** — visual alerts are an in-app WPF window ([Visual Alerts](visual-alerts.md)), and giveaway winners are only posted to chat. Polls **do** have an overlay now (`polloverlay.html`).
 - **Viewer-side sound playback works** since the 2026-08-15 fix: the server broadcasts the camelCase `{"type":"play","sound":...,"volume":0..1}` shape the page understands, the page honors `volume`, and it derives its WebSocket/sounds URLs from `window.location` (port-agnostic). See [Status & Known Issues](#status--known-issues).
 
 ## User Guide
@@ -60,7 +64,7 @@ You can force the pill to reappear at any time by right-clicking the source in O
 
 ## The overlay widgets (1.1.0)
 
-Two visible overlays join the invisible audio page. Same trust model as `/songs`: the embedded server binds **loopback only**, the pages are served from the same origin, and their endpoints are bare read-only GETs, so they sit outside the token-gated Control API and need no Origin gate.
+Five visible overlays join the invisible audio page (the song player is audio-only too). Same trust model as `/songs`: the embedded server binds **loopback only**, the pages are served from the same origin, and their endpoints are bare read-only GETs, so they sit outside the token-gated Control API and need no Origin gate.
 
 ### Death counter (`deathcounter.html`) {#death-counter-deathcounterhtml}
 
@@ -97,9 +101,58 @@ http://localhost:5000/leaderboard.html?count=10&title=Top%20Points&style=dark
 
 The response carries `currencyName`/`currencySymbol` from your Currency settings, so the overlay labels points with your currency's name. Platform chips use the app's platform palette. The **Currency page's LEADERBOARD tab** has the URL card that builds this for you — see [Currency & Rewards](currency.md#leaderboard-overlay).
 
+### Chat feed (`chatfeed.html`) {#chat-feed-chatfeedhtml}
+
+Face-cam captions: the last few chat messages as compact caption lines — username, platform chip, message — meant for a box near your face cam so single-viewer scenes can read chat without a full chat window. It polls `GET /chatfeed/data?count=&platform=&channel=` (the last N rows from the same per-profile `ChatMessages` table the platform chat services write, newest first) **every 2 seconds**.
+
+```
+http://localhost:5000/chatfeed.html?count=5&size=16&maxlength=120&fade=true
+```
+
+| Param | Default | Notes |
+|---|---|---|
+| `count` | `5` | Messages to show, clamped 1–15 (client- and server-side). |
+| `size` | `16` | Font size in px, clamped 10–48. |
+| `maxlength` | `120` | Message truncation length, clamped 20–500. |
+| `fade` | off | `fade=true` dims older messages. |
+| `platform` | — (all) | Optional single-platform filter: `twitch`, `kick`, `youtube`, `discord` (case-insensitive; an unknown value is a 400). TikTok has no chat service and is never in the feed. |
+| `channel` | — (all) | Optional channel key when you want one channel only; an empty value selects the most recent messages across the platform's channels. |
+
+The **Audio Settings page** (the "Browser Sources" sidebar destination) has a Chat Feed overlay URL card with a Copy button, rebuilt from the live web-server port. Platform chips use the app's palette (Twitch purple, Kick green, YouTube red, Discord blurple); everything is rendered via `textContent`, never `innerHTML`.
+
+### Goals progress (`goals.html`) {#goals-progress-goalshtml}
+
+One progress bar per **enabled** [Vyral goal](vyral-goals.md) — the viewer challenges configured in the Viewer Hub. It polls `GET /goals/data` (every enabled goal from the same `ISocialGoalService` the Viewer Hub editor uses, ordered by `SortOrder`) **every 15 seconds**. Each bar shows completions / target (capped at 100 %) with the goal's title, kind chip (linked / follows / subs / sub tier) and description; the bar animates as it fills.
+
+```
+http://localhost:5000/goals.html?style=dark&size=m
+```
+
+| Param | Default | Notes |
+|---|---|---|
+| `style` | `dark` | `dark` or `light` — light flips the card for bright stream scenes. |
+| `size` | `m` | `m` or `l` — larger title/subtitle rows. |
+
+The **Viewer Hub's Vyral Goals card** has an "Overlay URL" row that shows the port-correct URL and copies it to the clipboard. Honest semantics: a Vyral goal's `TargetCount` is the per-viewer threshold ("link 2 platforms") while the bar's numerator is how many **viewers completed it** — the overlay shows "completions / target" as an aggregate progress display ([Known Issues](../reference/known-issues.md) KI-63).
+
+### Poll results (`polloverlay.html`) {#poll-results-polloverlayhtml}
+
+Live poll bars: while a poll is active it shows the question, one bar per option with votes and percent, the total vote count, and a live countdown when the poll was started with a duration (`!poll start 5m …`). After the poll ends the final bars — with the winner labeled — linger for **5 minutes**, then the widget hides itself until the next poll. It polls `GET /poll/data` **every 3 seconds** (the countdown ticks client-side every second between fetches).
+
+```
+http://localhost:5000/polloverlay.html?title=Poll&style=dark
+```
+
+| Param | Default | Notes |
+|---|---|---|
+| `title` | *(the poll question)* | Optional heading override, capped at 60 chars. |
+| `style` | `dark` | `dark` or `light`. |
+
+Votes are the same per-profile `PollVotes` rows `!vote`/`!poll vote` write — the overlay is a read-only view of the [Polls](polls.md) engine. Ties show no winner label; a zero-vote poll claims no winner (same honesty as the chat announcement). Bars are keyed by option index (not label), so duplicate option texts never merge.
+
 ### Widget prerequisites
 
-Both widgets need the embedded web server running (same prerequisite as the audio page) — they are served and polled from the same origin and port. Both render nothing useful while their backing service is not registered (the endpoints return a 503 JSON error instead of data); the currency service returns 503 only if currency itself is disabled.
+Both widgets need the embedded web server running (same prerequisite as the audio page) — they are served and polled from the same origin and port. All five widgets render nothing useful while their backing service is not registered (the endpoints return a 503 JSON error instead of data); the currency service returns 503 only if currency itself is disabled.
 
 ## How It Works (Developer)
 
@@ -113,10 +166,13 @@ One in-process ASP.NET Core (Kestrel) app, [WebServerService.cs](../../src/Vyral
 - A minimal-API endpoint maps `/audio-ws` (WebServerService.cs:91-122): it accepts WebSocket upgrades, tracks connected pages in a `ConcurrentDictionary`, and parks each socket in a receive loop until it closes. Nothing is ever read from the client.
 - The server is started by `WebhookCoordinatorService` (and the ngrok setup wizards) using the port from `WebServerSettings` (default 5000). See [Web Server architecture](../architecture/web-server.md).
 
-The two overlay widgets' read endpoints are MVC controllers on the same host, both loopback-only and read-only (hence outside the Bearer-gated Control API):
+The overlay widgets' read endpoints are MVC controllers on the same host, all loopback-only and read-only (hence outside the Bearer-gated Control API):
 
 - [CountersController.cs](../../src/VyralBot.Api/Controllers/CountersController.cs) — `GET /counters/death` returns the current `{ count }` from `IDeathCounterService` (the shared Tools-card/`!death` config rows), `no-store`, 503 when the counter service is not registered.
 - [LeaderboardController.cs](../../src/VyralBot.Api/Controllers/LeaderboardController.cs) — `GET /leaderboard/data?count=&platform=` returns `currencyName`/`currencySymbol` plus ranked `entries` from `ICurrencyService.GetLeaderboardAsync` (deterministic tiebreakers); `count` is clamped 1–25, `platform` normalized against the known platform set (400 on an unknown name), `no-store`, 503 when currency is disabled.
+- [ChatFeedController.cs](../../src/VyralBot.Api/Controllers/ChatFeedController.cs) — `GET /chatfeed/data?count=&platform=&channel=` merges the newest rows from `IChatMessageStore` across the four persisted chat platforms (Twitch/Kick/YouTube/Discord), newest first; `count` clamped 1–15, `platform` normalized (400 on unknown), 503 when the store is not registered.
+- [GoalsController.cs](../../src/VyralBot.Api/Controllers/GoalsController.cs) — `GET /goals/data` returns every enabled goal from `ISocialGoalService` with its aggregate completion count (no usernames/PII leave the process); 503 when the goal service is not registered.
+- [PollController.cs](../../src/VyralBot.Api/Controllers/PollController.cs) — `GET /poll/data` returns `{ active, lastResults }` from `PollService` — the running poll with live per-option votes and the optional scheduled end, plus the most recently completed poll when it ended within the 5-minute linger window; 503 when the poll service is not registered.
 
 ### The broadcast bridge
 
@@ -167,10 +223,17 @@ The same Kestrel server is also tunneled publicly by ngrok ([NgrokService.cs](..
 | File | Role |
 |---|---|
 | [audio.html](../../src/VyralBot.Api/wwwroot/audio.html) | The audio browser-source page: WebSocket client, status pill, volume-honoring sound playback (current copy) |
+| [songplayer.html](../../src/VyralBot.Api/wwwroot/songplayer.html) | Song-request audio player page (plays the queue, reports titles back) — see [Sounds](sounds.md) |
 | [deathcounter.html](../../src/VyralBot.Api/wwwroot/deathcounter.html) | Death-counter overlay: 3 s polling of `/counters/death`, `label`/`size`/`color` URL params (1.1.0) |
 | [leaderboard.html](../../src/VyralBot.Api/wwwroot/leaderboard.html) | Points-leaderboard overlay: 10 s polling of `/leaderboard/data`, `count`/`title`/`style`/`platform` URL params, platform chips (1.1.0) |
+| [chatfeed.html](../../src/VyralBot.Api/wwwroot/chatfeed.html) | Chat-captions overlay: 2 s polling of `/chatfeed/data`, `count`/`size`/`maxlength`/`fade`/`platform`/`style` URL params, platform chips (1.1.0, wave 16) |
+| [goals.html](../../src/VyralBot.Api/wwwroot/goals.html) | Vyral-goals overlay: 15 s polling of `/goals/data`, `style`/`size` URL params, animated progress bars (1.1.0, wave 16) |
+| [polloverlay.html](../../src/VyralBot.Api/wwwroot/polloverlay.html) | Poll-results overlay: 3 s polling of `/poll/data`, live bars + countdown, winner bars linger 5 min, `title`/`style` URL params (1.1.0, wave 16) |
 | [CountersController.cs](../../src/VyralBot.Api/Controllers/CountersController.cs) | `GET /counters/death` — the death-counter read endpoint behind the widget |
 | [LeaderboardController.cs](../../src/VyralBot.Api/Controllers/LeaderboardController.cs) | `GET /leaderboard/data` — clamped, platform-normalized leaderboard reads for the widget |
+| [ChatFeedController.cs](../../src/VyralBot.Api/Controllers/ChatFeedController.cs) | `GET /chatfeed/data` — newest chat rows for the captions widget |
+| [GoalsController.cs](../../src/VyralBot.Api/Controllers/GoalsController.cs) | `GET /goals/data` — enabled goals + completion counts for the goals widget |
+| [PollController.cs](../../src/VyralBot.Api/Controllers/PollController.cs) | `GET /poll/data` — active-poll snapshot + linger results for the poll widget |
 | [BrowserSource/audio.html](../../BrowserSource/audio.html) | Legacy copy of the same page, hard-coded to port 8080 (unreferenced by the running app) |
 | [WebServerService.cs](../../src/VyralBot.Api/Services/WebServerService.cs) | Embedded Kestrel server: static files (`audio.html`, `/sounds/*`), `/audio-ws` WebSocket endpoint, broadcast bridge wiring |
 | [AudioWebSocketBroadcaster.cs](../../src/VyralBot.Core/Services/Audio/AudioWebSocketBroadcaster.cs) | Static delegate that lets Core's SoundService push JSON to connected browser pages without referencing the API project |
@@ -283,4 +346,4 @@ Every item below is verified against the current code. See the [known issues led
 4. **"Connected Clients" on the Audio Settings page is live** — it polls `AudioWebSocketBroadcaster.ConnectedClientCount` every 2 seconds, so you can see whether OBS is attached (see [Audio](audio.md)). [known issues ledger](../reference/known-issues.md)
 5. **The page is effectively localhost-only by configuration** — it derives URLs from `window.location` (port-agnostic), but the URL you configure in OBS is `http://localhost:5000/audio.html` and the server binds localhost, so OBS must run on the same machine; the ngrok public URL serves [Kick webhooks](../settings/web-server-ngrok.md), not the browser source. [known issues ledger](../reference/known-issues.md)
 6. **Legacy leftovers are unreferenced only** — `BrowserSource/audio.html` (port 8080) remains in the repo but nothing serves it; the old `AudioWebSocketServer` HttpListener server was deleted outright, and only the Kestrel server on 5000 runs (App.xaml.cs:306). [known issues ledger](../reference/known-issues.md)
-7. **Only audio, the death counter, and the leaderboard have overlay pages** — visual alerts are an in-app WPF window ([Visual Alerts](visual-alerts.md)); giveaways and polls have no overlay output at all. The two 1.1.0 widgets are poll-based (3 s / 10 s), not WebSocket-push like the audio page — fine for a count and a top-10 list, and they self-heal after an app restart. [known issues ledger](../reference/known-issues.md)
+7. **Seven pages, one server** — audio, song player, death counter, leaderboard, chat feed, goals and poll overlay are served from the same embedded loopback server; visual alerts remain an in-app WPF window ([Visual Alerts](visual-alerts.md)) and giveaways have no overlay output. The five visible widgets are poll-based (2 s / 3 s / 3 s / 10 s / 15 s), not WebSocket-push like the audio page — fine for counts and top-lists, and they self-heal after an app restart. The goals widget's 15 s cadence and completion/target semantics are tracked as [KI-63](../reference/known-issues.md). [known issues ledger](../reference/known-issues.md)

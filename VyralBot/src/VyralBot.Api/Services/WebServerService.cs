@@ -88,6 +88,12 @@ public class WebServerService : IDisposable
             FromParent<VyralBot.Core.Services.Counters.IDeathCounterService>();
             // Currency leaderboard reads for the /leaderboard route (leaderboard.html)
             FromParent<VyralBot.Core.Services.Currency.ICurrencyService>();
+            // Chat-message history reads for the /chatfeed route (chatfeed.html)
+            FromParent<VyralBot.Core.Services.Chat.IChatMessageStore>();
+            // Vyral goals + completion counts for the /goals/data route (goals.html)
+            FromParent<VyralBot.Core.Services.Linking.ISocialGoalService>();
+            // Live poll state for the /poll/data route (polloverlay.html)
+            FromParent<VyralBot.Core.Services.PollService>();
             FromParent<VyralBot.Data.IDataService>();
 
             // Add ASP.NET Core services

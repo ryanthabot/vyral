@@ -29,11 +29,20 @@ Twitch chat integration using a custom WebSocket IRC client (`LightweightTwitchI
   - Chat-surface helpers on the same interface: `ClearChatAsync`,
     `SetChatModeAsync` (emote/follower-only), `SetShieldModeAsync`,
     raid start/stop.
+  - `ApplyChatModeAsync(TwitchChatMode mode, bool enabled, int? duration)` —
+    Core-seam implementation of
+    `VyralBot.Core.Services.Commands.ITwitchChatModeApplier` (Wave 16, drives
+    the `!emoteonly/!subonly/!followers/!slow` command family — see
+    `services/chat-mode-command-service.md`). One mode per PUT
+    `/helix/chat/settings`, which adds the subscriber-only, slow
+    (3–120 s wait) and follower-age (0–129600 min) coverage the two-flag
+    `SetChatModeAsync` quick action cannot express; clamps the durations to
+    the Helix bounds, returns false (never throws) on failure.
 
 ### TwitchService Implementation
 - **File:** `src/VyralBot.Integrations/Twitch/TwitchService.cs` (~418 lines)
 - **Namespace:** `VyralBot.Integrations.Twitch`
-- **Class:** `TwitchService : ITwitchService, IDisposable`
+- **Class:** `TwitchService : ITwitchService, ITwitchChatModeApplier, IDisposable`
 - **Constructor:** `ILogger<TwitchService>`, `ILoggerFactory`, `IEventBus`, `TwitchOAuthService`, `IChatMessageStore?`, `IDataService?`, `ITwitchEventSubService?`
 - **Private fields:**
   - `LightweightTwitchIrc? _client`

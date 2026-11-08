@@ -232,11 +232,42 @@
                                      Style="{StaticResource MaterialDesignOutlinedTextBox}"
                                      Margin="0,0,10,0"/>
 
-                            <Button Grid.Column="1" 
-                                    Content="Copy URL" 
+                            <Button Grid.Column="1"
+                                    Content="Copy URL"
                                     Command="{Binding CopyBrowserSourceUrlCommand}"
                                     Style="{StaticResource MaterialDesignRaisedButton}"/>
                         </Grid>
+
+                        <!-- Chat feed overlay (wave 16): face-cam captions — the last
+                             few chat messages as a second browser source; same URL +
+                             copy row pattern as the audio source above. -->
+                        <TextBlock Text="Chat feed overlay (last chat messages on stream — face-cam captions):"
+                                   Foreground="{DynamicResource MaterialDesignBodyLight}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,20,0,10"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding ChatFeedOverlayUrl, Mode=OneWay}"
+                                     IsReadOnly="True"
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     Margin="0,0,10,0"/>
+
+                            <Button Grid.Column="1"
+                                    Content="Copy URL"
+                                    Command="{Binding CopyChatFeedOverlayUrlCommand}"
+                                    Style="{StaticResource MaterialDesignRaisedButton}"/>
+                        </Grid>
+
+                        <TextBlock Text="Supports URL params: count (1-15), fade=true (older messages dim), size (font px), maxlength, platform. Served by the same embedded web server as the audio source."
+                                   Foreground="{DynamicResource MaterialDesignBodyLight}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,5,0,0"/>
 
                         <TextBlock Text="OBS Setup Instructions:" 
                                    FontWeight="SemiBold" 

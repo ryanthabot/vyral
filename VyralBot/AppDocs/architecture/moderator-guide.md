@@ -123,6 +123,18 @@ Four side-by-side text areas configure the word-level lists (one entry per line)
 
 The lists persist with the rule set (per profile) and normalize on save (case-insensitive, blanks dropped). Enforcement of a verdict (delete/timeout/ban/warn) then depends on the platform — see the parity table below.
 
+### Manual warnings (`!warn` family)
+
+Alongside the auto-mod rules, mods can add strikes by hand from any connected chat (1.1.0 wave 16):
+
+| Command | Who | Effect |
+|---|---|---|
+| `!warn <user> [reason]` | Moderator+ | Adds a strike to the viewer **on the same escalation ladder as auto-mod rule violations** — the same decay window and the same timeout/ban rungs. A warn that itself tips the viewer onto the Timeout/Ban rung fires that action immediately through the normal action pipeline (executed, degraded and audited exactly like a rule violation). |
+| `!warnings <user>` | Moderator+ | Shows the viewer's live strike count, the next rung, and the ladder config. |
+| `!clearwarn <user>` | Moderator+ | Resets the viewer's strikes to zero (audited). |
+
+Manual warns work even while auto-mod is master-switched off — a warn is a moderator decision, not a detection — and every warn/clear is audited to the same `ModActions` log the page shows. **Restarting the app clears all strike counts** (in-memory state; the audit rows survive) — [KI-64](../reference/known-issues.md). Full syntax in the [Command Catalog → Warning commands](../reference/command-catalog.md#warning-commands).
+
 ## How It Works (Developer)
 
 - **`ModTiers`** (`VyralBot.Core/Services/Moderation/ModTiers.cs`) is the static, single source of truth for the ladder: four cumulative arrays (TrialMod → Mod → SeniorMod → Admin) compiled into a command→minimum-rank map. `CanRun(tier, command)`, `MinimumTier(command)`, `Rank`, and `NormalizeTier` are the only gate logic; tier strings are compared case-insensitively.

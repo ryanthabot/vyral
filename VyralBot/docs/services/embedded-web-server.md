@@ -23,7 +23,8 @@ off by default, PIN-paired device tokens).
 | `/songs/title` | POST | loopback Origin check + 4 KB body cap | Player reports a resolved title/duration. Body `{"id":"...","title":"...","duration":123}`. |
 | `/leaderboard/data` | GET | loopback bind + same-origin (no CORS) | Top-N currency leaderboard snapshot for the overlay page (`leaderboard.html`); `count` clamped to 1..25, optional `platform` filter. See `docs/features/leaderboard-overlay.md`. |
 | `/counters/death` | GET | loopback bind + same-origin (no CORS) | `{ count }` death-counter snapshot for the OBS widget (`deathcounter.html`, polls every 3s); 503 `counters_disabled` when the service is not registered. See `docs/features/death-counter.md`. |
-| `/*` (static) | GET | none | `/sounds/*` is served first from the active profile's sounds folder (`ISoundService.GetSoundsDirectory()` — `appdata/profiles/<name>/data/sounds`), then falls back to `wwwroot` (`audio.html`, `songplayer.html`, `leaderboard.html`, `deathcounter.html`, legacy `/sounds/*`) from `AppContext.BaseDirectory`. |
+| `/chatfeed/data` | GET | loopback bind + same-origin (no CORS) | Last-N chat messages (`{username, platform, message, at}`, newest first) for the caption overlay page (`chatfeed.html`, polls every 2s); `count` clamped to 1..15, optional `platform`/`channel` filters (empty channel = all channels of the platform); 503 `chatfeed_disabled` when `IChatMessageStore` is not registered. See `docs/features/chat-feed-overlay.md`. |
+| `/*` (static) | GET | none | `/sounds/*` is served first from the active profile's sounds folder (`ISoundService.GetSoundsDirectory()` — `appdata/profiles/<name>/data/sounds`), then falls back to `wwwroot` (`audio.html`, `songplayer.html`, `leaderboard.html`, `deathcounter.html`, `chatfeed.html`, legacy `/sounds/*`) from `AppContext.BaseDirectory`. |
 
 ## Control API (`/api`) — community-tool surface
 

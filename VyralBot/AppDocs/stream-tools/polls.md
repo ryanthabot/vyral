@@ -1,17 +1,17 @@
 # Polls
 
-> Cross-platform chat polls with vote changing — fully built on the management side and live from chat since the command pipeline was wired up.
+> Cross-platform chat polls with vote changing — fully built on the management side and live from chat since the command pipeline was wired up. Since 1.1.0's wave 16, polls can be created **straight from chat** (`!poll start` with pipe-separated options and an optional duration), voting has a short `!vote` alias, timed polls auto-end with a cross-platform announcement, and live results render on a browser-source overlay.
 
 ## Overview
 
-The Polls tool lets a streamer create a multiple-choice poll, start it, let viewers vote by typing `!poll vote <number>` in chat, and then end it to see per-option counts and a winner. Votes can come from any connected platform, and an optional "allow multiple votes" setting lets viewers change their mind instead of being locked to their first choice.
+The Polls tool lets a streamer create a multiple-choice poll, start it, let viewers vote by typing `!poll vote <number>` (or just `!vote <number>`) in chat, and then end it to see per-option counts and a winner. Polls can be built in the UI **or** started ad-hoc from chat with the `!poll start` pipe syntax. Votes can come from any connected platform, and an optional "allow multiple votes" setting lets viewers change their mind instead of being locked to their first choice.
 
-Just like [Giveaways](giveaways.md), the 2026-08-15 fix pass made chat voting live: `!poll` commands reach the engine from real chat on every connected platform. Two eligibility caveats remain:
+Live results are shown in chat replies, on the Polls page, **and on the [poll overlay](browser-sources.md#poll-results-polloverlayhtml)** browser source (live bars, countdown for timed polls, winner bars lingering 5 minutes after the end).
+
+Just like [Giveaways](giveaways.md), the 2026-08-15 fix pass made chat voting live: `!poll` commands reach the engine from real chat on every connected platform. The eligibility caveats:
 
 1. **Followers-only is platform-asymmetric.** On **Twitch** the follower check is a real Helix lookup (needs the stored token's `moderator:read:followers` scope — degrades to `false` without it, KI-33). On **every other platform** the check falls back to the recorded viewer status: a Kick viewer marked followed by a `KickFollowEvent` webhook passes the gate, one never seen by the webhooks is rejected; YouTube has no follow concept, so eligibility there stays `false` (KI-31, partially resolved).
 2. **Min-watchtime works everywhere.** Real watchtime is resolved through the [Watchtime](watchtime.md) service at vote time.
-
-There is also no overlay for live poll results — results exist only in chat replies and on the Polls page.
 
 ## User Guide
 
@@ -30,7 +30,7 @@ Fill in the create form and press **Create Poll**:
 | **Followers Only** (toggle) | Only followers may vote. Works on **Twitch** (real Helix check, needs the `moderator:read:followers` scope) and on **Kick** through the recorded viewer status (a follow webhook must have marked the viewer); always rejects on YouTube. | Off |
 | **Subscribers Only** (toggle) | Only subscribers may vote. This restriction works. | Off |
 | **Allowed Platforms** | Comma-separated platform list (`Twitch,Kick`) or `All`. Votes from other platforms are declined. | `All` |
-| **Scheduled End** (date picker) | Optional end time. Stored and displayed, but nothing automatically ends the poll at that time. | *(none)* |
+| **Scheduled End** (date picker) | Optional end time. When set (also settable from chat via `!poll start 5m …`), the giveaway/poll scheduler auto-ends the poll at that time and announces the results on every connected platform. | *(none)* |
 
 The creator is recorded as the hard-coded name "Admin" — the form does not ask who you are. After creation the poll appears in the list with status **Pending**.
 
@@ -49,14 +49,26 @@ Implemented by the poll engine; available to chat (see [Commands](../chat-featur
 
 | Command | Who | Effect |
 |---|---|---|
-| `!poll start` | Moderators | Starts the first Pending poll and lists its numbered options. |
-| `!poll vote <n>` | Everyone | Votes for option *n* (1-based). Moves an existing vote when vote-changing is allowed. |
+| `!poll start` | Moderators | Starts the first Pending poll (created in the UI) and lists its numbered options. |
+| `!poll start [5m] Question \| Option A \| Option B` | Moderators | Creates and starts an ad-hoc poll straight from chat (wave 16). Optional duration token first (`5m`, `90s`, `1h30m`; 5 s–24 h), then the question (≤ 200 chars) and 2–6 pipe-separated options (≤ 100 chars each). With a duration the scheduler auto-ends the poll and announces results everywhere. |
+| `!poll vote <n>` / `!vote <n>` | Everyone | Votes for option *n* (1-based) — `!vote` is the short alias sharing the exact vote path. Moves an existing vote when vote-changing is allowed. |
 | `!poll results` | Everyone | Live per-option counts and percentages; falls back to the most recent Completed poll when none is active. |
 | `!poll end` | Moderators | Ends the poll, announces the winning option. |
 | `!poll cancel` | Moderators | Cancels the active poll. |
 | `!poll status` | Everyone | Shows the active question, options, and total votes. |
 
+```
+!poll start 5m What game next? | Balatro | Elden Ring | Minecraft
+📊 Poll started: What game next? - Options: (1) Balatro (2) Elden Ring (3) Minecraft - ends in 5m - Vote with !poll vote <n> or !vote <n>
+```
+
+A duration-less ad-hoc poll runs until a mod ends it (`!poll end`), exactly like a UI-created poll. Malformed starts get a usage reply with the limits spelled out (question/option caps, 2–6 options, duration range).
+
 Unauthorized use of a moderator command gets a visible "Only moderators can..." reply. Bot responses are only ever sent back to Twitch or Kick; a vote accepted from another platform is recorded, but its confirmation reply is dropped.
+
+### The poll overlay
+
+Live results render on the **`polloverlay.html`** browser source (wave 16) — one bar per option with votes and percent, a live countdown for timed polls, and the final winner bars lingering 5 minutes after the end. Setup, URL params (`title`, `style`) and the endpoint contract live on the [Browser Sources](browser-sources.md#poll-results-polloverlayhtml) page.
 
 ## How It Works (Developer)
 
@@ -72,7 +84,7 @@ Two Core services mirror the giveaway design: `PollService` is the engine, `Poll
 
 **Results and the end announcement.** `EndPollAsync` (`PollService.cs:203-240`) reads the per-option counts via `GetPollVoteResultsAsync`, writes them into `Poll.VoteResults` as JSON, marks the poll Completed, and formats the announcement (`FormatResultsMessage`): a **zero-vote poll** completes with an explicit *"📊 Poll Results — {question}: no votes were cast."* (no winner is claimed); a **tie** is announced as *"it's a tie between X and Y ({n} votes each)!"* listing every tied option; otherwise the plain *"{winner} wins with {n} votes!"* line. `GetCurrentResultsAsync` (`PollService.cs:245`) computes the same aggregation on demand for the `!poll results` command without ending the poll.
 
-**Command routing (live).** `ChatViewModel.OnChatMessageReceivedAsync` gates on messages starting with `!poll` and calls `PollCommandService.ProcessCommandAsync`, which dispatches the six subcommands. The orchestrator consumes the platform-agnostic [ChatMessageReceivedEvent](../../src/VyralBot.Core/Models/ChatMessageReceivedEvent.cs) published by all three chat integrations (dedupe + bot-echo skip included), so votes arrive from Twitch, Kick, and YouTube alike. See [Event Bus](../architecture/event-bus.md).
+**Command routing (live).** `ChatViewModel.OnChatMessageReceivedAsync` gates on messages starting with `!poll` (or `!vote`, the wave-16 alias) and calls `PollCommandService.ProcessCommandAsync`, which dispatches the six subcommands plus the alias. The orchestrator consumes the platform-agnostic [ChatMessageReceivedEvent](../../src/VyralBot.Core/Models/ChatMessageReceivedEvent.cs) published by all three chat integrations (dedupe + bot-echo skip included), so votes arrive from Twitch, Kick, and YouTube alike. See [Event Bus](../architecture/event-bus.md).
 
 ```csharp
 // ChatViewModel.cs — the poll call with real eligibility data
@@ -97,7 +109,9 @@ var response = await _pollCommandService.ProcessCommandAsync(
 | [PollView.xaml](../../src/VyralBot.UI/Views/PollView.xaml) | The Polls page — create form, poll list, votes grid, action buttons. |
 | [PollViewModel.cs](../../src/VyralBot.UI/ViewModels/PollViewModel.cs) | Page logic: form parsing (options one per line), start/end/cancel/delete/refresh, results display. |
 | [PollService.cs](../../src/VyralBot.Core/Services/PollService.cs) | The engine: lifecycle, vote validation, vote changing, result aggregation. |
-| [PollCommandService.cs](../../src/VyralBot.Core/Services/PollCommandService.cs) | Chat-command adapter: the six `!poll` subcommands. |
+| [PollCommandService.cs](../../src/VyralBot.Core/Services/PollCommandService.cs) | Chat-command adapter: the six `!poll` subcommands, the `!vote` alias, and ad-hoc `!poll start [duration] … \| …` creation (wave 16). |
+| [GiveawayPollSchedulerService.cs](../../src/VyralBot.Core/Services/GiveawayPollSchedulerService.cs) | Background auto-end for scheduled polls (and giveaways) — announces results via `PollAutoEndedEvent` on every connected platform. |
+| [PollController.cs](../../src/VyralBot.Api/Controllers/PollController.cs) | `GET /poll/data` — the read-only snapshot endpoint behind the poll overlay (wave 16). |
 | [Poll.cs](../../src/VyralBot.Data/Entities/Poll.cs) | `Poll` entity and the `PollStatus` enum. |
 | [PollVote.cs](../../src/VyralBot.Data/Entities/PollVote.cs) | `PollVote` entity (one row per voter). |
 | [DapperDataService.cs](../../src/VyralBot.Data/DapperDataService.cs) | SQLite persistence; `Polls` table at `DapperDataService.cs:2823`, `PollVotes` at `:2849`. |
@@ -157,7 +171,7 @@ There are no poll-specific config keys; all settings are per-poll columns.
 - **Ties and zero-vote polls are announced honestly** — a tie lists every tied option with the vote count; a poll with no votes completes with "no votes were cast" instead of naming a winner.
 - **Votes cannot race the end** — the end gate serializes votes against End Poll; a vote either lands in the results or is rejected, never stored-but-uncounted.
 - **Min-watchtime works** — real watchtime from [Watchtime](watchtime.md) is checked at vote time on every platform.
-- **Scheduled end time is inert** — `ScheduledEndTime` is stored and displayed but no background job ends the poll when it passes.
-- **Creator is hard-coded "Admin"** — the UI never asks who creates a poll (`PollViewModel.cs:210`).
+- **Scheduled end is honored by the scheduler** — `GiveawayPollSchedulerService` ticks every 30 s and auto-ends any Active poll whose `ScheduledEndTime` has passed, announcing results on every connected platform via `PollAutoEndedEvent` (the UI date picker and the `!poll start <duration>` token both set it; a poll with no scheduled end runs until a mod ends it).
+- **Creator is hard-coded "Admin" from the UI** — the create form never asks who you are (`PollViewModel.cs:210`); ad-hoc chat polls record the issuing moderator's username as creator.
 - **Replies only go to Twitch/Kick** — votes from other platforms are recorded, but the bot's response is only sent via the Twitch/Kick send paths.
-- **No overlay output** — there is no browser-source page for live poll results; see [Browser Sources](browser-sources.md). Results appear only in chat replies and on the Polls page.
+- **Poll overlay ships** — live results render on the [`polloverlay.html` browser source](browser-sources.md#poll-results-polloverlayhtml) (wave 16): 3 s polling, countdown for timed polls, winner bars lingering 5 minutes.

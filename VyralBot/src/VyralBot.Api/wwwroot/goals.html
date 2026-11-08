@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vyral Goals - Browser Source</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #wrap {
+            display: inline-block;
+            min-width: 300px;
+            max-width: 560px;
+            padding: 14px 16px;
+            border-radius: 10px;
+        }
+        /* dark (default): translucent night card like the app's dark theme */
+        #wrap.dark {
+            background: rgba(16, 18, 27, 0.78);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        /* light: translucent white card for bright stream layouts */
+        #wrap.light {
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(0, 0, 0, 0.10);
+        }
+        #rows { display: flex; flex-direction: column; gap: 14px; }
+        .goal { animation: slidein 0.5s ease both; }
+        @keyframes slidein {
+            from { opacity: 0; transform: translateY(-10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .kind {
+            flex: none;
+            padding: 1px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .dark .kind { background: rgba(38, 166, 154, 0.18); color: #26A69A; }
+        .light .kind { background: rgba(0, 137, 123, 0.12); color: #00897B; }
+        .title {
+            flex: 1;
+            font-size: 16px;
+            font-weight: 700;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .dark .title { color: #E8EAF0; }
+        .light .title { color: #1F2430; }
+        .count {
+            flex: none;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }
+        .dark .count { color: #26A69A; }
+        .light .count { color: #00897B; }
+        .count .target { font-weight: 600; opacity: 0.75; }
+        .subtitle {
+            font-size: 12px;
+            margin: -2px 0 6px 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .dark .subtitle { color: #9AA0B0; }
+        .light .subtitle { color: #6B7280; }
+        .track {
+            position: relative;
+            height: 14px;
+            border-radius: 7px;
+            overflow: hidden;
+        }
+        .dark .track { background: rgba(255, 255, 255, 0.10); }
+        .light .track { background: rgba(0, 0, 0, 0.10); }
+        .fill {
+            height: 100%;
+            width: 0%;                 /* animated via inline style */
+            border-radius: 7px;
+            background: linear-gradient(90deg, #26A69A, #4DB6AC);
+            transition: width 1s ease; /* the signature bar animation */
+        }
+        /* Celebration at 100%: rainbow shimmer sweep over the full bar. */
+        .fill.complete {
+            background: linear-gradient(90deg,
+                #FF5F6D, #FFC371, #7EE8A2, #4FC3F7, #B388FF, #FF5F6D);
+            background-size: 300% 100%;
+            animation: shimmer 2.5s linear infinite;
+        }
+        @keyframes shimmer {
+            from { background-position: 0% 0; }
+            to   { background-position: 300% 0; }
+        }
+        .done-tag {
+            flex: none;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #FFC371;
+            display: none;
+        }
+        .goal.complete .done-tag { display: inline; }
+        /* ?size=l — bigger fonts + taller bar for full-screen layouts */
+        #wrap.size-l .title { font-size: 22px; }
+        #wrap.size-l .count { font-size: 26px; }
+        #wrap.size-l .kind { font-size: 13px; }
+        #wrap.size-l .subtitle { font-size: 14px; }
+        #wrap.size-l .track { height: 20px; border-radius: 10px; }
+        #wrap.size-l .fill { border-radius: 10px; }
+        #wrap.size-l #rows { gap: 18px; }
+        /* default (m) count size so .size-m is explicit too */
+        #wrap.size-m .count { font-size: 20px; }
+        /* Status badge - identical conventions to audio.html (connected
+           auto-hides after 5s; disconnected/connecting stay visible). */
+        #status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: opacity 0.3s;
+            z-index: 9999;
+        }
+        .connected {
+            background: rgba(0, 255, 0, 0.2);
+            color: lime;
+            border: 2px solid lime;
+        }
+        .disconnected {
+            background: rgba(255, 0, 0, 0.2);
+            color: red;
+            border: 2px solid red;
+        }
+        .connecting {
+            background: rgba(255, 255, 0, 0.2);
+            color: yellow;
+            border: 2px solid yellow;
+        }
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="wrap" class="dark size-m">
+        <div id="rows"></div>
+    </div>
+    <div id="status" class="connecting">Connecting to Vyral...</div>
+    <script>
+        // Configuration - host/port derived from the URL the page is served
+        // from (same convention as audio.html/leaderboard.html), so the file
+        // works on any port the embedded loopback web server listens on.
+        const BASE_URL = window.location.protocol.indexOf('http') === 0
+            ? window.location.origin
+            : 'http://' + (window.location.host || 'localhost:5000');
+        const DATA_URL = BASE_URL + '/goals/data';
+        const POLL_MS = 15000;        // goals auto-refresh
+        const STATUS_HIDE_DELAY = 5000;
+
+        // Query params: ?style=dark|light (card theme), ?size=m|l (m default).
+        const params = new URLSearchParams(window.location.search);
+        const wrap = document.getElementById('wrap');
+        const styleClass = params.get('style') === 'light' ? 'light' : 'dark';
+        const sizeClass = params.get('size') === 'l' ? 'size-l' : 'size-m';
+        wrap.className = styleClass + ' ' + sizeClass;
+
+        // State
+        let pollTimer = null;
+        let refreshing = false;
+        let statusHideTimeout = null;
+        const goalById = new Map(); // goal id -> { root, fillEl, countEl } reused across polls
+
+        // DOM elements
+        const rowsEl = document.getElementById('rows');
+        const statusDiv = document.getElementById('status');
+
+        // ------------------------------------------------------------------
+        // Polling (reconnects forever, 15s cadence, never overlaps requests)
+        // ------------------------------------------------------------------
+        refresh();
+        function refresh() {
+            if (refreshing) return;
+            refreshing = true;
+            fetch(DATA_URL, { cache: 'no-store' })
+                .then((res) => {
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.json();
+                })
+                .then((data) => {
+                    updateStatus('Connected to Vyral', 'connected');
+                    hideStatusAfterDelay();
+                    render(data && data.goals ? data.goals : []);
+                })
+                .catch((err) => {
+                    console.warn('Goals fetch failed:', err);
+                    updateStatus('Disconnected from VyralBot', 'disconnected');
+                })
+                .finally(() => {
+                    refreshing = false;
+                    pollTimer = setTimeout(refresh, POLL_MS);
+                });
+        }
+
+        // ------------------------------------------------------------------
+        // Rendering: one card per goal, keyed by id so an existing bar only
+        // animates its width (CSS transition) instead of being rebuilt.
+        // ------------------------------------------------------------------
+        function buildGoal() {
+            const root = document.createElement('div');
+            root.className = 'goal';
+            root.innerHTML =
+                '<div class="head">' +
+                    '<span class="kind"></span>' +
+                    '<span class="title"></span>' +
+                    '<span class="done-tag">Complete</span>' +
+                    '<span class="count"></span>' +
+                '</div>' +
+                '<div class="subtitle"></div>' +
+                '<div class="track"><div class="fill"></div></div>';
+            return root;
+        }
+
+        function render(goals) {
+            // 1. Drop cards for goals that disappeared / got disabled.
+            const ids = new Set(goals.map((g) => g.id));
+            for (const [id, entry] of Array.from(goalById)) {
+                if (!ids.has(id)) {
+                    entry.root.remove();
+                    goalById.delete(id);
+                }
+            }
+
+            // 2. Create/update cards in SortOrder; appendChild reorders
+            //    existing nodes into place.
+            for (const goal of goals) {
+                const id = goal.id;
+                let entry = goalById.get(id);
+                const isNew = !entry;
+                if (isNew) {
+                    const root = buildGoal();
+                    entry = { root: root, fillEl: root.querySelector('.fill') };
+                    goalById.set(id, entry);
+                }
+
+                const root = entry.root;
+                root.querySelector('.kind').textContent = goal.kind || '';
+                root.querySelector('.title').textContent = goal.title || '';
+
+                const subtitleEl = root.querySelector('.subtitle');
+                subtitleEl.textContent = goal.subtitle || '';
+                subtitleEl.style.display = goal.subtitle ? '' : 'none';
+
+                const current = (typeof goal.current === 'number' && isFinite(goal.current))
+                    ? Math.max(0, Math.trunc(goal.current)) : 0;
+                const target = (typeof goal.target === 'number' && isFinite(goal.target))
+                    ? Math.trunc(goal.target) : 0;
+                const shownTarget = Math.max(1, target);
+                const percent = Math.min(100, (current / shownTarget) * 100);
+                const complete = current > 0 && current >= shownTarget;
+
+                root.querySelector('.count').innerHTML =
+                    current.toLocaleString() + ' <span class="target">/ ' +
+                    target.toLocaleString() + '</span>';
+
+                root.classList.toggle('complete', complete);
+                entry.fillEl.classList.toggle('complete', complete);
+
+                rowsEl.appendChild(root);
+
+                // Existing bars just transition their width; a brand-new bar
+                // must first paint at 0% (the CSS default) and grow on the
+                // next frame, otherwise the browser skips the transition.
+                if (isNew) {
+                    requestAnimationFrame(() => requestAnimationFrame(() => {
+                        entry.fillEl.style.width = percent.toFixed(1) + '%';
+                    }));
+                } else {
+                    entry.fillEl.style.width = percent.toFixed(1) + '%';
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Status badge (audio.html conventions)
+        // ------------------------------------------------------------------
+        function updateStatus(text, statusClass) {
+            statusDiv.textContent = text;
+            statusDiv.className = statusClass;
+            if (statusClass !== 'connected' && statusHideTimeout) {
+                clearTimeout(statusHideTimeout);
+                statusHideTimeout = null;
+            }
+        }
+
+        function hideStatusAfterDelay() {
+            if (statusHideTimeout) clearTimeout(statusHideTimeout);
+            statusHideTimeout = setTimeout(() => {
+                statusDiv.classList.add('hidden');
+            }, STATUS_HIDE_DELAY);
+        }
+    </script>
+</body>
+</html>

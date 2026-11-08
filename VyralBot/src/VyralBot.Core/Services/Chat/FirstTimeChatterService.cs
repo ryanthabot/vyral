@@ -26,6 +26,9 @@ public interface IFirstTimeChatterService
     /// Unsubscribes and clears the dedup map. Safe to call twice.
     /// </summary>
     Task StopAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Inline check for the ChatViewModel message path (pre-watchtime ordering).</summary>
+    Task CheckAndPublishAsync(ChatMessageReceivedEvent evt);
 }
 
 /// <summary>
@@ -115,6 +118,15 @@ public sealed class FirstTimeChatterService : IFirstTimeChatterService, IHostedS
         _logger.LogInformation("FirstTimeChatterService stopped");
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Inline check for the ChatViewModel's message path — called BEFORE
+    /// watchtime records activity for the same message, so the "is this a
+    /// newcomer" read can never race the row's creation (the hosted
+    /// subscription remains as a fallback for platforms routed elsewhere).
+    /// </summary>
+    public Task CheckAndPublishAsync(ChatMessageReceivedEvent evt)
+        => OnChatMessageReceivedAsync(evt);
 
     private async Task OnChatMessageReceivedAsync(ChatMessageReceivedEvent evt)
     {

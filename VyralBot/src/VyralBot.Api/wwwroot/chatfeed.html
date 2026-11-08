@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vyral Chat Feed - Browser Source</title>
+    <style>
+        html { font-size: 16px; } /* overridden by ?size= */
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #wrap {
+            display: inline-flex;
+            flex-direction: column;
+            gap: 0.35em;
+            max-width: 34em;
+            padding: 0.7em 0.9em;
+            border-radius: 0.6em;
+        }
+        /* dark (default): translucent night card like the app's dark theme */
+        #wrap.dark {
+            background: rgba(16, 18, 27, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        /* light: translucent white card for bright stream layouts */
+        #wrap.light {
+            background: rgba(255, 255, 255, 0.82);
+            border: 1px solid rgba(0, 0, 0, 0.10);
+        }
+        .row {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.45em;
+            line-height: 1.35;
+            color: #FFFFFF;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+            transition: opacity 0.6s ease;
+        }
+        #wrap.light .row {
+            color: #1F2430;
+            text-shadow: none;
+        }
+        /* brand-new messages slide in from below (stack grows upward) */
+        .row.enter { animation: slidein 0.45s ease both; }
+        @keyframes slidein {
+            from { opacity: 0; transform: translateY(0.8em); }
+        }
+        /* platform letter chip - app brand colors (PlatformToBrushConverter) */
+        .chip {
+            flex: none;
+            min-width: 1.3em;
+            height: 1.3em;
+            padding: 0 0.2em;
+            border-radius: 0.35em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.68em;
+            font-weight: 700;
+        }
+        .user {
+            font-weight: 700; /* bold username */
+            white-space: nowrap;
+        }
+        .msg {
+            overflow-wrap: anywhere;
+        }
+        /* Status badge - identical conventions to audio.html (connected
+           auto-hides after 5s; disconnected/connecting stay visible). */
+        #status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: opacity 0.3s;
+            z-index: 9999;
+        }
+        .connected {
+            background: rgba(0, 255, 0, 0.2);
+            color: lime;
+            border: 2px solid lime;
+        }
+        .disconnected {
+            background: rgba(255, 0, 0, 0.2);
+            color: red;
+            border: 2px solid red;
+        }
+        .connecting {
+            background: rgba(255, 255, 0, 0.2);
+            color: yellow;
+            border: 2px solid yellow;
+        }
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="wrap" class="dark"></div>
+    <div id="status" class="connecting">Connecting to Vyral...</div>
+    <script>
+        // Configuration - host/port derived from the URL the page is served
+        // from (same convention as audio.html/leaderboard.html), so the file
+        // works on any port the embedded loopback web server listens on.
+        const BASE_URL = window.location.protocol.indexOf('http') === 0
+            ? window.location.origin
+            : 'http://' + (window.location.host || 'localhost:5000');
+        const POLL_MS = 2000;          // chat feed auto-refresh
+        const STATUS_HIDE_DELAY = 5000;
+
+        // Query params: ?count=5 (1..15 messages), ?fade=true (older messages
+        // dim), ?size=16 (font px), ?maxlength=120 (message truncation),
+        // ?platform= (optional single-platform filter), ?style=dark|light.
+        const params = new URLSearchParams(window.location.search);
+        let count = parseInt(params.get('count'), 10);
+        count = (isFinite(count) && count >= 1 && count <= 15) ? count : 5;
+        const fade = params.get('fade') === 'true';
+        let size = parseInt(params.get('size'), 10);
+        size = (isFinite(size) && size >= 10 && size <= 48) ? size : 16;
+        let maxlength = parseInt(params.get('maxlength'), 10);
+        maxlength = (isFinite(maxlength) && maxlength >= 20 && maxlength <= 500) ? maxlength : 120;
+        const platform = (params.get('platform') || '').trim();
+        if (params.get('style') === 'light') {
+            document.getElementById('wrap').className = 'light';
+        }
+        document.documentElement.style.fontSize = size + 'px';
+
+        const DATA_URL = BASE_URL + '/chatfeed/data?count=' + count
+            + (platform ? '&platform=' + encodeURIComponent(platform) : '');
+
+        // Platform letter + brand colors (PlatformToBrushConverter's palette).
+        // Unknown platforms fall back to a neutral chip; both the letter and
+        // the colors are applied via textContent/style, never innerHTML.
+        const PLATFORM_STYLES = {
+            Twitch:  { letter: 'T', bg: '#9146FF', fg: '#FFFFFF' },
+            Kick:    { letter: 'K', bg: '#53FF1A', fg: '#0A0D14' },
+            YouTube: { letter: 'Y', bg: '#FF0000', fg: '#FFFFFF' },
+            Discord: { letter: 'D', bg: '#5865F2', fg: '#FFFFFF' }
+        };
+
+        // State
+        let pollTimer = null;
+        let refreshing = false;
+        let statusHideTimeout = null;
+        const rowByKey = new Map(); // 'platform|username|at|message' -> row element
+
+        // DOM elements
+        const wrapEl = document.getElementById('wrap');
+        const statusDiv = document.getElementById('status');
+
+        // ------------------------------------------------------------------
+        // Polling (reconnects forever, 2s cadence, never overlaps requests)
+        // ------------------------------------------------------------------
+        refresh();
+        function refresh() {
+            if (refreshing) return;
+            refreshing = true;
+            fetch(DATA_URL, { cache: 'no-store' })
+                .then((res) => {
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.json();
+                })
+                .then((data) => {
+                    updateStatus('Connected to Vyral', 'connected');
+                    hideStatusAfterDelay();
+                    render(data && data.messages ? data.messages : []);
+                })
+                .catch((err) => {
+                    console.warn('Chat feed fetch failed:', err);
+                    updateStatus('Disconnected from VyralBot', 'disconnected');
+                })
+                .finally(() => {
+                    refreshing = false;
+                    pollTimer = setTimeout(refresh, POLL_MS);
+                });
+        }
+
+        // ------------------------------------------------------------------
+        // Rendering. The endpoint returns messages NEWEST FIRST; the caption
+        // stack shows newest at the BOTTOM, so rows are appended oldest ->
+        // newest. Rows are keyed by platform|username|at|message so existing
+        // messages keep their DOM node (no reflow flicker) and only genuinely
+        // new messages play the slide-in keyframe. Duplicate keys (same user,
+        // same text, same second) get a #2/#3 suffix.
+        //
+        // XSS safety: every dynamic value (username, message, platform letter)
+        // is set via textContent; the static row skeleton below contains only
+        // constant markup. User content is NEVER assigned to innerHTML.
+        // ------------------------------------------------------------------
+        function buildRow() {
+            const el = document.createElement('div');
+            el.className = 'row';
+            el.innerHTML =
+                '<span class="chip"></span>' +
+                '<span class="user"></span>' +
+                '<span class="msg"></span>';
+            return el;
+        }
+
+        function render(messages) {
+            // Chronological order (oldest first) for bottom-newest stacking.
+            const ordered = messages.slice().reverse();
+
+            // Deduplicate keys within one poll (identical rows stay distinct).
+            const seen = new Map();
+            const keys = [];
+            for (const m of ordered) {
+                const base = (m.platform || '') + '|' + (m.username || '')
+                    + '|' + (m.at || '') + '|' + (m.message || '');
+                const n = (seen.get(base) || 0) + 1;
+                seen.set(base, n);
+                keys.push(n === 1 ? base : base + '#' + n);
+            }
+
+            // Drop rows that scrolled out of the window.
+            const liveKeys = new Set(keys);
+            for (const [key, el] of Array.from(rowByKey)) {
+                if (!liveKeys.has(key)) {
+                    el.remove();
+                    rowByKey.delete(key);
+                }
+            }
+
+            // (Re)append every row in order; existing nodes move, new ones
+            // animate in. Older messages dim when fade=true (opacity ladder).
+            for (let i = 0; i < ordered.length; i++) {
+                const msg = ordered[i];
+                const key = keys[i];
+                let el = rowByKey.get(key);
+                const isNew = !el;
+                if (isNew) {
+                    el = buildRow();
+                    el.dataset.key = key;
+                    rowByKey.set(key, el);
+                }
+
+                const style = PLATFORM_STYLES[msg.platform]
+                    || { letter: (msg.platform || '?').charAt(0).toUpperCase(), bg: '#9AA0B0', fg: '#FFFFFF' };
+                const chipEl = el.firstChild;
+                chipEl.textContent = style.letter;
+                chipEl.style.background = style.bg;
+                chipEl.style.color = style.fg;
+
+                el.children[1].textContent = (msg.username || '') + ':';
+                el.children[2].textContent = truncate(msg.message || '');
+
+                if (fade) {
+                    // newest row = 1.0, oldest row approaches 0.35
+                    const age = ordered.length <= 1 ? 0 : (ordered.length - 1 - i) / (ordered.length - 1);
+                    el.style.opacity = String(1 - age * 0.65);
+                } else if (el.style.opacity !== '') {
+                    el.style.opacity = '';
+                }
+
+                wrapEl.appendChild(el);
+                if (isNew) {
+                    el.classList.add('enter'); // fresh node: play the slide-in once
+                } else {
+                    // Re-appending a node can restart a CSS animation; dropping
+                    // the class is invisible once the keyframe finished (its end
+                    // state equals the row's natural styles) and keeps settled
+                    // messages from re-sliding on every poll.
+                    el.classList.remove('enter');
+                }
+            }
+        }
+
+        function truncate(text) {
+            if (text.length <= maxlength) return text;
+            return text.slice(0, Math.max(1, maxlength - 1)) + '\u2026';
+        }
+
+        // ------------------------------------------------------------------
+        // Status badge (audio.html conventions)
+        // ------------------------------------------------------------------
+        function updateStatus(text, statusClass) {
+            statusDiv.textContent = text;
+            statusDiv.className = statusClass;
+            if (statusClass !== 'connected' && statusHideTimeout) {
+                clearTimeout(statusHideTimeout);
+                statusHideTimeout = null;
+            }
+        }
+
+        function hideStatusAfterDelay() {
+            if (statusHideTimeout) clearTimeout(statusHideTimeout);
+            statusHideTimeout = setTimeout(() => {
+                statusDiv.classList.add('hidden');
+            }, STATUS_HIDE_DELAY);
+        }
+    </script>
+</body>
+</html>

@@ -330,8 +330,14 @@ public class DapperDataService : IDataService
         using var conn = CreateConnection();
         // Take the NEWEST rows (DESC) so history never degrades to weeks-old data
         // once a channel exceeds the limit, then restore chronological order.
+        // Null/empty channel = wildcard across ALL of the platform's channels
+        // (the /chatfeed overlay does not know channel keys). Existing callers
+        // always pass a concrete channel, so this changes nothing for them.
+        var sql = string.IsNullOrWhiteSpace(channel)
+            ? "SELECT * FROM ChatMessages WHERE Platform = @Platform ORDER BY Timestamp DESC LIMIT @Limit"
+            : "SELECT * FROM ChatMessages WHERE Platform = @Platform AND Channel = @Channel ORDER BY Timestamp DESC LIMIT @Limit";
         var messages = (await conn.QueryAsync<Entities.ChatMessage>(
-            "SELECT * FROM ChatMessages WHERE Platform = @Platform AND Channel = @Channel ORDER BY Timestamp DESC LIMIT @Limit",
+            sql,
             new { Platform = platform, Channel = channel, Limit = limit })).ToList();
         messages.Reverse();
         return messages;

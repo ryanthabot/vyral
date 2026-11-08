@@ -215,6 +215,7 @@ public interface IDataService
 
     // Chat messages (per-profile)
     Task<bool> SaveChatMessageAsync(Entities.ChatMessage message);
+    /// <summary>Most recent chat messages (oldest->newest). Null/empty channel = all channels of the platform.</summary>
     Task<IEnumerable<Entities.ChatMessage>> GetChatMessagesAsync(string platform, string channel, int limit = 200);
     Task DeleteChatMessagesAsync(string platform, string channel);
 

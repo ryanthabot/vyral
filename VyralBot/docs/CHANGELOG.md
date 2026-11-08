@@ -117,6 +117,39 @@ strip on Home and twelve starter workflow templates.
   `firstmessage` workflow trigger; detection is once-per-viewer against the
   profile's activity records, and Event Testing can fire it without a
   newcomer.
+- **Twitch chat-mode commands with auto-revert** — `!emoteonly`,
+  `!subonly`, `!followers` (optional follow age, e.g. `!followers 2h`) and
+  `!slow <seconds>` enable Twitch's chat protections from any mod's chat,
+  each arming a timed auto-revert (default 10 minutes, capped at 2 hours) so
+  a raid-shielded chat always opens up again; `<mode> off` disables
+  immediately. Moderator-only and Twitch-only; reverts fire within ~30 s of
+  due and do not survive an app restart (see known issues KI-62).
+- **Chat feed overlay** — `chatfeed.html`, face-cam captions for OBS: the
+  last few chat messages with platform chips, configurable count, font size,
+  truncation, fading and single-platform filter (2 s refresh), with a URL
+  card on the Audio Settings page.
+- **Goals overlay** — `goals.html`, one animated progress bar per enabled
+  Vyral goal (Viewer Hub), completions/target with kind chips, dark/light and
+  two sizes (15 s refresh), with a copyable URL row on the Viewer Hub's
+  Vyral Goals card.
+- **Poll overlay** — `polloverlay.html`, live poll results as growing bars
+  with vote counts and percentages, a countdown for timed polls, and the
+  winner bars lingering 5 minutes after the end (3 s refresh).
+- **Chat-driven polls** — `!poll start [5m] Question | Option A | Option B`
+  creates and starts a poll straight from chat (2–6 pipe-separated options,
+  optional duration token), timed polls auto-end with the results announced
+  on every connected platform, and everyone gets a short `!vote <n>` alias.
+- **Warning commands** — `!warn <user> [reason]`, `!warnings <user>` and
+  `!clearwarn <user>`: manual warns climb the same escalation ladder as
+  auto-mod rule violations (shared strikes, decay window, timeout/ban rungs —
+  escalating immediately when a warn tips the rung), all audited to the mod
+  log. Strike counts are in-memory: restarting the app clears them
+  (KI-64).
+- **Session summaries** — the Statistics page's new Sessions tab shows a
+  post-stream report per session: duration, platforms, new followers/subs,
+  raids and viewers brought, cheers and bits, chat messages, currency
+  awarded, top chatters and a per-event breakdown (last 20 sessions kept;
+  chat counts cover what the running app saw — KI-64).
 
 ### Fixed
 

@@ -10,8 +10,10 @@ Wave 7 (2026-11-07) hardened draw/vote correctness for live-stream use.
 | `GiveawayService` (lifecycle, entries, weighted draw, redraw, adaptive Live/Timed intake) | `VyralBot.Core/Services/GiveawayService.cs` |
 | `GiveawayCommandService` (`!giveaway …` + custom entry keyword) | `VyralBot.Core/Services/GiveawayCommandService.cs` |
 | `PollService` (lifecycle, one-vote-per-viewer, results) | `VyralBot.Core/Services/PollService.cs` |
-| `PollCommandService` (`!poll …`) | `VyralBot.Core/Services/PollCommandService.cs` |
+| `PollCommandService` (`!poll …`, ad-hoc start + `!vote` alias) | `VyralBot.Core/Services/PollCommandService.cs` |
 | `GiveawayPollSchedulerService` (auto-end at ScheduledEndTime) | `VyralBot.Core/Services/GiveawayPollSchedulerService.cs` |
+| `PollController` (loopback `GET /poll/data` for the overlay) | `VyralBot.Api/Controllers/PollController.cs` |
+| `polloverlay.html` (OBS browser-source widget) | `VyralBot.Api/wwwroot/polloverlay.html` — see [poll-overlay.md](poll-overlay.md) |
 | `GiveawayViewModel` + `GiveawayView` | `VyralBot.UI/ViewModels` / `Views` |
 | `PollViewModel` + `PollView` | `VyralBot.UI/ViewModels` / `Views` |
 
@@ -28,6 +30,20 @@ Discord** (reply is sent on the platform the message came from).
   enters while a giveaway is active.
 - `!poll start|vote <n>|results|end|cancel|status` — `start`, `end`, `cancel`
   are moderator-gated; voting is open.
+- **Wave 16 chat-driven polls**: `!poll start [duration] Question? | Option A |
+  Option B [| ...]` creates and starts an ad-hoc poll straight from chat
+  (2-6 pipe-separated options; question ≤200 chars, options ≤100 chars each).
+  The optional duration token (`90s`, `5m`, `1h30m`, 5s..24h) sets
+  `ScheduledEndTime`; the existing `GiveawayPollSchedulerService` auto-ends the
+  poll at that time and announces on every connected platform via
+  `PollAutoEndedEvent` — no new timer. Bare `!poll start` still starts the
+  next Pending UI-configured poll. `!poll end` returns the results string and
+  the chat router sends it on the originating platform (the UI end path
+  additionally announces everywhere via `PollViewModel.AnnounceToChatAsync`).
+- `!vote <n>` (wave 16) — everyone's short alias for `!poll vote <n>`; strict
+  first-token match (case-insensitive) so `!voters`-style commands are not
+  swallowed. Shares the exact vote pipeline (eligibility, linked-identity
+  dedup, vote-change rules) with the long form.
 - **TikTok**: not a chat source — no TikTok chat pipeline exists (web setup
   only, `TiktokChatSettingsViewModel.ChatPipelineAvailable == false`), so no
   entries, votes or commands can arrive from TikTok.

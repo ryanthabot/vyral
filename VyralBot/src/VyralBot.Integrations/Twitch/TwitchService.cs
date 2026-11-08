@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using VyralBot.Core.Models;
 using VyralBot.Core.Services.Chat;
+using VyralBot.Core.Services.Commands;
 using VyralBot.Core.Services.EventBus;
 using VyralBot.Data;
 using VyralBot.Data.Entities;
@@ -13,7 +14,7 @@ namespace VyralBot.Integrations.Twitch;
 /// <summary>
 /// Twitch IRC client service using lightweight IRC implementation.
 /// </summary>
-public class TwitchService : ITwitchService, IDisposable
+public class TwitchService : ITwitchService, ITwitchChatModeApplier, IDisposable
 {
     private readonly ILogger<TwitchService> _logger;
     private readonly ILoggerFactory _loggerFactory;
@@ -925,6 +926,77 @@ public class TwitchService : ITwitchService, IDisposable
         {
             _logger.LogError(ex, "Failed to read the Twitch chat mode state");
             return null;
+        }
+    }
+
+    // ── ITwitchChatModeApplier (Core seam for the !emoteonly/!subonly/
+    // !followers/!slow command family) ──────────────────────────────────
+    // Same PUT /helix/chat/settings as SetChatModeAsync above, one mode at a
+    // time, bool-returning for engine callers (never throws; info-level logs).
+    // This is the member that adds subscriber-only + slow + follower-age
+    // coverage the two-flag UI quick action cannot express.
+
+    /// <inheritdoc />
+    public async Task<bool> ApplyChatModeAsync(TwitchChatMode mode, bool enabled, int? duration = null)
+    {
+        try
+        {
+            var body = new Dictionary<string, object>();
+            switch (mode)
+            {
+                case TwitchChatMode.EmoteOnly:
+                    body["emote_mode"] = enabled;
+                    break;
+                case TwitchChatMode.SubscriberOnly:
+                    body["subscriber_mode"] = enabled;
+                    break;
+                case TwitchChatMode.FollowerOnly:
+                    body["follower_mode"] = enabled;
+                    // follower_mode_duration only applies while enabling; a
+                    // null/0 duration means "any follower" and is omitted.
+                    if (enabled && duration.HasValue && duration.Value > 0)
+                    {
+                        body["follower_mode_duration"] = Math.Min(duration.Value, 129600);
+                    }
+                    break;
+                case TwitchChatMode.Slow:
+                    body["slow_mode"] = enabled;
+                    if (enabled)
+                    {
+                        // Helix bounds: 3–120 seconds; the default matches the
+                        // Twitch chat-directory slow mode.
+                        body["slow_mode_wait_time"] = Math.Clamp(duration ?? 30, 3, 120);
+                    }
+                    break;
+                default:
+                    _logger.LogInformation("Twitch chat mode {Mode} change skipped - unknown mode", mode);
+                    return false;
+            }
+
+            var broadcasterId = await ResolveBroadcasterIdAsync();
+            if (string.IsNullOrEmpty(broadcasterId))
+            {
+                _logger.LogInformation("Twitch chat mode {Mode} change skipped - could not resolve the broadcaster id", mode);
+                return false;
+            }
+
+            var response = await SendHelixAsync(HttpMethod.Put,
+                $"chat/settings?broadcaster_id={broadcasterId}&moderator_id={broadcasterId}",
+                JsonSerializer.Serialize(body));
+            if (!response.Success)
+            {
+                _logger.LogInformation("Twitch chat mode {Mode} change failed: {Failure}",
+                    mode, MapHelixFailure(response));
+                return false;
+            }
+
+            _logger.LogInformation("Twitch chat mode {Mode} set to {State}", mode, enabled ? "on" : "off");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Twitch chat mode {Mode} change failed", mode);
+            return false;
         }
     }
 

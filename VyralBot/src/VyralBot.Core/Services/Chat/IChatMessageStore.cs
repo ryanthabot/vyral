@@ -9,6 +9,12 @@ namespace VyralBot.Core.Services.Chat;
 public interface IChatMessageStore
 {
     Task<bool> AddAsync(string platform, string channel, IEvent evt);
+
+    /// <summary>
+    /// Most recent stored events (oldest->newest). An empty/null channel
+    /// selects the platform's most recent messages across ALL channels
+    /// (used by the /chatfeed overlay, which does not know channel keys).
+    /// </summary>
     Task<IReadOnlyList<IEvent>> GetRecentAsync(string platform, string channel, int limit = 200);
     Task DeleteAsync(string platform, string channel);
 }

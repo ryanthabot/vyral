@@ -107,6 +107,7 @@ Where the major subsystems live and which doc covers them:
 | VyralDeck / StreamDeck | `UI/Services/VyralDeck/` (server, pairing, executor), `mobile/vyral_deck/` | [features/vyraldeck.md](features/vyraldeck.md) |
 | Crash pipeline | `App` global handlers, `CrashReport`, crash dialog | [services/crash-pipeline.md](services/crash-pipeline.md) |
 | OBS remote control | `Integrations/Obs/WebSocket/ObsWebSocketClient` | [services/obs-websocket-client.md](services/obs-websocket-client.md) |
+| Session summaries | `Core/Services/Statistics/SessionSummaryService` (post-stream report), Statistics page Sessions tab, `SessionEndedEvent` | [services/session-summary-service.md](services/session-summary-service.md), [ui/statistics-viewmodel.md](ui/statistics-viewmodel.md) |
 
 ## Documentation Index
 
@@ -136,7 +137,8 @@ Where the major subsystems live and which doc covers them:
 | [features/marketplace-sharecodes.md](features/marketplace-sharecodes.md) | Command marketplace + sharecode import |
 | [features/quotes.md](features/quotes.md) | Quote database + `!quote` command family |
 | [features/song-requests.md](features/song-requests.md) | Chat-driven song request queue + `!sr` command family |
-| [features/giveaways-and-polls.md](features/giveaways-and-polls.md) | Weighted-raffle giveaways + chat polls (race-hardened draws/votes) |
+| [features/giveaways-and-polls.md](features/giveaways-and-polls.md) | Weighted-raffle giveaways + chat polls (race-hardened draws/votes, `!poll start Q \| A \| B`, `!vote` alias) |
+| [features/poll-overlay.md](features/poll-overlay.md) | Poll OBS browser source (live bars, winner highlight, `/poll/data` endpoint) |
 | [features/restream.md](features/restream.md) | Multi-platform FFmpeg restream (ingest, fan-out, verified FFmpeg acquisition, uplink hint) |
 | [features/vyraldeck.md](features/vyraldeck.md) | VyralDeck mobile companion (LAN server, PIN pairing, 22 deck actions) |
 
@@ -163,6 +165,8 @@ Where the major subsystems live and which doc covers them:
 | [services/profile-service.md](services/profile-service.md) | ProfileService |
 | [services/process-management.md](services/process-management.md) | Process management |
 | [services/tts-service.md](services/tts-service.md) | TextToSpeechService (!tts + spoken alerts, SAPI) |
+| [services/session-summary-service.md](services/session-summary-service.md) | Stream session summaries (post-stream report, SessionEndedEvent) |
+| [services/chat-mode-command-service.md](services/chat-mode-command-service.md) | ChatModeCommandService (!emoteonly/!subonly/!followers/!slow with auto-revert) |
 
 ### Models
 | Doc | Description |

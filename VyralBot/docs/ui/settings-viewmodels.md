@@ -16,7 +16,7 @@ ViewModels for specific settings areas: web server, audio, sounds, alerts, varia
 - **File:** `src/VyralBot.UI/ViewModels/AudioSettingsViewModel.cs` (~441 lines)
 - **Class:** `AudioSettingsViewModel : ViewModelBase, IDisposable`
 - **Constructor:** `ILogger`, `IDataService`, `ISoundService`, `WebhookCoordinatorService?`
-- **Observable properties:** `_streamerSoundsEnabled`, `_streamSoundsEnabled`, `_masterVolume`, `_webSocketPort`, `_connectedClients`, `_isServerRunning`, `_browserSourceUrl`
+- **Observable properties:** `_streamerSoundsEnabled`, `_streamSoundsEnabled`, `_masterVolume`, `_webSocketPort`, `_connectedClients`, `_isServerRunning`, `_browserSourceUrl`, `_chatFeedOverlayUrl` (chatfeed.html URL for the Browser Sources card's chat-feed caption row — rebuilt wherever `BrowserSourceUrl` is, same port source; `CopyChatFeedOverlayUrlCommand` copies it; see `docs/features/chat-feed-overlay.md`)
 - **View:** `src/VyralBot.UI/Views/AudioSettingsView.xaml(.cs)`
 - **Persistence:** the `AudioSettings` config blob (shared with the Sounds page
   master-volume slider). Toggles apply on **Save Settings**; the master-volume

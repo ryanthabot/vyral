@@ -488,6 +488,18 @@
                     <TextBlock Text="No goals yet — press Add Goal to create one."
                                Style="{StaticResource EmptyState}"
                                Visibility="{Binding Goals.Count, Converter={StaticResource CountIsZeroConverter}, ConverterParameter=0}"/>
+
+                    <!-- Goals overlay (OBS browser source) -->
+                    <DockPanel Margin="0,12,0,0">
+                        <Button DockPanel.Dock="Right" Content="📋 COPY" Command="{Binding CopyGoalsOverlayUrlCommand}"
+                                Background="{DynamicResource PrimaryBrush}" Foreground="{DynamicResource TextOnPrimaryBrush}" Padding="15,8" Margin="10,0,0,0" BorderThickness="0" Cursor="Hand" VerticalAlignment="Center"/>
+                        <TextBlock Text="Overlay URL:" Foreground="{DynamicResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{Binding GoalsOverlayUrl}" Foreground="{DynamicResource TextSecondaryBrush}"
+                                   FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <TextBlock Text="Add the URL as a Browser Source in OBS (loopback - OBS must run on this machine). It shows one progress bar per enabled goal (completions / target) and refreshes every 15 seconds; add &amp;style=light or &amp;size=l to the URL to customize."
+                               FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,8,0,0"/>
                 </StackPanel>
             </Border>
 
