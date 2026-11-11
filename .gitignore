@@ -18,3 +18,7 @@ VyralBot/appdata/*.txt
 # libobs game-capture writes this into the app's working directory at runtime
 win-capture/
 ui-audit/
+
+# Release binaries ship via GitHub Releases, not git
+releases/*
+!releases/README.md
