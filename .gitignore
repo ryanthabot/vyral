@@ -22,3 +22,11 @@ ui-audit/
 # Release binaries ship via GitHub Releases, not git
 releases/*
 !releases/README.md
+
+# Local dev session/tooling artifacts — never commit
+.superpowers/
+_automation_test/
+.vscode/
+__pycache__/
+*.pyc
+VerifyBin/
